@@ -49,7 +49,7 @@ CBC Chain represents a next-generation blockchain platform that extends traditio
 │  ├── CBC Node (Multi-mode)       ├── Advanced Logging System                │
 │  ├── Service Configuration       ├── Security & Rate Limiting               │
 │  ├── Network Protocol            ├── Chain Specifications (4 modes)         │
-│  └── Client Services             └── Benchmarking Infrastructure             │
+│  └── Client Services             └── Benchmarking Infrastructure            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Infrastructure Layer                                                       │
 │  ├── Monitoring (Prometheus)     ├── Testing Infrastructure                 │
