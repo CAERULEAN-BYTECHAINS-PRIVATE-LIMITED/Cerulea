@@ -20,3 +20,6 @@ pub mod proposer_integration_test;
 
 /// Task 8 Prometheus metrics tests
 pub mod task8_metrics_test;
+
+/// State root calculation fix tests (Issue #1)
+pub mod state_root_fix_test;

@@ -4,20 +4,18 @@
 
 use crate::error::{ConsensusError, ConsensusResult};
 use crate::inherent_providers::CbcInherentDataProviders;
-use sp_api::ProvideRuntimeApi;
+use sp_api::{ProvideRuntimeApi, Core};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::NumberFor;
 use sp_core::sr25519::Public;
 use cbc_runtime::AccountId;
 use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
 use std::sync::Arc;
-use sp_runtime::traits::{Block as BlockTrait, Header as HeaderTrait, Zero, SaturatedConversion, Hash};
+use sp_runtime::traits::{Block as BlockTrait, Header as HeaderTrait, Zero, SaturatedConversion};
 use std::time::{Duration, Instant};
 use std::marker::PhantomData;
 use sc_transaction_pool_api::{TransactionPool, InPoolTransaction};
-
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_core::Encode;
 use log::{debug, warn, error};
 
 /// Factory for creating real blocks with transactions using DCF runtime API for author selection
@@ -58,34 +56,47 @@ where
     }
 
     /// Create a new block with transactions from the pool using the expected author from DCF runtime API
+    /// This method now delegates to the comprehensive block creation method
     pub async fn create_block_with_transactions_and_digest(
         &mut self, 
         parent_hash: B::Hash, 
         slot: u64, 
         author_digest: Option<sp_runtime::generic::DigestItem>
     ) -> ConsensusResult<(B, Public)> {
-        // Check if enough time has passed since last block
+        debug!("ProposerFactory: create_block_with_transactions_and_digest called for slot {}", slot);
+        
+        // Use the comprehensive block creation method
+        self.create_complete_block(parent_hash, slot, author_digest, None).await
+    }
+
+    /// Create a new block with transactions from the pool using the expected author from DCF runtime API
+    /// This is the main entry point for block creation with proper state root calculation
+    pub async fn create_block_with_transactions(&mut self, parent_hash: B::Hash, slot: u64) -> ConsensusResult<(B, Public)> {
+        self.create_block_with_transactions_and_digest(parent_hash, slot, None).await
+    }
+    
+    /// Create a complete block with proper state root calculation and comprehensive error handling
+    /// This method implements the full Substrate block building pipeline
+    pub async fn create_complete_block(
+        &mut self,
+        parent_hash: B::Hash,
+        _slot: u64,
+        author_digest: Option<sp_runtime::generic::DigestItem>,
+        force_author: Option<Public>,
+    ) -> ConsensusResult<(B, Public)> {
+        debug!("ProposerFactory: Starting complete block creation for slot {}", _slot);
+        
+        // Check timing constraints
         if let Some(last_time) = self.last_block_time {
             if last_time.elapsed() < self.min_block_time {
                 return Err(ConsensusError::Proposer(
-                    "Not enough time since last block".into(),
+                    format!("Not enough time since last block: {:?} < {:?}", 
+                           last_time.elapsed(), self.min_block_time)
                 ));
             }
         }
 
-        // Fetch expected author from runtime API
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        let block_number = slot as u32;
-        let author = match api.get_expected_author(best_hash, block_number) {
-            Ok(Some(account_id)) => Public::from_raw(*account_id.as_ref()),
-            Ok(None) => return Err(ConsensusError::AuthorSelection("No expected author returned by runtime".into())),
-            Err(e) => return Err(ConsensusError::AuthorSelection(format!("Runtime API error: {:?}", e))),
-        };
-
-        debug!("Creating block #{} with author {:?}", block_number, author);
-
-        // Get parent header
+        // Get parent header and validate it
         let parent_header = self.client.header(parent_hash)
             .map_err(|e| ConsensusError::Proposer(format!("Failed to get parent header: {:?}", e)))?
             .ok_or_else(|| ConsensusError::Proposer("Parent header not found".into()))?;
@@ -93,17 +104,43 @@ where
         let block_number = (*parent_header.number()).saturated_into::<u32>() + 1;
         let header_number = (block_number as u64).saturated_into::<<B::Header as HeaderTrait>::Number>();
         
-        debug!("ProposerFactory: Creating block #{} with parent_hash: {:?}", block_number, parent_hash);
-        debug!("ProposerFactory: Parent header details - number: {:?}, hash: {:?}", 
-               parent_header.number(), parent_header.hash());
+        debug!("ProposerFactory: Creating block #{} with parent #{} (hash: {:?})", 
+               block_number, parent_header.number(), parent_hash);
         
-        // 1. Create inherent data using the inherent providers
+        // Determine the block author
+        let author = if let Some(forced_author) = force_author {
+            debug!("ProposerFactory: Using forced author: {:?}", forced_author);
+            forced_author
+        } else {
+            // Fetch expected author from runtime API
+            let api = self.client.runtime_api();
+            let best_hash = self.client.info().best_hash;
+            
+            match api.get_expected_author(best_hash, block_number) {
+                Ok(Some(account_id)) => {
+                    let author = Public::from_raw(*account_id.as_ref());
+                    debug!("ProposerFactory: Runtime selected author: {:?}", author);
+                    author
+                }
+                Ok(None) => {
+                    return Err(ConsensusError::AuthorSelection(
+                        "No expected author returned by runtime".into()
+                    ));
+                }
+                Err(e) => {
+                    return Err(ConsensusError::AuthorSelection(
+                        format!("Runtime API error: {:?}", e)
+                    ));
+                }
+            }
+        };
+
+        // Create inherent data
+        debug!("ProposerFactory: Creating inherent data");
         let inherent_data = self.inherent_providers.create_inherent_data().await
             .map_err(|e| ConsensusError::Proposer(format!("Failed to create inherent data: {:?}", e)))?;
         
-        debug!("ProposerFactory: Created inherent data successfully");
-        
-        // 2. Convert inherent data to extrinsics using runtime API
+        // Convert inherent data to extrinsics
         let inherent_extrinsics = match self.client.runtime_api().inherent_extrinsics(parent_hash, inherent_data) {
             Ok(extrinsics) => {
                 debug!("ProposerFactory: Created {} inherent extrinsics", extrinsics.len());
@@ -111,16 +148,17 @@ where
             }
             Err(e) => {
                 error!("ProposerFactory: Failed to create inherent extrinsics: {:?}", e);
-                // Fallback: create empty inherents to prevent block production failure
-                debug!("ProposerFactory: Using empty inherents as fallback");
-                Vec::new()
+                // For critical failure, we cannot proceed without inherents
+                return Err(ConsensusError::Proposer(
+                    format!("Failed to create inherent extrinsics: {:?}", e)
+                ));
             }
         };
         
-        // 3. Get transactions from the pool
+        // Get transactions from the pool
         let ready_transactions = self.collect_transactions_from_pool().await?;
         
-        // 4. Combine inherents + transactions (inherents first, as per requirements)
+        // Combine inherents + transactions (inherents must come first)
         let mut all_extrinsics = inherent_extrinsics;
         let inherent_count = all_extrinsics.len();
         all_extrinsics.extend(ready_transactions);
@@ -129,69 +167,278 @@ where
         debug!("ProposerFactory: Combined {} inherent + {} transaction extrinsics (total: {})", 
                inherent_count, transaction_count, all_extrinsics.len());
         
-        // Verify extrinsic ordering: inherents should come first
-        if inherent_count > 0 && transaction_count > 0 {
-            debug!("ProposerFactory: Verified extrinsic ordering - {} inherents followed by {} transactions", 
-                   inherent_count, transaction_count);
-        }
-        
-        // Calculate extrinsics root using the correct method
-        let extrinsics_root = <<B::Header as HeaderTrait>::Hashing as Hash>::ordered_trie_root(
-            all_extrinsics.iter().map(|xt: &B::Extrinsic| xt.encode()).collect(),
-            sp_runtime::StateVersion::V1,
-        );
-        
-        debug!("ProposerFactory: Calculated extrinsics root for {} extrinsics: {:?}", 
-               all_extrinsics.len(), extrinsics_root);
-        
-        let state_root = Default::default();
-        debug!("ProposerFactory: Header parameters - number: {:?}, extrinsics_root: {:?}, state_root: {:?}, parent_hash: {:?}", 
-               header_number, extrinsics_root, state_root, parent_hash);
-        
-        // Create digest with author information if provided
+        // Create digest with author information
         let mut digest = sp_runtime::generic::Digest::default();
         if let Some(author_digest_item) = author_digest {
             digest.push(author_digest_item);
             debug!("ProposerFactory: Added author digest to block header");
         }
         
-        // Create header with proper roots - correct parameter order: (number, extrinsics_root, state_root, parent_hash, digest)
-        let header = B::Header::new(
-            header_number,
-            extrinsics_root,
-            state_root, // state root will be calculated during execution  
+        // Build the block with proper state root calculation
+        debug!("ProposerFactory: Building block with proper state root calculation");
+        let block = self.build_block_with_state_root(
             parent_hash,
-            digest, // digest with author information
-        );
+            header_number,
+            digest,
+            all_extrinsics,
+        ).await?;
         
-        debug!("ProposerFactory: Header created successfully");
-        debug!("ProposerFactory: Header parent hash verification - expected: {:?}, actual: {:?}", 
-               parent_hash, header.parent_hash());
+        // Final validation
+        debug!("ProposerFactory: Performing final block validation");
+        self.validate_final_block(&block, &author, block_number)?;
         
-        // Verify parent hash propagation
-        if header.parent_hash() != &parent_hash {
-            error!("ProposerFactory: Parent hash mismatch! Expected: {:?}, Got: {:?}", 
-                   parent_hash, header.parent_hash());
-            return Err(ConsensusError::Proposer("Parent hash mismatch in header creation".into()));
+        // Update timing
+        self.last_block_time = Some(Instant::now());
+        
+        debug!("ProposerFactory: Successfully created complete block #{} with author {:?}", 
+               block_number, author);
+        debug!("ProposerFactory: Block hash: {:?}, state root: {:?}", 
+               block.header().hash(), block.header().state_root());
+        
+        Ok((block, author))
+    }
+    
+    /// Validate the final block before returning it
+    fn validate_final_block(&self, block: &B, author: &Public, expected_block_number: u32) -> ConsensusResult<()> {
+        let header = block.header();
+        
+        debug!("ProposerFactory: Validating final block");
+        
+        // Check block number
+        let actual_block_number = (*header.number()).saturated_into::<u32>();
+        if actual_block_number != expected_block_number {
+            return Err(ConsensusError::Proposer(
+                format!("Block number mismatch: expected {}, got {}", 
+                       expected_block_number, actual_block_number)
+            ));
         }
         
-        debug!("ProposerFactory: Parent hash propagation verified successfully");
-
-        // Create the complete block with transactions
-        let block = B::new(header, all_extrinsics);
+        // Check that we have a valid state root
+        let zero_hash = Default::default();
+        if header.state_root() == &zero_hash {
+            return Err(ConsensusError::Proposer(
+                "Final block still has zero state root - block building failed".into()
+            ));
+        }
         
-        debug!("Created block #{} with {} extrinsics from pool, final parent: {:?}", 
-              block_number, block.extrinsics().len(), block.header().parent_hash());
-
+        // Check extrinsics root for non-empty blocks
+        if !block.extrinsics().is_empty() && header.extrinsics_root() == &zero_hash {
+            return Err(ConsensusError::Proposer(
+                "Final block has zero extrinsics root but contains extrinsics".into()
+            ));
+        }
+        
+        debug!("ProposerFactory: Final block validation passed");
+        debug!("ProposerFactory: - Block number: {}", actual_block_number);
+        debug!("ProposerFactory: - Author: {:?}", author);
+        debug!("ProposerFactory: - State root: {:?}", header.state_root());
+        debug!("ProposerFactory: - Extrinsics root: {:?}", header.extrinsics_root());
+        debug!("ProposerFactory: - Parent hash: {:?}", header.parent_hash());
+        debug!("ProposerFactory: - Extrinsics count: {}", block.extrinsics().len());
+        
+        Ok(())
+    }
+    
+    /// Emergency block creation method that creates a minimal block with only inherents
+    /// This is used as a fallback when normal block creation fails
+    pub async fn create_emergency_block(
+        &mut self,
+        parent_hash: B::Hash,
+        slot: u64,
+        author: Public,
+    ) -> ConsensusResult<(B, Public)> {
+        warn!("ProposerFactory: Creating emergency block - this should only be used as a fallback");
+        
+        // Get parent header
+        let parent_header = self.client.header(parent_hash)
+            .map_err(|e| ConsensusError::Proposer(format!("Failed to get parent header: {:?}", e)))?
+            .ok_or_else(|| ConsensusError::Proposer("Parent header not found".into()))?;
+        
+        let block_number = (*parent_header.number()).saturated_into::<u32>() + 1;
+        let header_number = (block_number as u64).saturated_into::<<B::Header as HeaderTrait>::Number>();
+        
+        warn!("ProposerFactory: Creating emergency block #{} with author {:?}", block_number, author);
+        
+        // Create minimal inherent data (timestamp only)
+        let inherent_data = self.inherent_providers.create_inherent_data().await
+            .map_err(|e| ConsensusError::Proposer(format!("Failed to create inherent data: {:?}", e)))?;
+        
+        // Convert to extrinsics
+        let inherent_extrinsics = self.client.runtime_api().inherent_extrinsics(parent_hash, inherent_data)
+            .map_err(|e| ConsensusError::Proposer(format!("Failed to create inherent extrinsics: {:?}", e)))?;
+        
+        debug!("ProposerFactory: Emergency block using {} inherent extrinsics only", inherent_extrinsics.len());
+        
+        // Build block with only inherents
+        let block = self.build_block_with_state_root(
+            parent_hash,
+            header_number,
+            Default::default(), // No special digest
+            inherent_extrinsics,
+        ).await?;
+        
+        warn!("ProposerFactory: Emergency block #{} created successfully", block_number);
+        
         self.last_block_time = Some(Instant::now());
         Ok((block, author))
     }
-
-    /// Create a new block with transactions from the pool using the expected author from DCF runtime API
-    pub async fn create_block_with_transactions(&mut self, parent_hash: B::Hash, slot: u64) -> ConsensusResult<(B, Public)> {
-        self.create_block_with_transactions_and_digest(parent_hash, slot, None).await
+    
+    /// Build a block with proper state root calculation using the BlockBuilder API
+    /// This method follows the proper Substrate block building pattern:
+    /// 1. Initialize block with temporary header
+    /// 2. Apply all extrinsics one by one
+    /// 3. Finalize block to get header with calculated state root and extrinsics root
+    async fn build_block_with_state_root(
+        &self,
+        parent_hash: B::Hash,
+        block_number: <<B as BlockTrait>::Header as HeaderTrait>::Number,
+        digest: sp_runtime::generic::Digest,
+        extrinsics: Vec<B::Extrinsic>,
+    ) -> ConsensusResult<B> {
+        debug!("ProposerFactory: Starting block building process for block #{}", block_number);
+        debug!("ProposerFactory: Parent hash: {:?}, Extrinsics count: {}", parent_hash, extrinsics.len());
+        
+        let api = self.client.runtime_api();
+        
+        // Step 1: Create a temporary header for block initialization
+        // The state_root and extrinsics_root will be calculated during the building process
+        let temp_header = B::Header::new(
+            block_number,
+            Default::default(), // extrinsics_root - will be calculated by finalize_block
+            Default::default(), // state_root - will be calculated by finalize_block
+            parent_hash,
+            digest.clone(),
+        );
+        
+        debug!("ProposerFactory: Created temporary header for block #{}", block_number);
+        debug!("ProposerFactory: Temp header - number: {:?}, parent: {:?}", 
+               temp_header.number(), temp_header.parent_hash());
+        
+        // Step 2: Initialize the block in the runtime state
+        // This sets up the runtime state for block building
+        debug!("ProposerFactory: Initializing block in runtime state");
+        let _inclusion_mode = api.initialize_block(parent_hash, &temp_header)
+            .map_err(|e| {
+                error!("ProposerFactory: Failed to initialize block: {:?}", e);
+                ConsensusError::Proposer(format!("Failed to initialize block: {:?}", e))
+            })?;
+        
+        debug!("ProposerFactory: Block initialized successfully");
+        
+        // Step 3: Apply all extrinsics to the runtime state
+        debug!("ProposerFactory: Applying {} extrinsics to runtime state", extrinsics.len());
+        let mut applied_count = 0;
+        let mut failed_count = 0;
+        
+        for (i, extrinsic) in extrinsics.iter().enumerate() {
+            debug!("ProposerFactory: Applying extrinsic {} of {}", i + 1, extrinsics.len());
+            
+            match api.apply_extrinsic(parent_hash, extrinsic.clone()) {
+                Ok(_apply_result) => {
+                    debug!("ProposerFactory: Successfully applied extrinsic {}", i);
+                    applied_count += 1;
+                }
+                Err(api_error) => {
+                    error!("ProposerFactory: Failed to apply extrinsic {} due to API error: {:?}", i, api_error);
+                    failed_count += 1;
+                    
+                    // For critical extrinsics (like inherents), we might want to fail the entire block
+                    if i < 1 { // Assume first extrinsic is critical (timestamp inherent)
+                        return Err(ConsensusError::Proposer(
+                            format!("Failed to apply critical extrinsic {}: {:?}", i, api_error)
+                        ));
+                    }
+                    
+                    // For non-critical extrinsics, we can continue but log the failure
+                    warn!("ProposerFactory: Skipping failed extrinsic {} and continuing", i);
+                }
+            }
+        }
+        
+        debug!("ProposerFactory: Applied {} extrinsics successfully, {} failed", 
+               applied_count, failed_count);
+        
+        // Step 4: Finalize the block to calculate the correct state root and extrinsics root
+        debug!("ProposerFactory: Finalizing block to calculate state root and extrinsics root");
+        let final_header = api.finalize_block(parent_hash)
+            .map_err(|e| {
+                error!("ProposerFactory: Failed to finalize block: {:?}", e);
+                ConsensusError::Proposer(format!("Failed to finalize block: {:?}", e))
+            })?;
+        
+        debug!("ProposerFactory: Block finalized successfully");
+        debug!("ProposerFactory: Final header - number: {:?}, state_root: {:?}, extrinsics_root: {:?}", 
+               final_header.number(), final_header.state_root(), final_header.extrinsics_root());
+        debug!("ProposerFactory: Final header - parent_hash: {:?}, digest logs: {}", 
+               final_header.parent_hash(), final_header.digest().logs().len());
+        
+        // Step 5: Verify the final header has the correct parent hash and digest
+        if final_header.parent_hash() != &parent_hash {
+            error!("ProposerFactory: Final header parent hash mismatch! Expected: {:?}, Got: {:?}", 
+                   parent_hash, final_header.parent_hash());
+            return Err(ConsensusError::Proposer("Parent hash mismatch in final header".into()));
+        }
+        
+        // Verify the digest is preserved (it should contain our author information)
+        if final_header.digest().logs().len() != digest.logs().len() {
+            warn!("ProposerFactory: Digest logs count changed during finalization. Original: {}, Final: {}", 
+                  digest.logs().len(), final_header.digest().logs().len());
+        }
+        
+        // Step 6: Create the final block with the calculated header and original extrinsics
+        // Note: We use the original extrinsics list, not just the applied ones,
+        // because the block should contain all extrinsics that were attempted
+        let final_block = B::new(final_header, extrinsics);
+        
+        debug!("ProposerFactory: Created final block with {} extrinsics", final_block.extrinsics().len());
+        debug!("ProposerFactory: Final block hash: {:?}", final_block.header().hash());
+        
+        // Step 7: Validate the final block structure
+        self.validate_built_block(&final_block)?;
+        
+        debug!("ProposerFactory: Block building completed successfully for block #{}", block_number);
+        Ok(final_block)
     }
     
+    /// Validate the structure of a built block to ensure it's correct
+    fn validate_built_block(&self, block: &B) -> ConsensusResult<()> {
+        let header = block.header();
+        let extrinsics = block.extrinsics();
+        
+        debug!("ProposerFactory: Validating built block structure");
+        
+        // Check that state root is not the default (zero) value
+        let zero_hash = Default::default();
+        if header.state_root() == &zero_hash {
+            error!("ProposerFactory: Block validation failed - state root is still zero!");
+            return Err(ConsensusError::Proposer("Built block has zero state root".into()));
+        }
+        
+        // Check that extrinsics root is not the default (zero) value if we have extrinsics
+        if !extrinsics.is_empty() && header.extrinsics_root() == &zero_hash {
+            error!("ProposerFactory: Block validation failed - extrinsics root is zero but block has extrinsics!");
+            return Err(ConsensusError::Proposer("Built block has zero extrinsics root with non-empty extrinsics".into()));
+        }
+        
+        // Check that parent hash is not zero (unless this is genesis)
+        if *header.number() != Zero::zero() && header.parent_hash() == &zero_hash {
+            error!("ProposerFactory: Block validation failed - parent hash is zero for non-genesis block!");
+            return Err(ConsensusError::Proposer("Built block has zero parent hash".into()));
+        }
+        
+        debug!("ProposerFactory: Block validation passed");
+        debug!("ProposerFactory: - State root: {:?} (non-zero: {})", 
+               header.state_root(), header.state_root() != &zero_hash);
+        debug!("ProposerFactory: - Extrinsics root: {:?} (non-zero: {})", 
+               header.extrinsics_root(), header.extrinsics_root() != &zero_hash);
+        debug!("ProposerFactory: - Parent hash: {:?} (non-zero: {})", 
+               header.parent_hash(), header.parent_hash() != &zero_hash);
+        debug!("ProposerFactory: - Block number: {:?}", header.number());
+        debug!("ProposerFactory: - Extrinsics count: {}", extrinsics.len());
+        
+        Ok(())
+    }
+
     /// Collect transactions from the transaction pool
     async fn collect_transactions_from_pool(&self) -> ConsensusResult<Vec<B::Extrinsic>> {
         let ready_transactions = self.transaction_pool.ready()
@@ -207,7 +454,8 @@ where
 
     /// Create a new block with the expected author from the DCF runtime API (legacy method for compatibility)
     pub fn create_block(&mut self, parent_hash: B::Hash, slot: u64) -> ConsensusResult<(B::Header, Public)> {
-        warn!("ProposerFactory: Using legacy create_block method - consider using create_block_with_transactions");
+        warn!("ProposerFactory: Using legacy create_block method - this method creates headers with placeholder state roots");
+        warn!("ProposerFactory: Consider using create_block_with_transactions for proper state root calculation");
         
         // Fetch expected author from runtime API
         let api = self.client.runtime_api();
@@ -219,14 +467,15 @@ where
             Err(e) => return Err(ConsensusError::AuthorSelection(format!("Runtime API error: {:?}", e))),
         };
 
-        // Create basic block header
+        // Create basic block header with placeholder values
+        // NOTE: This method is deprecated because it doesn't calculate proper state roots
         let number = <<B as BlockTrait>::Header as HeaderTrait>::Number::zero();
         debug!("ProposerFactory: Legacy create_block - creating header with parent_hash: {:?}", parent_hash);
         
         let header = B::Header::new(
             number,
-            Default::default(), // extrinsics_root
-            Default::default(), // state_root
+            Default::default(), // extrinsics_root - placeholder
+            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)
             parent_hash,
             Default::default(), // digest
         );
@@ -241,6 +490,7 @@ where
             return Err(ConsensusError::Proposer("Parent hash mismatch in legacy header creation".into()));
         }
 
+        warn!("ProposerFactory: Legacy method returning header with placeholder state root - this will cause block import failures!");
         Ok((header, author))
     }
 
@@ -250,15 +500,21 @@ where
     }
 
     /// Create a new block proposer (header only, for compatibility)
+    /// WARNING: This method creates headers with placeholder state roots and should not be used for actual block production
     pub fn create_proposer(&self) -> ConsensusResult<B::Header> {
+        warn!("ProposerFactory: create_proposer method creates headers with placeholder state roots");
+        warn!("ProposerFactory: This method should not be used for actual block production");
+        
         let number = <<B as BlockTrait>::Header as HeaderTrait>::Number::zero();
         let header = B::Header::new(
             number,
-            Default::default(), // extrinsics_root
-            Default::default(), // state_root
-            Default::default(), // parent_hash
+            Default::default(), // extrinsics_root - placeholder
+            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)
+            Default::default(), // parent_hash - placeholder
             Default::default(), // digest
         );
+        
+        warn!("ProposerFactory: Returning header with placeholder values - this will cause block import failures if used!");
         Ok(header)
     }
 }
