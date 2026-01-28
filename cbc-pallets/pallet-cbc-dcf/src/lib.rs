@@ -12063,6 +12063,39 @@ pub mod pallet {
             // Initialize rate limiting configuration with default values
             RateLimitConfigStorage::<T>::put(RateLimitConfig::default());
 
+            // **FIX FOR ISSUE #3: Initialize Epoch 0 Author Sequence**
+            // Generate deterministic author sequence for epoch 0 to fix the missing initialization
+            if !self.validators.is_empty() {
+                // Create deterministic randomness seed for epoch 0
+                let genesis_randomness_salt = [0u8; 32]; // Use zero salt for genesis
+                let genesis_epoch_salt = [0u8; 16]; // Use zero epoch salt for genesis
+                let randomness_seed = Pallet::<T>::generate_deterministic_randomness(
+                    1, // Genesis block number
+                    0, // Epoch 0
+                    &genesis_randomness_salt,
+                    &genesis_epoch_salt
+                );
+
+                // Convert validators to BoundedVec for the function
+                let validators_bounded = BoundedVec::try_from(self.validators.clone())
+                    .unwrap_or_else(|_| {
+                        panic!("Genesis validators exceed MaxValidators during author sequence generation");
+                    });
+
+                // Generate deterministic author sequence for epoch 0
+                let epoch_0_author_sequence = Pallet::<T>::generate_deterministic_author_sequence(
+                    0, // Epoch 0
+                    &validators_bounded,
+                    &randomness_seed
+                );
+
+                // Store the author sequence for epoch 0
+                EpochAuthorSequences::<T>::insert(0, &epoch_0_author_sequence);
+
+                log::info!("DCF: Generated deterministic author sequence for epoch 0 with {} authors",
+                          epoch_0_author_sequence.len());
+            }
+
             // Initialize system metrics with genesis state
             Pallet::<T>::update_system_metrics();
 
