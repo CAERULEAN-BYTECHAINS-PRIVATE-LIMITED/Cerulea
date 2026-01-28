@@ -84,7 +84,7 @@ where
         author_digest: Option<sp_runtime::generic::DigestItem>,
         force_author: Option<Public>,
     ) -> ConsensusResult<(B, Public)> {
-        debug!("ProposerFactory: Starting complete block creation for slot {}", _slot);
+        log::trace!("ProposerFactory: Starting complete block creation for slot {}", _slot);
         
         // Check timing constraints
         if let Some(last_time) = self.last_block_time {
@@ -104,12 +104,12 @@ where
         let block_number = (*parent_header.number()).saturated_into::<u32>() + 1;
         let header_number = (block_number as u64).saturated_into::<<B::Header as HeaderTrait>::Number>();
         
-        debug!("ProposerFactory: Creating block #{} with parent #{} (hash: {:?})", 
+        log::trace!("ProposerFactory: Creating block #{} with parent #{} (hash: {:?})", 
                block_number, parent_header.number(), parent_hash);
         
         // Determine the block author
         let author = if let Some(forced_author) = force_author {
-            debug!("ProposerFactory: Using forced author: {:?}", forced_author);
+            log::trace!("ProposerFactory: Using forced author: {:?}", forced_author);
             forced_author
         } else {
             // Fetch expected author from runtime API
@@ -119,7 +119,7 @@ where
             match api.get_expected_author(best_hash, block_number) {
                 Ok(Some(account_id)) => {
                     let author = Public::from_raw(*account_id.as_ref());
-                    debug!("ProposerFactory: Runtime selected author: {:?}", author);
+                    log::trace!("ProposerFactory: Runtime selected author: {:?}", author);
                     author
                 }
                 Ok(None) => {
@@ -136,14 +136,14 @@ where
         };
 
         // Create inherent data
-        debug!("ProposerFactory: Creating inherent data");
+        log::trace!("ProposerFactory: Creating inherent data");
         let inherent_data = self.inherent_providers.create_inherent_data().await
             .map_err(|e| ConsensusError::Proposer(format!("Failed to create inherent data: {:?}", e)))?;
         
         // Convert inherent data to extrinsics
         let inherent_extrinsics = match self.client.runtime_api().inherent_extrinsics(parent_hash, inherent_data) {
             Ok(extrinsics) => {
-                debug!("ProposerFactory: Created {} inherent extrinsics", extrinsics.len());
+                log::trace!("ProposerFactory: Created {} inherent extrinsics", extrinsics.len());
                 extrinsics
             }
             Err(e) => {
@@ -164,18 +164,19 @@ where
         all_extrinsics.extend(ready_transactions);
         let transaction_count = all_extrinsics.len() - inherent_count;
         
-        debug!("ProposerFactory: Combined {} inherent + {} transaction extrinsics (total: {})", 
+        log::trace!("ProposerFactory: Combined {} inherent + {} transaction extrinsics (total: {})", 
                inherent_count, transaction_count, all_extrinsics.len());
         
         // Create digest with author information
         let mut digest = sp_runtime::generic::Digest::default();
         if let Some(author_digest_item) = author_digest {
             digest.push(author_digest_item);
-            debug!("ProposerFactory: Added author digest to block header");
+            log::trace!("ProposerFactory: Added author digest to block header");
         }
         
         // Build the block with proper state root calculation
-        debug!("ProposerFactory: Building block with proper state root calculation");
+        log::trace!("ProposerFactory: Building block with proper state root calculation");
+        let extrinsics_count = all_extrinsics.len(); // Store count before move
         let block = self.build_block_with_state_root(
             parent_hash,
             header_number,
@@ -184,15 +185,15 @@ where
         ).await?;
         
         // Final validation
-        debug!("ProposerFactory: Performing final block validation");
+        log::trace!("ProposerFactory: Performing final block validation");
         self.validate_final_block(&block, &author, block_number)?;
         
         // Update timing
         self.last_block_time = Some(Instant::now());
         
-        debug!("ProposerFactory: Successfully created complete block #{} with author {:?}", 
-               block_number, author);
-        debug!("ProposerFactory: Block hash: {:?}, state root: {:?}", 
+        log::info!("ProposerFactory: Successfully created block #{} with {} extrinsics", 
+               block_number, extrinsics_count);
+        log::trace!("ProposerFactory: Block hash: {:?}, state root: {:?}", 
                block.header().hash(), block.header().state_root());
         
         Ok((block, author))
@@ -202,7 +203,7 @@ where
     fn validate_final_block(&self, block: &B, author: &Public, expected_block_number: u32) -> ConsensusResult<()> {
         let header = block.header();
         
-        debug!("ProposerFactory: Validating final block");
+        log::trace!("ProposerFactory: Validating final block");
         
         // Check block number
         let actual_block_number = (*header.number()).saturated_into::<u32>();
@@ -228,13 +229,13 @@ where
             ));
         }
         
-        debug!("ProposerFactory: Final block validation passed");
-        debug!("ProposerFactory: - Block number: {}", actual_block_number);
-        debug!("ProposerFactory: - Author: {:?}", author);
-        debug!("ProposerFactory: - State root: {:?}", header.state_root());
-        debug!("ProposerFactory: - Extrinsics root: {:?}", header.extrinsics_root());
-        debug!("ProposerFactory: - Parent hash: {:?}", header.parent_hash());
-        debug!("ProposerFactory: - Extrinsics count: {}", block.extrinsics().len());
+        log::trace!("ProposerFactory: Final block validation passed");
+        log::trace!("ProposerFactory: - Block number: {}", actual_block_number);
+        log::trace!("ProposerFactory: - Author: {:?}", author);
+        log::trace!("ProposerFactory: - State root: {:?}", header.state_root());
+        log::trace!("ProposerFactory: - Extrinsics root: {:?}", header.extrinsics_root());
+        log::trace!("ProposerFactory: - Parent hash: {:?}", header.parent_hash());
+        log::trace!("ProposerFactory: - Extrinsics count: {}", block.extrinsics().len());
         
         Ok(())
     }
@@ -244,7 +245,7 @@ where
     pub async fn create_emergency_block(
         &mut self,
         parent_hash: B::Hash,
-        slot: u64,
+        _slot: u64,
         author: Public,
     ) -> ConsensusResult<(B, Public)> {
         warn!("ProposerFactory: Creating emergency block - this should only be used as a fallback");
@@ -295,8 +296,8 @@ where
         digest: sp_runtime::generic::Digest,
         extrinsics: Vec<B::Extrinsic>,
     ) -> ConsensusResult<B> {
-        debug!("ProposerFactory: Starting block building process for block #{}", block_number);
-        debug!("ProposerFactory: Parent hash: {:?}, Extrinsics count: {}", parent_hash, extrinsics.len());
+        log::trace!("ProposerFactory: Starting block building process for block #{}", block_number);
+        log::trace!("ProposerFactory: Parent hash: {:?}, Extrinsics count: {}", parent_hash, extrinsics.len());
         
         let api = self.client.runtime_api();
         
@@ -310,32 +311,32 @@ where
             digest.clone(),
         );
         
-        debug!("ProposerFactory: Created temporary header for block #{}", block_number);
-        debug!("ProposerFactory: Temp header - number: {:?}, parent: {:?}", 
+        log::trace!("ProposerFactory: Created temporary header for block #{}", block_number);
+        log::trace!("ProposerFactory: Temp header - number: {:?}, parent: {:?}", 
                temp_header.number(), temp_header.parent_hash());
         
         // Step 2: Initialize the block in the runtime state
         // This sets up the runtime state for block building
-        debug!("ProposerFactory: Initializing block in runtime state");
+        log::trace!("ProposerFactory: Initializing block in runtime state");
         let _inclusion_mode = api.initialize_block(parent_hash, &temp_header)
             .map_err(|e| {
                 error!("ProposerFactory: Failed to initialize block: {:?}", e);
                 ConsensusError::Proposer(format!("Failed to initialize block: {:?}", e))
             })?;
         
-        debug!("ProposerFactory: Block initialized successfully");
+        log::trace!("ProposerFactory: Block initialized successfully");
         
         // Step 3: Apply all extrinsics to the runtime state
-        debug!("ProposerFactory: Applying {} extrinsics to runtime state", extrinsics.len());
+        log::trace!("ProposerFactory: Applying {} extrinsics to runtime state", extrinsics.len());
         let mut applied_count = 0;
         let mut failed_count = 0;
         
         for (i, extrinsic) in extrinsics.iter().enumerate() {
-            debug!("ProposerFactory: Applying extrinsic {} of {}", i + 1, extrinsics.len());
+            log::trace!("ProposerFactory: Applying extrinsic {} of {}", i + 1, extrinsics.len());
             
             match api.apply_extrinsic(parent_hash, extrinsic.clone()) {
                 Ok(_apply_result) => {
-                    debug!("ProposerFactory: Successfully applied extrinsic {}", i);
+                    log::trace!("ProposerFactory: Successfully applied extrinsic {}", i);
                     applied_count += 1;
                 }
                 Err(api_error) => {
@@ -355,21 +356,21 @@ where
             }
         }
         
-        debug!("ProposerFactory: Applied {} extrinsics successfully, {} failed", 
+        log::trace!("ProposerFactory: Applied {} extrinsics successfully, {} failed", 
                applied_count, failed_count);
         
         // Step 4: Finalize the block to calculate the correct state root and extrinsics root
-        debug!("ProposerFactory: Finalizing block to calculate state root and extrinsics root");
+        log::trace!("ProposerFactory: Finalizing block to calculate state root and extrinsics root");
         let final_header = api.finalize_block(parent_hash)
             .map_err(|e| {
                 error!("ProposerFactory: Failed to finalize block: {:?}", e);
                 ConsensusError::Proposer(format!("Failed to finalize block: {:?}", e))
             })?;
         
-        debug!("ProposerFactory: Block finalized successfully");
-        debug!("ProposerFactory: Final header - number: {:?}, state_root: {:?}, extrinsics_root: {:?}", 
+        log::trace!("ProposerFactory: Block finalized successfully");
+        log::trace!("ProposerFactory: Final header - number: {:?}, state_root: {:?}, extrinsics_root: {:?}", 
                final_header.number(), final_header.state_root(), final_header.extrinsics_root());
-        debug!("ProposerFactory: Final header - parent_hash: {:?}, digest logs: {}", 
+        log::trace!("ProposerFactory: Final header - parent_hash: {:?}, digest logs: {}", 
                final_header.parent_hash(), final_header.digest().logs().len());
         
         // Step 5: Verify the final header has the correct parent hash and digest
@@ -390,13 +391,13 @@ where
         // because the block should contain all extrinsics that were attempted
         let final_block = B::new(final_header, extrinsics);
         
-        debug!("ProposerFactory: Created final block with {} extrinsics", final_block.extrinsics().len());
-        debug!("ProposerFactory: Final block hash: {:?}", final_block.header().hash());
+        log::trace!("ProposerFactory: Created final block with {} extrinsics", final_block.extrinsics().len());
+        log::trace!("ProposerFactory: Final block hash: {:?}", final_block.header().hash());
         
         // Step 7: Validate the final block structure
         self.validate_built_block(&final_block)?;
         
-        debug!("ProposerFactory: Block building completed successfully for block #{}", block_number);
+        log::trace!("ProposerFactory: Block building completed successfully for block #{}", block_number);
         Ok(final_block)
     }
     

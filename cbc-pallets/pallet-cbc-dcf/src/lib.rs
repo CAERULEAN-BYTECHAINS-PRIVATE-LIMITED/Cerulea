@@ -10754,7 +10754,7 @@ pub mod pallet {
             let block_number = _n.saturated_into::<u32>();
             
             // Full DCF finalization logic
-            log::debug!("DCF: Processing on_finalize for block #{}", block_number);
+            log::trace!("DCF: Processing on_finalize for block #{}", block_number);
             
             let validators = ValidatorSet::<T>::get();
             for validator in validators.iter() {
@@ -12647,7 +12647,7 @@ pub mod pallet {
             if let Some(author_sequence) = EpochAuthorSequences::<T>::get(epoch) {
                 let block_offset = block_number % blocks_per_epoch;
                 if let Some(author) = author_sequence.get(block_offset as usize) {
-                    log::debug!(
+                    log::trace!(
                         "DCF: Selected deterministic author {:?} for block {} (epoch {}, offset {})",
                         author, block_number, epoch, block_offset
                     );
@@ -12656,7 +12656,7 @@ pub mod pallet {
             }
             
             // Fallback to legacy weighted selection if no deterministic sequence available
-            log::debug!(
+            log::trace!(
                 "DCF: No deterministic sequence found for epoch {}, using legacy selection for block {}",
                 epoch, block_number
             );
@@ -12723,7 +12723,7 @@ pub mod pallet {
             for (validator, weight, pos_score, poi_score) in validator_weights {
                 cumulative_weight = cumulative_weight.saturating_add(weight);
                 if target < cumulative_weight {
-                    log::debug!("DCF: Selected legacy author {:?} for block {} (Combined: {}, PoS: {}, PoI: {}, Target: {}/{})", 
+                    log::trace!("DCF: Selected legacy author {:?} for block {} (Combined: {}, PoS: {}, PoI: {}, Target: {}/{})", 
                                validator, block_number, weight, pos_score, poi_score, target, total_weight);
                     return Some(validator);
                 }
@@ -14322,11 +14322,11 @@ pub mod pallet {
             
             // Emit telemetry metrics (reduced frequency)
             if block_number % T::ScoreRefreshInterval::get() == 0 {
-                log::debug!("[cerulea::dcf][prometheus] dcf_health_check{{block={}}} 1", block_number);
-                log::debug!("[cerulea::dcf][prometheus] total_validators{{}} {}", total_validators);
-                log::debug!("[cerulea::dcf][prometheus] active_validators{{}} {}", active_validators);
-                log::debug!("[cerulea::dcf][prometheus] average_validator_score{{}} {}", avg_score);
-                log::debug!("[cerulea::dcf][prometheus] current_epoch{{}} {}", current_epoch);
+                log::trace!("[cerulea::dcf][prometheus] dcf_health_check{{block={}}} 1", block_number);
+                log::trace!("[cerulea::dcf][prometheus] total_validators{{}} {}", total_validators);
+                log::trace!("[cerulea::dcf][prometheus] active_validators{{}} {}", active_validators);
+                log::trace!("[cerulea::dcf][prometheus] average_validator_score{{}} {}", avg_score);
+                log::trace!("[cerulea::dcf][prometheus] current_epoch{{}} {}", current_epoch);
             }
         }
 

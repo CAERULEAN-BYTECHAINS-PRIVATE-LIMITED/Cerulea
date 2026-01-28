@@ -352,51 +352,5 @@ where
         telemetry: None,
     })?;
 
-    // Display detailed startup information once network is initialized
-    {
-        let network_clone = network.clone();
-        let client_clone = client.clone();
-        task_manager.spawn_handle().spawn(
-            "startup-info-display",
-            None,
-            async move {
-                // Wait a moment for network to initialize
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                
-                // Get peer ID
-                let peer_id = network_clone.local_peer_id().to_string();
-                
-                // Measure network latency (simple ping to self)
-                let start_time = std::time::Instant::now();
-                let _info = client_clone.info();
-                let latency = start_time.elapsed();
-                
-                // Get runtime version
-                let runtime_version = match client_clone.runtime_version_at(client_clone.info().best_hash) {
-                    Ok(version) => format!("{}.{}.{}", 
-                        version.spec_version, 
-                        version.impl_version, 
-                        version.transaction_version
-                    ),
-                    Err(_) => "Unknown".to_string(),
-                };
-                
-                // Display detailed startup information
-                crate::logging::display_startup_info(
-                    &runtime_version,
-                    env!("CARGO_PKG_VERSION"),
-                    "CBC Chain",
-                    "Full Node",
-                    Some(&peer_id),
-                    Some(latency),
-                );
-                
-                log::info!("Network initialization complete");
-                log::info!("RPC endpoints available");
-                log::info!("Node is ready to process transactions");
-            },
-        );
-    }
-
     Ok(task_manager)
 }

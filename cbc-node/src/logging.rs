@@ -251,13 +251,16 @@ impl CbcLogFormatter {
 }
 
 /// Configure RUST_LOG environment variable for CBC logging
-pub fn configure_rust_log(cbc_log_only: bool) -> String {
-    let log_config = if cbc_log_only {
+pub fn configure_rust_log(cbc_log_only: bool, quiet: bool) -> String {
+    let log_config = if quiet {
+        // Minimal logging - only errors and warnings
+        "warn,cbc_node=info,cbc_consensus=info,pallet_cbc_dcf=info"
+    } else if cbc_log_only {
         // Only show CBC-related logs when --cbc-log-only is set
-        "cbc_node=debug,cbc_consensus=debug,pallet_cbc_dcf=debug,pallet_cbc_pos=debug,pallet_cbc_poi=debug"
+        "cbc_node=info,cbc_consensus=info,pallet_cbc_dcf=info,pallet_cbc_pos=info,pallet_cbc_poi=info"
     } else {
-        // Show general info logs plus detailed CBC logs
-        "info,cbc_node=debug,cbc_consensus=debug,pallet_cbc_dcf=debug,pallet_cbc_pos=debug,pallet_cbc_poi=debug"
+        // Show general info logs plus CBC logs (reduced from debug to info)
+        "info,cbc_node=info,cbc_consensus=info,pallet_cbc_dcf=info,pallet_cbc_pos=info,pallet_cbc_poi=info"
     };
     
     // Set the environment variable
@@ -266,8 +269,8 @@ pub fn configure_rust_log(cbc_log_only: bool) -> String {
 }
 
 /// Initialize CBC logging configuration (RUST_LOG only, no custom logger)
-pub fn init_cbc_logging_config(cbc_log_only: bool) -> String {
-    configure_rust_log(cbc_log_only)
+pub fn init_cbc_logging_config(cbc_log_only: bool, quiet: bool) -> String {
+    configure_rust_log(cbc_log_only, quiet)
 }
 
 /// Initialize CBC logging system with optional file output
@@ -401,14 +404,18 @@ mod tests {
 
     #[test]
     fn test_configure_rust_log() {
-        let config_cbc_only = configure_rust_log(true);
-        assert!(config_cbc_only.contains("cbc_node=debug"));
-        assert!(config_cbc_only.contains("pallet_cbc_dcf=debug"));
-        assert!(!config_cbc_only.contains("info,"));
+        let config_quiet = configure_rust_log(false, true);
+        assert!(config_quiet.contains("warn,"));
+        assert!(config_quiet.contains("cbc_node=info"));
         
-        let config_all = configure_rust_log(false);
+        let config_cbc_only = configure_rust_log(true, false);
+        assert!(config_cbc_only.contains("cbc_node=info"));
+        assert!(config_cbc_only.contains("pallet_cbc_dcf=info"));
+        assert!(!config_cbc_only.contains("warn,"));
+        
+        let config_all = configure_rust_log(false, false);
         assert!(config_all.contains("info,"));
-        assert!(config_all.contains("cbc_node=debug"));
+        assert!(config_all.contains("cbc_node=info"));
     }
 
     #[test]

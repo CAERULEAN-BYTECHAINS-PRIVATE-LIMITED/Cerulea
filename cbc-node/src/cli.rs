@@ -29,6 +29,9 @@ pub struct Cli {
     #[clap(long, help = "Show only CBC-related logs")]
     pub cbc_log_only: bool,
 
+    #[clap(long, help = "Minimal output - suppress startup info and reduce logging")]
+    pub quiet: bool,
+
     #[clap(long, help = "Enable unsafe RPC methods (use with caution)")]
     pub unsafe_rpc_expose: bool,
 
