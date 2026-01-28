@@ -9115,8 +9115,15 @@ pub mod pallet {
             }
             
             // Check 3: Cannot exceed best known block of previous epoch (if available)
-            if previous_epoch_best > 0 && new_finalized_block > previous_epoch_best {
-                let reason = format!("Finality exceeds previous epoch best: {} > {}", new_finalized_block, previous_epoch_best);
+            // For progressive finalization, we allow advancement within the current epoch
+            // Only restrict if we're trying to finalize blocks from future epochs
+            let current_epoch = Self::current_epoch();
+            let current_epoch_start = current_epoch.saturating_mul(T::EpochLength::get());
+            let is_progressive_finalization = new_finalized_block <= current_block && 
+                                            new_finalized_block >= current_epoch_start;
+            
+            if previous_epoch_best > 0 && !is_progressive_finalization && new_finalized_block > previous_epoch_best {
+                let reason = format!("Finality exceeds previous epoch best: {} > {} (not progressive)", new_finalized_block, previous_epoch_best);
                 if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
                     Self::deposit_event(Event::FinalityAdvancementRejected {
                         attempted_block: new_finalized_block,
@@ -10687,11 +10694,34 @@ pub mod pallet {
             let block_number = now.saturated_into::<u32>();
             let current_epoch = Self::current_epoch();
             
-            // Skip state mutations for the first few blocks to prevent storage root mismatch
-            // This allows the chain to bootstrap properly before DCF starts managing consensus
-            if block_number <= 3 {
-                log::debug!("DCF: Skipping state mutations for block #{} during chain bootstrap", block_number);
-                return weight;
+            // Initialize finalization at block 1 if not already done
+            if block_number == 1 && Self::last_finalized_block() == 0 {
+                LastFinalizedBlock::<T>::put(0); // Genesis block (block 0) is finalized
+                PreviousFinalizedBlock::<T>::put(0);
+                PreviousEpochBestBlock::<T>::put(block_number); // Set to current block for progressive finalization
+                
+                Self::deposit_event(Event::BlockFinalized {
+                    block_number: 0,
+                });
+                log::info!("DCF: Initialized finalization markers at block 1 - genesis block 0 finalized, best block set to {}", block_number);
+                weight = weight.saturating_add(Weight::from_parts(50_000, 0));
+            }
+            
+            // Progressive finalization - finalize blocks as we go (with 1 block lag for safety)
+            if block_number > 1 {
+                let target_finalized = block_number - 1;
+                if Self::last_finalized_block() < target_finalized {
+                    match Self::update_finality_markers(target_finalized, current_epoch) {
+                        Ok(()) => {
+                            log::info!("DCF: Progressive finalization advanced to block {}", target_finalized);
+                        },
+                        Err(reason) => {
+                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
+                            log::warn!("DCF: Progressive finalization failed for block {}: {}", target_finalized, reason_str);
+                        }
+                    }
+                    weight = weight.saturating_add(Weight::from_parts(100_000, 0));
+                }
             }
             
             // Reset per-block rate limiting counters at the beginning of each block
@@ -10723,12 +10753,8 @@ pub mod pallet {
         fn on_finalize(_n: BlockNumberFor<T>) {
             let block_number = _n.saturated_into::<u32>();
             
-            // Skip state mutations for the first few blocks to prevent storage root mismatch
-            // This allows the chain to bootstrap properly before DCF starts managing consensus
-            if block_number <= 3 {
-                log::debug!("DCF: Skipping on_finalize state mutations for block #{} during chain bootstrap", block_number);
-                return;
-            }
+            // Full DCF finalization logic
+            log::debug!("DCF: Processing on_finalize for block #{}", block_number);
             
             let validators = ValidatorSet::<T>::get();
             for validator in validators.iter() {
@@ -14382,58 +14408,43 @@ pub mod pallet {
             
             if previous_epoch > 0 {
                 // Calculate the best block of the previous epoch
-                // Since we're at an epoch boundary, the best block of the previous epoch
-                // is the block just before the current epoch started
-                let _epoch_length = T::EpochLength::get();
                 let previous_epoch_end_block = block_number.saturating_sub(1);
                 
-                // Use the new comprehensive finality validation and update system
-                match Self::update_finality_markers(previous_epoch_end_block, current_epoch) {
-                    Ok(()) => {
-                        log::info!("DCF: Successfully finalized block {} (end of epoch {}) with comprehensive validation", 
-                                  previous_epoch_end_block, previous_epoch);
-                    },
-                    Err(reason) => {
-                        // Log the rejection but don't fail the epoch transition
-                        let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
-                        log::warn!("DCF: Finality advancement rejected for block {}: {}", 
-                                  previous_epoch_end_block, reason_str);
-                        
-                        // Still emit epoch events even if finality update failed
-                        Self::deposit_event(Event::EpochEnded {
-                            epoch: previous_epoch,
-                        });
-                        Self::deposit_event(Event::EpochStarted {
-                            epoch: current_epoch,
-                            validators: Self::active_validators().to_vec(),
-                        });
+                // With progressive finalization, we might already be close to current
+                // Only advance finalization if we're behind
+                let current_finalized = Self::last_finalized_block();
+                if current_finalized < previous_epoch_end_block {
+                    match Self::update_finality_markers(previous_epoch_end_block, current_epoch) {
+                        Ok(()) => {
+                            log::info!("DCF: Epoch finalization advanced from {} to {} (end of epoch {})", 
+                                      current_finalized, previous_epoch_end_block, previous_epoch);
+                        },
+                        Err(reason) => {
+                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
+                            log::warn!("DCF: Epoch finalization rejected for block {}: {}", 
+                                      previous_epoch_end_block, reason_str);
+                        }
                     }
+                } else {
+                    log::info!("DCF: Epoch finalization already at {} (>= {}), no advancement needed", 
+                              current_finalized, previous_epoch_end_block);
                 }
                 
-                // Emit epoch ended event for the previous epoch
+                // Emit epoch events
                 Self::deposit_event(Event::EpochEnded {
                     epoch: previous_epoch,
                 });
-
-                // Emit epoch started event for the new epoch
                 Self::deposit_event(Event::EpochStarted {
                     epoch: current_epoch,
                     validators: Self::active_validators().to_vec(),
                 });
                 
-                log::info!("DCF: Epoch {} finalization completed, started epoch {}", 
-                          previous_epoch, current_epoch);
+                log::info!("DCF: Epoch transition completed: {} -> {}", previous_epoch, current_epoch);
             } else {
-                // First epoch - initialize finalized block to genesis
+                // First epoch - ensure genesis is finalized
                 if Self::last_finalized_block() == 0 {
-                    LastFinalizedBlock::<T>::put(1); // Genesis block
-                    PreviousFinalizedBlock::<T>::put(0); // No previous finalized block initially
-                    PreviousEpochBestBlock::<T>::put(1); // Genesis block is the best known initially
-                    
-                    Self::deposit_event(Event::BlockFinalized {
-                        block_number: 1,
-                    });
-                    log::info!("DCF: Initialized finality markers - finalized: 1, previous: 0, best: 1");
+                    // Genesis block should already be finalized by progressive logic
+                    log::info!("DCF: First epoch - genesis finalization already handled by progressive logic");
                 }
             }
             

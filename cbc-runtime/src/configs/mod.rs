@@ -226,7 +226,7 @@ impl pallet_cbc_dcf::Config for Runtime {
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
     type OffchainWorkerInterval = ConstU32<5>; // every 5 blocks
     type LeaveCooldown = ConstU32<1000>; // 1000 blocks cooldown period
-    type EpochLength = ConstU32<2400>; // 2400 blocks per epoch (approximately 4 hours at 6s blocks)
+    type EpochLength = ConstU32<10>; // 10 blocks per epoch (for testing - was 2400)
     
     // Block authorship rewards and penalties
     type BlockAuthorshipBoost = ConstU64<10>;
