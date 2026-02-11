@@ -1,6 +1,6 @@
 #![allow(unused_variables, static_mut_refs)]
 use futures::FutureExt;
-use sc_client_api::Backend;
+use sc_client_api::{Backend, Finalizer};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::TelemetryWorker;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -8,6 +8,7 @@ use cbc_runtime::{self, apis::RuntimeApi, opaque::Block};
 use std::{sync::Arc};
 use cbc_consensus::{ConsensusParams, AuthorSelectionMode};
 use sp_blockchain::HeaderBackend;
+use sp_api::ProvideRuntimeApi;
 use crate::block_tracker::{BlockTracker, BlockTrackerConfig};
 use cbc_consensus::import_queue::DcfImportQueue;
 
@@ -312,6 +313,104 @@ where
                 
                 let mut tracker = BlockTracker::<Block, FullClient>::new(tracker_client, tracker_config);
                 tracker.run().await;
+            },
+        );
+    }
+
+    // Start DCF finality sync service
+    // This syncs DCF's internal finality state to Substrate's client finalized head
+    {
+        use sp_runtime::traits::SaturatedConversion;
+        use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+        use cbc_runtime::AccountId;
+        
+        let finality_client = client.clone();
+        task_manager.spawn_essential_handle().spawn(
+            "dcf-finality-sync",
+            None,
+            async move {
+                log::info!("DCF: Starting finality sync service");
+                
+                loop {
+                    // Wait 6 seconds between checks (one block time)
+                    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+                    
+                    // Get DCF's finalized block number
+                    let api = finality_client.runtime_api();
+                    let best_hash = finality_client.info().best_hash;
+                    
+                    match api.get_last_finalized_block(best_hash) {
+                        Ok(dcf_finalized) => {
+                            let client_info = finality_client.info();
+                            let client_finalized: u32 = client_info.finalized_number.saturated_into();
+                            
+                            if dcf_finalized > client_finalized {
+                                log::info!(
+                                    "DCF Finality Sync: Client at block #{}, DCF finalized up to #{}, syncing...",
+                                    client_finalized,
+                                    dcf_finalized
+                                );
+                                
+                                // Finalize all blocks from client_finalized+1 to dcf_finalized
+                                for block_num in (client_finalized + 1)..=dcf_finalized {
+                                    // Get block hash for this number
+                                    match finality_client.hash(block_num.into()) {
+                                        Ok(Some(block_hash)) => {
+                                            // Finalize this block
+                                            match finality_client.finalize_block(block_hash, None, true) {
+                                                Ok(_) => {
+                                                    log::debug!("DCF Finality Sync: Finalized block #{}", block_num);
+                                                }
+                                                Err(e) => {
+                                                    log::error!(
+                                                        "DCF Finality Sync: Failed to finalize block #{}: {:?}",
+                                                        block_num,
+                                                        e
+                                                    );
+                                                    // Don't break, try to continue with next blocks
+                                                }
+                                            }
+                                        }
+                                        Ok(None) => {
+                                            log::warn!(
+                                                "DCF Finality Sync: Block #{} hash not found, skipping",
+                                                block_num
+                                            );
+                                        }
+                                        Err(e) => {
+                                            log::error!(
+                                                "DCF Finality Sync: Failed to get hash for block #{}: {:?}",
+                                                block_num,
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                                
+                                // Log final state
+                                let new_client_finalized: u32 = finality_client.info().finalized_number.saturated_into();
+                                log::info!(
+                                    "DCF Finality Sync: Sync complete. Client finalized head now at block #{}",
+                                    new_client_finalized
+                                );
+                            } else if dcf_finalized == client_finalized {
+                                log::trace!(
+                                    "DCF Finality Sync: In sync at block #{}",
+                                    client_finalized
+                                );
+                            } else {
+                                log::warn!(
+                                    "DCF Finality Sync: Client ahead of DCF (client: #{}, DCF: #{})",
+                                    client_finalized,
+                                    dcf_finalized
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("DCF Finality Sync: Failed to get DCF finalized block: {:?}", e);
+                        }
+                    }
+                }
             },
         );
     }

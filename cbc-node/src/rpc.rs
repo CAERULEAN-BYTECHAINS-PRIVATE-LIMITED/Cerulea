@@ -793,7 +793,14 @@ where
             ))?;
         
         let active_validators_count = active_validators.len() as u32;
-        let total_validators = active_validators_count; // TODO: Get total from runtime
+        
+        // Get total validators count from runtime
+        let total_validators = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_total_validators_count(&api, best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Failed to get total validators count: {:?}", e),
+                None::<()>
+            ))?;
         
         // Get last finalized block
         let last_finalized_block = self.client.info().finalized_number as u32;

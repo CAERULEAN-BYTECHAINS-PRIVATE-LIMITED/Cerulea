@@ -192,9 +192,20 @@ where
             return Err(sp_consensus::Error::ClientImport(error_msg));
         }
         
+        // Check if this block should be finalized according to DCF
+        let last_finalized = api.get_last_finalized_block(best_hash)
+            .map_err(|e| sp_consensus::Error::ClientImport(format!("Failed to get last finalized block: {:?}", e)))?;
+        
+        // Mark block as finalized if DCF has finalized it
+        block.finalized = block_number <= last_finalized;
+        
+        if block.finalized {
+            debug!("DCF ImportQueue: Block #{} marked as finalized (DCF finalized up to #{})", 
+                   block_number, last_finalized);
+        }
+        
         // Set proper import parameters
         block.origin = sp_consensus::BlockOrigin::Own;
-        block.finalized = false; // Let the finality gadget handle this
         block.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
         
         // For now, just return imported - the actual import will be handled by the client
