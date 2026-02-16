@@ -322,8 +322,6 @@ where
     {
         use sp_runtime::traits::SaturatedConversion;
         use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
-        use cbc_runtime::AccountId;
-        
         let finality_client = client.clone();
         task_manager.spawn_essential_handle().spawn(
             "dcf-finality-sync",
