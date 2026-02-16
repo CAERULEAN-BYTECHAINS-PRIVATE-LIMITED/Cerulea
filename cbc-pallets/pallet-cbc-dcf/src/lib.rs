@@ -6420,7 +6420,7 @@ pub mod pallet {
             ensure!(pos_weight + poi_weight == T::PercentagePrecision::get() as u64, Error::<T>::InvalidWeight);
             PosWeight::<T>::put(pos_weight);
             PoiWeight::<T>::put(poi_weight);
-            Self::deposit_event(Event::ConsensusWeightsUpdated {
+            Self::deposit_event_with_evm_compat(Event::ConsensusWeightsUpdated {
                 pos_weight,
                 poi_weight,
             });
@@ -7128,7 +7128,7 @@ pub mod pallet {
             });
 
             // Emit score update event
-            Self::deposit_event(Event::ValidatorScoreUpdated {
+            Self::deposit_event_with_evm_compat(Event::ValidatorScoreUpdated {
                 validator: target.clone(),
                 stake_score: ValidatorStates::<T>::get(&target).map(|s| s.current.stake_score).unwrap_or(0),
                 inference_score: ValidatorStates::<T>::get(&target).map(|s| s.current.inference_score).unwrap_or(0),
@@ -7285,7 +7285,7 @@ pub mod pallet {
             );
 
             PendingValidatorActions::<T>::insert(&who, ValidatorAction::Join);
-            Self::deposit_event(Event::ValidatorJoined { 
+            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
                 validator: who,
                 stake_amount: <T as Config>::MinStake::get(),
             });
@@ -7447,7 +7447,7 @@ pub mod pallet {
             }
 
             // Emit event with stake amount
-            Self::deposit_event(Event::ValidatorJoined { 
+            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
                 validator: who.clone(),
                 stake_amount: min_stake,
             });
@@ -7732,7 +7732,7 @@ pub mod pallet {
             );
 
             PendingValidatorActions::<T>::insert(&who, ValidatorAction::Leave);
-            Self::deposit_event(Event::ValidatorLeft { validator: who });
+            Self::deposit_event_with_evm_compat(Event::ValidatorLeft { validator: who });
             Ok(())
         }
 
@@ -8395,7 +8395,7 @@ pub mod pallet {
                     authored_blocks: state.current.authored_blocks,
                     missed_blocks: state.current.missed_blocks,
                 });
-                Self::deposit_event(Event::ValidatorScoreUpdated {
+                Self::deposit_event_with_evm_compat(Event::ValidatorScoreUpdated {
                     validator: validator.clone(),
                     stake_score,
                     inference_score,
@@ -8730,7 +8730,7 @@ pub mod pallet {
                 block_number: current_block,
             });
 
-            Self::deposit_event(Event::ValidatorEjected {
+            Self::deposit_event_with_evm_compat(Event::ValidatorEjected {
                 validator: validator.clone(),
                 reason,
             });
@@ -9337,7 +9337,7 @@ pub mod pallet {
             }
             
             // Always emit epoch events regardless of governance mode
-            Self::deposit_event(Event::EpochStarted {
+            Self::deposit_event_with_evm_compat(Event::EpochStarted {
                 epoch: next_epoch,
                 validators: active_validators.clone().into_inner(),
             });
@@ -9802,7 +9802,8 @@ pub mod pallet {
         /// - `Ok(Weight)`: Validation passed with weight consumed
         /// - `Err(MigrationError)`: Validation failed with specific error details
         pub fn validate_storage_integrity() -> Result<Weight, MigrationError> {
-            let weight = <T as Config>::WeightInfo::on_initialize();
+            #[allow(unused_mut)]
+            let mut weight = <T as Config>::WeightInfo::on_initialize();
             
             log::info!("DCF: Starting storage integrity validation");
             
@@ -14095,7 +14096,7 @@ pub mod pallet {
             let stake_amount = ValidatorStake::<T>::get(validator);
             
             // Emit events to indicate automatic addition
-            Self::deposit_event(Event::ValidatorJoined { 
+            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
                 validator: validator.clone(),
                 stake_amount,
             });
