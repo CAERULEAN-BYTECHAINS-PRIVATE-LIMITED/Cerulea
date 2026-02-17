@@ -1,16 +1,6 @@
 
-
-mod benchmarking;
-mod block_tracker;
-mod chain_spec;
-mod cli;
-mod command;
-mod fork_detection;
-mod logging;
-mod rpc;
-mod service;
-
 use clap::Parser;
+use cbc_node::{cli, logging, command};
 
 fn main() -> sc_cli::Result<()> {
     let cli = cli::Cli::parse();
