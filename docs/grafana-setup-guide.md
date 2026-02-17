@@ -132,6 +132,17 @@ cargo build --release
 
 ### 2. Start Monitoring Stack
 
+Using the provided script:
+```bash
+./start-monitoring.sh
+```
+
+Or for a **fresh start** (clears old data/cache):
+```bash
+./start-monitoring.sh --fresh
+```
+
+Manual start:
 ```bash
 # Start Prometheus and Grafana
 docker-compose -f docker-compose.monitoring.yml up -d
@@ -186,7 +197,8 @@ If automatic provisioning doesn't work:
 
 1. **Docker Network**: Ensure your CBC node is accessible from Docker containers
 2. **Firewall**: Check if ports 9615 (metrics) and 3000 (Grafana) are open
-3. **Host Access**: On Linux, use `host.docker.internal`, on Windows/Mac it should work automatically
+3. **Host Access**: On Linux, we use `host.docker.internal` (configured via `extra_hosts` in `docker-compose.monitoring.yml`)
+4. **Stale Data**: If you see old chain data after a node restart, use `./start-monitoring.sh --fresh`
 
 ### Dashboard Not Loading
 

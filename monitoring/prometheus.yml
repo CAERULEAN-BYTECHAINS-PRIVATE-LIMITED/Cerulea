@@ -13,7 +13,7 @@ scrape_configs:
 
   - job_name: 'cbc-node'
     static_configs:
-      - targets: ['10.0.2.15:9615']  # Host IP for Substrate metrics port
+      - targets: ['host.docker.internal:9615']  # Use host.docker.internal to reach host node
     scrape_interval: 5s
     metrics_path: /metrics
     honor_labels: true

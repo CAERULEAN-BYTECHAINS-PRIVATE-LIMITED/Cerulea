@@ -27,7 +27,7 @@ pub type Service = sc_service::PartialComponents<
     FullSelectChain,
     sc_consensus::BasicQueue<Block>,
     sc_transaction_pool::TransactionPoolHandle<Block, FullClient>,
-    (), 
+    Option<cbc_consensus::metrics::ConsensusMetrics>, 
 >;
 
 #[derive(Clone)]
@@ -121,7 +121,7 @@ pub fn new_partial(
         keystore_container,
         select_chain,
         transaction_pool,
-        other: (), 
+        other: consensus_metrics, 
     })
 }
 
@@ -142,7 +142,7 @@ where
         keystore_container,
         select_chain: _,
         transaction_pool,
-        ..
+        other: consensus_metrics,
     } = new_partial(&config, &node_config)?;
 
     let net_config = sc_network::config::FullNetworkConfiguration::<
@@ -221,22 +221,7 @@ where
         health_check_sample_size: 5,
     };
 
-    // Initialize Prometheus metrics for consensus monitoring
-    let consensus_metrics = if let Some(registry) = config.prometheus_registry() {
-        match cbc_consensus::metrics::ConsensusMetrics::new(registry) {
-            Ok(metrics) => {
-                log::info!("CBC: Consensus metrics initialized successfully");
-                Some(metrics)
-            }
-            Err(e) => {
-                log::error!("CBC: Failed to initialize consensus metrics: {:?}", e);
-                None
-            }
-        }
-    } else {
-        log::warn!("CBC: No Prometheus registry available, metrics disabled");
-        None
-    };
+    // We use the consensus_metrics already initialized in new_partial
     
     // Use the client directly for block import - Substrate handles this internally
     let dcf_block_import_arc = client.clone();
@@ -280,7 +265,7 @@ where
             None,
             async move {
                 log::info!("CBC: Starting consensus metrics updater");
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                 
                 loop {
                     interval.tick().await;

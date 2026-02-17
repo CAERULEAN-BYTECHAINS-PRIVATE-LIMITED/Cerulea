@@ -265,6 +265,7 @@ where
                 // Task 8 requirement: Record epoch transition metric
                 if let Some(ref metrics) = self.consensus_metrics {
                     metrics.record_epoch_transition();
+                    metrics.update_current_epoch(new_epoch);
                 }
                 
                 // Update our internal epoch tracking
@@ -379,7 +380,12 @@ where
     }
     
     /// Perform periodic maintenance during an epoch
-    async fn perform_epoch_maintenance(&mut self, _current_epoch: u32) {
+    async fn perform_epoch_maintenance(&mut self, current_epoch: u32) {
+        // Update epoch metric
+        if let Some(ref metrics) = self.consensus_metrics {
+            metrics.update_current_epoch(current_epoch);
+        }
+        
         // Update validator metrics and check for issues
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;

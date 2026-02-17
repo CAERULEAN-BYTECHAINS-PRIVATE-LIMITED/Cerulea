@@ -21,6 +21,26 @@ fi
 # Create monitoring directories if they don't exist
 mkdir -p monitoring/grafana/provisioning/{dashboards,datasources}
 
+# Parse arguments
+FRESH=false
+for arg in "$@"; do
+  case $arg in
+    --fresh|-f)
+      FRESH=true
+      shift
+      ;;
+  esac
+done
+
+if [ "$FRESH" = true ]; then
+    echo "Fresh start requested. Removing old monitoring data (volumes)..."
+    docker-compose -f docker-compose.monitoring.yml down -v || true
+fi
+
+# Clean up any existing stopped containers to avoid conflicts
+echo "Cleaning up old containers..."
+docker ps -a --filter name=cbc-prometheus --filter name=cbc-grafana -q | xargs -r docker rm 2>/dev/null || true
+
 echo "Starting Prometheus and Grafana..."
 docker-compose -f docker-compose.monitoring.yml up -d
 
@@ -39,6 +59,7 @@ if docker-compose -f docker-compose.monitoring.yml ps | grep -q "Up"; then
     echo "   1. Start your CBC node with: ./target/release/cbc-node --dev --prometheus-external"
     echo "   2. Open Grafana and navigate to 'CBC Consensus Dashboard'"
     echo "   3. If no data appears, check the troubleshooting section in docs/grafana-setup-guide.md"
+    echo "   4. To reset all data (e.g. after restarting chain), use: ./start-monitoring.sh --fresh"
     echo ""
     echo "To stop: docker-compose -f docker-compose.monitoring.yml down"
 else

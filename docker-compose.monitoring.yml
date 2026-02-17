@@ -16,8 +16,11 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - monitoring
+
 
   grafana:
     image: grafana/grafana:latest
