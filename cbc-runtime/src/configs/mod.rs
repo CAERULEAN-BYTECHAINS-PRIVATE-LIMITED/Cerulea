@@ -226,7 +226,7 @@ impl pallet_cbc_dcf::Config for Runtime {
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
     type OffchainWorkerInterval = ConstU32<5>; // every 5 blocks
     type LeaveCooldown = ConstU32<1000>; // 1000 blocks cooldown period
-    type EpochLength = ConstU32<10>; // 10 blocks per epoch (for testing - was 2400)
+    type EpochLength = ConstU32<100>; // 100 blocks per epoch
     
     // Block authorship rewards and penalties
     type BlockAuthorshipBoost = ConstU64<10>;
@@ -347,3 +347,16 @@ impl pallet_cbc_dcf::Config for Runtime {
     type TrustScoreStabilityFactor = ConstU32<8000>; // 80% stability factor
 }
 
+
+// ── Todo pallet runtime configuration ────────────────────────
+use frame_support::traits::ConstU32 as TodoConstU32;
+
+impl pallet_todo::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    /// Maximum 256 bytes for a todo title on mainnet.
+    type MaxTitleLength = TodoConstU32<256>;
+    /// Maximum 1024 bytes for a todo description.
+    type MaxDescriptionLength = TodoConstU32<1024>;
+    /// Allow up to 500 todos per account.
+    type MaxTodosPerAccount = TodoConstU32<500>;
+}

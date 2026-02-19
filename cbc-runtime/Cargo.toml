@@ -30,6 +30,7 @@ pallet-sudo.workspace = true                                                    
 pallet-cbc-poi.workspace = true
 pallet-cbc-pos.workspace = true
 pallet-cbc-dcf.workspace = true
+pallet-todo.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
 pallet-transaction-payment-rpc-runtime-api.workspace = true                      # Payment APIs for transactions
 pallet-transaction-payment.workspace = true                                      # Transaction fee pallet
@@ -80,6 +81,7 @@ std = [
 	"pallet-cbc-poi/std",
 	"pallet-cbc-pos/std",
 	"pallet-cbc-dcf/std",
+	"pallet-todo/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
@@ -124,6 +126,7 @@ try-runtime = [
 	"pallet-sudo/try-runtime",
 	"pallet-cbc-poi/try-runtime",
 	"pallet-cbc-pos/try-runtime",
+	"pallet-todo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"sp-runtime/try-runtime",

@@ -209,6 +209,10 @@ mod runtime {
 
     #[runtime::pallet_index(8)]
     pub type Dcf = pallet_cbc_dcf::Pallet<Runtime>;
+
+    /// Simple on-chain Todo list pallet
+    #[runtime::pallet_index(9)]
+    pub type Todo = pallet_todo;
 }
 use sp_runtime::traits::parameter_types;
 
@@ -299,5 +303,6 @@ parameter_types! {
 
 pub use pallet_cbc_poi;
 pub use pallet_cbc_pos;
+pub use pallet_todo;
 
 
