@@ -17,7 +17,7 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
-use sp_core::{H256, sr25519};
+use sp_core::{H256, Ed25519};
 use sp_runtime::AccountId32;
 
 /// Helper function to create AccountId from u64

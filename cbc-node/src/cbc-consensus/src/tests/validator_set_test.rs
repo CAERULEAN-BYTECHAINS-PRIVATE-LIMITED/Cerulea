@@ -4,7 +4,7 @@
 mod tests {
     use crate::validator_set::*;
     use crate::mock::*;
-    use sp_core::{sr25519::{Pair, Public}, Pair as PairTrait};
+    use sp_core::{ed25519::{Pair, Public}, Pair as PairTrait};
 
     use std::collections::HashSet;
 

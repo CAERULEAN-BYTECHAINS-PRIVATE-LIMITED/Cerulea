@@ -77,7 +77,7 @@ where
             match digest_item {
                 DigestItem::PreRuntime(engine_id, data) => {
                     // For CBC consensus, we expect the author to be encoded in the pre-runtime digest
-                    if engine_id == b"cbcc" {
+                    if *engine_id == crate::CBC_ENGINE_ID {
                         // Try to decode the author from the digest data
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Ok(author);
@@ -86,7 +86,7 @@ where
                 }
                 DigestItem::Consensus(engine_id, data) => {
                     // Alternative: author might be in consensus digest
-                    if engine_id == b"cbcc" {
+                    if *engine_id == crate::CBC_ENGINE_ID {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Ok(author);
                         }
@@ -372,6 +372,12 @@ where
         }
         
         info!("DCF Verifier: Block #{} verification passed", block_number);
+        
+        // Ensure fork choice is set before passing to inner import
+        let mut block = block;
+        if block.fork_choice.is_none() {
+            block.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
+        }
         
         // Return the verified block
         Ok(block)

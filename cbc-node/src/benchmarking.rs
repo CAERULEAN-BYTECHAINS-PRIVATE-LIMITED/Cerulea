@@ -10,7 +10,7 @@ use sc_client_api::BlockBackend;
 use cbc_runtime as runtime;
 use sp_core::{Encode, Pair};
 use sp_inherents::{InherentData, InherentDataProvider};
-use sp_keyring::Sr25519Keyring;
+use sp_keyring::Ed25519Keyring;
 use sp_runtime::{OpaqueExtrinsic, SaturatedConversion};
 
 use std::{sync::Arc, time::Duration};
@@ -48,7 +48,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
     /// # Arguments
     /// * `nonce` - The transaction nonce.
     fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
-        let acc = Sr25519Keyring::Bob.pair(); // Use Bob's keypair for signing
+        let acc = Ed25519Keyring::Bob.pair(); // Use Bob's keypair for signing
         let extrinsic: OpaqueExtrinsic = create_benchmark_extrinsic(
             self.client.as_ref(),
             acc,
@@ -98,7 +98,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
     /// # Arguments
     /// * `nonce` - The transaction nonce.
     fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
-        let acc = Sr25519Keyring::Bob.pair(); // Use Bob's keypair for signing
+        let acc = Ed25519Keyring::Bob.pair(); // Use Bob's keypair for signing
         let extrinsic: OpaqueExtrinsic = create_benchmark_extrinsic(
             self.client.as_ref(),
             acc,
@@ -124,7 +124,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 /// An `UncheckedExtrinsic` ready to be submitted to the blockchain.
 pub fn create_benchmark_extrinsic(
     client: &FullClient,
-    sender: sp_core::sr25519::Pair,
+    sender: sp_core::ed25519::Pair,
     call: runtime::RuntimeCall,
     nonce: u32,
 ) -> runtime::UncheckedExtrinsic {
@@ -180,7 +180,7 @@ pub fn create_benchmark_extrinsic(
     runtime::UncheckedExtrinsic::new_signed(
         call,
         sp_runtime::AccountId32::from(sender.public()).into(),
-        runtime::Signature::Sr25519(signature),
+        runtime::Signature::Ed25519(signature),
         tx_ext,
     )
 }

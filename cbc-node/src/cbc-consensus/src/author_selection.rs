@@ -4,7 +4,7 @@ use crate::error::{ConsensusError, ConsensusResult};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::NumberFor;
-use sp_core::sr25519::Public;
+use sp_core::ed25519::Public;
 use cbc_runtime::AccountId;
 use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
 use std::sync::Arc;

@@ -10754,13 +10754,12 @@ pub mod pallet {
         fn on_finalize(_n: BlockNumberFor<T>) {
             let block_number = _n.saturated_into::<u32>();
             
-            // Full DCF finalization logic
+            // Full DCF finalization logic - updated to avoid destructive score recalculation
             log::trace!("DCF: Processing on_finalize for block #{}", block_number);
             
-            let validators = ValidatorSet::<T>::get();
-            for validator in validators.iter() {
-                let _ = Self::update_final_score(validator);
-            }
+            // Note: We no longer recalculate final scores for all validators every block here.
+            // Scores are now updated through specific events (authorship, inference) 
+            // and during epoch transitions to ensure stability and persistence of boosts.
         }
 
         /// Off-chain worker for automatic PoI score computation and submission
@@ -14624,7 +14623,7 @@ pub mod pallet {
                     match log {
                         // Check PreRuntime digest items (where consensus engine stores author info)
                         DigestItem::PreRuntime(engine_id, data) => {
-                            if engine_id == b"cbc " {
+                            if engine_id == b"cbcd" {
                                 // The digest data contains: [32 bytes author][32 bytes signature]
                                 if data.len() >= 32 {
                                     // First 32 bytes should be the author's account ID
@@ -14638,7 +14637,7 @@ pub mod pallet {
                         }
                         // Check Seal digest items (alternative location for author info - legacy support)
                         DigestItem::Seal(engine_id, data) => {
-                            if engine_id == b"cbc " {
+                            if engine_id == b"cbcd" {
                                 // First 32 bytes should be the author's account ID
                                 if data.len() >= 32 {
                                     T::AccountId::decode(&mut &data[0..32]).ok()
@@ -14651,7 +14650,7 @@ pub mod pallet {
                         }
                         // Check Consensus digest items (legacy support)
                         DigestItem::Consensus(engine_id, data) => {
-                            if engine_id == b"cbc " {
+                            if engine_id == b"cbcd" {
                                 T::AccountId::decode(&mut &data[..]).ok()
                             } else {
                                 None

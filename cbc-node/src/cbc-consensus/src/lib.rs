@@ -21,6 +21,9 @@ pub mod epoch_manager;
 
 /// Core types and error handling
 pub mod types;
+
+/// Consensus engine ID for CBC DCF
+pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
 pub mod error;
 
 /// Monitoring and finality

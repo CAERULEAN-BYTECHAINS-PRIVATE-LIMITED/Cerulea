@@ -17,7 +17,8 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Pair;
 use tokio::time::sleep;
-use sp_core::sr25519::Public;
+use sp_core::ed25519::Public;
+use codec::Encode;
 use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
 use cbc_runtime::AccountId;
 use sc_transaction_pool_api::TransactionPool;
@@ -729,12 +730,18 @@ where
         let parent_number = self.client.info().best_number;
         debug!("Using parent hash {:?} (block #{})", parent_hash, parent_number);
         
+        // Create the PreRuntime digest item with our author identity
+        let digest_item = sp_runtime::generic::DigestItem::PreRuntime(
+            crate::CBC_ENGINE_ID,
+            author.encode(),
+        );
+
         // Use the comprehensive block creation method with proper error handling
         debug!("DCF: Attempting to create block with comprehensive method");
         let (block, expected_author) = match self.proposer_factory.create_complete_block(
             parent_hash, 
             block_number as u64, 
-            None, // No special digest
+            Some(digest_item), // Inject the digest item so other nodes know the author
             Some(author.clone()) // Force the author we selected
         ).await {
             Ok(result) => {
@@ -1191,7 +1198,7 @@ where
             match log {
                 DigestItem::Seal(engine_id, data) => {
                     // Check if this is a CBC consensus seal
-                    if engine_id == b"cbc " {
+                    if engine_id == b"cbcd" {
                         // Try to extract author from seal data
                         // The seal should contain author information
                         if data.len() >= 32 {
@@ -1204,7 +1211,7 @@ where
                 }
                 DigestItem::PreRuntime(engine_id, data) => {
                     // Check for pre-runtime digest with author info
-                    if engine_id == b"cbc " {
+                    if engine_id == b"cbcd" {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Some(author);
                         }
@@ -1212,7 +1219,7 @@ where
                 }
                 DigestItem::Consensus(engine_id, data) => {
                     // Check for consensus digest with author info
-                    if engine_id == b"cbc " {
+                    if engine_id == b"cbcd" {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Some(author);
                         }
@@ -1274,7 +1281,7 @@ pub async fn start_dcf_consensus<B, C, TP, BE>(
 {
     // Create the DCF block import queue for consensus validation
     let block_import = Arc::new(crate::import_queue::DcfImportQueue::<B, C, BE>::new(client.clone()));
-    let mut consensus: DcfConsensus<B, C, sp_core::sr25519::Pair, TP> = DcfConsensus::new(client, transaction_pool, block_import, params);
+    let mut consensus: DcfConsensus<B, C, sp_core::ed25519::Pair, TP> = DcfConsensus::new(client, transaction_pool, block_import, params);
     consensus.run().await;
 }
 
@@ -1282,7 +1289,7 @@ pub async fn start_dcf_consensus<B, C, TP, BE>(
 mod tests {
     use super::*;
     use crate::mock::*;
-    use sp_core::{sr25519::{Pair, Public}, Pair as PairTrait};
+    use sp_core::{ed25519::{Pair, Public}, Pair as PairTrait};
     use sp_runtime::traits::{Header as HeaderT, Zero};
     use std::sync::Arc;
     use sc_consensus::BlockCheckParams;

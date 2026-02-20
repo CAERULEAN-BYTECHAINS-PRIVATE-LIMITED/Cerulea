@@ -229,7 +229,7 @@ where
     // Set up  PoS+PoI block production with DCF consensus
     if config.role.is_authority() {
         let mut dcf_consensus = if let Some(metrics) = consensus_metrics.clone() {
-            cbc_consensus::DcfConsensus::<Block, FullClient, sp_core::sr25519::Pair, _>::new_with_metrics(
+            cbc_consensus::DcfConsensus::<Block, FullClient, sp_core::ed25519::Pair, _>::new_with_metrics(
                 client.clone(),
                 transaction_pool.clone(),
                 dcf_block_import_arc.clone(), // Use real import queue
@@ -237,7 +237,7 @@ where
                 metrics,
             )
         } else {
-            cbc_consensus::DcfConsensus::<Block, FullClient, sp_core::sr25519::Pair, _>::new(
+            cbc_consensus::DcfConsensus::<Block, FullClient, sp_core::ed25519::Pair, _>::new(
                 client.clone(),
                 transaction_pool.clone(),
                 dcf_block_import_arc.clone(), // Use real import queue

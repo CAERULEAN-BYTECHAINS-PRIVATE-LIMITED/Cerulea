@@ -64,7 +64,7 @@ where
             match digest_item {
                 DigestItem::PreRuntime(engine_id, data) => {
                     // For CBC consensus, we expect the author to be encoded in the pre-runtime digest
-                    if engine_id == b"cbc " {
+                    if engine_id == b"cbcd" {
                         // The digest data contains: [32 bytes author][32 bytes signature]
                         if data.len() >= 32 {
                             // First 32 bytes should be the author's account ID
@@ -76,7 +76,7 @@ where
                 }
                 DigestItem::Seal(engine_id, data) => {
                     // Alternative: author might be in seal digest (legacy support)
-                    if engine_id == b"cbc " {
+                    if engine_id == b"cbcd" {
                         // First 32 bytes should be the author's public key
                         if data.len() >= 32 {
                             if let Ok(author) = AccountId::decode(&mut &data[0..32]) {
@@ -87,7 +87,7 @@ where
                 }
                 DigestItem::Consensus(engine_id, data) => {
                     // Alternative: author might be in consensus digest (legacy support)
-                    if engine_id == b"cbc " {
+                    if *engine_id == crate::CBC_ENGINE_ID {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Ok(author);
                         }
@@ -158,7 +158,7 @@ where
         let mut found_signature = false;
         for digest_item in header.digest().logs() {
             if let DigestItem::PreRuntime(engine_id, data) = digest_item {
-                if engine_id == b"cbc " {
+                if engine_id == b"cbcd" {
                     found_signature = true;
                     
                     // Verify the digest contains the expected author and signature data
@@ -243,7 +243,7 @@ where
             metrics.total_blocks = metrics.total_blocks.saturating_add(1);
             
             // Update validator-specific metrics
-            let author_public = sp_core::sr25519::Public::from_raw(*author.as_ref());
+            let author_public = sp_core::ed25519::Public::from_raw(*author.as_ref());
             metrics.update_validator_score(author_public, 0, 0, 1); // Increment block count
         }
         
@@ -257,7 +257,7 @@ where
                    author, combined_score, trust_score, inference_count);
             
             // Update metrics with current runtime state
-            let author_public = sp_core::sr25519::Public::from_raw(*author.as_ref());
+            let author_public = sp_core::ed25519::Public::from_raw(*author.as_ref());
             let mut metrics = self.metrics.lock().unwrap();
             metrics.update_validator_score(
                 author_public, 

@@ -2,12 +2,12 @@
 // It defines functions for generating JSON-based genesis configurations used by the blockchain node
 // when starting a development or local testnet chain.
 
-use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig}; // Runtime-specific types
+use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, DOLLARS}; // Runtime-specific types
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
 use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
 use sp_genesis_builder::{self, PresetId}; // Genesis builder utilities and PresetId for pre-defined configs
-use sp_keyring::Sr25519Keyring; // Keyring to easily access dev accounts
+use sp_keyring::Ed25519Keyring; // Keyring to easily access dev accounts
 
 /// Returns a genesis configuration in JSON format with the specified authorities,
 /// endowed accounts, and sudo (root) key.
@@ -49,18 +49,18 @@ fn testnet_genesis_with_stakes_and_names(
 	validator_names: Option<Vec<Option<Vec<u8>>>>, // Optional validator names
 ) -> Value {
 	// Create initial validator scores
-	let validator_scores = vec![8000; initial_validators.len()]; // Higher scores for proper calculation
+	let validator_scores = vec![80; initial_validators.len()]; // 80% initial score
 
-	// Create validator stakes - use provided stakes or defaults
+	// Create validator stakes - use provided stakes or defaults in DOLLARS
 	let stakes = validator_stakes.unwrap_or_else(|| {
-		// Default stakes: varying amounts for realistic testing
+		// Default stakes: 10M, 8M, 6M, 5M, 3M DOLLARS
 		initial_validators.iter().enumerate().map(|(i, _)| {
 			match i {
-				0 => 10_000_000, // Alice: 10M units
-				1 => 8_000_000,  // Bob: 8M units
-				2 => 6_000_000,  // Charlie: 6M units
-				3 => 5_000_000,  // Dave: 5M units
-				_ => 3_000_000,  // Others: 3M units
+				0 => 10_000_000 * DOLLARS, // Alice: 10M DOLLARS
+				1 => 8_000_000 * DOLLARS,  // Bob: 8M DOLLARS
+				2 => 6_000_000 * DOLLARS,  // Charlie: 6M DOLLARS
+				3 => 5_000_000 * DOLLARS,  // Dave: 5M DOLLARS
+				_ => 3_000_000 * DOLLARS,  // Others: 3M DOLLARS
 			}
 		}).collect()
 	});
@@ -73,7 +73,7 @@ fn testnet_genesis_with_stakes_and_names(
 	// Create initial inference results
 	let inference_results = initial_validators
 		.iter()
-		.map(|acc| (acc.clone(), 42))
+		.map(|acc| (acc.clone(), 80)) // Consistent with validator_scores
 		.collect::<Vec<_>>();
 
 	build_struct_json_patch!(RuntimeGenesisConfig {
@@ -82,7 +82,7 @@ fn testnet_genesis_with_stakes_and_names(
 			balances: endowed_accounts
 				.iter()
 				.cloned()
-				.map(|k| (k, 1u128 << 61)) // Each gets 2^61 units
+				.map(|k| (k, 100_000_000 * DOLLARS)) // Each gets 100M units
 				.collect::<Vec<_>>(),
 		},
 		// Assign the sudo (root) key to the provided account
@@ -122,15 +122,15 @@ fn testnet_genesis_with_stakes_and_names(
 /// - Uses Alice as the sole validator and sudo.
 /// - Endows Alice, Bob, and their stash accounts with tokens.
 pub fn development_config_genesis() -> Value {
-	let initial_validators = vec![Sr25519Keyring::Alice.to_account_id()];
+	let initial_validators = vec![Ed25519Keyring::Alice.to_account_id()];
 	let endowed_accounts = vec![
-		Sr25519Keyring::Alice.to_account_id(),
-		Sr25519Keyring::Bob.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Bob.to_account_id(),
 	];
 	testnet_genesis(
 		initial_validators,
 		endowed_accounts,
-		Sr25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
 	)
 }
 
@@ -140,17 +140,18 @@ pub fn development_config_genesis() -> Value {
 /// - Alice is the sudo key.
 pub fn local_config_genesis() -> Value {
 	let initial_validators = vec![
-		Sr25519Keyring::Alice.to_account_id(),
-		Sr25519Keyring::Bob.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Bob.to_account_id(),
+		Ed25519Keyring::Charlie.to_account_id(),
 	];
-	let endowed_accounts = Sr25519Keyring::iter()
-		.filter(|v| v != &Sr25519Keyring::One && v != &Sr25519Keyring::Two)
+	let endowed_accounts = Ed25519Keyring::iter()
+		.filter(|v| v != &Ed25519Keyring::One && v != &Ed25519Keyring::Two)
 		.map(|v| v.to_account_id())
 		.collect::<Vec<_>>();
 	testnet_genesis(
 		initial_validators,
 		endowed_accounts,
-		Sr25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
 	)
 }
 
@@ -173,11 +174,11 @@ pub fn get_preset(id: &Option<PresetId>) -> Option<Vec<u8>> {
 /// Returns a multi-validator testnet configuration with custom stakes
 pub fn multi_validator_config_genesis() -> Value {
 	let initial_validators = vec![
-		Sr25519Keyring::Alice.to_account_id(),
-		Sr25519Keyring::Bob.to_account_id(),
-		Sr25519Keyring::Charlie.to_account_id(),
-		Sr25519Keyring::Dave.to_account_id(),
-		Sr25519Keyring::Eve.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Bob.to_account_id(),
+		Ed25519Keyring::Charlie.to_account_id(),
+		Ed25519Keyring::Dave.to_account_id(),
+		Ed25519Keyring::Eve.to_account_id(),
 	];
 
 	// Custom stakes for different validator profiles
@@ -198,14 +199,14 @@ pub fn multi_validator_config_genesis() -> Value {
 		Some(b"Eve-Validator".to_vec()),
 	];
 
-	let endowed_accounts = Sr25519Keyring::iter()
+	let endowed_accounts = Ed25519Keyring::iter()
 		.map(|v| v.to_account_id())
 		.collect::<Vec<_>>();
 
 	testnet_genesis_with_stakes_and_names(
 		initial_validators,
 		endowed_accounts,
-		Sr25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
 		Some(validator_stakes),
 		Some(validator_names),
 	)
@@ -214,9 +215,9 @@ pub fn multi_validator_config_genesis() -> Value {
 /// Returns a high-stake validator configuration for stress testing
 pub fn high_stake_config_genesis() -> Value {
 	let initial_validators = vec![
-		Sr25519Keyring::Alice.to_account_id(),
-		Sr25519Keyring::Bob.to_account_id(),
-		Sr25519Keyring::Charlie.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Bob.to_account_id(),
+		Ed25519Keyring::Charlie.to_account_id(),
 	];
 
 	// High stakes for all validators
@@ -233,14 +234,14 @@ pub fn high_stake_config_genesis() -> Value {
 		Some(b"Charlie-HighStake".to_vec()),
 	];
 
-	let endowed_accounts = Sr25519Keyring::iter()
+	let endowed_accounts = Ed25519Keyring::iter()
 		.map(|v| v.to_account_id())
 		.collect::<Vec<_>>();
 
 	testnet_genesis_with_stakes_and_names(
 		initial_validators,
 		endowed_accounts,
-		Sr25519Keyring::Alice.to_account_id(),
+		Ed25519Keyring::Alice.to_account_id(),
 		Some(validator_stakes),
 		Some(validator_names),
 	)

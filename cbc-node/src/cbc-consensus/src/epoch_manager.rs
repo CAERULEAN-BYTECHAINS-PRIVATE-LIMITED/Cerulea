@@ -520,7 +520,7 @@ where
             let stake_score = pos_score; // Use the fresh PoS score from the profile
             
             let validator_info = ValidatorInfo {
-                account_id: sp_core::sr25519::Public::from_raw(*validator.as_ref()),
+                account_id: sp_core::ed25519::Public::from_raw(*validator.as_ref()),
                 stake: stake_score as u128,
                 performance_score: combined_score as u32,
                 blocks_produced: uptime, // Using uptime as blocks produced approximation

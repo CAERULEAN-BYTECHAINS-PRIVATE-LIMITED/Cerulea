@@ -8,7 +8,7 @@ use crate::{
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use sc_cli::SubstrateCli;
 use cbc_runtime::{Block, EXISTENTIAL_DEPOSIT};
-use sp_keyring::Sr25519Keyring;
+use sp_keyring::Ed25519Keyring;
 use serde_json::json;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -159,7 +159,7 @@ pub fn run() -> sc_cli::Result<()> {
                             Box::new(RemarkBuilder::new(client.clone())),
                             Box::new(TransferKeepAliveBuilder::new(
                                 client.clone(),
-                                Sr25519Keyring::Alice.to_account_id(),
+                                Ed25519Keyring::Alice.to_account_id(),
                                 EXISTENTIAL_DEPOSIT,
                             )),
                         ]);

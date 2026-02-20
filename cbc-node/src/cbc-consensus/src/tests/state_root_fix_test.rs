@@ -5,7 +5,7 @@
 
 use super::super::*;
 use crate::mock::*;
-use sp_core::{sr25519::{Pair, Public}, Pair as PairTrait, H256};
+use sp_core::{ed25519::{Pair, Public}, Pair as PairTrait, H256};
 use sp_runtime::traits::{Header as HeaderT, Zero, BlakeTwo256, Hash};
 use std::sync::Arc;
 

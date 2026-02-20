@@ -7,7 +7,7 @@ use scale_info::TypeInfo;
 use sp_runtime::traits::Block as BlockTrait;
 use sp_runtime::generic::{Block, Header, UncheckedExtrinsic};
 use sp_runtime::traits::BlakeTwo256;
-use sp_core::sr25519::Public;
+use sp_core::ed25519::Public;
 use std::default::Default;
 
 
