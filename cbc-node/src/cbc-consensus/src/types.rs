@@ -34,7 +34,7 @@ pub struct ValidatorInfo {
     pub account_id: Public,
     /// Current stake amount
     pub stake: u128,
-    /// Proof of Importance score
+    /// Proof of Inference score
     pub performance_score: u32,
     /// Number of blocks produced
     pub blocks_produced: u32,
