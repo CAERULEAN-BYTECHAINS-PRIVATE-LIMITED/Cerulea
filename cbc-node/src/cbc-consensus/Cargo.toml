@@ -41,6 +41,9 @@ pallet-balances = { workspace = true }
 pallet-timestamp = { workspace = true }
 prometheus = { version = "0.13", default-features = false }
 parking_lot = "0.12"
+once_cell = "1.19"
+toml = "0.8"
+serde_json = { workspace = true }
 
 
 [dev-dependencies]

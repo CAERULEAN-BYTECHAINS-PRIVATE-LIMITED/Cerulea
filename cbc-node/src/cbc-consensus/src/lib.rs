@@ -29,6 +29,8 @@ pub mod error;
 /// Monitoring and finality
 pub mod metrics;
 pub mod finality;
+/// Lifecycle tracing subsystem
+pub mod lifecycle_tracer;
 
 #[cfg(test)]
 mod mock;

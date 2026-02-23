@@ -5,10 +5,15 @@ use std::fmt;
 /// Main tracer error type
 #[derive(Debug)]
 pub enum TracerError {
+    /// Trace initialization failed
     InitializationFailed(String),
+    /// Trace output failed
     OutputError(OutputError),
+    /// Trace formatting failed
     FormattingError(String),
+    /// Trace buffer overflowed
     BufferOverflow,
+    /// Configuration parameter invalid
     ConfigurationError(String),
 }
 
@@ -29,8 +34,11 @@ impl std::error::Error for TracerError {}
 /// Output-specific error type
 #[derive(Debug)]
 pub enum OutputError {
+    /// Error writing to file
     FileWriteError(std::io::Error),
+    /// Error writing to stdout
     StdoutWriteError(std::io::Error),
+    /// Error recording metrics
     MetricsError(String),
 }
 

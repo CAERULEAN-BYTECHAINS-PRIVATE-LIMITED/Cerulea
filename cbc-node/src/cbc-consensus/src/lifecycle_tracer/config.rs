@@ -6,13 +6,21 @@ use serde::{Deserialize, Serialize};
 /// Tracer configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TracerConfig {
+    /// Whether tracing is enabled
     pub enabled: bool,
+    /// Trace format
     pub format: TraceFormat,
+    /// Destinations for the trace outputs
     pub output_destinations: Vec<OutputDestination>,
+    /// The size of the in-memory buffer
     pub buffer_size: usize,
+    /// Interval in milliseconds to flush the buffer
     pub flush_interval_ms: u64,
+    /// Include the thread ID in the trace
     pub include_thread_id: bool,
+    /// Include the timestamp in the trace
     pub include_timestamps: bool,
+    /// Set to true to capture only the milestone logs
     pub milestone_only: bool,
 }
 
@@ -75,7 +83,9 @@ impl TracerConfig {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TraceFormat {
+    /// Output traces in json format
     Json,
+    /// Output traces in human-readable format
     HumanReadable,
 }
 
@@ -83,7 +93,10 @@ pub enum TraceFormat {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OutputDestination {
+    /// Output to the console
     Stdout,
+    /// Output to a file
     File(PathBuf),
+    /// Output to metrics (Prometheus)
     Metrics,
 }

@@ -22,7 +22,8 @@ use codec::Encode;
 use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
 use cbc_runtime::AccountId;
 use sc_transaction_pool_api::TransactionPool;
-// use sc_client_api::BlockBackend;
+// Import lifecycle tracer
+use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
 
 
 /// DCF consensus engine implementation
@@ -126,6 +127,17 @@ where
                 // Get current runtime state
                 let best_hash = self.client.info().best_hash;
                 let _best_number = self.client.info().best_number;
+                let block_number = self.client.info().best_number.saturated_into::<u32>() + 1;
+                
+                // STEP 40: Consensus loop iteration started
+                let mut metadata = TraceMetadata::new();
+                metadata.block_number = Some(block_number);
+                LifecycleTracer::global().trace_step(
+                    40,
+                    "dcf.rs::run",
+                    &format!("Consensus loop iteration started for block {}", block_number),
+                    Some(metadata),
+                );
                 
                 // Get active validators from runtime
                 let active_validators = {
@@ -135,13 +147,57 @@ where
                 
                 match active_validators {
                     Ok(validators) => {
+                        // STEP 41: Active validators retrieved
+                        let mut metadata = TraceMetadata::new();
+                        metadata.block_number = Some(block_number);
+                        metadata.custom.insert("validator_count".to_string(), validators.len().to_string());
+                        LifecycleTracer::global().trace_step(
+                            41,
+                            "dcf.rs::run",
+                            &format!("Active validators retrieved: {} validators", validators.len()),
+                            Some(metadata),
+                        );
+                        
                         if validators.is_empty() {
                             error!("DCF: No active validators available for block production");
                         } else {
+                            // STEP 42: Author selection started
+                            let mut metadata = TraceMetadata::new();
+                            metadata.block_number = Some(block_number);
+                            LifecycleTracer::global().trace_step(
+                                42,
+                                "dcf.rs::run",
+                                &format!("Author selection for block {} started", block_number),
+                                Some(metadata),
+                            );
                             
                             // Select next author using runtime logic
                             match self.select_next_author_from_runtime(&validators) {
                                 Ok(author) => {
+                                    // STEP 43: Expected author selected
+                                    let author_account: AccountId = author.clone().into();
+                                    let mut metadata = TraceMetadata::new();
+                                    metadata.block_number = Some(block_number);
+                                    metadata.author = Some(format!("{:?}", author_account));
+                                    metadata.custom.insert("selection_method".to_string(), "runtime_deterministic".to_string());
+                                    LifecycleTracer::global().trace_step(
+                                        43,
+                                        "dcf.rs::run",
+                                        &format!("Expected author selected: {:?} (method: runtime_deterministic)", author_account),
+                                        Some(metadata),
+                                    );
+                                    
+                                    // STEP 44: Block production triggered
+                                    let mut metadata = TraceMetadata::new();
+                                    metadata.block_number = Some(block_number);
+                                    metadata.author = Some(format!("{:?}", author_account));
+                                    LifecycleTracer::global().trace_step(
+                                        44,
+                                        "dcf.rs::run",
+                                        &format!("Block production triggered for block {}", block_number),
+                                        Some(metadata),
+                                    );
+                                    
                                     match self.produce_block_with_validation(&author).await {
                                         Ok(()) => {
                                             debug!("Block production successful for author {:?}", author);
@@ -908,6 +964,20 @@ where
             debug!("Recorded successful block authorship for validator {:?} at block #{}", author, block_number);
         }
         
+        // STEP 53: Consensus state updated after block production
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        metadata.author = Some(format!("{:?}", author));
+        metadata.custom.insert("slot".to_string(), self.current_slot.to_string());
+        metadata.custom.insert("total_blocks".to_string(), self.metrics.total_blocks.to_string());
+        LifecycleTracer::global().trace_step(
+            53,
+            "dcf.rs::update_consensus_state",
+            &format!("Consensus state updated after block production (block: {}, slot: {}, total: {})", 
+                     block_number, self.current_slot, self.metrics.total_blocks),
+            Some(metadata),
+        );
+        
         // Update validator performance in runtime 
         if let Ok(Some(profile)) = api.get_validator_profile(best_hash, author.clone()) {
             let combined_score = profile.final_score;
@@ -917,6 +987,26 @@ where
             let uptime = self.calculate_validator_uptime(author);
             let inference_count = profile.inference_count;
             let (participation_rate, missed_blocks) = self.get_validator_participation_metrics(author);
+            
+            // STEP 54: Author scores updated
+            let mut metadata = TraceMetadata::new();
+            metadata.block_number = Some(block_number);
+            metadata.author = Some(format!("{:?}", author));
+            metadata.custom.insert("pos_score".to_string(), pos_score.to_string());
+            metadata.custom.insert("poi_score".to_string(), poi_score.to_string());
+            metadata.custom.insert("combined_score".to_string(), combined_score.to_string());
+            metadata.custom.insert("trust_score".to_string(), trust_score.to_string());
+            metadata.custom.insert("uptime".to_string(), uptime.to_string());
+            metadata.custom.insert("inference_count".to_string(), inference_count.to_string());
+            metadata.custom.insert("participation_rate".to_string(), participation_rate.to_string());
+            metadata.custom.insert("missed_blocks".to_string(), missed_blocks.to_string());
+            LifecycleTracer::global().trace_step(
+                54,
+                "dcf.rs::update_consensus_state",
+                &format!("Author scores updated - PoS: {}, PoI: {}, Combined: {}, Trust: {}, Uptime: {}, Inferences: {}, Participation: {}%, Missed: {}", 
+                         pos_score, poi_score, combined_score, trust_score, uptime, inference_count, participation_rate, missed_blocks),
+                Some(metadata),
+            );
             
             // Log the successful block production
             debug!("Block #{} produced successfully by {:?}", block_number, author);

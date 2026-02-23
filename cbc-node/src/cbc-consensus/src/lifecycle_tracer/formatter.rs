@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Trait for formatting trace entries
 pub trait TraceFormatter: Send + Sync {
+    /// Format a single trace entry
     fn format(&self, entry: &TraceEntry) -> String;
 }
 

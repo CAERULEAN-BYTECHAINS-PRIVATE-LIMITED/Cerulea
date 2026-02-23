@@ -8,7 +8,9 @@ use std::sync::{Arc, Mutex};
 
 /// Trait for trace output destinations
 pub trait TraceOutput: Send + Sync {
+    /// Write a formatted entry to output destination
     fn write(&self, formatted_entry: &str) -> Result<(), OutputError>;
+    /// Flush output destination to ensure traces are persisted
     fn flush(&self) -> Result<(), OutputError>;
 }
 
@@ -37,6 +39,7 @@ pub struct FileOutput {
 }
 
 impl FileOutput {
+    /// Create a new file output destination
     pub fn new(path: PathBuf) -> Result<Self, OutputError> {
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
