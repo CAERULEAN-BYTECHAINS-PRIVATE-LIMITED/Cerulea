@@ -40,6 +40,18 @@ pub struct Cli {
 
     #[clap(long, default_value = "100", help = "Maximum RPC requests per rate limit window")]
     pub rpc_rate_limit_requests: u32,
+
+    #[clap(long, help = "Enable lifecycle tracing for detailed node initialization and operation logging")]
+    pub lifecycle_trace: bool,
+
+    #[clap(long, help = "Lifecycle trace output format (json or human-readable)")]
+    pub lifecycle_trace_format: Option<String>,
+
+    #[clap(long, help = "Write lifecycle traces to the specified file")]
+    pub lifecycle_trace_output: Option<String>,
+
+    #[clap(long, help = "Only log milestone events in lifecycle tracing")]
+    pub lifecycle_trace_milestone_only: bool,
 }
 
 #[derive(Debug, clap::Subcommand)]

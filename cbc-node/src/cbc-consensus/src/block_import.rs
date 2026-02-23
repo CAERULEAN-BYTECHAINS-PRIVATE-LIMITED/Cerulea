@@ -107,7 +107,6 @@ where
     fn validate_cbc_consensus(&self, block: &BlockImportParams<B>) -> Result<(), Error> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
         let block_hash = block.header.hash();
-        
         debug!("CBC BlockImport: Validating CBC consensus for block #{} ({:?})", block_number, block_hash);
         
         let api = self.client.runtime_api();
@@ -209,7 +208,6 @@ where
     /// Update DCF consensus state after successful import
     fn update_dcf_consensus_state(&self, block: &BlockImportParams<B>) -> ConsensusResult<()> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
-        
         debug!("CBC BlockImport: Updating DCF consensus state for block #{}", block_number);
         
         let api = self.client.runtime_api();
@@ -255,6 +253,9 @@ where
             
             debug!("CBC BlockImport: Updated validator {:?} metrics - Combined: {}, Trust: {}, Inferences: {}", 
                    author, combined_score, trust_score, inference_count);
+            
+            let pos_score = api.get_validator_stake_score(best_hash, author.clone()).unwrap_or(0) as u64;
+            println!("============== [CBC-TRACE] 27. Author After Block Production - Profile: Combined={}, PoS={}, PoI={} ==============", combined_score, pos_score, profile.poi_score as u64);
             
             // Update metrics with current runtime state
             let author_public = sp_core::ed25519::Public::from_raw(*author.as_ref());

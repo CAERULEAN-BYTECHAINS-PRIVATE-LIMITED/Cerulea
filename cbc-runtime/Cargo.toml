@@ -16,6 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]       # Specify target for documentation 
 
 # List of project dependencies
 [dependencies]
+log = { version = "0.4.20", default-features = false }
 codec = { features = ["derive"], workspace = true }                              # SCALE codec with derive support
 frame-benchmarking = { optional = true, workspace = true }                       # Optional benchmarking support
 frame-executive.workspace = true                                                 # FRAME core executor

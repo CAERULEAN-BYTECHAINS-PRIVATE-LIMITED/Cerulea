@@ -89,7 +89,8 @@ where
     
     fn validator_info(&self, validator: &u64, at: &Block::Hash) -> ConsensusResult<Option<ValidatorInfo>> {
         let api = self.client.runtime_api();
-        
+
+
         // Check if validator is active
         let is_active = self.is_validator_active(validator, at)?;
         

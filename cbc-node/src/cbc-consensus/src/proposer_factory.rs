@@ -446,7 +446,6 @@ where
             .take(self.max_transactions_per_block)
             .map(|tx| (**tx.data()).clone())
             .collect::<Vec<_>>();
-        
         debug!("Collected {} transactions from pool", ready_transactions.len());
         Ok(ready_transactions)
     }

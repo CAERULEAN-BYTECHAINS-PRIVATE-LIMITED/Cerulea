@@ -1,0 +1,130 @@
+CBC Node Startup Information
+================================
+Node Version:     0.1.0
+Runtime Version:  0.1.0
+Chain:            CBC Chain
+Role:             Node
+Timestamp:        1771834688
+================================
+[2026-03-08T08:18:08.726Z] [ThreadId(1)] ============== [CBC-TRACE] 1. [main.rs] Node entry point - main.rs started ==============
+[2026-03-08T08:18:08.726Z] [ThreadId(1)] ============== [CBC-TRACE] 2. [main.rs] CLI configuration parsed ==============
+[2026-03-08T08:18:08.726Z] [ThreadId(1)] ============== [CBC-TRACE] 3. [main.rs] Logging system configured ==============
+[2026-03-08T08:18:08.726Z] [ThreadId(1)] ============== [CBC-TRACE] 4. [main.rs] Node metadata initialized ==============
+[2026-03-08T08:18:08.726Z] [ThreadId(1)] ============== [CBC-TRACE] 5. [main.rs] Command execution started ==============
+2026-02-23 08:18:08 CBC CHAIN    
+2026-02-23 08:18:08 ✌️  version 0.1.0    
+2026-02-23 08:18:08 ❤️  by Caerulean ByteChains Private Limited, 2025-2026    
+2026-02-23 08:18:08 📋 Chain specification: CBC Development Chain    
+2026-02-23 08:18:08 🏷  Node name: maddening-knee-9982    
+2026-02-23 08:18:08 👤 Role: AUTHORITY    
+2026-02-23 08:18:08 💾 Database: RocksDb at /tmp/substrateo6HK9f/chains/cbc_dev/db/full    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.1 [pallet-cbc-dcf::genesis_build] Genesis block validation started ==============    
+2026-02-23 08:18:15 Genesis configuration validation passed    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.2 [pallet-cbc-dcf::genesis_build] Genesis configuration loaded ==============    
+2026-02-23 08:18:15   Validator count: 1    
+2026-02-23 08:18:15   Epoch: 0    
+2026-02-23 08:18:15   Blocks per epoch: 100    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.3.1 [pallet-cbc-dcf::genesis_build] Genesis validator 1 initialized ==============    
+2026-02-23 08:18:15   Account ID: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-02-23 08:18:15   Stake: 10000000000000000000    
+2026-02-23 08:18:15   Initial score: 80    
+2026-02-23 08:18:15   PoS score: 10000000000000000    
+2026-02-23 08:18:15   PoI score: 80    
+2026-02-23 08:18:15   Combined DCF score: 31    
+2026-02-23 08:18:15 Genesis validator 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) initialized with stake: 10000000000000000000, final_score: 31, name: None    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.4 [pallet-cbc-dcf::genesis_build] PoS scores calculated for all genesis validators ==============    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.5 [pallet-cbc-dcf::genesis_build] PoI scores calculated for all genesis validators ==============    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.6 [pallet-cbc-dcf::genesis_build] Combined DCF scores computed for all validators ==============    
+2026-02-23 08:18:15   PoS weight: 6000    
+2026-02-23 08:18:15   PoI weight: 4000    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.7 [pallet-cbc-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============    
+2026-02-23 08:18:15   Sequence length: 100    
+2026-02-23 08:18:15 DCF: Generated deterministic author sequence for epoch 0 with 100 authors    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.8 [pallet-cbc-dcf::genesis_build] Genesis block created ==============    
+2026-02-23 08:18:15   Note: Block hash and state root will be computed by runtime after genesis build completes    
+2026-02-23 08:18:15 ============== [CBC-TRACE] 10.9 [pallet-cbc-dcf::genesis_build] Genesis validation completed successfully ==============    
+2026-02-23 08:18:15 DCF Genesis completed: 1 validators initialized in epoch 0    
+2026-02-23 08:18:16 🔨 Initializing Genesis block/state (state: 0x37fc…853c, header-hash: 0x3436…cfac)    
+[2026-03-08T08:18:08.730Z] [ThreadId(1)] ============== [CBC-TRACE] 6. [service.rs::new_full] Full service initialization started ==============
+[2026-03-08T08:18:08.730Z] [ThreadId(1)] ============== [CBC-TRACE] 7. [service.rs::new_partial] Partial node components initialization started ==============
+[2026-03-08T08:18:08.730Z] [ThreadId(1)] ============== [CBC-TRACE] 8. [service.rs::new_partial] Telemetry endpoints configured (none) ==============
+[2026-03-08T08:18:08.730Z] [ThreadId(1)] ============== [CBC-TRACE] 9. [service.rs::new_partial] WASM executor initialized ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 10. [service.rs::new_partial] Client and backend initialized ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 11. [service.rs::new_partial] Keystore container created ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 12. [service.rs::new_partial] Chain selection strategy initialized ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 13. [service.rs::new_partial] Transaction pool initialized ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 14. [service.rs::new_partial] Prometheus consensus metrics registered ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 15. [service.rs::new_partial] DCF import queue initialized ==============
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 16. [service.rs::new_partial] Partial node components ready ==============
+2026-02-23 08:18:16  creating SingleState txpool Limit { count: 8192, total_bytes: 20971520 }/Limit { count: 819, total_bytes: 2097152 }.    
+2026-02-23 08:18:16 CBC: Consensus metrics initialized successfully in new_partial    
+2026-02-23 08:18:16 🏷  Local node identity is: 12D3KooWPZ447a1dvouTvKrsgcytZeEUuMGr3ERdY5obSaXQGukb    
+2026-02-23 08:18:16 Running libp2p network backend    
+2026-02-23 08:18:16 local_peer_id=12D3KooWPZ447a1dvouTvKrsgcytZeEUuMGr3ERdY5obSaXQGukb
+[2026-03-08T08:18:16.083Z] [ThreadId(1)] ============== [CBC-TRACE] 17. [service.rs::new_full] Network configuration prepared ==============
+[2026-03-08T08:18:16.085Z] [ThreadId(1)] ============== [CBC-TRACE] 18. [service.rs::new_full] P2P network layer initialized ==============
+[2026-03-08T08:18:16.085Z] [ThreadId(1)] ============== [CBC-TRACE] 19. [service.rs::new_full] Block synchronization service started ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 20. [service.rs::new_full] Offchain workers spawned ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 21. [service.rs::new_full] DCF consensus parameters set ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 22. [service.rs::new_full] DCF consensus engine initialized ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 23. [service.rs::new_full] Consensus engine task started ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 24. [service.rs::new_full] Metrics updater task started ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 25. [service.rs::new_full] Block authoring tracker started ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 26. [service.rs::new_full] DCF finality sync service started ==============
+[2026-03-08T08:18:16.151Z] [ThreadId(1)] ============== [CBC-TRACE] 27. [service.rs::new_full] RPC extensions configured ==============
+[2026-03-08T08:18:16.157Z] [ThreadId(1)] ============== [CBC-TRACE] 28. [service.rs::new_full] All service tasks spawned successfully ==============
+[2026-03-08T08:18:16.157Z] [ThreadId(1)] ============== [CBC-TRACE] 29. [service.rs::new_full] Full node service operational ==============
+2026-02-23 08:18:16 DCF: Consensus monitoring active. Block production handled by Substrate's default mechanisms.    
+2026-02-23 08:18:16 CBC: Starting consensus metrics updater    
+2026-02-23 08:18:16 CBC: Starting real PoS+PoI consensus engine for block production    
+2026-02-23 08:18:16 CBC: Starting block authoring tracking service    
+2026-02-23 08:18:16 Block Tracker: Starting block authoring tracking service    
+2026-02-23 08:18:16 DCF: Starting finality sync service    
+2026-02-23 08:18:16 Producing block #1 with author 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-02-23 08:18:16 ProposerFactory: Successfully created block #1 with 1 extrinsics    
+2026-02-23 08:18:16 💻 Operating system: linux    
+2026-02-23 08:18:16 💻 CPU architecture: x86_64    
+2026-02-23 08:18:16 💻 Target environment: gnu    
+2026-02-23 08:18:16 💻 CPU: Intel(R) Xeon(R) E-2224G CPU @ 3.50GHz    
+2026-02-23 08:18:16 💻 CPU cores: 6    
+2026-02-23 08:18:16 💻 Memory: 9943MB    
+2026-02-23 08:18:16 💻 Kernel: 6.17.0-14-generic    
+2026-02-23 08:18:16 💻 Linux distribution: Ubuntu 24.04.4 LTS    
+2026-02-23 08:18:16 💻 Virtual machine: yes    
+2026-02-23 08:18:16 📦 Highest known block at #0    
+2026-02-23 08:18:16 〽️ Prometheus exporter started at 127.0.0.1:9615    
+2026-02-23 08:18:16 Running JSON-RPC server: addr=127.0.0.1:9944,[::1]:9944    
+2026-02-23 08:18:16 Failed to trigger bootstrap: No known peers.
+2026-02-23 08:18:21 💤 Idle (0 peers), best: #1 (0x3b37…6c6a), finalized #0 (0x3436…cfac), ⬇ 0 ⬆ 0    
+2026-02-23 08:18:22 DCF Finality Sync: Client at block #0, DCF finalized up to #1, syncing...    
+2026-02-23 08:18:22 DCF Finality Sync: Sync complete. Client finalized head now at block #1    
+2026-02-23 08:18:22 ProposerFactory: Successfully created block #2 with 1 extrinsics    
+2026-02-23 08:18:22 🏆 Imported #2 (0x3b37…6c6a → 0x0253…84e7)    
+2026-02-23 08:18:26 💤 Idle (0 peers), best: #2 (0x0253…84e7), finalized #1 (0x3b37…6c6a), ⬇ 0 ⬆ 0    
+2026-02-23 08:18:28 DCF: Finality advanced from 1 to 2 in epoch 0    
+2026-02-23 08:18:28 DCF: Progressive finalization advanced to block 2    
+2026-02-23 08:18:28 ProposerFactory: Successfully created block #3 with 1 extrinsics    
+2026-02-23 08:18:28 DCF: Finality advanced from 1 to 2 in epoch 0    
+2026-02-23 08:18:28 DCF: Progressive finalization advanced to block 2    
+2026-02-23 08:18:28 🏆 Imported #3 (0x0253…84e7 → 0x132d…5bf3)    
+2026-02-23 08:18:31 💤 Idle (0 peers), best: #3 (0x132d…5bf3), finalized #1 (0x3b37…6c6a), ⬇ 0 ⬆ 0    
+2026-02-23 08:18:34 DCF Finality Sync: Client at block #1, DCF finalized up to #2, syncing...    
+2026-02-23 08:18:34 DCF Finality Sync: Sync complete. Client finalized head now at block #2    
+2026-02-23 08:18:34 DCF: Finality advanced from 2 to 3 in epoch 0    
+2026-02-23 08:18:34 DCF: Progressive finalization advanced to block 3    
+2026-02-23 08:18:34 ProposerFactory: Successfully created block #4 with 1 extrinsics    
+2026-02-23 08:18:34 DCF: Finality advanced from 2 to 3 in epoch 0    
+2026-02-23 08:18:34 DCF: Progressive finalization advanced to block 3    
+2026-02-23 08:18:34 🏆 Imported #4 (0x132d…5bf3 → 0x434a…4c9c)    
+2026-02-23 08:18:36 💤 Idle (0 peers), best: #4 (0x434a…4c9c), finalized #2 (0x0253…84e7), ⬇ 0 ⬆ 0    
+2026-02-23 08:18:40 DCF Finality Sync: Client at block #2, DCF finalized up to #3, syncing...    
+2026-02-23 08:18:40 DCF Finality Sync: Sync complete. Client finalized head now at block #3    
+2026-02-23 08:18:40 DCF: Finality advanced from 3 to 4 in epoch 0    
+2026-02-23 08:18:40 DCF: Progressive finalization advanced to block 4    
+2026-02-23 08:18:40 ProposerFactory: Successfully created block #5 with 1 extrinsics    
+2026-02-23 08:18:40 DCF: Finality advanced from 3 to 4 in epoch 0    
+2026-02-23 08:18:40 DCF: Progressive finalization advanced to block 4    
+2026-02-23 08:18:40 DCF: Computed PoI score for validator=88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...), score=0, block=5    
+2026-02-23 08:18:40 DCF off-chain worker completed computation    
+2026-02-23 08:18:40 🏆 Imported #5 (0x434a…4c9c → 0xd53c…419d)    
+2026-02-23 08:18:41 💤 Idle (0 peers), best: #5 (0xd53c…419d), finalized #3 (0x132d…5bf3), ⬇ 0 ⬆ 0    

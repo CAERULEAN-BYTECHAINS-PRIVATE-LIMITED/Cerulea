@@ -385,7 +385,7 @@ pub mod pallet {
 
         /// Get all active validators
         pub fn get_active_validators() -> Vec<T::AccountId> {
-            Validators::<T>::iter()
+            let active_list: Vec<T::AccountId> = Validators::<T>::iter()
                 .filter_map(|(validator, is_active)| {
                     if is_active {
                         Some(validator)
@@ -393,7 +393,8 @@ pub mod pallet {
                         None
                     }
                 })
-                .collect()
+                .collect();
+            active_list
         }
 
         /// Activate a validator

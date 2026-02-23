@@ -676,6 +676,7 @@ where
         } else {
             log::trace!("Producing block #{} with author {:?}", block_number, author_account_id);
         }
+        
 
         // Validate block authorship through runtime
         api.validate_block_author(best_hash, block_number, author_account_id.clone())
@@ -701,6 +702,8 @@ where
             let (_, missed_blocks) = self.get_validator_participation_metrics(&author_account_id);
             debug!("DCF: Validator profile - Combined: {}, PoS: {}, PoI: {}, Trust: {}, Uptime: {}, Inferences: {}, Participation: {}%, Missed: {}", 
                   combined_score, pos_score, poi_score, trust_score, uptime, inference_count, participation_rate, missed_blocks);
+            
+            // Used to have Trace 7 here, removed to avoid duplicate since traces 7 and 8 are handled dynamically in the pallet.
         }
 
         // 1. Create block proposal with transactions from the pool (includes signing)
@@ -711,6 +714,12 @@ where
         
         // 3. Update consensus state after successful block production
         self.update_consensus_state(block_number, &author_account_id).await?;
+        
+        // if let Ok(Some(profile)) = self.client.runtime_api().get_validator_profile(best_hash, author_account_id.clone()) {
+        //     let combined_score = profile.final_score;
+        //     let pos_score = self.get_pos_score(&author_account_id);
+        //     let poi_score = profile.poi_score as u64;
+        // }
         
         // Task 8 requirement: Record block production time metric
         let production_duration = production_start.elapsed();

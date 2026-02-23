@@ -143,7 +143,6 @@ where
     ) -> std::result::Result<ImportResult, Self::Error> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
         let block_hash = block.header.hash();
-        
         debug!("DCF ImportQueue: Importing block #{} ({:?})", block_number, block_hash);
         
         // Extract block author from header digest

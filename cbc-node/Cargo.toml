@@ -69,6 +69,10 @@ log = "0.4" # Logging framework
 env_logger = "0.10" # Environment-based logger
 atty = "0.2" # Terminal detection for color support
 
+# === Lifecycle Tracing ===
+once_cell = "1.19" # Lazy static initialization
+toml = "0.8" # TOML configuration parsing
+
 # === JSON-RPC ===
 jsonrpsee = { features = ["server", "http-client"], workspace = true }    # JSON-RPC server implementation
 serde_json = { workspace = true }

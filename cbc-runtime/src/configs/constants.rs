@@ -2,9 +2,9 @@ use frame_support::parameter_types;
 use sp_runtime::Perbill;
 
 // Time and blocks
-pub const MILLISECS_PER_BLOCK: u64 = 6000;
+pub const MILLISECS_PER_BLOCK: u64 = 120000;
 pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
-pub const EPOCH_DURATION_IN_BLOCKS: u32 = 10 * MINUTES;
+pub const EPOCH_DURATION_IN_BLOCKS: u32 = 100 * MINUTES;
 pub const EPOCH_DURATION_IN_SLOTS: u32 = EPOCH_DURATION_IN_BLOCKS;
 
 // These time units are defined in number of blocks.

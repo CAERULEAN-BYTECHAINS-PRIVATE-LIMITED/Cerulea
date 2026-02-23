@@ -39,6 +39,16 @@ pub fn new_partial(
     config: &Configuration,
     node_config: &NodeConfig,
 ) -> Result<Service, ServiceError> {
+    use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
+    
+    // STEP 7: Partial node components initialization started
+    LifecycleTracer::global().trace_step(
+        7,
+        "service.rs::new_partial",
+        "Partial node components initialization started",
+        None,
+    );
+    
     let telemetry = config
         .telemetry_endpoints
         .clone()
@@ -50,7 +60,35 @@ pub fn new_partial(
         })
         .transpose()?;
 
+    // STEP 8: Telemetry endpoints configured
+    if telemetry.is_some() {
+        LifecycleTracer::global().trace_step(
+            8,
+            "service.rs::new_partial",
+            "Telemetry endpoints configured",
+            Some(TraceMetadata::new().with_custom(
+                "telemetry_enabled".to_string(),
+                "true".to_string(),
+            )),
+        );
+    } else {
+        LifecycleTracer::global().trace_step(
+            8,
+            "service.rs::new_partial",
+            "Telemetry endpoints configured (none)",
+            None,
+        );
+    }
+
     let executor = sc_service::new_wasm_executor::<sp_io::SubstrateHostFunctions>(&config.executor);
+
+    // STEP 9: WASM executor initialized
+    LifecycleTracer::global().trace_step(
+        9,
+        "service.rs::new_partial",
+        "WASM executor initialized",
+        None,
+    );
 
     let (client, backend, keystore_container, task_manager) =
         sc_service::new_full_parts::<Block, RuntimeApi, _>(
@@ -59,7 +97,27 @@ pub fn new_partial(
             executor,
         )?;
 
+    // STEP 10: Client and backend initialized
+    let db_path = config.database.path().map(|p| p.display().to_string()).unwrap_or_else(|| "in-memory".to_string());
+    LifecycleTracer::global().trace_step(
+        10,
+        "service.rs::new_partial",
+        "Client and backend initialized",
+        Some(TraceMetadata::new().with_custom(
+            "database_path".to_string(),
+            db_path,
+        )),
+    );
+
     let client = Arc::new(client);
+
+    // STEP 11: Keystore container created
+    LifecycleTracer::global().trace_step(
+        11,
+        "service.rs::new_partial",
+        "Keystore container created",
+        None,
+    );
 
     let _telemetry = telemetry.map(|(worker, telemetry)| {
         task_manager.spawn_handle().spawn("telemetry", None, worker.run());
@@ -67,6 +125,17 @@ pub fn new_partial(
     });
 
     let select_chain = sc_consensus::LongestChain::new(backend.clone());
+
+    // STEP 12: Chain selection strategy initialized
+    LifecycleTracer::global().trace_step(
+        12,
+        "service.rs::new_partial",
+        "Chain selection strategy initialized",
+        Some(TraceMetadata::new().with_custom(
+            "strategy".to_string(),
+            "LongestChain".to_string(),
+        )),
+    );
 
     let transaction_pool = Arc::from(
         sc_transaction_pool::Builder::new(
@@ -77,6 +146,16 @@ pub fn new_partial(
         .with_options(config.transaction_pool.clone())
         .with_prometheus(config.prometheus_registry())
         .build(),
+    );
+
+    // STEP 13: Transaction pool initialized
+    LifecycleTracer::global().trace_step(
+        13,
+        "service.rs::new_partial",
+        "Transaction pool initialized",
+        Some(TraceMetadata::new()
+            .with_custom("is_authority".to_string(), config.role.is_authority().to_string())
+        ),
     );
 
     // Initialize Prometheus metrics for consensus monitoring
@@ -96,6 +175,17 @@ pub fn new_partial(
         None
     };
 
+    // STEP 14: Prometheus consensus metrics registered
+    LifecycleTracer::global().trace_step(
+        14,
+        "service.rs::new_partial",
+        "Prometheus consensus metrics registered",
+        Some(TraceMetadata::new().with_custom(
+            "metrics_enabled".to_string(),
+            consensus_metrics.is_some().to_string(),
+        )),
+    );
+
  
     let import_queue = {
         let dcf_verifier: DcfImportQueue<Block, FullClient, FullBackend> = if let Some(ref consensus_metrics) = consensus_metrics {
@@ -112,6 +202,28 @@ pub fn new_partial(
             None,
         )
     };
+
+    // STEP 15: DCF import queue initialized
+    LifecycleTracer::global().trace_step(
+        15,
+        "service.rs::new_partial",
+        "DCF import queue initialized",
+        Some(TraceMetadata::new().with_custom(
+            "verifier".to_string(),
+            "DcfImportQueue".to_string(),
+        )),
+    );
+
+    // STEP 16: Partial node components ready
+    LifecycleTracer::global().trace_step(
+        16,
+        "service.rs::new_partial",
+        "Partial node components ready",
+        None,
+    );
+
+    // Flush the tracer to ensure all traces are written
+    LifecycleTracer::global().flush();
 
     Ok(sc_service::PartialComponents {
         client,
@@ -134,6 +246,16 @@ pub fn new_full<
 where
     N: sc_network::NetworkBackend<Block, <Block as sp_runtime::traits::Block>::Hash>,
 {
+    use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
+    
+    // STEP 6: Full service initialization started
+    LifecycleTracer::global().trace_step(
+        6,
+        "service.rs::new_full",
+        "Full service initialization started",
+        None,
+    );
+    
     let sc_service::PartialComponents {
         client,
         backend,
@@ -151,6 +273,17 @@ where
         N,
     >::new(&config.network, config.prometheus_registry().cloned());
 
+    // STEP 17: Network configuration prepared
+    LifecycleTracer::global().trace_step(
+        17,
+        "service.rs::new_full",
+        "Network configuration prepared",
+        Some(TraceMetadata::new()
+            .with_custom("listen_addresses".to_string(), format!("{:?}", config.network.listen_addresses))
+            .with_custom("public_addresses".to_string(), format!("{:?}", config.network.public_addresses))
+        ),
+    );
+
     let metrics = N::register_notification_metrics(config.prometheus_registry());
     let _peer_store_handle = net_config.peer_store_handle();
 
@@ -167,6 +300,24 @@ where
             block_relay: None,
             metrics,
         })?;
+
+    // STEP 18: P2P network layer initialized
+    LifecycleTracer::global().trace_step(
+        18,
+        "service.rs::new_full",
+        "P2P network layer initialized",
+        Some(TraceMetadata::new()
+            .with_custom("local_peer_id".to_string(), network.local_peer_id().to_string())
+        ),
+    );
+
+    // STEP 19: Block synchronization service started
+    LifecycleTracer::global().trace_step(
+        19,
+        "service.rs::new_full",
+        "Block synchronization service started",
+        None,
+    );
 
     if config.offchain_worker.enabled {
         let offchain_workers =
@@ -187,6 +338,16 @@ where
             "offchain-workers-runner",
             "offchain-worker",
             offchain_workers.run(client.clone(), task_manager.spawn_handle()).boxed(),
+        );
+        
+        // STEP 20: Offchain workers spawned
+        LifecycleTracer::global().trace_step(
+            20,
+            "service.rs::new_full",
+            "Offchain workers spawned",
+            Some(TraceMetadata::new()
+                .with_custom("http_requests_enabled".to_string(), "true".to_string())
+            ),
         );
     }
 
@@ -221,6 +382,20 @@ where
         health_check_sample_size: 5,
     };
 
+    // STEP 21: DCF consensus parameters set
+    LifecycleTracer::global().trace_step(
+        21,
+        "service.rs::new_full",
+        "DCF consensus parameters set",
+        Some(TraceMetadata::new()
+            .with_custom("author_selection_mode".to_string(), format!("{:?}", consensus_params.author_selection_mode))
+            .with_custom("finality_threshold".to_string(), consensus_params.finality_threshold.to_string())
+            .with_custom("block_time".to_string(), consensus_params.block_time.to_string())
+            .with_custom("max_block_size".to_string(), consensus_params.max_block_size.to_string())
+            .with_custom("max_transactions_per_block".to_string(), consensus_params.max_transactions_per_block.to_string())
+        ),
+    );
+
     // We use the consensus_metrics already initialized in new_partial
     
     // Use the client directly for block import - Substrate handles this internally
@@ -245,6 +420,17 @@ where
             )
         };
         
+        // STEP 22: DCF consensus engine initialized
+        LifecycleTracer::global().trace_step(
+            22,
+            "service.rs::new_full",
+            "DCF consensus engine initialized",
+            Some(TraceMetadata::new()
+                .with_custom("is_authority".to_string(), "true".to_string())
+                .with_custom("metrics_enabled".to_string(), consensus_metrics.is_some().to_string())
+            ),
+        );
+        
         task_manager.spawn_essential_handle().spawn(
             "cbc-pos-poi-consensus",
             None,
@@ -254,6 +440,16 @@ where
                 dcf_consensus.run().await;
                 log::error!("CBC: PoS+PoI consensus engine unexpectedly stopped");
             },
+        );
+        
+        // STEP 23: Consensus engine task started
+        LifecycleTracer::global().trace_step(
+            23,
+            "service.rs::new_full",
+            "Consensus engine task started",
+            Some(TraceMetadata::new()
+                .with_custom("task_name".to_string(), "cbc-pos-poi-consensus".to_string())
+            ),
         );
     }
 
@@ -275,6 +471,16 @@ where
                     }
                 }
             },
+        );
+        
+        // STEP 24: Metrics updater task started
+        LifecycleTracer::global().trace_step(
+            24,
+            "service.rs::new_full",
+            "Metrics updater task started",
+            Some(TraceMetadata::new()
+                .with_custom("update_interval_secs".to_string(), "5".to_string())
+            ),
         );
     }
 
@@ -299,6 +505,17 @@ where
                 let mut tracker = BlockTracker::<Block, FullClient>::new(tracker_client, tracker_config);
                 tracker.run().await;
             },
+        );
+        
+        // STEP 25: Block authoring tracker started
+        LifecycleTracer::global().trace_step(
+            25,
+            "service.rs::new_full",
+            "Block authoring tracker started",
+            Some(TraceMetadata::new()
+                .with_custom("monitoring_interval_secs".to_string(), "10".to_string())
+                .with_custom("stats_reporting_interval_secs".to_string(), "120".to_string())
+            ),
         );
     }
 
@@ -396,6 +613,16 @@ where
                 }
             },
         );
+        
+        // STEP 26: DCF finality sync service started
+        LifecycleTracer::global().trace_step(
+            26,
+            "service.rs::new_full",
+            "DCF finality sync service started",
+            Some(TraceMetadata::new()
+                .with_custom("check_interval_secs".to_string(), "6".to_string())
+            ),
+        );
     }
     
     log::info!("DCF: Consensus monitoring active. Block production handled by Substrate's default mechanisms.");
@@ -419,6 +646,14 @@ where
         })
     };
 
+    // STEP 27: RPC extensions configured
+    LifecycleTracer::global().trace_step(
+        27,
+        "service.rs::new_full",
+        "RPC extensions configured",
+        None,
+    );
+
     let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         network: Arc::new(network.clone()),
         client: client.clone(),
@@ -433,6 +668,25 @@ where
         config,
         telemetry: None,
     })?;
+
+    // STEP 28: All service tasks spawned successfully
+    LifecycleTracer::global().trace_step(
+        28,
+        "service.rs::new_full",
+        "All service tasks spawned successfully",
+        None,
+    );
+
+    // STEP 29: Full node service operational
+    LifecycleTracer::global().trace_step(
+        29,
+        "service.rs::new_full",
+        "Full node service operational",
+        None,
+    );
+
+    // Flush the tracer to ensure all traces are written
+    LifecycleTracer::global().flush();
 
     Ok(task_manager)
 }

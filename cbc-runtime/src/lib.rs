@@ -110,7 +110,7 @@ pub const UNIT: Balance = 1_000_000_000_000; // Base unit for balances.
 pub const MILLI_UNIT: Balance = 1_000_000_000; // Milli unit for balances.
 pub const MICRO_UNIT: Balance = 1_000_000; // Micro unit for balances.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT; // Minimum balance required to keep an account alive.
-pub const DOLLARS: Balance = UNIT; // 1 DOLLAR equals 1 UNIT
+pub const CBC: Balance = UNIT; // 1 CBC token equals 1 UNIT (10^12 subunits)
 
 // Define the native runtime version for native execution.
 #[cfg(feature = "std")]
@@ -218,9 +218,9 @@ use sp_runtime::traits::parameter_types;
 
 parameter_types! {
 	pub const EnterDuration: BlockNumber = 4 * HOURS;
-	pub const EnterDepositAmount: Balance = 2_000_000 * DOLLARS;
+	pub const EnterDepositAmount: Balance = 2_000_000 * CBC;
 	pub const ExtendDuration: BlockNumber = 2 * HOURS;
-	pub const ExtendDepositAmount: Balance = 1_000_000 * DOLLARS;
+	pub const ExtendDepositAmount: Balance = 1_000_000 * CBC;
 	pub const ReleaseDelay: u32 = 2 * DAYS;
 
     // Validator parameters
@@ -242,7 +242,7 @@ parameter_types! {
     pub const DcfMaxValidators: u32 = 100;
     pub const DefaultPosWeight: u64 = 6000; // 60% weight for PoS score (6000/10000)
     pub const DefaultPoiWeight: u64 = 4000; // 40% weight for PoI score (4000/10000)
-    pub const MinStake: Balance = 1000 * DOLLARS; // Minimum stake required
+    pub const MinStake: Balance = 1000 * CBC; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;
 

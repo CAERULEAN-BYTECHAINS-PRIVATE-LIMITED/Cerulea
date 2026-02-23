@@ -283,7 +283,7 @@ pub fn init_cbc_logging_config(cbc_log_only: bool, quiet: bool) -> String {
 #[cfg(test)]
 pub fn init_cbc_logging(_enable_colors: bool, cbc_log_only: bool, log_file_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Configure RUST_LOG environment variable
-    configure_rust_log(cbc_log_only);
+    configure_rust_log(cbc_log_only, false);
     
     // Initialize env_logger (this might fail if already initialized, which is fine)
     let result = env_logger::try_init();

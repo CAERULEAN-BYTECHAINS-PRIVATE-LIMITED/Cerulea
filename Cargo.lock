@@ -1315,6 +1315,7 @@ dependencies = [
  "jsonrpsee-core 0.25.1",
  "jsonrpsee-http-server",
  "log",
+ "once_cell",
  "pallet-cbc-dcf",
  "pallet-cbc-pos",
  "pallet-transaction-payment",
@@ -1354,6 +1355,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-test",
+ "toml 0.8.23",
 ]
 
 [[package]]
@@ -1368,6 +1370,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "log",
  "pallet-balances",
  "pallet-cbc-dcf",
  "pallet-cbc-poi",

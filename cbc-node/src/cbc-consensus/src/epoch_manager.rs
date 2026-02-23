@@ -171,17 +171,12 @@ where
     }
 
     /// Handle epoch transition logic
-    pub fn handle_epoch_transition(&self, current_block: u32) -> ConsensusResult<()> {
+    pub fn handle_epoch_transition(&self) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         
         let current_epoch = api.get_current_epoch(best_hash)
             .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e)))?;
-        
-        let next_epoch = current_epoch.saturating_add(1);
-        
-        info!("DCF EpochManager: Processing epoch transition {} -> {} at block {}", 
-              current_epoch, next_epoch, current_block);
 
         // 1. Apply validator score decay for inactive validators
         self.apply_validator_score_decay(current_epoch)?;

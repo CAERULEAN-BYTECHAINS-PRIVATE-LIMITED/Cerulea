@@ -19,7 +19,7 @@ MAPPING = {
     "0x439660b36c6c03afafca027b910b4fecf99801834c62a5e6006f27d978de234f": "CHARLIE",
 }
 
-DOLLARS = 10**12
+CBC = 10**12
 
 def rpc(url, method, params):
     cmd = ["curl", "-s", "-X", "POST", url, "-H", "Content-Type: application/json",
@@ -112,7 +112,7 @@ def get_validator_metrics(url):
             "score": score,
             "authored": authored,
             "missed": missed,
-            "stake": stake / DOLLARS
+            "stake": stake / CBC
         }
         idx += 64
     return metrics

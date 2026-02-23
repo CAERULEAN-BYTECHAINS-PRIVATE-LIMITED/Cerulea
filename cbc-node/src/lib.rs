@@ -7,6 +7,7 @@ pub mod chain_spec;
 pub mod cli;
 pub mod command;
 pub mod fork_detection;
+pub mod lifecycle_tracer;
 pub mod logging;
 pub mod rpc;
 pub mod service;

@@ -9630,9 +9630,8 @@ pub mod pallet {
             // Collect validator weights (scores)
             let mut validator_weights: Vec<(T::AccountId, u64)> = validators.iter()
                 .map(|v| {
-                    let score = ValidatorStates::<T>::get(v)
-                        .map(|s| s.current.final_score)
-                        .unwrap_or(1); // Minimum weight of 1
+                    let state = ValidatorStates::<T>::get(v);
+                    let score = state.map(|s| s.current.final_score).unwrap_or(1);
                     (v.clone(), score.max(1))
                 })
                 .collect();
@@ -11722,6 +11721,9 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
+            // STEP 10.1: Genesis block validation started
+            log::info!("============== [CBC-TRACE] 10.1 [pallet-cbc-dcf::genesis_build] Genesis block validation started ==============");
+            
             // Perform comprehensive validation if strict_validation is enabled
             if self.strict_validation {
                 Self::validate_genesis_config(self);
@@ -11732,6 +11734,12 @@ pub mod pallet {
                 panic!("Genesis validators ({}) exceed MaxValidators ({})",
                        self.validators.len(), <T as pallet::Config>::MaxValidators::get());
             }
+
+            // STEP 10.2: Genesis configuration loaded
+            log::info!("============== [CBC-TRACE] 10.2 [pallet-cbc-dcf::genesis_build] Genesis configuration loaded ==============");
+            log::info!("  Validator count: {}", self.validators.len());
+            log::info!("  Epoch: {}", self.current_epoch);
+            log::info!("  Blocks per epoch: {}", self.epoch_config.blocks_per_epoch);
 
             // Check for duplicate validators
             let mut unique_validators = sp_std::collections::btree_set::BTreeSet::new();
@@ -11788,10 +11796,20 @@ pub mod pallet {
             );
 
             // Initialize each validator with their stake, score, and name
-            for (((validator, score), stake), name) in self.validators.iter()
+            for (i, (((validator, score), stake), name)) in self.validators.iter()
                 .zip(scores.iter())
                 .zip(stakes.iter())
-                .zip(names.iter()) {
+                .zip(names.iter())
+                .enumerate() {
+
+                // STEP 10.3.N: Genesis validator N initialized
+                log::info!("============== [CBC-TRACE] 10.3.{} [pallet-cbc-dcf::genesis_build] Genesis validator {} initialized ==============", i + 1, i + 1);
+                log::info!("  Account ID: {:?}", validator);
+                log::info!("  Stake: {:?}", stake);
+                log::info!("  Initial score: {}", score);
+                if let Some(n) = name {
+                    log::info!("  Name: {:?}", String::from_utf8_lossy(n));
+                }
 
                 // Verify validator has sufficient balance for stake reservation
                 let free_balance = T::Currency::free_balance(validator);
@@ -11826,6 +11844,10 @@ pub mod pallet {
                 let pos_weight = T::DefaultPosWeight::get();
                 let poi_weight = T::DefaultPoiWeight::get();
                 let final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+
+                log::info!("  PoS score: {}", stake_score);
+                log::info!("  PoI score: {}", inference_score);
+                log::info!("  Combined DCF score: {}", final_score);
 
                 // Prepare validator name if provided
                 let validator_name = name.as_ref().map(|n| {
@@ -11874,6 +11896,17 @@ pub mod pallet {
                 log::info!("Genesis validator {:?} initialized with stake: {:?}, final_score: {}, name: {:?}",
                           validator, stake, final_score, name);
             }
+
+            // STEP 10.4: PoS scores calculated for all genesis validators
+            log::info!("============== [CBC-TRACE] 10.4 [pallet-cbc-dcf::genesis_build] PoS scores calculated for all genesis validators ==============");
+            
+            // STEP 10.5: PoI scores calculated for all genesis validators
+            log::info!("============== [CBC-TRACE] 10.5 [pallet-cbc-dcf::genesis_build] PoI scores calculated for all genesis validators ==============");
+            
+            // STEP 10.6: Combined DCF scores computed for all validators
+            log::info!("============== [CBC-TRACE] 10.6 [pallet-cbc-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
+            log::info!("  PoS weight: {}", T::DefaultPosWeight::get());
+            log::info!("  PoI weight: {}", T::DefaultPoiWeight::get());
 
             // Initialize active validators with all genesis validators
             ActiveValidators::<T>::put(
@@ -12066,6 +12099,9 @@ pub mod pallet {
             // **FIX FOR ISSUE #3: Initialize Epoch 0 Author Sequence**
             // Generate deterministic author sequence for epoch 0 to fix the missing initialization
             if !self.validators.is_empty() {
+                // STEP 10.7: Deterministic author sequence generated for epoch 0
+                log::info!("============== [CBC-TRACE] 10.7 [pallet-cbc-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============");
+                
                 // Create deterministic randomness seed for epoch 0
                 let genesis_randomness_salt = [0u8; 32]; // Use zero salt for genesis
                 let genesis_epoch_salt = [0u8; 16]; // Use zero epoch salt for genesis
@@ -12092,6 +12128,7 @@ pub mod pallet {
                 // Store the author sequence for epoch 0
                 EpochAuthorSequences::<T>::insert(0, &epoch_0_author_sequence);
 
+                log::info!("  Sequence length: {}", epoch_0_author_sequence.len());
                 log::info!("DCF: Generated deterministic author sequence for epoch 0 with {} authors",
                           epoch_0_author_sequence.len());
             }
@@ -12099,6 +12136,15 @@ pub mod pallet {
             // Initialize system metrics with genesis state
             Pallet::<T>::update_system_metrics();
 
+            // STEP 37: Genesis block created
+            // Note: At this point in genesis build, the block hash and state root are not yet available
+            // as they are computed by the runtime after all pallets complete their genesis build.
+            // We log this step to indicate genesis block construction is in progress.
+            log::info!("============== [CBC-TRACE] 10.8 [pallet-cbc-dcf::genesis_build] Genesis block created ==============");
+            log::info!("  Note: Block hash and state root will be computed by runtime after genesis build completes");
+
+            // STEP 10.9: Genesis validation completed successfully
+            log::info!("============== [CBC-TRACE] 10.9 [pallet-cbc-dcf::genesis_build] Genesis validation completed successfully ==============");
             log::info!("DCF Genesis completed: {} validators initialized in epoch {}",
                       self.validators.len(), self.current_epoch);
         }
@@ -12706,8 +12752,6 @@ pub mod pallet {
                 total_weight = total_weight.saturating_add(weight);
                 validator_weights.push((validator.clone(), weight, pos_score, poi_score));
                 
-                log::trace!("DCF: Validator {:?} - Combined: {}, PoS: {} (weight: {}%), PoI: {} (weight: {}%)", 
-                           validator, combined_score, pos_score, pos_weight, poi_score, poi_weight);
             }
 
             if total_weight == 0 {
@@ -12720,11 +12764,9 @@ pub mod pallet {
             let target = (block_number as u64 * 2654435761u64) % total_weight; // Using a large prime for better distribution
             let mut cumulative_weight = 0u64;
 
-            for (validator, weight, pos_score, poi_score) in validator_weights {
+            for (validator, weight, _, _) in validator_weights {
                 cumulative_weight = cumulative_weight.saturating_add(weight);
                 if target < cumulative_weight {
-                    log::trace!("DCF: Selected legacy author {:?} for block {} (Combined: {}, PoS: {}, PoI: {}, Target: {}/{})", 
-                               validator, block_number, weight, pos_score, poi_score, target, total_weight);
                     return Some(validator);
                 }
             }
