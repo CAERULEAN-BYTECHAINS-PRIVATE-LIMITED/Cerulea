@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 use sc_transaction_pool_api::{TransactionPool, InPoolTransaction};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use log::{debug, warn, error};
+use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
 
 /// Factory for creating real blocks with transactions using DCF runtime API for author selection
 pub struct ProposerFactory<B: BlockTrait, C, TP>
@@ -84,6 +85,16 @@ where
         author_digest: Option<sp_runtime::generic::DigestItem>,
         force_author: Option<Public>,
     ) -> ConsensusResult<(B, Public)> {
+        // STEP 45: Proposer factory create_complete_block entered
+        let mut metadata = TraceMetadata::new();
+        metadata.custom.insert("slot".to_string(), _slot.to_string());
+        LifecycleTracer::global().trace_step(
+            45,
+            "proposer_factory.rs::create_complete_block",
+            "Proposer factory create_complete_block entered",
+            Some(metadata),
+        );
+        
         log::trace!("ProposerFactory: Starting complete block creation for slot {}", _slot);
         
         // Check timing constraints
@@ -138,7 +149,23 @@ where
         // Create inherent data
         log::trace!("ProposerFactory: Creating inherent data");
         let inherent_data = self.inherent_providers.create_inherent_data().await
-            .map_err(|e| ConsensusError::Proposer(format!("Failed to create inherent data: {:?}", e)))?;
+            .map_err(|e| {
+                let err = ConsensusError::Proposer(format!("Failed to create inherent data: {:?}", e));
+                LifecycleTracer::global().trace_error(46, "proposer_factory.rs::create_complete_block", &err, "Inherent data generation failed");
+                err
+            })?;
+            
+        // STEP 46: Inherent data generated
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        metadata.custom.insert("timestamp".to_string(), timestamp.to_string());
+        LifecycleTracer::global().trace_step(
+            46,
+            "proposer_factory.rs::create_complete_block",
+            "Inherent data generated",
+            Some(metadata),
+        );
         
         // Convert inherent data to extrinsics
         let inherent_extrinsics = match self.client.runtime_api().inherent_extrinsics(parent_hash, inherent_data) {
@@ -147,16 +174,27 @@ where
                 extrinsics
             }
             Err(e) => {
+                let err = ConsensusError::Proposer(format!("Failed to create inherent extrinsics: {:?}", e));
+                LifecycleTracer::global().trace_error(46, "proposer_factory.rs::create_complete_block", &err, "Inherent extrinsics creation failed");
                 error!("ProposerFactory: Failed to create inherent extrinsics: {:?}", e);
                 // For critical failure, we cannot proceed without inherents
-                return Err(ConsensusError::Proposer(
-                    format!("Failed to create inherent extrinsics: {:?}", e)
-                ));
+                return Err(err);
             }
         };
         
         // Get transactions from the pool
         let ready_transactions = self.collect_transactions_from_pool().await?;
+        
+        // STEP 47: Transactions harvested from mempool
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        metadata.extrinsic_count = Some(ready_transactions.len());
+        LifecycleTracer::global().trace_step(
+            47,
+            "proposer_factory.rs::create_complete_block",
+            &format!("Transactions harvested from mempool ({} transactions)", ready_transactions.len()),
+            Some(metadata),
+        );
         
         // Combine inherents + transactions (inherents must come first)
         let mut all_extrinsics = inherent_extrinsics;
@@ -171,12 +209,35 @@ where
         let mut digest = sp_runtime::generic::Digest::default();
         if let Some(author_digest_item) = author_digest {
             digest.push(author_digest_item);
+            
+            // STEP 48: PreRuntime author digest added to header
+            let mut metadata = TraceMetadata::new();
+            metadata.block_number = Some(block_number);
+            LifecycleTracer::global().trace_step(
+                48,
+                "proposer_factory.rs::create_complete_block",
+                "PreRuntime author digest added to header",
+                Some(metadata),
+            );
+            
             log::trace!("ProposerFactory: Added author digest to block header");
         }
         
         // Build the block with proper state root calculation
         log::trace!("ProposerFactory: Building block with proper state root calculation");
         let extrinsics_count = all_extrinsics.len(); // Store count before move
+        
+        // STEP 49: Substrate build_block executing
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        metadata.extrinsic_count = Some(extrinsics_count);
+        LifecycleTracer::global().trace_step(
+            49,
+            "proposer_factory.rs::create_complete_block",
+            "Substrate build_block executing",
+            Some(metadata),
+        );
+        
         let block = self.build_block_with_state_root(
             parent_hash,
             header_number,
@@ -195,6 +256,16 @@ where
                block_number, extrinsics_count);
         log::trace!("ProposerFactory: Block hash: {:?}, state root: {:?}", 
                block.header().hash(), block.header().state_root());
+               
+        // STEP 52: Block N dispatched to import pipeline
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        LifecycleTracer::global().trace_step(
+            52,
+            "proposer_factory.rs::create_complete_block",
+            &format!("Block {} dispatched to import pipeline", block_number),
+            Some(metadata),
+        );
         
         Ok((block, author))
     }
@@ -366,6 +437,17 @@ where
                 error!("ProposerFactory: Failed to finalize block: {:?}", e);
                 ConsensusError::Proposer(format!("Failed to finalize block: {:?}", e))
             })?;
+            
+        // STEP 50: State root computed for block N
+        let block_number_u32 = (*final_header.number()).saturated_into::<u32>();
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number_u32);
+        LifecycleTracer::global().trace_step(
+            50,
+            "proposer_factory.rs::build_block_with_state_root",
+            &format!("State root computed for block {}", block_number_u32),
+            Some(metadata),
+        );
         
         log::trace!("ProposerFactory: Block finalized successfully");
         log::trace!("ProposerFactory: Final header - number: {:?}, state_root: {:?}, extrinsics_root: {:?}", 
@@ -390,6 +472,18 @@ where
         // Note: We use the original extrinsics list, not just the applied ones,
         // because the block should contain all extrinsics that were attempted
         let final_block = B::new(final_header, extrinsics);
+        
+        // STEP 51: Block N sealed successfully
+        let mut metadata = TraceMetadata::new();
+        let block_number_u32 = (*final_block.header().number()).saturated_into::<u32>();
+        metadata.block_number = Some(block_number_u32);
+        metadata.block_hash = Some(format!("{:?}", final_block.header().hash()));
+        LifecycleTracer::global().trace_step(
+            51,
+            "proposer_factory.rs::build_block_with_state_root",
+            &format!("Block {} sealed successfully", block_number_u32),
+            Some(metadata),
+        );
         
         log::trace!("ProposerFactory: Created final block with {} extrinsics", final_block.extrinsics().len());
         log::trace!("ProposerFactory: Final block hash: {:?}", final_block.header().hash());

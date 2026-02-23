@@ -35,4 +35,7 @@ echo "Connecting Bob to Alice -> /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID"
   --rpc-cors all \
   --validator \
   --name Bob \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID \
+  --lifecycle-trace \
+  --lifecycle-trace-format human-readable \
+  > node_output_bob.log 2>&1

@@ -203,6 +203,12 @@ where
                                             debug!("Block production successful for author {:?}", author);
                                         }
                                         Err(e) => {
+                                            LifecycleTracer::global().trace_error(
+                                                44, 
+                                                "dcf.rs::run", 
+                                                &e, 
+                                                "Block production failed"
+                                            );
                                             debug!("Block production failed for author {:?}: {:?}", author, e);
                                             // Update consensus state to handle the failure
                                             let author_account: AccountId = author.into();

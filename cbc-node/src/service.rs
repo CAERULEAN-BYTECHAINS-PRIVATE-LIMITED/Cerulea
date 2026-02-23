@@ -58,7 +58,11 @@ pub fn new_partial(
             let telemetry = worker.handle().new_telemetry(endpoints);
             Ok((worker, telemetry))
         })
-        .transpose()?;
+        .transpose()
+        .map_err(|e| {
+            LifecycleTracer::global().trace_error(8, "service.rs::new_partial", &e, "Telemetry initialization failed");
+            e
+        })?;
 
     // STEP 8: Telemetry endpoints configured
     if telemetry.is_some() {
@@ -95,7 +99,11 @@ pub fn new_partial(
             config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
-        )?;
+        )
+        .map_err(|e| {
+            LifecycleTracer::global().trace_error(10, "service.rs::new_partial", &e, "Client and backend initialization failed");
+            e
+        })?;
 
     // STEP 10: Client and backend initialized
     let db_path = config.database.path().map(|p| p.display().to_string()).unwrap_or_else(|| "in-memory".to_string());
@@ -166,6 +174,15 @@ pub fn new_partial(
                 Some(metrics)
             }
             Err(e) => {
+                let error_msg = format!("Failed to initialize consensus metrics: {:?}", e);
+                LifecycleTracer::global().trace_step(
+                    14,
+                    "service.rs::new_partial",
+                    &error_msg,
+                    Some(TraceMetadata::new()
+                        .with_custom("error".to_string(), "true".to_string())
+                    ),
+                );
                 log::error!("CBC: Failed to initialize consensus metrics in new_partial: {:?}", e);
                 None
             }
@@ -265,7 +282,10 @@ where
         select_chain: _,
         transaction_pool,
         other: consensus_metrics,
-    } = new_partial(&config, &node_config)?;
+    } = new_partial(&config, &node_config).map_err(|e| {
+        LifecycleTracer::global().trace_error(7, "service.rs::new_full", &e, "Partial components failed to initialize");
+        e
+    })?;
 
     let net_config = sc_network::config::FullNetworkConfiguration::<
         Block,
@@ -299,6 +319,9 @@ where
             warp_sync_config: None,
             block_relay: None,
             metrics,
+        }).map_err(|e| {
+            LifecycleTracer::global().trace_error(18, "service.rs::new_full", &e, "P2P network layer initialization failed");
+            e
         })?;
 
     // STEP 18: P2P network layer initialized
@@ -438,6 +461,9 @@ where
                 log::info!("CBC: Starting real PoS+PoI consensus engine for block production");
                 // Run the consensus engine which will produce real blocks
                 dcf_consensus.run().await;
+                
+                let err = std::io::Error::new(std::io::ErrorKind::Other, "Consensus engine unexpectedly stopped");
+                LifecycleTracer::global().trace_error(23, "service.rs::new_full", &err, "PoS+PoI consensus engine unexpectedly stopped");
                 log::error!("CBC: PoS+PoI consensus engine unexpectedly stopped");
             },
         );
@@ -535,16 +561,50 @@ where
                     // Wait 6 seconds between checks (one block time)
                     tokio::time::sleep(std::time::Duration::from_secs(6)).await;
                     
+                    // STEP 65: Finality check iteration started
+                    crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                        65,
+                        "service.rs::dcf-finality-sync",
+                        "Finality check iteration started",
+                        Some(crate::lifecycle_tracer::TraceMetadata::new()),
+                    );
+                    
                     // Get DCF's finalized block number
                     let api = finality_client.runtime_api();
                     let best_hash = finality_client.info().best_hash;
                     
                     match api.get_last_finalized_block(best_hash) {
                         Ok(dcf_finalized) => {
+                            // STEP 66: DCF finalized block retrieved
+                            crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                66,
+                                "service.rs::dcf-finality-sync",
+                                &format!("DCF finalized block retrieved (block {})", dcf_finalized),
+                                Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(dcf_finalized)),
+                            );
+
                             let client_info = finality_client.info();
                             let client_finalized: u32 = client_info.finalized_number.saturated_into();
                             
+                            // STEP 67: Client finalized block retrieved
+                            crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                67,
+                                "service.rs::dcf-finality-sync",
+                                &format!("Client finalized block retrieved (block {})", client_finalized),
+                                Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(client_finalized)),
+                            );
+                            
                             if dcf_finalized > client_finalized {
+                                let gap = dcf_finalized - client_finalized;
+                                
+                                // STEP 68: Finality gap detected
+                                crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                    68,
+                                    "service.rs::dcf-finality-sync",
+                                    &format!("Finality gap detected (gap size {})", gap),
+                                    Some(crate::lifecycle_tracer::TraceMetadata::new().with_custom("gap".to_string(), gap.to_string())),
+                                );
+                                
                                 log::info!(
                                     "DCF Finality Sync: Client at block #{}, DCF finalized up to #{}, syncing...",
                                     client_finalized,
@@ -553,12 +613,27 @@ where
                                 
                                 // Finalize all blocks from client_finalized+1 to dcf_finalized
                                 for block_num in (client_finalized + 1)..=dcf_finalized {
+                                    // STEP 69: Finalizing block N
+                                    crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                        69,
+                                        "service.rs::dcf-finality-sync",
+                                        &format!("Finalizing block {}", block_num),
+                                        Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(block_num)),
+                                    );
+                                    
                                     // Get block hash for this number
                                     match finality_client.hash(block_num.into()) {
                                         Ok(Some(block_hash)) => {
                                             // Finalize this block
                                             match finality_client.finalize_block(block_hash, None, true) {
                                                 Ok(_) => {
+                                                    // STEP 70: Block N finalized successfully
+                                                    crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                                        70,
+                                                        "service.rs::dcf-finality-sync",
+                                                        &format!("Block {} finalized successfully", block_num),
+                                                        Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(block_num)),
+                                                    );
                                                     log::debug!("DCF Finality Sync: Finalized block #{}", block_num);
                                                 }
                                                 Err(e) => {
@@ -589,6 +664,15 @@ where
                                 
                                 // Log final state
                                 let new_client_finalized: u32 = finality_client.info().finalized_number.saturated_into();
+                                
+                                // STEP 71: Finality sync completed
+                                crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
+                                    71,
+                                    "service.rs::dcf-finality-sync",
+                                    &format!("Finality sync completed (final finalized block: {})", new_client_finalized),
+                                    Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(new_client_finalized)),
+                                );
+                                
                                 log::info!(
                                     "DCF Finality Sync: Sync complete. Client finalized head now at block #{}",
                                     new_client_finalized

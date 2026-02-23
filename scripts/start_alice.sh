@@ -19,4 +19,7 @@ fi
   --unsafe-rpc-external \
   --rpc-cors all \
   --validator \
-  --name Alice
+  --name Alice \
+  --lifecycle-trace \
+  --lifecycle-trace-format human-readable \
+  > node_output_alice.log 2>&1

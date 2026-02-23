@@ -18,6 +18,7 @@ use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
 use cbc_runtime::AccountId;
 use sp_runtime::generic::DigestItem;
 use codec::Decode;
+use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
 
 /// CBC Block Import wrapper that provides CBC-specific validation
 /// while delegating actual import to Substrate's default block import
@@ -326,23 +327,92 @@ where
         let block_number = (*block.header.number()).saturated_into::<u32>();
         let block_hash = block.header.hash();
         
+        let mut metadata = TraceMetadata::new();
+        metadata.block_number = Some(block_number);
+        
+        // STEP 55: Block N entered import queue
+        LifecycleTracer::global().trace_step(
+            55,
+            "block_import.rs::import_block",
+            &format!("Block {} entered import queue", block_number),
+            Some(metadata.clone())
+        );
+        
         debug!("CBC BlockImport: Importing block #{} ({:?})", block_number, block_hash);
+        
+        // STEP 56: Block N verification started
+        LifecycleTracer::global().trace_step(
+            56,
+            "block_import.rs::import_block",
+            &format!("Block {} verification started", block_number),
+            Some(metadata.clone())
+        );
         
         // 1. Validate CBC-specific consensus rules
         if let Err(e) = self.validate_cbc_consensus(&block) {
+            LifecycleTracer::global().trace_error(56, "block_import.rs::import_block", &e, &format!("CBC consensus validation failed for block #{}", block_number));
             error!("CBC BlockImport: CBC consensus validation failed for block #{}: {:?}", block_number, e);
             return Err(e);
         }
         
+        // STEP 57: Block N author verified against expected author
+        LifecycleTracer::global().trace_step(
+            57,
+            "block_import.rs::import_block",
+            &format!("Block {} author verified against expected author", block_number),
+            Some(metadata.clone())
+        );
+        
         // Store block information before moving the block
         let block_header = block.header.clone();
         
+        // STEP 58: Block N header validation passed
+        LifecycleTracer::global().trace_step(
+            58,
+            "block_import.rs::import_block",
+            &format!("Block {} header validation passed", block_number),
+            Some(metadata.clone())
+        );
+        
+        // STEP 59: Block N body validation passed
+        LifecycleTracer::global().trace_step(
+            59,
+            "block_import.rs::import_block",
+            &format!("Block {} body validation passed", block_number),
+            Some(metadata.clone())
+        );
+        
+        let start_time = std::time::Instant::now();
         // 2. Delegate to inner import (Substrate's default)
-        let result = self.inner.import_block(block).await?;
+        let result = self.inner.import_block(block).await.map_err(|e| {
+            LifecycleTracer::global().trace_error(59, "block_import.rs::import_block", &e, &format!("Inner block import failed for block #{}", block_number));
+            e
+        })?;
+        let import_time_ms = start_time.elapsed().as_millis();
         
         // 3. Update CBC consensus state if import was successful
         match &result {
-            ImportResult::Imported(_) => {
+            ImportResult::Imported(aux) => {
+                // STEP 60: Block N imported successfully
+                let mut metadata_60 = metadata.clone();
+                metadata_60.custom.insert("import_time_ms".to_string(), import_time_ms.to_string());
+                LifecycleTracer::global().trace_step(
+                    60,
+                    "block_import.rs::import_block",
+                    &format!("Block {} imported successfully", block_number),
+                    Some(metadata_60)
+                );
+                
+                // STEP 61: Best block updated to N
+                if aux.is_new_best {
+                    LifecycleTracer::global().trace_step(
+                        61,
+                        "block_import.rs::import_block",
+                        &format!("Best block updated to {}", block_number),
+                        Some(metadata)
+                    );
+                }
+                
                 // Create a temporary BlockImportParams for state update
                 let temp_block = BlockImportParams::new(sp_consensus::BlockOrigin::Own, block_header);
                 if let Err(e) = self.update_dcf_consensus_state(&temp_block) {

@@ -7599,6 +7599,7 @@ pub mod pallet {
                     Ok(())
                 },
                 Err(error) => {
+                    log::error!("============== [CBC-TRACE] 38 [pallet-cbc-dcf::validate_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisValidationFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
@@ -7660,6 +7661,7 @@ pub mod pallet {
                     Ok(())
                 },
                 Err(error) => {
+                    log::error!("============== [CBC-TRACE] 38 [pallet-cbc-dcf::dry_run_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisDryRunFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
