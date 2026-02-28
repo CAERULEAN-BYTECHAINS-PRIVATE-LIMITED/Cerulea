@@ -345,6 +345,9 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxTrustScoreGrowthRate = ConstU32<500>; // Maximum 5% growth per epoch
     type MaxTrustScoreDecayRate = ConstU32<200>; // Maximum 2% decay per epoch
     type TrustScoreStabilityFactor = ConstU32<8000>; // 80% stability factor
+
+    // DVF WeightFreezer Integration
+    type WeightFreezer = pallet_cbc_dvf::Pallet<Runtime>;
 }
 
 

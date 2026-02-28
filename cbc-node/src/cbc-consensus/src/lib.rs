@@ -26,6 +26,9 @@ pub mod types;
 pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
 pub mod error;
 
+/// DVF Networking and Gossip
+pub mod dvf_gossip;
+
 /// Monitoring and finality
 pub mod metrics;
 pub mod finality;

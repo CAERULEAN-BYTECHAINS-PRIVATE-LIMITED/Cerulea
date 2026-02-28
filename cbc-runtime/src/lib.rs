@@ -213,6 +213,9 @@ mod runtime {
     /// Simple on-chain Todo list pallet
     #[runtime::pallet_index(9)]
     pub type Todo = pallet_todo;
+
+    #[runtime::pallet_index(10)]
+    pub type Dvf = pallet_cbc_dvf::Pallet<Runtime>;
 }
 use sp_runtime::traits::parameter_types;
 
@@ -305,4 +308,23 @@ pub use pallet_cbc_poi;
 pub use pallet_cbc_pos;
 pub use pallet_todo;
 
+parameter_types! {
+    pub const StakeWeightFactor: u128 = 1;
+    pub const ScoreWeightFactor: u128 = 1000;
+    pub const ScoreBoostCap: u128 = 100_000;
+    pub const FinalityThreshold: sp_runtime::Perbill = sp_runtime::Perbill::from_percent(67);
+    pub const FinalityCheckpointInterval: u32 = 10;
+    pub const VoteRetentionRounds: u32 = 20;
+}
 
+impl pallet_cbc_dvf::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Signature = Signature;
+    type Signer = <Signature as Verify>::Signer;
+    type StakeWeightFactor = StakeWeightFactor;
+    type ScoreWeightFactor = ScoreWeightFactor;
+    type ScoreBoostCap = ScoreBoostCap;
+    type FinalityThreshold = FinalityThreshold;
+    type FinalityCheckpointInterval = FinalityCheckpointInterval;
+    type VoteRetentionRounds = VoteRetentionRounds;
+}

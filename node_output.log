@@ -4,267 +4,68 @@ Node Version:     0.1.0
 Runtime Version:  0.1.0
 Chain:            CBC Chain
 Role:             Node
-Timestamp:        1771844455
+Timestamp:        1771935127
 ================================
-[2026-03-08T11:00:55.207Z] [ThreadId(1)] ============== [CBC-TRACE] 1. [main.rs] Node entry point - main.rs started ==============
-[2026-03-08T11:00:55.207Z] [ThreadId(1)] ============== [CBC-TRACE] 2. [main.rs] CLI configuration parsed ==============
-[2026-03-08T11:00:55.207Z] [ThreadId(1)] ============== [CBC-TRACE] 3. [main.rs] Logging system configured ==============
-[2026-03-08T11:00:55.207Z] [ThreadId(1)] ============== [CBC-TRACE] 4. [main.rs] Node metadata initialized ==============
-[2026-03-08T11:00:55.207Z] [ThreadId(1)] ============== [CBC-TRACE] 5. [main.rs] Command execution started ==============
-2026-02-23 11:00:55 CBC CHAIN    
-2026-02-23 11:00:55 ✌️  version 0.1.0    
-2026-02-23 11:00:55 ❤️  by Caerulean ByteChains Private Limited, 2025-2026    
-2026-02-23 11:00:55 📋 Chain specification: CBC Development Chain    
-2026-02-23 11:00:55 🏷  Node name: temporary-horse-1670    
-2026-02-23 11:00:55 👤 Role: AUTHORITY    
-2026-02-23 11:00:55 💾 Database: RocksDb at /tmp/substrateESnmDa/chains/cbc_dev/db/full    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.1 [pallet-cbc-dcf::genesis_build] Genesis block validation started ==============    
-2026-02-23 11:01:01 Genesis configuration validation passed    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.2 [pallet-cbc-dcf::genesis_build] Genesis configuration loaded ==============    
-2026-02-23 11:01:01   Validator count: 1    
-2026-02-23 11:01:01   Epoch: 0    
-2026-02-23 11:01:01   Blocks per epoch: 100    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.3.1 [pallet-cbc-dcf::genesis_build] Genesis validator 1 initialized ==============    
-2026-02-23 11:01:01   Account ID: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
-2026-02-23 11:01:01   Stake: 10000000000000000000    
-2026-02-23 11:01:01   Initial score: 80    
-2026-02-23 11:01:01   PoS score: 10000000000000000    
-2026-02-23 11:01:01   PoI score: 80    
-2026-02-23 11:01:01   Combined DCF score: 31    
-2026-02-23 11:01:01 Genesis validator 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) initialized with stake: 10000000000000000000, final_score: 31, name: None    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.4 [pallet-cbc-dcf::genesis_build] PoS scores calculated for all genesis validators ==============    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.5 [pallet-cbc-dcf::genesis_build] PoI scores calculated for all genesis validators ==============    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.6 [pallet-cbc-dcf::genesis_build] Combined DCF scores computed for all validators ==============    
-2026-02-23 11:01:01   PoS weight: 6000    
-2026-02-23 11:01:01   PoI weight: 4000    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.7 [pallet-cbc-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============    
-2026-02-23 11:01:01   Sequence length: 100    
-2026-02-23 11:01:01 DCF: Generated deterministic author sequence for epoch 0 with 100 authors    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.8 [pallet-cbc-dcf::genesis_build] Genesis block created ==============    
-2026-02-23 11:01:01   Note: Block hash and state root will be computed by runtime after genesis build completes    
-2026-02-23 11:01:01 ============== [CBC-TRACE] 10.9 [pallet-cbc-dcf::genesis_build] Genesis validation completed successfully ==============    
-2026-02-23 11:01:01 DCF Genesis completed: 1 validators initialized in epoch 0    
-[2026-03-08T11:00:55.210Z] [ThreadId(1)] ============== [CBC-TRACE] 6. [service.rs::new_full] Full service initialization started ==============
-[2026-03-08T11:00:55.210Z] [ThreadId(1)] ============== [CBC-TRACE] 7. [service.rs::new_partial] Partial node components initialization started ==============
-[2026-03-08T11:00:55.210Z] [ThreadId(1)] ============== [CBC-TRACE] 8. [service.rs::new_partial] Telemetry endpoints configured (none) ==============
-[2026-03-08T11:00:55.210Z] [ThreadId(1)] ============== [CBC-TRACE] 9. [service.rs::new_partial] WASM executor initialized ==============
-[2026-03-08T11:01:01.919Z] [ThreadId(1)] ============== [CBC-TRACE] 10. [service.rs::new_partial] Client and backend initialized ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 11. [service.rs::new_partial] Keystore container created ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 12. [service.rs::new_partial] Chain selection strategy initialized ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 13. [service.rs::new_partial] Transaction pool initialized ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 14. [service.rs::new_partial] Prometheus consensus metrics registered ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 15. [service.rs::new_partial] DCF import queue initialized ==============
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 16. [service.rs::new_partial] Partial node components ready ==============
-2026-02-23 11:01:01 🔨 Initializing Genesis block/state (state: 0xde5a…2306, header-hash: 0x3515…d13a)    
-2026-02-23 11:01:01  creating SingleState txpool Limit { count: 8192, total_bytes: 20971520 }/Limit { count: 819, total_bytes: 2097152 }.    
-2026-02-23 11:01:01 CBC: Consensus metrics initialized successfully in new_partial    
-2026-02-23 11:01:01 🏷  Local node identity is: 12D3KooWNLfWq9UycKCxjrMGLsjC9UcqQTg5uj7qi6Tmf7UkCaZ7    
-2026-02-23 11:01:01 Running libp2p network backend    
-2026-02-23 11:01:01 local_peer_id=12D3KooWNLfWq9UycKCxjrMGLsjC9UcqQTg5uj7qi6Tmf7UkCaZ7
-[2026-03-08T11:01:01.920Z] [ThreadId(1)] ============== [CBC-TRACE] 17. [service.rs::new_full] Network configuration prepared ==============
-[2026-03-08T11:01:01.921Z] [ThreadId(1)] ============== [CBC-TRACE] 18. [service.rs::new_full] P2P network layer initialized ==============
-[2026-03-08T11:01:01.921Z] [ThreadId(1)] ============== [CBC-TRACE] 19. [service.rs::new_full] Block synchronization service started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 20. [service.rs::new_full] Offchain workers spawned ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 21. [service.rs::new_full] DCF consensus parameters set ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 22. [service.rs::new_full] DCF consensus engine initialized ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 23. [service.rs::new_full] Consensus engine task started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 24. [service.rs::new_full] Metrics updater task started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 25. [service.rs::new_full] Block authoring tracker started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 26. [service.rs::new_full] DCF finality sync service started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(1)] ============== [CBC-TRACE] 27. [service.rs::new_full] RPC extensions configured ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(3)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 1 ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(3)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(3)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 1 started ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(3)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:02.059Z] [ThreadId(3)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 1 ==============
-[2026-03-08T11:01:02.060Z] [ThreadId(3)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:02.060Z] [ThreadId(3)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:02.060Z] [ThreadId(3)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:02.060Z] [ThreadId(3)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:02.060Z] [ThreadId(3)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:02.061Z] [ThreadId(3)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 1 ==============
-[2026-03-08T11:01:02.061Z] [ThreadId(3)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 1 sealed successfully ==============
-[2026-03-08T11:01:02.061Z] [ThreadId(3)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 1 dispatched to import pipeline ==============
-[2026-03-08T11:01:02.062Z] [ThreadId(3)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 1, slot: 1, total: 1) ==============
-[2026-03-08T11:01:02.062Z] [ThreadId(3)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 51, Trust: 7416, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:02.091Z] [ThreadId(1)] ============== [CBC-TRACE] 28. [service.rs::new_full] All service tasks spawned successfully ==============
-[2026-03-08T11:01:02.091Z] [ThreadId(1)] ============== [CBC-TRACE] 29. [service.rs::new_full] Full node service operational ==============
-2026-02-23 11:01:02 DCF: Consensus monitoring active. Block production handled by Substrate's default mechanisms.    
-2026-02-23 11:01:02 CBC: Starting real PoS+PoI consensus engine for block production    
-2026-02-23 11:01:02 CBC: Starting consensus metrics updater    
-2026-02-23 11:01:02 DCF: Starting finality sync service    
-2026-02-23 11:01:02 CBC: Starting block authoring tracking service    
-2026-02-23 11:01:02 Block Tracker: Starting block authoring tracking service    
-2026-02-23 11:01:02 Producing block #1 with author 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
-2026-02-23 11:01:02 ProposerFactory: Successfully created block #1 with 1 extrinsics    
-2026-02-23 11:01:02 💻 Operating system: linux    
-2026-02-23 11:01:02 💻 CPU architecture: x86_64    
-2026-02-23 11:01:02 💻 Target environment: gnu    
-2026-02-23 11:01:02 💻 CPU: Intel(R) Xeon(R) E-2224G CPU @ 3.50GHz    
-2026-02-23 11:01:02 💻 CPU cores: 6    
-2026-02-23 11:01:02 💻 Memory: 9943MB    
-2026-02-23 11:01:02 💻 Kernel: 6.17.0-14-generic    
-2026-02-23 11:01:02 💻 Linux distribution: Ubuntu 24.04.4 LTS    
-2026-02-23 11:01:02 💻 Virtual machine: yes    
-2026-02-23 11:01:02 📦 Highest known block at #0    
-2026-02-23 11:01:02 〽️ Prometheus exporter started at 127.0.0.1:9615    
-2026-02-23 11:01:02 Running JSON-RPC server: addr=127.0.0.1:9944,[::1]:9944    
-2026-02-23 11:01:02 Failed to trigger bootstrap: No known peers.
-2026-02-23 11:01:07 💤 Idle (0 peers), best: #1 (0x98dd…8f4c), finalized #0 (0x3515…d13a), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:08.060Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:08 DCF Finality Sync: Client at block #0, DCF finalized up to #1, syncing...    
-2026-02-23 11:01:08 DCF Finality Sync: Sync complete. Client finalized head now at block #1    
-2026-02-23 11:01:08 ProposerFactory: Successfully created block #2 with 1 extrinsics    
-2026-02-23 11:01:08 🏆 Imported #2 (0x98dd…8f4c → 0x8896…c5b6)    
-2026-02-23 11:01:12 💤 Idle (0 peers), best: #2 (0x8896…c5b6), finalized #1 (0x98dd…8f4c), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dcf-finality-sync] DCF finalized block retrieved (block 1) ==============
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dcf-finality-sync] Client finalized block retrieved (block 0) ==============
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 68. [service.rs::dcf-finality-sync] Finality gap detected (gap size 1) ==============
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 69. [service.rs::dcf-finality-sync] Finalizing block 1 ==============
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 70. [service.rs::dcf-finality-sync] Block 1 finalized successfully ==============
-[2026-03-08T11:01:08.061Z] [ThreadId(2)] ============== [CBC-TRACE] 71. [service.rs::dcf-finality-sync] Finality sync completed (final finalized block: 1) ==============
-[2026-03-08T11:01:08.070Z] [ThreadId(3)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 2 ==============
-[2026-03-08T11:01:08.070Z] [ThreadId(3)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:08.070Z] [ThreadId(3)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 2 started ==============
-[2026-03-08T11:01:08.070Z] [ThreadId(3)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:08.070Z] [ThreadId(3)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 2 ==============
-[2026-03-08T11:01:08.071Z] [ThreadId(3)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:08.071Z] [ThreadId(3)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:08.071Z] [ThreadId(3)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:08.071Z] [ThreadId(3)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:08.071Z] [ThreadId(3)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:08.072Z] [ThreadId(3)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 2 ==============
-[2026-03-08T11:01:08.072Z] [ThreadId(3)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 2 sealed successfully ==============
-[2026-03-08T11:01:08.072Z] [ThreadId(3)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 2 dispatched to import pipeline ==============
-[2026-03-08T11:01:08.073Z] [ThreadId(3)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 2, slot: 2, total: 2) ==============
-[2026-03-08T11:01:08.073Z] [ThreadId(3)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 61, Trust: 7466, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:14.063Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:14 DCF: Finality advanced from 1 to 2 in epoch 0    
-2026-02-23 11:01:14 DCF: Progressive finalization advanced to block 2    
-2026-02-23 11:01:14 ProposerFactory: Successfully created block #3 with 1 extrinsics    
-2026-02-23 11:01:14 DCF: Finality advanced from 1 to 2 in epoch 0    
-2026-02-23 11:01:14 DCF: Progressive finalization advanced to block 2    
-2026-02-23 11:01:14 🏆 Imported #3 (0x8896…c5b6 → 0x2411…8823)    
-2026-02-23 11:01:17 💤 Idle (0 peers), best: #3 (0x2411…8823), finalized #1 (0x98dd…8f4c), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:14.064Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dcf-finality-sync] DCF finalized block retrieved (block 1) ==============
-[2026-03-08T11:01:14.064Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dcf-finality-sync] Client finalized block retrieved (block 1) ==============
-[2026-03-08T11:01:14.085Z] [ThreadId(2)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 3 ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 3 started ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 3 ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:14.086Z] [ThreadId(2)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:14.087Z] [ThreadId(2)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 3 ==============
-[2026-03-08T11:01:14.087Z] [ThreadId(2)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 3 sealed successfully ==============
-[2026-03-08T11:01:14.087Z] [ThreadId(2)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 3 dispatched to import pipeline ==============
-[2026-03-08T11:01:14.088Z] [ThreadId(2)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 3, slot: 3, total: 3) ==============
-[2026-03-08T11:01:14.088Z] [ThreadId(2)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 71, Trust: 7506, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:20.065Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:20 DCF Finality Sync: Client at block #1, DCF finalized up to #2, syncing...    
-2026-02-23 11:01:20 DCF Finality Sync: Sync complete. Client finalized head now at block #2    
-2026-02-23 11:01:20 DCF: Finality advanced from 2 to 3 in epoch 0    
-2026-02-23 11:01:20 DCF: Progressive finalization advanced to block 3    
-2026-02-23 11:01:20 ProposerFactory: Successfully created block #4 with 1 extrinsics    
-2026-02-23 11:01:20 DCF: Finality advanced from 2 to 3 in epoch 0    
-2026-02-23 11:01:20 DCF: Progressive finalization advanced to block 3    
-2026-02-23 11:01:20 🏆 Imported #4 (0x2411…8823 → 0xb9b6…9a4f)    
-2026-02-23 11:01:22 💤 Idle (0 peers), best: #4 (0xb9b6…9a4f), finalized #2 (0x8896…c5b6), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dcf-finality-sync] DCF finalized block retrieved (block 2) ==============
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dcf-finality-sync] Client finalized block retrieved (block 1) ==============
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 68. [service.rs::dcf-finality-sync] Finality gap detected (gap size 1) ==============
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 69. [service.rs::dcf-finality-sync] Finalizing block 2 ==============
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 70. [service.rs::dcf-finality-sync] Block 2 finalized successfully ==============
-[2026-03-08T11:01:20.066Z] [ThreadId(2)] ============== [CBC-TRACE] 71. [service.rs::dcf-finality-sync] Finality sync completed (final finalized block: 2) ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 4 ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 4 started ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 4 ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:20.097Z] [ThreadId(2)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 4 ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 4 sealed successfully ==============
-[2026-03-08T11:01:20.098Z] [ThreadId(2)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 4 dispatched to import pipeline ==============
-[2026-03-08T11:01:20.100Z] [ThreadId(2)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 4, slot: 4, total: 4) ==============
-[2026-03-08T11:01:20.100Z] [ThreadId(2)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 81, Trust: 7538, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:26.068Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:26 DCF Finality Sync: Client at block #2, DCF finalized up to #3, syncing...    
-2026-02-23 11:01:26 DCF Finality Sync: Sync complete. Client finalized head now at block #3    
-2026-02-23 11:01:26 DCF: Finality advanced from 3 to 4 in epoch 0    
-2026-02-23 11:01:26 DCF: Progressive finalization advanced to block 4    
-2026-02-23 11:01:26 ProposerFactory: Successfully created block #5 with 1 extrinsics    
-2026-02-23 11:01:26 DCF: Finality advanced from 3 to 4 in epoch 0    
-2026-02-23 11:01:26 DCF: Progressive finalization advanced to block 4    
-2026-02-23 11:01:26 DCF: Computed PoI score for validator=88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...), score=0, block=5    
-2026-02-23 11:01:26 DCF off-chain worker completed computation    
-2026-02-23 11:01:26 🏆 Imported #5 (0xb9b6…9a4f → 0x1e89…5947)    
-2026-02-23 11:01:27 💤 Idle (0 peers), best: #5 (0x1e89…5947), finalized #3 (0x2411…8823), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:26.068Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dcf-finality-sync] DCF finalized block retrieved (block 3) ==============
-[2026-03-08T11:01:26.068Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dcf-finality-sync] Client finalized block retrieved (block 2) ==============
-[2026-03-08T11:01:26.068Z] [ThreadId(4)] ============== [CBC-TRACE] 68. [service.rs::dcf-finality-sync] Finality gap detected (gap size 1) ==============
-[2026-03-08T11:01:26.069Z] [ThreadId(4)] ============== [CBC-TRACE] 69. [service.rs::dcf-finality-sync] Finalizing block 3 ==============
-[2026-03-08T11:01:26.069Z] [ThreadId(4)] ============== [CBC-TRACE] 70. [service.rs::dcf-finality-sync] Block 3 finalized successfully ==============
-[2026-03-08T11:01:26.069Z] [ThreadId(4)] ============== [CBC-TRACE] 71. [service.rs::dcf-finality-sync] Finality sync completed (final finalized block: 3) ==============
-[2026-03-08T11:01:26.108Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 5 ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 5 started ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 5 ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:26.109Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:26.110Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:26.110Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:26.110Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:26.111Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 5 ==============
-[2026-03-08T11:01:26.111Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 5 sealed successfully ==============
-[2026-03-08T11:01:26.111Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 5 dispatched to import pipeline ==============
-[2026-03-08T11:01:26.113Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 5, slot: 5, total: 5) ==============
-[2026-03-08T11:01:26.114Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 91, Trust: 7563, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:32.070Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:32 DCF Finality Sync: Client at block #3, DCF finalized up to #4, syncing...    
-2026-02-23 11:01:32 DCF Finality Sync: Sync complete. Client finalized head now at block #4    
-2026-02-23 11:01:32 💤 Idle (0 peers), best: #5 (0x1e89…5947), finalized #4 (0xb9b6…9a4f), ⬇ 0 ⬆ 0    
-2026-02-23 11:01:32 DCF: Finality advanced from 4 to 5 in epoch 0    
-2026-02-23 11:01:32 DCF: Progressive finalization advanced to block 5    
-2026-02-23 11:01:32 ProposerFactory: Successfully created block #6 with 1 extrinsics    
-2026-02-23 11:01:32 DCF: Finality advanced from 4 to 5 in epoch 0    
-2026-02-23 11:01:32 DCF: Progressive finalization advanced to block 5    
-2026-02-23 11:01:32 🏆 Imported #6 (0x1e89…5947 → 0xd39f…ee7f)    
-2026-02-23 11:01:37 💤 Idle (0 peers), best: #6 (0xd39f…ee7f), finalized #4 (0xb9b6…9a4f), ⬇ 0 ⬆ 0    
-[2026-03-08T11:01:32.070Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dcf-finality-sync] DCF finalized block retrieved (block 4) ==============
-[2026-03-08T11:01:32.070Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dcf-finality-sync] Client finalized block retrieved (block 3) ==============
-[2026-03-08T11:01:32.070Z] [ThreadId(4)] ============== [CBC-TRACE] 68. [service.rs::dcf-finality-sync] Finality gap detected (gap size 1) ==============
-[2026-03-08T11:01:32.070Z] [ThreadId(4)] ============== [CBC-TRACE] 69. [service.rs::dcf-finality-sync] Finalizing block 4 ==============
-[2026-03-08T11:01:32.071Z] [ThreadId(4)] ============== [CBC-TRACE] 70. [service.rs::dcf-finality-sync] Block 4 finalized successfully ==============
-[2026-03-08T11:01:32.071Z] [ThreadId(4)] ============== [CBC-TRACE] 71. [service.rs::dcf-finality-sync] Finality sync completed (final finalized block: 4) ==============
-[2026-03-08T11:01:32.123Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 6 ==============
-[2026-03-08T11:01:32.123Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-08T11:01:32.123Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 6 started ==============
-[2026-03-08T11:01:32.123Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-08T11:01:32.123Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 6 ==============
-[2026-03-08T11:01:32.124Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-08T11:01:32.124Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-08T11:01:32.124Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-08T11:01:32.124Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-08T11:01:32.124Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-08T11:01:32.125Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 6 ==============
-[2026-03-08T11:01:32.125Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 6 sealed successfully ==============
-[2026-03-08T11:01:32.125Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 6 dispatched to import pipeline ==============
-[2026-03-08T11:01:32.126Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 6, slot: 6, total: 6) ==============
-[2026-03-08T11:01:32.126Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7583, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-08T11:01:38.072Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dcf-finality-sync] Finality check iteration started ==============
-2026-02-23 11:01:38 DCF Finality Sync: Client at block #4, DCF finalized up to #5, syncing...    
-2026-02-23 11:01:38 DCF Finality Sync: Sync complete. Client finalized head now at block #5    
-2026-02-23 11:01:38 DCF: Finality advanced from 5 to 6 in epoch 0    
-2026-02-23 11:01:38 DCF: Progressive finalization advanced to block 6    
-2026-02-23 11:01:38 ProposerFactory: Successfully created block #7 with 1 extrinsics    
-2026-02-23 11:01:38 DCF: Finality advanced from 5 to 6 in epoch 0    
-2026-02-23 11:01:38 DCF: Progressive finalization advanced to block 6    
-2026-02-23 11:01:38 🏆 Imported #7 (0xd39f…ee7f → 0xd043…f979)    
+[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 1. [main.rs] Node entry point - main.rs started ==============
+[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 2. [main.rs] CLI configuration parsed ==============
+[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 3. [main.rs] Logging system configured ==============
+[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 4. [main.rs] Node metadata initialized ==============
+[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 5. [main.rs] Command execution started ==============
+[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 6. [service.rs::new_full] Full service initialization started ==============
+[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 7. [service.rs::new_partial] Partial node components initialization started ==============
+[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 8. [service.rs::new_partial] Telemetry endpoints configured (none) ==============
+[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 9. [service.rs::new_partial] WASM executor initialized ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 10. [service.rs::new_partial] Client and backend initialized ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 11. [service.rs::new_partial] Keystore container created ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 12. [service.rs::new_partial] Chain selection strategy initialized ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 13. [service.rs::new_partial] Transaction pool initialized ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 14. [service.rs::new_partial] Prometheus consensus metrics registered ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 15. [service.rs::new_partial] DCF import queue initialized ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 16. [service.rs::new_partial] Partial node components ready ==============
+[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 17. [service.rs::new_full] Network configuration prepared ==============
+[2026-03-09T12:12:15.201Z] [ThreadId(1)] ============== [CBC-TRACE] 18. [service.rs::new_full] P2P network layer initialized ==============
+[2026-03-09T12:12:15.201Z] [ThreadId(1)] ============== [CBC-TRACE] 19. [service.rs::new_full] Block synchronization service started ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 20. [service.rs::new_full] Offchain workers spawned ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 21. [service.rs::new_full] DCF consensus parameters set ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 22. [service.rs::new_full] DCF consensus engine initialized ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 23. [service.rs::new_full] Consensus engine task started ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 24. [service.rs::new_full] Metrics updater task started ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 25. [service.rs::new_full] Block authoring tracker started ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 26. [service.rs::new_full] DCF finality sync service started ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 27. [service.rs::new_full] RPC extensions configured ==============
+[2026-03-09T12:12:15.213Z] [ThreadId(5)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 1 ==============
+[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 1 started ==============
+[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 1 ==============
+[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 1 ==============
+[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 1 sealed successfully ==============
+[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 1 dispatched to import pipeline ==============
+[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 1, slot: 1, total: 1) ==============
+[2026-03-09T12:12:15.220Z] [ThreadId(5)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 51, Trust: 7416, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-09T12:12:15.221Z] [ThreadId(1)] ============== [CBC-TRACE] 28. [service.rs::new_full] All service tasks spawned successfully ==============
+[2026-03-09T12:12:15.221Z] [ThreadId(1)] ============== [CBC-TRACE] 29. [service.rs::new_full] Full node service operational ==============
+[2026-03-09T12:12:21.219Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-09T12:12:21.220Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-09T12:12:21.220Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-09T12:12:21.227Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 2 ==============
+[2026-03-09T12:12:21.227Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 2 started ==============
+[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 2 ==============
+[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 2 ==============
+[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 2 sealed successfully ==============
+[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 2 dispatched to import pipeline ==============
+[2026-03-09T12:12:21.237Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 2, slot: 2, total: 2) ==============
+[2026-03-09T12:12:21.239Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 61, Trust: 7466, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-09T12:12:27.226Z] [ThreadId(7)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============

@@ -4,13 +4,14 @@ use sc_client_api::{Backend, Finalizer};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::TelemetryWorker;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use cbc_runtime::{self, apis::RuntimeApi, opaque::Block};
-use std::{sync::Arc};
+use cbc_runtime::{self, apis::RuntimeApi, opaque::Block, AccountId, Hash};
+use std::{sync::Arc, sync::Mutex};
 use cbc_consensus::{ConsensusParams, AuthorSelectionMode};
 use sp_blockchain::HeaderBackend;
 use sp_api::ProvideRuntimeApi;
 use crate::block_tracker::{BlockTracker, BlockTrackerConfig};
 use cbc_consensus::import_queue::DcfImportQueue;
+use cbc_consensus::dvf_gossip::{DVF_PROTOCOL_NAME, DvfVotePool, DvfGossipValidator};
 
 pub(crate) type FullClient = sc_service::TFullClient<
     Block,
@@ -254,9 +255,7 @@ pub fn new_partial(
     })
 }
 
-pub fn new_full<
-    N: sc_network::NetworkBackend<Block, <Block as sp_runtime::traits::Block>::Hash>,
->(
+pub fn new_full<N>(
     config: Configuration,
     node_config: &NodeConfig,
 ) -> Result<TaskManager, ServiceError>
@@ -287,7 +286,7 @@ where
         e
     })?;
 
-    let net_config = sc_network::config::FullNetworkConfiguration::<
+    let mut net_config = sc_network::config::FullNetworkConfiguration::<
         Block,
         <Block as sp_runtime::traits::Block>::Hash,
         N,
@@ -307,6 +306,23 @@ where
     let metrics = N::register_notification_metrics(config.prometheus_registry());
     let _peer_store_handle = net_config.peer_store_handle();
 
+	// Register DVF gossip protocol — backend-agnostic API (works for both libp2p & litep2p).
+	let (dvf_notification_config, dvf_notification_service) = N::notification_config(
+		cbc_consensus::dvf_gossip::DVF_PROTOCOL_NAME.into(),
+		Vec::new(),
+		1024 * 1024,
+		None,
+		sc_network::config::SetConfig {
+			in_peers: 0,
+			out_peers: 0,
+			reserved_nodes: Vec::new(),
+			non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+		},
+		metrics.clone(),
+		_peer_store_handle.clone(),
+	);
+	net_config.add_notification_protocol(dvf_notification_config);
+
     let (network, system_rpc_tx, tx_handler_controller, sync_service) =
         sc_service::build_network(sc_service::BuildNetworkParams {
             config: &config,
@@ -323,6 +339,37 @@ where
             LifecycleTracer::global().trace_error(18, "service.rs::new_full", &e, "P2P network layer initialization failed");
             e
         })?;
+
+	// Initialize DVF Gossip Components
+	let dvf_gossip_pool = DvfVotePool::<Hash, AccountId>::new();
+	let dvf_gossip_validator: Arc<dyn sc_network_gossip::Validator<Block>> =
+		Arc::new(DvfGossipValidator::new(dvf_gossip_pool.clone(), client.clone()));
+	let dvf_gossip_engine = sc_network_gossip::GossipEngine::new(
+		network.clone(),
+		sync_service.clone(),
+		dvf_notification_service,   // Box<dyn NotificationService>
+		DVF_PROTOCOL_NAME,
+		dvf_gossip_validator,
+		None,
+	);
+	let dvf_gossip_engine = Arc::new(Mutex::new(dvf_gossip_engine));
+
+	// Spawn DVF Gossip Service Task
+	{
+		let dvf_gossip_engine = dvf_gossip_engine.clone();
+		task_manager.spawn_handle().spawn(
+			"dvf-gossip-engine",
+			None, 
+			async move {
+				loop {
+					futures::future::poll_fn(|cx| {
+						let mut engine = dvf_gossip_engine.lock().unwrap();
+						engine.poll_unpin(cx)
+					}).await;
+				}
+			}
+		);
+	}
 
     // STEP 18: P2P network layer initialized
     LifecycleTracer::global().trace_step(
@@ -549,38 +596,43 @@ where
     // This syncs DCF's internal finality state to Substrate's client finalized head
     {
         use sp_runtime::traits::SaturatedConversion;
-        use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+        use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
         let finality_client = client.clone();
+		let finality_gossip_pool = dvf_gossip_pool.clone();
         task_manager.spawn_essential_handle().spawn(
-            "dcf-finality-sync",
+            "dvf-finality-sync",
             None,
             async move {
-                log::info!("DCF: Starting finality sync service");
+                log::info!("DVF: Starting finality sync service");
                 
                 loop {
                     // Wait 6 seconds between checks (one block time)
                     tokio::time::sleep(std::time::Duration::from_secs(6)).await;
                     
+					// Prune gossip pool
+					let finalized_head = finality_client.info().finalized_number.saturated_into::<u32>();
+					finality_gossip_pool.prune_older_rounds(finalized_head);
+                    
                     // STEP 65: Finality check iteration started
                     crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                         65,
-                        "service.rs::dcf-finality-sync",
+                        "service.rs::dvf-finality-sync",
                         "Finality check iteration started",
                         Some(crate::lifecycle_tracer::TraceMetadata::new()),
                     );
                     
-                    // Get DCF's finalized block number
+                    // Get DVF's finalized block number
                     let api = finality_client.runtime_api();
                     let best_hash = finality_client.info().best_hash;
                     
-                    match api.get_last_finalized_block(best_hash) {
-                        Ok(dcf_finalized) => {
-                            // STEP 66: DCF finalized block retrieved
+                    match api.get_dvf_finalized_block(best_hash) {
+                        Ok(dvf_finalized) => {
+                            // STEP 66: DVF finalized block retrieved
                             crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                 66,
-                                "service.rs::dcf-finality-sync",
-                                &format!("DCF finalized block retrieved (block {})", dcf_finalized),
-                                Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(dcf_finalized)),
+                                "service.rs::dvf-finality-sync",
+                                &format!("DVF finalized block retrieved (block {})", dvf_finalized),
+                                Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(dvf_finalized)),
                             );
 
                             let client_info = finality_client.info();
@@ -589,34 +641,34 @@ where
                             // STEP 67: Client finalized block retrieved
                             crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                 67,
-                                "service.rs::dcf-finality-sync",
+                                "service.rs::dvf-finality-sync",
                                 &format!("Client finalized block retrieved (block {})", client_finalized),
                                 Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(client_finalized)),
                             );
                             
-                            if dcf_finalized > client_finalized {
-                                let gap = dcf_finalized - client_finalized;
+                            if dvf_finalized > client_finalized {
+                                let gap = dvf_finalized - client_finalized;
                                 
                                 // STEP 68: Finality gap detected
                                 crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                     68,
-                                    "service.rs::dcf-finality-sync",
+                                    "service.rs::dvf-finality-sync",
                                     &format!("Finality gap detected (gap size {})", gap),
                                     Some(crate::lifecycle_tracer::TraceMetadata::new().with_custom("gap".to_string(), gap.to_string())),
                                 );
                                 
                                 log::info!(
-                                    "DCF Finality Sync: Client at block #{}, DCF finalized up to #{}, syncing...",
+                                    "DVF Finality Sync: Client at block #{}, DVF finalized up to #{}, syncing...",
                                     client_finalized,
-                                    dcf_finalized
+                                    dvf_finalized
                                 );
                                 
-                                // Finalize all blocks from client_finalized+1 to dcf_finalized
-                                for block_num in (client_finalized + 1)..=dcf_finalized {
+                                // Finalize all blocks from client_finalized+1 to dvf_finalized
+                                for block_num in (client_finalized + 1)..=dvf_finalized {
                                     // STEP 69: Finalizing block N
                                     crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                         69,
-                                        "service.rs::dcf-finality-sync",
+                                        "service.rs::dvf-finality-sync",
                                         &format!("Finalizing block {}", block_num),
                                         Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(block_num)),
                                     );
@@ -630,15 +682,15 @@ where
                                                     // STEP 70: Block N finalized successfully
                                                     crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                                         70,
-                                                        "service.rs::dcf-finality-sync",
+                                                        "service.rs::dvf-finality-sync",
                                                         &format!("Block {} finalized successfully", block_num),
                                                         Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(block_num)),
                                                     );
-                                                    log::debug!("DCF Finality Sync: Finalized block #{}", block_num);
+                                                    log::debug!("DVF Finality Sync: Finalized block #{}", block_num);
                                                 }
                                                 Err(e) => {
                                                     log::error!(
-                                                        "DCF Finality Sync: Failed to finalize block #{}: {:?}",
+                                                        "DVF Finality Sync: Failed to finalize block #{}: {:?}",
                                                         block_num,
                                                         e
                                                     );
@@ -662,34 +714,25 @@ where
                                     }
                                 }
                                 
-                                // Log final state
-                                let new_client_finalized: u32 = finality_client.info().finalized_number.saturated_into();
-                                
-                                // STEP 71: Finality sync completed
+                                // STEP 71: Finality synchronization completed
                                 crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                     71,
-                                    "service.rs::dcf-finality-sync",
-                                    &format!("Finality sync completed (final finalized block: {})", new_client_finalized),
-                                    Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(new_client_finalized)),
+                                    "service.rs::dvf-finality-sync",
+                                    "Finality synchronization completed",
+                                    Some(crate::lifecycle_tracer::TraceMetadata::new()),
                                 );
-                                
-                                log::info!(
-                                    "DCF Finality Sync: Sync complete. Client finalized head now at block #{}",
-                                    new_client_finalized
-                                );
-                            } else if dcf_finalized == client_finalized {
-                                log::trace!(
-                                    "DCF Finality Sync: In sync at block #{}",
-                                    client_finalized
-                                );
+                            } else if dvf_finalized == client_finalized {
+                                // Already in sync, just log occasionally
+                                log::trace!("DVF and Client finality are in sync at #{}", dvf_finalized);
                             } else {
+                                // This shouldn't happen unless client is somehow ahead of DVF
                                 log::warn!(
-                                    "DCF Finality Sync: Client ahead of DCF (client: #{}, DCF: #{})",
+                                    "Client finalized head (#{}) is ahead of DVF finalized head (#{})!",
                                     client_finalized,
-                                    dcf_finalized
+                                    dvf_finalized
                                 );
                             }
-                        }
+                        },
                         Err(e) => {
                             log::error!("DCF Finality Sync: Failed to get DCF finalized block: {:?}", e);
                         }

@@ -473,6 +473,33 @@ impl_runtime_apis! {
 		}
 	}
 
+	// DVF API
+	impl pallet_cbc_dvf::DvfApi<Block, BlockNumber, AccountId, <Block as BlockT>::Hash> for Runtime {
+		fn get_dvf_finalized_block() -> BlockNumber {
+			pallet_cbc_dvf::Pallet::<Runtime>::finalized_block_number()
+		}
+
+		fn get_current_epoch() -> u32 {
+			pallet_cbc_dcf::Pallet::<Runtime>::current_epoch()
+		}
+
+		fn get_validator_set() -> Vec<AccountId> {
+			pallet_cbc_dcf::Pallet::<Runtime>::active_validators().to_vec()
+		}
+
+		fn get_validator_weights() -> Vec<(AccountId, u128)> {
+			pallet_cbc_dvf::EpochVotingWeight::<Runtime>::iter().collect()
+		}
+
+		fn get_finality_threshold_perbill() -> sp_runtime::Perbill {
+			<Runtime as pallet_cbc_dvf::Config>::FinalityThreshold::get()
+		}
+
+		fn get_finality_info(block_number: BlockNumber) -> pallet_cbc_dvf::FinalityInfo<BlockNumber, <Block as BlockT>::Hash> {
+			pallet_cbc_dvf::Pallet::<Runtime>::get_finality_info(block_number)
+		}
+	}
+
 	// Runtime Benchmarking API
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {

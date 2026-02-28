@@ -33,6 +33,7 @@ targets = ["x86_64-unknown-linux-gnu"] # Target platforms for which documentatio
 
 pallet-cbc-dcf = { path = "../cbc-pallets/pallet-cbc-dcf" }
 pallet-cbc-pos = { path = "../cbc-pallets/pallet-cbc-pos" }
+pallet-cbc-dvf = { path = "../cbc-pallets/pallet-cbc-dvf" }
 serde = { workspace = true }
 
 # === CLI and Command-Line Parsing ===
@@ -97,6 +98,7 @@ sc-executor.default-features = true         # Substrate executor
 sc-executor.workspace = true                # Use workspace version
 sc-network = { workspace = true, default-features = false }
 sc-network-types = { workspace = true, default-features = false }
+sc-network-gossip = { workspace = true }
 sc-offchain.default-features = true         # Offchain worker utilities
 sc-offchain.workspace = true                # Use workspace version
 sc-service.default-features = true          # Substrate service utilities

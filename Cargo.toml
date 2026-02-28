@@ -14,7 +14,7 @@ members = [
     "cbc-pallets/pallet-cbc-dcf",
     "cbc-pallets/pallet-todo",
     "tools",
-    "cbc-node/src/cbc-consensus",
+    "cbc-node/src/cbc-consensus",  "cbc-pallets/pallet-cbc-dvf",
 ]
 resolver = "2"
 
@@ -23,6 +23,7 @@ cbc-runtime= { path = "./cbc-runtime", default-features = false }
 pallet-cbc-poi = { path="./cbc-pallets/pallet-cbc-poi", default-features = false }
 pallet-cbc-pos = { path="./cbc-pallets/pallet-cbc-pos", default-features = false}
 pallet-cbc-dcf = {path="./cbc-pallets/pallet-cbc-dcf", default-features = false}
+pallet-cbc-dvf = {path="./cbc-pallets/pallet-cbc-dvf", default-features = false}
 pallet-todo = { path = "./cbc-pallets/pallet-todo", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
@@ -85,3 +86,4 @@ sc-rpc-api = { version = "0.48.0", default-features = false }
 sc-rpc = { version = "44.0.0", default-features = false }
 sc-network = { version = "0.49.1", default-features = false }
 sc-network-types = { version = "0.15.3", default-features = false }
+sc-network-gossip = { version = "0.49.0", default-features = false }

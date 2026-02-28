@@ -212,6 +212,9 @@
 #![allow(dead_code)]
 #[warn(unused_comparisons)]
 
+// Traits module
+pub mod traits;
+
 // Benchmarking module
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -579,6 +582,7 @@ pub use weights::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use crate::traits::WeightFreezer;
 
     /// Current storage version for the DCF pallet.
     /// 
@@ -1951,6 +1955,9 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config + pos::Config + poi::Config + TypeInfo + fmt::Debug {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        
+        /// Interface to notify DVF of epoch transitions and weights
+        type WeightFreezer: crate::traits::WeightFreezer<Self::AccountId>;
         
         // Validator set configuration
         /// Maximum number of validators that can be registered in the network.
@@ -9515,12 +9522,25 @@ pub mod pallet {
                 active_validators: new_active_validators.clone(),
                 added_validators,
                 removed_validators,
-                validator_scores,
+                validator_scores: validator_scores.clone(),
                 author_sequence: author_sequence.clone(),
                 randomness_seed,
                 input_hash,
                 output_hash,
             };
+            
+            // Invoke DVF weight freezing
+            let dvf_input: Vec<(T::AccountId, u128, u128)> = new_active_validators.iter().map(|validator| {
+                let state_opt = ValidatorStates::<T>::get(validator);
+                if let Some(state) = state_opt {
+                    let stake = state.current.stake_score as u128; // Approximated. Can be fine tuned.
+                    let score = state.current.final_score as u128;
+                    (validator.clone(), stake, score)
+                } else {
+                    (validator.clone(), 0, 0)
+                }
+            }).collect();
+            T::WeightFreezer::freeze_epoch_weights(next_epoch, &dvf_input);
             
             // Store processing output for replay validation
             EpochProcessingOutputs::<T>::insert(next_epoch, &processing_output);

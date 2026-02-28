@@ -22,6 +22,7 @@ sp-timestamp = { features = ["std"], workspace = true }
 sp-block-builder = { features = ["std"], workspace = true }
 sp-keyring = { features = ["std"], workspace = true }
 sp-application-crypto = { features = ["std"], workspace = true }
+sp-io = { features = ["std"], workspace = true }
 sp-keystore = { version = "0.42.0", default-features = false }
 sc-consensus = { workspace = true, default-features = true }
 sc-transaction-pool-api = { workspace = true }
@@ -44,6 +45,9 @@ parking_lot = "0.12"
 once_cell = "1.19"
 toml = "0.8"
 serde_json = { workspace = true }
+sc-network = { workspace = true }
+sc-network-types = { workspace = true }
+sc-network-gossip = { workspace = true }
 
 
 [dev-dependencies]
