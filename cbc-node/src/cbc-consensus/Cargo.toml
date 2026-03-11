@@ -36,6 +36,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 futures = "0.3"
 pallet-cbc-dcf = { workspace = true }
+pallet-cbc-dvf = { workspace = true }
 pallet-cbc-pos = { workspace = true }
 pallet-cbc-poi = { workspace = true }
 pallet-balances = { workspace = true }
@@ -72,6 +73,7 @@ std = [
 	"sp-block-builder/std",
 	"sp-keystore/std",
 	"pallet-cbc-dcf/std",
+	"pallet-cbc-dvf/std",
 	"pallet-cbc-pos/std",
 	"pallet-cbc-poi/std",
 	"pallet-balances/std",

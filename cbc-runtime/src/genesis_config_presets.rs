@@ -76,6 +76,15 @@ fn testnet_genesis_with_stakes_and_names(
 		.map(|acc| (acc.clone(), 80)) // Consistent with validator_scores
 		.collect::<Vec<_>>();
 
+	// Create DVF initial weights synchronized with DCF validators
+	// This ensures DVF voting weights match DCF validator data at genesis
+	let dvf_initial_weights: Vec<(AccountId, u128, u128)> = initial_validators
+		.iter()
+		.zip(stakes.iter())
+		.zip(validator_scores.iter())
+		.map(|((validator, stake), score)| (validator.clone(), *stake, *score as u128))
+		.collect();
+
 	build_struct_json_patch!(RuntimeGenesisConfig {
 		// Configure initial balances for all endowed accounts with large amounts of tokens
 		balances: BalancesConfig {
@@ -114,6 +123,12 @@ fn testnet_genesis_with_stakes_and_names(
 			inference_results,
 			challenges: vec![],
 			current_epoch: 0,
+		},
+		// Configure DVF initial validator weights
+		// Synchronized with DCF validators to ensure consistency between
+		// validator set membership and voting weights at genesis
+		dvf: pallet_cbc_dvf::GenesisConfig {
+			initial_validator_weights: dvf_initial_weights,
 		},
 	})
 }

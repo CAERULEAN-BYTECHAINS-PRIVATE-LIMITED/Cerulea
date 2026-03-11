@@ -79,13 +79,30 @@ impl pallet_cbc_dvf::Config for Test {
     type FinalityThreshold = FinalityThreshold;
     type FinalityCheckpointInterval = FinalityCheckpointInterval;
     type VoteRetentionRounds = VoteRetentionRounds;
+    type MaxValidators = ConstU32<100>;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let t = frame_system::GenesisConfig::<Test>::default()
+    // Create test validator weights synchronized with production pattern
+    // Using realistic stakes matching the bug condition exploration test
+    let test_validator_weights = vec![
+        (account_key("Alice"), 10_000_000, 80),   // Alice: 10M stake, 80 score
+        (account_key("Bob"), 8_000_000, 80),      // Bob: 8M stake, 80 score
+        (account_key("Charlie"), 6_000_000, 80),  // Charlie: 6M stake, 80 score
+    ];
+
+    let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
+
+    // Initialize DVF genesis configuration
+    crate::GenesisConfig::<Test> {
+        initial_validator_weights: test_validator_weights,
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
     t.into()
 }
 

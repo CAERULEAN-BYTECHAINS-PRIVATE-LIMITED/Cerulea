@@ -19,7 +19,7 @@ use alloc::vec::Vec; // Import the `Vec` type for dynamic arrays.
 
 use sp_runtime::{
     generic, impl_opaque_keys,
-    traits::{BlakeTwo256, IdentifyAccount, Verify},
+    traits::{BlakeTwo256, IdentifyAccount, Verify, ConstU32},
     MultiAddress, MultiSignature,
 };
 use sp_application_crypto::ed25519::AppPublic as DcfPublic;
@@ -327,4 +327,5 @@ impl pallet_cbc_dvf::Config for Runtime {
     type FinalityThreshold = FinalityThreshold;
     type FinalityCheckpointInterval = FinalityCheckpointInterval;
     type VoteRetentionRounds = VoteRetentionRounds;
+    type MaxValidators = ConstU32<100>;
 }

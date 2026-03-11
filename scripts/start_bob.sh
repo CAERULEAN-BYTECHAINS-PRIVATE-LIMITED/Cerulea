@@ -1,25 +1,41 @@
 #!/bin/bash
 
-# Ensure Alice's keys exist for extraction
-if [ ! -f /tmp/alice/chains/cbc_local/network/secret_ed25519 ]; then
-    echo "Alice's keys not found. Please start Alice first."
-    exit 1
-fi
+# Wait a moment to ensure Alice has started and generated her peer ID
+sleep 2
 
 BASE_PATH="/tmp/bob"
-NETWORK_KEY="$BASE_PATH/chains/cbc_local/network/secret_ed25519"
+NETWORK_KEY_PATH="$BASE_PATH/chains/cbc_local/network/secret_ed25519"
 
-# Ensure own keys exist or generate them
-if [ ! -f "$NETWORK_KEY" ]; then
-    echo "Bob's network key not found. Generating..."
-    mkdir -p "$(dirname "$NETWORK_KEY")"
-    ./target/release/cbc-node key generate-node-key --file "$NETWORK_KEY" > /dev/null
+# Clean up old data for fresh start (optional - comment out if you want to keep data)
+# rm -rf "$BASE_PATH"
+
+# Generate network key if it doesn't exist
+if [ ! -f "$NETWORK_KEY_PATH" ]; then
+    echo "Generating network key for Bob..."
+    mkdir -p "$(dirname "$NETWORK_KEY_PATH")"
+    ./target/release/cbc-node key generate-node-key --file "$NETWORK_KEY_PATH" > /dev/null 2>&1
+    echo "Network key generated"
 fi
 
-ALICE_PEER_ID=$(./target/release/cbc-node key inspect-node-key --file /tmp/alice/chains/cbc_local/network/secret_ed25519 | tail -n 1)
+# Extract Alice's peer ID dynamically
+ALICE_PEER_ID=""
+MAX_RETRIES=10
+RETRY_COUNT=0
+
+while [ -z "$ALICE_PEER_ID" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if [ -f /tmp/alice/chains/cbc_local/network/secret_ed25519 ]; then
+        ALICE_PEER_ID=$(./target/release/cbc-node key inspect-node-key --file /tmp/alice/chains/cbc_local/network/secret_ed25519 2>/dev/null | tail -n 1)
+    fi
+    
+    if [ -z "$ALICE_PEER_ID" ]; then
+        echo "Waiting for Alice to generate network key... (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)"
+        sleep 2
+        RETRY_COUNT=$((RETRY_COUNT+1))
+    fi
+done
 
 if [ -z "$ALICE_PEER_ID" ]; then
-    echo "Alice's peer ID could not be dynamically extracted."
+    echo "Could not extract Alice's peer ID after $MAX_RETRIES attempts. Please ensure Alice is running."
     exit 1
 fi
 
@@ -31,6 +47,7 @@ echo "Connecting Bob to Alice -> /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID"
   --bob \
   --port 30334 \
   --rpc-port 9945 \
+  --prometheus-port 9616 \
   --unsafe-rpc-external \
   --rpc-cors all \
   --validator \

@@ -28,6 +28,16 @@ pub mod error;
 
 /// DVF Networking and Gossip
 pub mod dvf_gossip;
+/// DVF Vote Creator Service
+pub mod vote_creator;
+/// DVF Vote Aggregator Service
+pub mod vote_aggregator;
+/// DVF Justification Builder
+pub mod justification_builder;
+/// DVF Block Import Integration
+pub mod dvf_block_import;
+/// DVF Configuration Validation
+pub mod dvf_config_validator;
 
 /// Monitoring and finality
 pub mod metrics;
@@ -48,6 +58,10 @@ pub use types::{ValidatorInfo, ValidatorMetrics, EpochConfig, AuthorSelectionMod
 pub use proposer_factory::ProposerFactory;
 pub use finality::FinalityEngine;
 pub use inherent_providers::CbcInherentDataProviders;
+pub use vote_creator::VoteCreatorService;
+pub use vote_aggregator::{VoteAggregatorService, VotePoolPruningService};
 pub use block_import::CbcBlockImport;
+pub use dvf_block_import::{DvfBlockImport, FinalityNotifier, FinalityNotification};
+pub use dvf_config_validator::{DvfConfig, ConfigValidationError};
 
 

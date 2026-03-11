@@ -5,6 +5,8 @@
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 
+extern crate alloc;
+
 #[cfg(test)]
 mod mock;
 
@@ -18,8 +20,10 @@ pub mod pallet {
     use sp_runtime::traits::{SaturatedConversion, Verify, IdentifyAccount};
     use sp_std::prelude::*;
     use codec::{Decode, Encode};
+    use alloc::vec::Vec;
     use scale_info::TypeInfo;
     use codec::MaxEncodedLen;
+    use frame_support::BoundedVec;
     
     /// Information about block finality status
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -44,6 +48,17 @@ pub mod pallet {
         pub signature: Signature, // Signature of the above fields
     }
 
+    /// DVF Justification structure containing threshold-reaching votes
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, frame_support::__private::codec::DecodeWithMemTracking)]
+    pub struct DvfJustification<Hash, AccountId, Signature> {
+        /// Round number for this justification
+        pub round_number: u32,
+        /// Block hash being justified
+        pub block_hash: Hash,
+        /// Collection of votes that justify this block
+        pub votes: Vec<DvfVote<Hash, AccountId, Signature>>,
+    }
+
 sp_api::decl_runtime_apis! {
     /// DVF Runtime API for querying the DVF gadget network state.
     pub trait DvfApi<BlockNumber, AccountId, Hash>
@@ -58,6 +73,13 @@ sp_api::decl_runtime_apis! {
         fn get_validator_weights() -> sp_std::vec::Vec<(AccountId, u128)>;
         fn get_finality_threshold_perbill() -> sp_runtime::Perbill;
         fn get_finality_info(block_number: BlockNumber) -> FinalityInfo<BlockNumber, Hash>;
+        fn get_finality_checkpoint_interval() -> BlockNumber;
+        fn get_validator_set_id() -> u32;
+        fn get_current_round() -> u32;
+        fn get_validator_set_id_changed_at() -> Option<BlockNumber>;
+        fn get_vote_retention_rounds() -> u32;
+        fn get_vote_tally(block_hash: Hash) -> u128;
+        fn submit_dvf_justification(justification: DvfJustification<Hash, AccountId, sp_runtime::MultiSignature>) -> Result<(), sp_runtime::DispatchError>;
     }
 }
 
@@ -98,6 +120,10 @@ sp_api::decl_runtime_apis! {
         /// Maximum rounds to keep past vote records and tallies before pruning.
         #[pallet::constant]
         type VoteRetentionRounds: Get<u32>;
+        
+        /// Maximum number of validators in the validator set.
+        #[pallet::constant]
+        type MaxValidators: Get<u32>;
 	}
 
     /// Frozen weights for active validators during the current epoch.
@@ -156,6 +182,97 @@ sp_api::decl_runtime_apis! {
     #[pallet::getter(fn validator_set_id)]
     pub type ValidatorSetId<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+    /// The previous validator set for change detection
+    #[pallet::storage]
+    pub type PreviousValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, T::MaxValidators>, ValueQuery>;
+
+    /// The block number when the validator set ID last changed (for grace period)
+    #[pallet::storage]
+    pub type ValidatorSetIdChangedAt<T: Config> = StorageValue<_, BlockNumberFor<T>, OptionQuery>;
+
+    /// Genesis configuration for the DVF pallet.
+    /// 
+    /// This configuration initializes validator voting weights at chain genesis,
+    /// ensuring that finalization can succeed from the very first checkpoint block.
+    /// The weights are calculated using the same freeze_epoch_weights() logic that
+    /// is used at epoch boundaries, maintaining consistency throughout the chain lifetime.
+    /// 
+    /// # Example
+    /// 
+    /// ```ignore
+    /// GenesisConfig {
+    ///     initial_validator_weights: vec![
+    ///         (alice_account, 10_000_000, 80),  // (AccountId, Stake, Score)
+    ///         (bob_account, 8_000_000, 80),
+    ///         (charlie_account, 6_000_000, 80),
+    ///     ],
+    /// }
+    /// ```
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// Initial validator weights: (AccountId, Stake, Score)
+        /// 
+        /// Each tuple contains:
+        /// - AccountId: The validator's account identifier
+        /// - Stake: The validator's staked amount (in smallest unit)
+        /// - Score: The validator's DCF score (0-100 range)
+        /// 
+        /// These values should be synchronized with the DCF pallet's genesis validators
+        /// to ensure consistency between validator set membership and voting weights.
+        pub initial_validator_weights: Vec<(T::AccountId, u128, u128)>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            // Validate genesis configuration
+            assert!(
+                !self.initial_validator_weights.is_empty(),
+                "DVF genesis requires at least one validator with non-zero weight"
+            );
+
+            // Validate stakes and scores
+            for (validator, stake, score) in &self.initial_validator_weights {
+                assert!(
+                    *stake > 0,
+                    "DVF genesis validator {:?} has invalid stake (must be > 0)",
+                    validator
+                );
+                assert!(
+                    *score <= 100,
+                    "DVF genesis validator {:?} has invalid score {} (must be 0-100)",
+                    validator,
+                    score
+                );
+            }
+
+            // Log genesis initialization for audit trail
+            log::info!(
+                target: "runtime::dvf",
+                "DVF genesis initializing with {} validators",
+                self.initial_validator_weights.len()
+            );
+
+            // Initialize ValidatorSetId to 0 at genesis
+            ValidatorSetId::<T>::put(0);
+
+            // Reuse existing freeze_epoch_weights logic for consistency
+            // This ensures genesis weight calculation matches epoch transition logic
+            Pallet::<T>::freeze_epoch_weights(0, &self.initial_validator_weights);
+
+            // Reset ValidatorSetId back to 0 after freeze_epoch_weights
+            // (freeze_epoch_weights increments it to 1 when it detects the initial validator set)
+            ValidatorSetId::<T>::put(0);
+
+            log::info!(
+                target: "runtime::dvf",
+                "DVF genesis initialization complete - EpochVotingWeight populated for epoch 0"
+            );
+        }
+    }
+
+
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -164,6 +281,8 @@ sp_api::decl_runtime_apis! {
 		BlockFinalized { block_number: BlockNumberFor<T>, block_hash: T::Hash, round: u32, weight: u128 },
         /// DVF Voting Weights Frozen for a new epoch.
         WeightsFrozen { epoch: u32, total_weight: u128 },
+        /// Validator set has changed and ValidatorSetId was incremented.
+        ValidatorSetChanged { old_id: u32, new_id: u32 },
         /// Vote validation failed with a specific reason.
         VoteValidationFailed { validator: T::AccountId, block_number: BlockNumberFor<T>, reason: Vec<u8> },
 	}
@@ -180,6 +299,18 @@ sp_api::decl_runtime_apis! {
         DoubleVote,
         /// Vote is for a non-checkpoint block.
         NonCheckpointBlock,
+        /// Justification has no votes.
+        EmptyJustification,
+        /// Justification contains duplicate validators.
+        DuplicateValidator,
+        /// Justification accumulated weight does not meet threshold.
+        ThresholdNotReached,
+        /// Votes in justification have mismatched round numbers.
+        RoundMismatch,
+        /// Votes in justification have mismatched block hashes.
+        BlockHashMismatch,
+        /// Votes in justification have mismatched validator set IDs.
+        ValidatorSetIdMismatch,
 	}
 
 	#[pallet::call]
@@ -246,6 +377,25 @@ sp_api::decl_runtime_apis! {
 
             Ok(())
         }
+
+        /// Submit a DVF justification to finalize a block.
+        /// 
+        /// This extrinsic is called by the block import pipeline when a justification
+        /// is received. It verifies the justification and updates finality state atomically.
+        #[pallet::call_index(1)]
+        #[pallet::weight(Weight::from_parts(100_000, 0) + T::DbWeight::get().reads_writes(10, 10))]
+        pub fn submit_justification(
+            origin: OriginFor<T>,
+            justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
+        ) -> DispatchResult {
+            // This should be called by inherent or root
+            ensure_signed(origin)?;
+
+            // Verify and process the justification
+            Self::verify_and_finalize_justification(justification)?;
+
+            Ok(())
+        }
 	}
 
     impl<T: Config> Pallet<T> {
@@ -300,6 +450,49 @@ sp_api::decl_runtime_apis! {
             let score_factor = T::ScoreWeightFactor::get();
             let cap = T::ScoreBoostCap::get();
             
+            // Detect validator set changes
+            let new_validator_accounts: Vec<T::AccountId> = validators.iter().map(|(v, _, _)| v.clone()).collect();
+            let previous_validator_set = PreviousValidatorSet::<T>::get();
+            
+            // Check if validator set composition changed
+            let validator_set_changed = if previous_validator_set.len() != new_validator_accounts.len() {
+                true
+            } else {
+                // Check if all validators are the same (order doesn't matter)
+                let mut prev_sorted: Vec<T::AccountId> = previous_validator_set.to_vec();
+                prev_sorted.sort();
+                let mut new_sorted = new_validator_accounts.clone();
+                new_sorted.sort();
+                prev_sorted != new_sorted
+            };
+            
+            // Increment ValidatorSetId if validator set changed
+            if validator_set_changed {
+                let old_id = ValidatorSetId::<T>::get();
+                let new_id = old_id.saturating_add(1);
+                ValidatorSetId::<T>::put(new_id);
+                
+                // Store the current block number for grace period tracking
+                let current_block = frame_system::Pallet::<T>::block_number();
+                ValidatorSetIdChangedAt::<T>::put(current_block);
+                
+                Self::deposit_event(Event::ValidatorSetChanged { old_id, new_id });
+            }
+            
+            // Store the new validator set for next comparison
+            // Convert to BoundedVec, truncating if necessary
+            let new_validator_set: BoundedVec<T::AccountId, T::MaxValidators> = 
+                BoundedVec::try_from(new_validator_accounts.clone())
+                    .unwrap_or_else(|_| {
+                        // If conversion fails (too many validators), truncate to max
+                        let truncated: Vec<T::AccountId> = new_validator_accounts
+                            .into_iter()
+                            .take(T::MaxValidators::get() as usize)
+                            .collect();
+                        BoundedVec::truncate_from(truncated)
+                    });
+            PreviousValidatorSet::<T>::put(new_validator_set);
+            
             let mut total_epoch_weight = 0u128;
             let _ = EpochVotingWeight::<T>::clear(u32::MAX, None); // Clear old tracking 
 
@@ -319,26 +512,186 @@ sp_api::decl_runtime_apis! {
             Self::deposit_event(Event::WeightsFrozen { epoch, total_weight: total_epoch_weight });
         }
 
-        fn trigger_finalization(block_hash: T::Hash, block_number: BlockNumberFor<T>, round: u32, tally_weight: u128) {
+        /// Verify and finalize a justification
+        /// 
+        /// This method verifies all aspects of a justification and updates finality state atomically.
+        /// It performs the following checks:
+        /// - Justification is not empty
+        /// - Block number is a checkpoint
+        /// - Block is not already finalized
+        /// - All votes have valid signatures
+        /// - All votes are from active validators
+        /// - All votes have matching validator_set_id
+        /// - All votes have matching round_number
+        /// - All votes have matching block_hash
+        /// - No duplicate validators
+        /// - Accumulated weight meets threshold
+        /// 
+        /// If all checks pass, it updates FinalizedBlockNumber, FinalizedBlockHash,
+        /// increments CurrentRound, emits BlockFinalized event, and prunes old vote records.
+        pub fn verify_and_finalize_justification(
+            justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
+        ) -> DispatchResult {
+            log::info!(
+                "DVF Pallet: verify_and_finalize_justification called for block {:?}, round {}",
+                justification.block_hash,
+                justification.round_number
+            );
+
+            // 1. Check justification is not empty
+            ensure!(!justification.votes.is_empty(), Error::<T>::EmptyJustification);
+
+            // 2. Extract block number from first vote (all should match)
+            let block_number: BlockNumberFor<T> = justification.votes[0].block_number.saturated_into();
+
+            // 3. Verify block number is a checkpoint
+            ensure!(
+                Self::is_checkpoint_block(block_number),
+                Error::<T>::NonCheckpointBlock
+            );
+
+            // 4. Ensure block is not already finalized
+            let current_finalized_number = FinalizedBlockNumber::<T>::get();
+            ensure!(
+                block_number > current_finalized_number,
+                Error::<T>::BlockAlreadyFinalized
+            );
+
+            // 5. Verify all votes and accumulate weight
+            let mut seen_validators = sp_std::collections::btree_set::BTreeSet::new();
+            let mut accumulated_weight = 0u128;
+            let mut expected_validator_set_id: Option<u32> = None;
+
+            for vote in &justification.votes {
+                // Check for duplicate validators
+                ensure!(
+                    seen_validators.insert(vote.validator_account.clone()),
+                    Error::<T>::DuplicateValidator
+                );
+
+                // Verify signature
+                let mut encoded_payload = Vec::new();
+                vote.epoch_id.encode_to(&mut encoded_payload);
+                vote.validator_set_id.encode_to(&mut encoded_payload);
+                vote.round_id.encode_to(&mut encoded_payload);
+                vote.block_number.encode_to(&mut encoded_payload);
+                vote.block_hash.encode_to(&mut encoded_payload);
+                vote.validator_account.encode_to(&mut encoded_payload);
+
+                ensure!(
+                    vote.signature.verify(&encoded_payload[..], &vote.validator_account),
+                    Error::<T>::InvalidSignature
+                );
+
+                // Check validator set ID consistency
+                if let Some(expected_id) = expected_validator_set_id {
+                    ensure!(
+                        vote.validator_set_id == expected_id,
+                        Error::<T>::ValidatorSetIdMismatch
+                    );
+                } else {
+                    expected_validator_set_id = Some(vote.validator_set_id);
+                }
+
+                // Check round consistency
+                ensure!(
+                    vote.round_id == justification.round_number,
+                    Error::<T>::RoundMismatch
+                );
+
+                // Check block hash consistency
+                ensure!(
+                    vote.block_hash == justification.block_hash,
+                    Error::<T>::BlockHashMismatch
+                );
+
+                // Verify validator is active and get weight
+                let validator_weight = EpochVotingWeight::<T>::get(&vote.validator_account)
+                    .ok_or(Error::<T>::InvalidValidator)?;
+
+                accumulated_weight = accumulated_weight.saturating_add(validator_weight);
+            }
+
+            // 6. Verify accumulated weight meets threshold
+            let total_weight = TotalVotingWeight::<T>::get();
+            let threshold = T::FinalityThreshold::get() * total_weight;
+
+            ensure!(
+                accumulated_weight >= threshold,
+                Error::<T>::ThresholdNotReached
+            );
+
+            // 7. Update finality state atomically
+            Self::finalize_block(
+                justification.block_hash,
+                block_number,
+                justification.round_number,
+                accumulated_weight,
+            );
+
+            Ok(())
+        }
+
+        /// Finalize a block and update all related state
+        /// 
+        /// This method performs atomic finality state updates:
+        /// - Updates FinalizedBlockNumber to justified block number
+        /// - Updates FinalizedBlockHash to justified block hash
+        /// - Increments CurrentRound by one
+        /// - Ensures monotonic increase of finalized block number
+        /// - Emits BlockFinalized event
+        /// - Prunes VoteRecords older than VoteRetentionRounds
+        /// - Clears VoteTallies for finalized blocks
+        fn finalize_block(
+            block_hash: T::Hash,
+            block_number: BlockNumberFor<T>,
+            round: u32,
+            accumulated_weight: u128,
+        ) {
+            // Update FinalizedBlockNumber (monotonic increase ensured by caller)
             FinalizedBlockNumber::<T>::put(block_number);
+
+            // Update FinalizedBlockHash
             FinalizedBlockHash::<T>::put(block_hash);
 
+            // Increment CurrentRound
             let next_round = round.saturating_add(1);
             CurrentRound::<T>::put(next_round);
 
+            // Emit BlockFinalized event
             Self::deposit_event(Event::BlockFinalized {
                 block_number,
                 block_hash,
                 round,
-                weight: tally_weight,
+                weight: accumulated_weight,
             });
 
-            // Prune older VoteRecords based on VoteRetentionRounds
+            // Prune old vote records
+            Self::prune_vote_records(round);
+
+            // Clear vote tallies for finalized block
+            VoteTallies::<T>::remove(&block_hash);
+        }
+
+        /// Prune vote records older than VoteRetentionRounds
+        /// 
+        /// This method removes VoteRecords for rounds older than
+        /// (current_round - VoteRetentionRounds) to prevent unbounded storage growth.
+        fn prune_vote_records(current_round: u32) {
             let retention_rounds = T::VoteRetentionRounds::get();
-            if round > retention_rounds {
-                let old_round = round.saturating_sub(retention_rounds);
-                let _ = VoteRecords::<T>::clear_prefix(old_round, u32::MAX, None);
+            
+            if current_round > retention_rounds {
+                let cutoff_round = current_round.saturating_sub(retention_rounds);
+                
+                // Remove all vote records for rounds older than cutoff
+                for old_round in 0..cutoff_round {
+                    let _ = VoteRecords::<T>::clear_prefix(old_round, u32::MAX, None);
+                }
             }
+        }
+
+        fn trigger_finalization(block_hash: T::Hash, block_number: BlockNumberFor<T>, round: u32, tally_weight: u128) {
+            Self::finalize_block(block_hash, block_number, round, tally_weight);
         }
     }
 }

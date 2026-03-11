@@ -144,3 +144,24 @@ impl ValidatorMetrics {
         self.uptime = final_score;
     }
 }
+
+/// Utility functions for consensus operations
+pub mod utils {
+    use sc_client_api::HeaderBackend;
+    use sp_runtime::traits::{Block as BlockT, NumberFor};
+
+    /// Checks if a block number is at or below the client's finalized head
+    ///
+    /// Returns true if the block is already finalized, false otherwise.
+    pub fn is_block_finalized<Block, Client>(
+        client: &Client,
+        block_number: NumberFor<Block>,
+    ) -> bool
+    where
+        Block: BlockT,
+        Client: HeaderBackend<Block>,
+    {
+        let finalized_number = client.info().finalized_number;
+        block_number <= finalized_number
+    }
+}

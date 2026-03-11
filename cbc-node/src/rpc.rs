@@ -17,6 +17,7 @@ use jsonrpsee::proc_macros::rpc;
 use pallet_cbc_pos::PosApi;
 use cbc_runtime::pallet_cbc_poi::PoiApi;
 use pallet_cbc_dcf::DcfApi;
+use pallet_cbc_dvf::DvfApi;
 use crate::fork_detection::ForkReport;
 
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -957,6 +958,49 @@ where
                 params: vec![],
                 returns: "ConsensusWeights".to_string(),
             },
+            // DVF methods
+            RpcMethodDescription {
+                name: "dvf_getFinalizedHead".to_string(),
+                description: "Get current finalized block number".to_string(),
+                params: vec![],
+                returns: "u32".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_getFinalizedHash".to_string(),
+                description: "Get current finalized block hash".to_string(),
+                params: vec![],
+                returns: "String".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_isBlockFinalized".to_string(),
+                description: "Check if a specific block number is finalized".to_string(),
+                params: vec!["u32".to_string()],
+                returns: "bool".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_getCurrentRound".to_string(),
+                description: "Get current DVF voting round".to_string(),
+                params: vec![],
+                returns: "u32".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_getAccumulatedWeight".to_string(),
+                description: "Get accumulated voting weight for a block hash".to_string(),
+                params: vec!["String".to_string()],
+                returns: "u128".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_getValidatorSetId".to_string(),
+                description: "Get current validator set ID".to_string(),
+                params: vec![],
+                returns: "u32".to_string(),
+            },
+            RpcMethodDescription {
+                name: "dvf_getValidatorWeights".to_string(),
+                description: "Get voting weights for all validators".to_string(),
+                params: vec![],
+                returns: "Vec<(AccountId, u128)>".to_string(),
+            },
             // Fork Detection methods
             RpcMethodDescription {
                 name: "fork_checkPeers".to_string(),
@@ -1114,6 +1158,31 @@ where
     }
 }
 
+// DVF RPC API
+#[rpc(server)]
+pub trait DvfRpcApi {
+    #[method(name = "dvf_getFinalizedHead")]
+    fn get_finalized_head(&self) -> RpcResult<u32>;
+    
+    #[method(name = "dvf_getFinalizedHash")]
+    fn get_finalized_hash(&self) -> RpcResult<String>;
+    
+    #[method(name = "dvf_isBlockFinalized")]
+    fn is_block_finalized(&self, block_number: u32) -> RpcResult<bool>;
+    
+    #[method(name = "dvf_getCurrentRound")]
+    fn get_current_round(&self) -> RpcResult<u32>;
+    
+    #[method(name = "dvf_getAccumulatedWeight")]
+    fn get_accumulated_weight(&self, block_hash: String) -> RpcResult<u128>;
+    
+    #[method(name = "dvf_getValidatorSetId")]
+    fn get_validator_set_id(&self) -> RpcResult<u32>;
+    
+    #[method(name = "dvf_getValidatorWeights")]
+    fn get_validator_weights(&self) -> RpcResult<Vec<(AccountId, u128)>>;
+}
+
 // Fork Detection RPC API
 #[rpc(server)]
 pub trait ForkDetectionRpcApi {
@@ -1122,6 +1191,180 @@ pub trait ForkDetectionRpcApi {
     
     #[method(name = "fork_getStatus")]
     async fn get_status(&self) -> RpcResult<std::collections::HashMap<String, serde_json::Value>>;
+}
+
+pub struct DvfRpcApiImpl<C> {
+    client: Arc<C>,
+    security_config: RpcSecurityConfig,
+}
+
+impl<C> DvfRpcApiImpl<C> {
+    pub fn new(client: Arc<C>, security_config: RpcSecurityConfig) -> Self {
+        Self { client, security_config }
+    }
+    
+    fn check_cbc_extensions_enabled(&self) -> RpcResult<()> {
+        if !self.security_config.enable_cbc_extensions {
+            return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+                -32001,
+                "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+                None::<()>
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl<C> DvfRpcApiServer for DvfRpcApiImpl<C>
+where
+    C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+    C::Api: pallet_cbc_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
+{
+    fn get_finalized_head(&self) -> RpcResult<u32> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        api.get_dvf_finalized_block(best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))
+    }
+    
+    fn get_finalized_hash(&self) -> RpcResult<String> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        // Get finalized block number
+        let finalized_number = api.get_dvf_finalized_block(best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Failed to get finalized block number: {:?}", e),
+                None::<()>
+            ))?;
+        
+        // Get finality info which includes the hash
+        let finality_info = api.get_finality_info(best_hash, finalized_number)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Failed to get finality info: {:?}", e),
+                None::<()>
+            ))?;
+        
+        if let Some(hash) = finality_info.finalized_checkpoint_hash {
+            Ok(format!("{:?}", hash))
+        } else {
+            Err(jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                "No finalized block hash available".to_string(),
+                None::<()>
+            ))
+        }
+    }
+    
+    fn is_block_finalized(&self, block_number: u32) -> RpcResult<bool> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        let finality_info = api.get_finality_info(best_hash, block_number)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))?;
+        
+        Ok(finality_info.is_finalized)
+    }
+    
+    fn get_current_round(&self) -> RpcResult<u32> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        api.get_current_round(best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))
+    }
+    
+    fn get_accumulated_weight(&self, block_hash: String) -> RpcResult<u128> {
+        self.check_cbc_extensions_enabled()?;
+        
+        // Parse the block hash from hex string
+        let hash_str = block_hash.trim_start_matches("0x");
+        let hash_bytes = hex::decode(hash_str)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32602,
+                format!("Invalid block hash format: {:?}", e),
+                None::<()>
+            ))?;
+        
+        if hash_bytes.len() != 32 {
+            return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+                -32602,
+                "Block hash must be 32 bytes".to_string(),
+                None::<()>
+            ));
+        }
+        
+        // Convert bytes to Hash type
+        let mut hash_array = [0u8; 32];
+        hash_array.copy_from_slice(&hash_bytes);
+        let block_hash_typed = sp_core::H256::from(hash_array);
+        
+        // Query the runtime storage for VoteTallies using the new runtime API
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        let tally = api.get_vote_tally(best_hash, block_hash_typed)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))?;
+        
+        log::debug!("dvf_getAccumulatedWeight for block {:?}: {}", block_hash_typed, tally);
+        
+        Ok(tally)
+    }
+    
+    fn get_validator_set_id(&self) -> RpcResult<u32> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        api.get_validator_set_id(best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))
+    }
+    
+    fn get_validator_weights(&self) -> RpcResult<Vec<(AccountId, u128)>> {
+        self.check_cbc_extensions_enabled()?;
+        
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        
+        api.get_validator_weights(best_hash)
+            .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
+                -32000,
+                format!("Runtime API call failed: {:?}", e),
+                None::<()>
+            ))
+    }
 }
 
 pub struct ForkDetectionRpcApiImpl<C, B> {
@@ -1267,6 +1510,7 @@ where
     C::Api: pallet_cbc_pos::PosApi<Block, AccountId, Balance>,
     C::Api: cbc_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>,
     C::Api: pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>,
+    C::Api: pallet_cbc_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
     P: TransactionPool + 'static,
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 {
@@ -1307,6 +1551,10 @@ where
         // Register CBC Unified RPC handler
         let cbc_api = CbcRpcApiImpl::new(client.clone(), rpc_config.clone());
         module.merge(CbcRpcApiServer::into_rpc(cbc_api))?;
+        
+        // Register DVF RPC handler
+        let dvf_api = DvfRpcApiImpl::new(client.clone(), rpc_config.clone());
+        module.merge(DvfRpcApiServer::into_rpc(dvf_api))?;
         
         // Register Fork Detection RPC handler
         let fork_api = ForkDetectionRpcApiImpl::<C, FullBackend>::new(client.clone(), rpc_config.clone());

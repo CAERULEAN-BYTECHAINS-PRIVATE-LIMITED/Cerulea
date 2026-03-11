@@ -498,6 +498,40 @@ impl_runtime_apis! {
 		fn get_finality_info(block_number: BlockNumber) -> pallet_cbc_dvf::FinalityInfo<BlockNumber, <Block as BlockT>::Hash> {
 			pallet_cbc_dvf::Pallet::<Runtime>::get_finality_info(block_number)
 		}
+
+		fn get_finality_checkpoint_interval() -> BlockNumber {
+			<Runtime as pallet_cbc_dvf::Config>::FinalityCheckpointInterval::get()
+		}
+
+		fn get_validator_set_id() -> u32 {
+			pallet_cbc_dvf::Pallet::<Runtime>::validator_set_id()
+		}
+
+		fn get_current_round() -> u32 {
+			pallet_cbc_dvf::Pallet::<Runtime>::current_round()
+		}
+		
+		fn get_validator_set_id_changed_at() -> Option<BlockNumber> {
+			pallet_cbc_dvf::ValidatorSetIdChangedAt::<Runtime>::get()
+		}
+
+		fn get_vote_retention_rounds() -> u32 {
+			<Runtime as pallet_cbc_dvf::Config>::VoteRetentionRounds::get()
+		}
+
+		fn get_vote_tally(block_hash: <Block as BlockT>::Hash) -> u128 {
+			pallet_cbc_dvf::VoteTallies::<Runtime>::get(block_hash)
+		}
+
+		fn submit_dvf_justification(
+			justification: pallet_cbc_dvf::DvfJustification<
+				<Block as BlockT>::Hash,
+				AccountId,
+				sp_runtime::MultiSignature
+			>
+		) -> Result<(), sp_runtime::DispatchError> {
+			pallet_cbc_dvf::Pallet::<Runtime>::verify_and_finalize_justification(justification)
+		}
 	}
 
 	// Runtime Benchmarking API

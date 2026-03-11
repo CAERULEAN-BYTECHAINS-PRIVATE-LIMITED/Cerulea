@@ -286,6 +286,54 @@ where
         e
     })?;
 
+    // Validate DVF configuration parameters
+    // This ensures all parameters meet requirements for correct operation
+    {
+        use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
+        use sp_api::ProvideRuntimeApi;
+        
+        log::info!("DVF: Validating configuration parameters...");
+        
+        // Query runtime for DVF configuration values
+        let api = client.runtime_api();
+        let best_hash = client.info().best_hash;
+        
+        let finality_checkpoint_interval = api.get_finality_checkpoint_interval(best_hash)
+            .map_err(|e| ServiceError::Other(format!("Failed to query FinalityCheckpointInterval: {:?}", e)))?;
+        let finality_threshold = api.get_finality_threshold_perbill(best_hash)
+            .map_err(|e| ServiceError::Other(format!("Failed to query FinalityThreshold: {:?}", e)))?;
+        let vote_retention_rounds = api.get_vote_retention_rounds(best_hash)
+            .map_err(|e| ServiceError::Other(format!("Failed to query VoteRetentionRounds: {:?}", e)))?;
+        
+        // For weight factors, we need to use the compile-time constants since they're not in the runtime API
+        // These are the same values used by the runtime
+        let stake_weight_factor = 1u128; // From runtime parameter_types
+        let score_weight_factor = 1000u128; // From runtime parameter_types
+        
+        let dvf_config = cbc_consensus::DvfConfig {
+            finality_checkpoint_interval,
+            finality_threshold,
+            stake_weight_factor,
+            score_weight_factor,
+            vote_retention_rounds,
+        };
+        
+        // Validate configuration
+        if let Err(e) = dvf_config.validate() {
+            log::error!("DVF Configuration Validation Failed: {}", e);
+            log::error!("Node startup aborted due to invalid DVF configuration.");
+            return Err(ServiceError::Other(format!(
+                "Invalid DVF configuration: {}",
+                e
+            )));
+        }
+        
+        // Log all configuration parameters
+        dvf_config.log_configuration();
+        
+        log::info!("DVF: Configuration validation passed successfully");
+    }
+
     let mut net_config = sc_network::config::FullNetworkConfiguration::<
         Block,
         <Block as sp_runtime::traits::Block>::Hash,
@@ -369,6 +417,160 @@ where
 				}
 			}
 		);
+	}
+
+	// Start DVF Vote Creator Service (if node is authority)
+	if config.role.is_authority() {
+		// Get validator account from keystore
+		let keystore = keystore_container.keystore();
+		let mut public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
+		
+		// If no ed25519 keys exist, generate and insert one automatically
+		// This works for dev, local, and any other chain type
+		if public_keys.is_empty() {
+			use sp_core::crypto::{Ss58Codec, Pair};
+			use sp_core::ed25519;
+			
+			// Determine the seed based on chain type and CLI flags
+			let seed = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
+				log::info!("DVF: Dev mode detected - generating ed25519 key for DVF voting");
+				"//Alice"
+			} else {
+				// For local/testnet chains, check if we have a well-known account flag
+				// This will work with --alice, --bob, --charlie, etc.
+				let node_name = config.network.node_name.as_str();
+				
+				let seed_str = if node_name.to_lowercase().contains("alice") {
+					log::info!("DVF: Generating ed25519 key for Alice");
+					"//Alice"
+				} else if node_name.to_lowercase().contains("bob") {
+					log::info!("DVF: Generating ed25519 key for Bob");
+					"//Bob"
+				} else if node_name.to_lowercase().contains("charlie") {
+					log::info!("DVF: Generating ed25519 key for Charlie");
+					"//Charlie"
+				} else if node_name.to_lowercase().contains("dave") {
+					log::info!("DVF: Generating ed25519 key for Dave");
+					"//Dave"
+				} else if node_name.to_lowercase().contains("eve") {
+					log::info!("DVF: Generating ed25519 key for Eve");
+					"//Eve"
+				} else if node_name.to_lowercase().contains("ferdie") {
+					log::info!("DVF: Generating ed25519 key for Ferdie");
+					"//Ferdie"
+				} else {
+					// For custom node names, generate a random key
+					log::info!("DVF: Generating random ed25519 key for custom validator");
+					// Generate a random seed
+					use sp_core::crypto::Pair as _;
+					let (pair, seed_phrase, _) = ed25519::Pair::generate_with_phrase(None);
+					
+					// Insert the random key
+					keystore.insert(
+						sp_core::crypto::key_types::ACCOUNT,
+						&seed_phrase,
+						pair.public().as_ref(),
+					).expect("Failed to insert ed25519 key into keystore");
+					
+					log::info!("DVF: Generated and inserted random ed25519 key: {}", pair.public().to_ss58check());
+					log::warn!("DVF: Save this seed phrase to recover the key: {}", seed_phrase);
+					
+					// Refresh the public keys list and skip the deterministic key generation below
+					public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
+					""
+				};
+				
+				seed_str
+			};
+			
+			// Generate deterministic key if we have a seed
+			if !seed.is_empty() {
+				let pair = ed25519::Pair::from_string(seed, None)
+					.expect("Failed to generate ed25519 pair from seed");
+				
+				// Insert the key into the keystore
+				keystore.insert(
+					sp_core::crypto::key_types::ACCOUNT,
+					seed,
+					pair.public().as_ref(),
+				).expect("Failed to insert ed25519 key into keystore");
+				
+				log::info!("DVF: Generated and inserted ed25519 key: {}", pair.public().to_ss58check());
+				
+				// Refresh the public keys list
+				public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
+			}
+		}
+		
+		if !public_keys.is_empty() {
+			// Convert ed25519 public key to AccountId
+			// In Substrate, AccountId32 is typically derived from the public key
+			let validator_account = AccountId::from(public_keys[0].0);
+			
+			// Create DVF Finality Notifier
+			let finality_notifier = Arc::new(cbc_consensus::FinalityNotifier::new());
+			
+			let vote_creator = cbc_consensus::VoteCreatorService::new(
+				client.clone(),
+				keystore.clone(),
+				dvf_gossip_engine.clone(),
+				dvf_gossip_pool.clone(),
+				validator_account.clone(),
+			);
+			
+			task_manager.spawn_essential_handle().spawn(
+				"dvf-vote-creator",
+				None,
+				async move {
+					vote_creator.run().await;
+				}
+			);
+			
+			log::info!("DVF: Vote Creator Service started for validator {:?}", validator_account);
+			
+			// Create DVF Justification Builder
+			let justification_builder = Arc::new(cbc_consensus::justification_builder::JustificationBuilder::new(
+				client.clone(),
+				dvf_gossip_pool.clone(),
+			));
+			
+			// Start DVF Vote Aggregator Service
+			let vote_aggregator: cbc_consensus::VoteAggregatorService<Block, FullBackend, FullClient, AccountId> = cbc_consensus::VoteAggregatorService::new(
+				client.clone(),
+				dvf_gossip_pool.clone(),
+				justification_builder,
+				std::time::Duration::from_secs(1), // Check every 1 second
+			);
+			
+			task_manager.spawn_essential_handle().spawn(
+				"dvf-vote-aggregator",
+				None,
+				async move {
+					vote_aggregator.run().await;
+				}
+			);
+			
+			log::info!("DVF: Vote Aggregator Service started");
+			
+			// Start DVF Vote Pool Pruning Service
+			let pruning_service = cbc_consensus::VotePoolPruningService::new(
+				client.clone(),
+				dvf_gossip_pool.clone(),
+				finality_notifier.clone(),
+			);
+			
+			task_manager.spawn_essential_handle().spawn(
+				"dvf-vote-pool-pruning",
+				None,
+				async move {
+					pruning_service.run().await;
+				}
+			);
+			
+			log::info!("DVF: Vote Pool Pruning Service started");
+		} else {
+			log::warn!("DVF: No ed25519 keys found in keystore, Vote Creator Service not started");
+		}
 	}
 
     // STEP 18: P2P network layer initialized
@@ -604,6 +806,66 @@ where
             None,
             async move {
                 log::info!("DVF: Starting finality sync service");
+                
+                // Perform initial sync on startup to restore finalized head
+                log::info!("DVF: Performing initial finality sync on startup");
+                let api = finality_client.runtime_api();
+                let best_hash = finality_client.info().best_hash;
+                
+                match api.get_dvf_finalized_block(best_hash) {
+                    Ok(dvf_finalized) => {
+                        let client_info = finality_client.info();
+                        let client_finalized: u32 = client_info.finalized_number.saturated_into();
+                        
+                        if dvf_finalized > client_finalized {
+                            log::info!(
+                                "DVF Startup Sync: Client at block #{}, DVF finalized up to #{}, restoring...",
+                                client_finalized,
+                                dvf_finalized
+                            );
+                            
+                            // Finalize all blocks from client_finalized+1 to dvf_finalized
+                            for block_num in (client_finalized + 1)..=dvf_finalized {
+                                match finality_client.hash(block_num.into()) {
+                                    Ok(Some(block_hash)) => {
+                                        match finality_client.finalize_block(block_hash, None, true) {
+                                            Ok(_) => {
+                                                log::debug!("DVF Startup Sync: Restored finalized block #{}", block_num);
+                                            }
+                                            Err(e) => {
+                                                log::error!(
+                                                    "DVF Startup Sync: Failed to restore block #{}: {:?}",
+                                                    block_num,
+                                                    e
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        log::warn!(
+                                            "DVF Startup Sync: Block #{} hash not found, skipping",
+                                            block_num
+                                        );
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "DVF Startup Sync: Failed to get hash for block #{}: {:?}",
+                                            block_num,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                            
+                            log::info!("DVF Startup Sync: Finalized head restored to block #{}", dvf_finalized);
+                        } else {
+                            log::info!("DVF Startup Sync: Client finalized head is up to date at block #{}", client_finalized);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("DVF Startup Sync: Failed to get DVF finalized block: {:?}", e);
+                    }
+                }
                 
                 loop {
                     // Wait 6 seconds between checks (one block time)

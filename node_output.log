@@ -4,68 +4,789 @@ Node Version:     0.1.0
 Runtime Version:  0.1.0
 Chain:            CBC Chain
 Role:             Node
-Timestamp:        1771935127
+Timestamp:        1772800166
 ================================
-[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 1. [main.rs] Node entry point - main.rs started ==============
-[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 2. [main.rs] CLI configuration parsed ==============
-[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 3. [main.rs] Logging system configured ==============
-[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 4. [main.rs] Node metadata initialized ==============
-[2026-03-09T12:12:07.855Z] [ThreadId(1)] ============== [CBC-TRACE] 5. [main.rs] Command execution started ==============
-[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 6. [service.rs::new_full] Full service initialization started ==============
-[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 7. [service.rs::new_partial] Partial node components initialization started ==============
-[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 8. [service.rs::new_partial] Telemetry endpoints configured (none) ==============
-[2026-03-09T12:12:07.858Z] [ThreadId(1)] ============== [CBC-TRACE] 9. [service.rs::new_partial] WASM executor initialized ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 10. [service.rs::new_partial] Client and backend initialized ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 11. [service.rs::new_partial] Keystore container created ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 12. [service.rs::new_partial] Chain selection strategy initialized ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 13. [service.rs::new_partial] Transaction pool initialized ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 14. [service.rs::new_partial] Prometheus consensus metrics registered ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 15. [service.rs::new_partial] DCF import queue initialized ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 16. [service.rs::new_partial] Partial node components ready ==============
-[2026-03-09T12:12:15.200Z] [ThreadId(1)] ============== [CBC-TRACE] 17. [service.rs::new_full] Network configuration prepared ==============
-[2026-03-09T12:12:15.201Z] [ThreadId(1)] ============== [CBC-TRACE] 18. [service.rs::new_full] P2P network layer initialized ==============
-[2026-03-09T12:12:15.201Z] [ThreadId(1)] ============== [CBC-TRACE] 19. [service.rs::new_full] Block synchronization service started ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 20. [service.rs::new_full] Offchain workers spawned ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 21. [service.rs::new_full] DCF consensus parameters set ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 22. [service.rs::new_full] DCF consensus engine initialized ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 23. [service.rs::new_full] Consensus engine task started ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 24. [service.rs::new_full] Metrics updater task started ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 25. [service.rs::new_full] Block authoring tracker started ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 26. [service.rs::new_full] DCF finality sync service started ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(1)] ============== [CBC-TRACE] 27. [service.rs::new_full] RPC extensions configured ==============
-[2026-03-09T12:12:15.213Z] [ThreadId(5)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 1 ==============
-[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 1 started ==============
-[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-09T12:12:15.217Z] [ThreadId(5)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 1 ==============
-[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-09T12:12:15.218Z] [ThreadId(5)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 1 ==============
-[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 1 sealed successfully ==============
-[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 1 dispatched to import pipeline ==============
-[2026-03-09T12:12:15.219Z] [ThreadId(5)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 1, slot: 1, total: 1) ==============
-[2026-03-09T12:12:15.220Z] [ThreadId(5)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 51, Trust: 7416, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-09T12:12:15.221Z] [ThreadId(1)] ============== [CBC-TRACE] 28. [service.rs::new_full] All service tasks spawned successfully ==============
-[2026-03-09T12:12:15.221Z] [ThreadId(1)] ============== [CBC-TRACE] 29. [service.rs::new_full] Full node service operational ==============
-[2026-03-09T12:12:21.219Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
-[2026-03-09T12:12:21.220Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
-[2026-03-09T12:12:21.220Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
-[2026-03-09T12:12:21.227Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 2 ==============
-[2026-03-09T12:12:21.227Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
-[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 2 started ==============
-[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
-[2026-03-09T12:12:21.228Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 2 ==============
-[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
-[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
-[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
-[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
-[2026-03-09T12:12:21.230Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
-[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 2 ==============
-[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 2 sealed successfully ==============
-[2026-03-09T12:12:21.233Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 2 dispatched to import pipeline ==============
-[2026-03-09T12:12:21.237Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 2, slot: 2, total: 2) ==============
-[2026-03-09T12:12:21.239Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 61, Trust: 7466, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
-[2026-03-09T12:12:27.226Z] [ThreadId(7)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-19T12:29:26.087Z] [ThreadId(1)] ============== [CBC-TRACE] 1. [main.rs] Node entry point - main.rs started ==============
+[2026-03-19T12:29:26.087Z] [ThreadId(1)] ============== [CBC-TRACE] 2. [main.rs] CLI configuration parsed ==============
+[2026-03-19T12:29:26.087Z] [ThreadId(1)] ============== [CBC-TRACE] 3. [main.rs] Logging system configured ==============
+[2026-03-19T12:29:26.087Z] [ThreadId(1)] ============== [CBC-TRACE] 4. [main.rs] Node metadata initialized ==============
+[2026-03-19T12:29:26.087Z] [ThreadId(1)] ============== [CBC-TRACE] 5. [main.rs] Command execution started ==============
+2026-03-06 12:29:26 CBC CHAIN    
+2026-03-06 12:29:26 ✌️  version 0.1.0    
+2026-03-06 12:29:26 ❤️  by Caerulean ByteChains Private Limited, 2025-2026    
+2026-03-06 12:29:26 📋 Chain specification: CBC Development Chain    
+2026-03-06 12:29:26 🏷  Node name: dependent-toy-8352    
+2026-03-06 12:29:26 👤 Role: AUTHORITY    
+2026-03-06 12:29:26 💾 Database: RocksDb at /tmp/substrateuQb6vM/chains/cbc_dev/db/full    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.1 [pallet-cbc-dcf::genesis_build] Genesis block validation started ==============    
+2026-03-06 12:29:32 Genesis configuration validation passed    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.2 [pallet-cbc-dcf::genesis_build] Genesis configuration loaded ==============    
+2026-03-06 12:29:32   Validator count: 1    
+2026-03-06 12:29:32   Epoch: 0    
+2026-03-06 12:29:32   Blocks per epoch: 100    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.3.1 [pallet-cbc-dcf::genesis_build] Genesis validator 1 initialized ==============    
+2026-03-06 12:29:32   Account ID: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-03-06 12:29:32   Stake: 10000000000000000000    
+2026-03-06 12:29:32   Initial score: 80    
+2026-03-06 12:29:32   PoS score: 10000000000000000    
+2026-03-06 12:29:32   PoI score: 80    
+2026-03-06 12:29:32   Combined DCF score: 31    
+2026-03-06 12:29:32 Genesis validator 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) initialized with stake: 10000000000000000000, final_score: 31, name: None    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.4 [pallet-cbc-dcf::genesis_build] PoS scores calculated for all genesis validators ==============    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.5 [pallet-cbc-dcf::genesis_build] PoI scores calculated for all genesis validators ==============    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.6 [pallet-cbc-dcf::genesis_build] Combined DCF scores computed for all validators ==============    
+2026-03-06 12:29:32   PoS weight: 6000    
+2026-03-06 12:29:32   PoI weight: 4000    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.7 [pallet-cbc-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============    
+2026-03-06 12:29:32   Sequence length: 100    
+2026-03-06 12:29:32 DCF: Generated deterministic author sequence for epoch 0 with 100 authors    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.8 [pallet-cbc-dcf::genesis_build] Genesis block created ==============    
+2026-03-06 12:29:32   Note: Block hash and state root will be computed by runtime after genesis build completes    
+2026-03-06 12:29:32 ============== [CBC-TRACE] 10.9 [pallet-cbc-dcf::genesis_build] Genesis validation completed successfully ==============    
+2026-03-06 12:29:32 DCF Genesis completed: 1 validators initialized in epoch 0    
+2026-03-06 12:29:32 DVF genesis initializing with 1 validators    
+2026-03-06 12:29:32 DVF genesis initialization complete - EpochVotingWeight populated for epoch 0    
+[2026-03-19T12:29:26.091Z] [ThreadId(1)] ============== [CBC-TRACE] 6. [service.rs::new_full] Full service initialization started ==============
+[2026-03-19T12:29:26.091Z] [ThreadId(1)] ============== [CBC-TRACE] 7. [service.rs::new_partial] Partial node components initialization started ==============
+[2026-03-19T12:29:26.091Z] [ThreadId(1)] ============== [CBC-TRACE] 8. [service.rs::new_partial] Telemetry endpoints configured (none) ==============
+[2026-03-19T12:29:26.091Z] [ThreadId(1)] ============== [CBC-TRACE] 9. [service.rs::new_partial] WASM executor initialized ==============
+[2026-03-19T12:29:33.590Z] [ThreadId(1)] ============== [CBC-TRACE] 10. [service.rs::new_partial] Client and backend initialized ==============
+[2026-03-19T12:29:33.590Z] [ThreadId(1)] ============== [CBC-TRACE] 11. [service.rs::new_partial] Keystore container created ==============
+[2026-03-19T12:29:33.590Z] [ThreadId(1)] ============== [CBC-TRACE] 12. [service.rs::new_partial] Chain selection strategy initialized ==============
+[2026-03-19T12:29:33.592Z] [ThreadId(1)] ============== [CBC-TRACE] 13. [service.rs::new_partial] Transaction pool initialized ==============
+[2026-03-19T12:29:33.592Z] [ThreadId(1)] ============== [CBC-TRACE] 14. [service.rs::new_partial] Prometheus consensus metrics registered ==============
+[2026-03-19T12:29:33.592Z] [ThreadId(1)] ============== [CBC-TRACE] 15. [service.rs::new_partial] DCF import queue initialized ==============
+[2026-03-19T12:29:33.592Z] [ThreadId(1)] ============== [CBC-TRACE] 16. [service.rs::new_partial] Partial node components ready ==============
+[2026-03-19T12:29:33.592Z] [ThreadId(1)] ============== [CBC-TRACE] 17. [service.rs::new_full] Network configuration prepared ==============
+[2026-03-19T12:29:33.711Z] [ThreadId(1)] ============== [CBC-TRACE] 18. [service.rs::new_full] P2P network layer initialized ==============
+2026-03-06 12:29:33 🔨 Initializing Genesis block/state (state: 0xd9e8…6bc4, header-hash: 0xcfb6…5458)    
+2026-03-06 12:29:33  creating SingleState txpool Limit { count: 8192, total_bytes: 20971520 }/Limit { count: 819, total_bytes: 2097152 }.    
+2026-03-06 12:29:33 CBC: Consensus metrics initialized successfully in new_partial    
+2026-03-06 12:29:33 DVF: Validating configuration parameters...    
+2026-03-06 12:29:33 === DVF Configuration ===    
+2026-03-06 12:29:33   FinalityCheckpointInterval: 10 blocks    
+2026-03-06 12:29:33   FinalityThreshold: 67.00%    
+2026-03-06 12:29:33   StakeWeightFactor: 1    
+2026-03-06 12:29:33   ScoreWeightFactor: 1000    
+2026-03-06 12:29:33   VoteRetentionRounds: 20    
+2026-03-06 12:29:33 =========================    
+2026-03-06 12:29:33 DVF: Configuration validation passed successfully    
+2026-03-06 12:29:33 🏷  Local node identity is: 12D3KooWAVmxsFK6nSsBFySGTSqQjR5c5khAZJeR8BTZgcFZqvkt    
+2026-03-06 12:29:33 Running libp2p network backend    
+2026-03-06 12:29:33 local_peer_id=12D3KooWAVmxsFK6nSsBFySGTSqQjR5c5khAZJeR8BTZgcFZqvkt
+2026-03-06 12:29:33 DVF: Dev mode detected - generating ed25519 key for DVF voting    
+2026-03-06 12:29:33 DVF: Generated and inserted ed25519 key: 5FA9nQDVg267DEd8m1ZypXLBnvN7SFxYwV7ndqSYGiN9TTpu    
+2026-03-06 12:29:33 DVF Finality Notifier: Initializing    
+2026-03-06 12:29:33 DVF Vote Creator: Initializing service for validator 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-03-06 12:29:33 DVF: Vote Creator Service started for validator 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-03-06 12:29:33 DVF Justification Builder: Initializing    
+2026-03-06 12:29:33 DVF Vote Aggregator: Initializing service with check interval 1s    
+2026-03-06 12:29:33 DVF: Vote Aggregator Service started    
+2026-03-06 12:29:33 DVF Vote Pool Pruning Service: Initializing    
+2026-03-06 12:29:33 DVF: Vote Pool Pruning Service started    
+2026-03-06 12:29:33 DVF Vote Creator: Starting service    
+2026-03-06 12:29:33 DVF Vote Pool Pruning Service: Starting service    
+2026-03-06 12:29:33 DVF Vote Aggregator: Starting service    
+2026-03-06 12:29:33 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:33 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:33 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:33 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:33.711Z] [ThreadId(1)] ============== [CBC-TRACE] 19. [service.rs::new_full] Block synchronization service started ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(1)] ============== [CBC-TRACE] 20. [service.rs::new_full] Offchain workers spawned ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(1)] ============== [CBC-TRACE] 21. [service.rs::new_full] DCF consensus parameters set ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(1)] ============== [CBC-TRACE] 22. [service.rs::new_full] DCF consensus engine initialized ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(5)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 1 ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(5)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(5)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 1 started ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(5)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:29:33.946Z] [ThreadId(5)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 1 ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 1 ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 1 sealed successfully ==============
+[2026-03-19T12:29:33.947Z] [ThreadId(5)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 1 dispatched to import pipeline ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(5)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 1, slot: 1, total: 1) ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(5)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 51, Trust: 7416, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(1)] ============== [CBC-TRACE] 23. [service.rs::new_full] Consensus engine task started ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(1)] ============== [CBC-TRACE] 24. [service.rs::new_full] Metrics updater task started ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(1)] ============== [CBC-TRACE] 25. [service.rs::new_full] Block authoring tracker started ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(1)] ============== [CBC-TRACE] 26. [service.rs::new_full] DCF finality sync service started ==============
+[2026-03-19T12:29:33.948Z] [ThreadId(1)] ============== [CBC-TRACE] 27. [service.rs::new_full] RPC extensions configured ==============
+[2026-03-19T12:29:33.953Z] [ThreadId(1)] ============== [CBC-TRACE] 28. [service.rs::new_full] All service tasks spawned successfully ==============
+[2026-03-19T12:29:33.953Z] [ThreadId(1)] ============== [CBC-TRACE] 29. [service.rs::new_full] Full node service operational ==============
+2026-03-06 12:29:33 CBC: Starting real PoS+PoI consensus engine for block production    
+2026-03-06 12:29:33 Producing block #1 with author 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-03-06 12:29:33 ProposerFactory: Successfully created block #1 with 1 extrinsics    
+2026-03-06 12:29:33 DCF: Consensus monitoring active. Block production handled by Substrate's default mechanisms.    
+2026-03-06 12:29:33 CBC: Starting consensus metrics updater    
+2026-03-06 12:29:33 CBC: Starting block authoring tracking service    
+2026-03-06 12:29:33 Block Tracker: Starting block authoring tracking service    
+2026-03-06 12:29:33 DVF: Starting finality sync service    
+2026-03-06 12:29:33 DVF: Performing initial finality sync on startup    
+2026-03-06 12:29:33 DVF Startup Sync: Client finalized head is up to date at block #0    
+2026-03-06 12:29:33 💻 Operating system: linux    
+2026-03-06 12:29:33 💻 CPU architecture: x86_64    
+2026-03-06 12:29:33 💻 Target environment: gnu    
+2026-03-06 12:29:33 💻 CPU: Intel(R) Xeon(R) E-2224G CPU @ 3.50GHz    
+2026-03-06 12:29:33 💻 CPU cores: 6    
+2026-03-06 12:29:33 💻 Memory: 9943MB    
+2026-03-06 12:29:33 💻 Kernel: 6.17.0-14-generic    
+2026-03-06 12:29:33 💻 Linux distribution: Ubuntu 24.04.4 LTS    
+2026-03-06 12:29:33 💻 Virtual machine: yes    
+2026-03-06 12:29:33 📦 Highest known block at #1    
+2026-03-06 12:29:33 Running JSON-RPC server: addr=127.0.0.1:9944,[::1]:9944    
+2026-03-06 12:29:33 〽️ Prometheus exporter started at 127.0.0.1:9615    
+2026-03-06 12:29:34 Failed to trigger bootstrap: No known peers.
+2026-03-06 12:29:34 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:34 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:34 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:34 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:35 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:35 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:35 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:35 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:36 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:36 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:36 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:36 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:37 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:37 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:37 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:37 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:38 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:38 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:38 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:38 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:38 💤 Idle (0 peers), best: #1 (0xb8d7…b994), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:29:39 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:39 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:39 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:39 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:39.951Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:29:39 ProposerFactory: Successfully created block #2 with 1 extrinsics    
+2026-03-06 12:29:39 🏆 Imported #2 (0xb8d7…b994 → 0x447d…2b60)    
+2026-03-06 12:29:40 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:40 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:40 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:40 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:41 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:41 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:41 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:41 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:42 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:42 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:42 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:42 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:43 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:43 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:43 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:43 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:43 💤 Idle (0 peers), best: #2 (0x447d…2b60), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:29:44 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:44 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:44 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:44 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:45 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:45 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:45 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:45 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:39.951Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:39.951Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 2 ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 2 started ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 2 ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:29:39.962Z] [ThreadId(2)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 2 ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 2 sealed successfully ==============
+[2026-03-19T12:29:39.963Z] [ThreadId(2)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 2 dispatched to import pipeline ==============
+[2026-03-19T12:29:39.965Z] [ThreadId(2)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 2, slot: 2, total: 2) ==============
+[2026-03-19T12:29:39.966Z] [ThreadId(2)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 61, Trust: 7466, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:29:45.953Z] [ThreadId(5)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:29:45 DCF: Finality advanced from 1 to 2 in epoch 0    
+2026-03-06 12:29:45 DCF: Progressive finalization advanced to block 2    
+2026-03-06 12:29:45 ProposerFactory: Successfully created block #3 with 1 extrinsics    
+2026-03-06 12:29:45 DCF: Finality advanced from 1 to 2 in epoch 0    
+2026-03-06 12:29:45 DCF: Progressive finalization advanced to block 2    
+2026-03-06 12:29:45 🏆 Imported #3 (0x447d…2b60 → 0xd22a…80ab)    
+2026-03-06 12:29:46 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:46 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:46 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:46 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:47 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:47 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:47 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:47 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:48 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:48 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:48 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:48 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:48 💤 Idle (0 peers), best: #3 (0xd22a…80ab), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:29:49 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:49 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:49 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:49 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:50 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:50 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:50 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:50 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:51 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:51 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:51 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:51 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:45.954Z] [ThreadId(5)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:45.954Z] [ThreadId(5)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 3 ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 3 started ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 3 ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:29:45.973Z] [ThreadId(5)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:29:45.974Z] [ThreadId(5)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 3 ==============
+[2026-03-19T12:29:45.974Z] [ThreadId(5)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 3 sealed successfully ==============
+[2026-03-19T12:29:45.974Z] [ThreadId(5)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 3 dispatched to import pipeline ==============
+[2026-03-19T12:29:45.976Z] [ThreadId(5)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 3, slot: 3, total: 3) ==============
+[2026-03-19T12:29:45.976Z] [ThreadId(5)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 71, Trust: 7506, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:29:51.955Z] [ThreadId(6)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:29:51 DCF: Finality advanced from 2 to 3 in epoch 0    
+2026-03-06 12:29:51 DCF: Progressive finalization advanced to block 3    
+2026-03-06 12:29:51 ProposerFactory: Successfully created block #4 with 1 extrinsics    
+2026-03-06 12:29:51 DCF: Finality advanced from 2 to 3 in epoch 0    
+2026-03-06 12:29:51 DCF: Progressive finalization advanced to block 3    
+2026-03-06 12:29:51 🏆 Imported #4 (0xd22a…80ab → 0xeb4c…40dd)    
+2026-03-06 12:29:52 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:52 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:52 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:52 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:53 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:53 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:53 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:53 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:53 💤 Idle (0 peers), best: #4 (0xeb4c…40dd), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:29:54 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:54 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:54 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:54 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:55 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:55 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:55 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:55 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:56 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:56 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:56 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:56 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:57 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:57 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:57 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:57 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:51.955Z] [ThreadId(6)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:51.955Z] [ThreadId(6)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:51.984Z] [ThreadId(6)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 4 ==============
+[2026-03-19T12:29:51.984Z] [ThreadId(6)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:29:51.984Z] [ThreadId(6)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 4 started ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 4 ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:29:51.985Z] [ThreadId(6)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:29:51.986Z] [ThreadId(6)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 4 ==============
+[2026-03-19T12:29:51.986Z] [ThreadId(6)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 4 sealed successfully ==============
+[2026-03-19T12:29:51.986Z] [ThreadId(6)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 4 dispatched to import pipeline ==============
+[2026-03-19T12:29:51.986Z] [ThreadId(6)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 4, slot: 4, total: 4) ==============
+[2026-03-19T12:29:51.987Z] [ThreadId(6)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 81, Trust: 7538, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:29:57.957Z] [ThreadId(3)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:29:58 DCF: Finality advanced from 3 to 4 in epoch 0    
+2026-03-06 12:29:58 DCF: Progressive finalization advanced to block 4    
+2026-03-06 12:29:58 ProposerFactory: Successfully created block #5 with 1 extrinsics    
+2026-03-06 12:29:58 DCF: Finality advanced from 3 to 4 in epoch 0    
+2026-03-06 12:29:58 DCF: Progressive finalization advanced to block 4    
+2026-03-06 12:29:58 🏆 Imported #5 (0xeb4c…40dd → 0xaef7…2ca5)    
+2026-03-06 12:29:58 DCF: Computed PoI score for validator=88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...), score=0, block=5    
+2026-03-06 12:29:58 DCF off-chain worker completed computation    
+2026-03-06 12:29:58 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:58 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:58 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:58 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:29:58 💤 Idle (0 peers), best: #5 (0xaef7…2ca5), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:29:59 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:29:59 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:29:59 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:29:59 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:00 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:00 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:00 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:00 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:01 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:01 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:01 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:01 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:02 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:02 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:02 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:02 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:03 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:03 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:03 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:03 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:29:57.957Z] [ThreadId(3)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:57.957Z] [ThreadId(3)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:29:58.033Z] [ThreadId(3)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 5 ==============
+[2026-03-19T12:29:58.033Z] [ThreadId(3)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:29:58.033Z] [ThreadId(3)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 5 started ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 5 ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:29:58.034Z] [ThreadId(3)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:29:58.035Z] [ThreadId(3)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 5 ==============
+[2026-03-19T12:29:58.035Z] [ThreadId(3)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 5 sealed successfully ==============
+[2026-03-19T12:29:58.035Z] [ThreadId(3)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 5 dispatched to import pipeline ==============
+[2026-03-19T12:29:58.036Z] [ThreadId(3)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 5, slot: 5, total: 5) ==============
+[2026-03-19T12:29:58.037Z] [ThreadId(3)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 91, Trust: 7563, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:03.958Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:30:03 💤 Idle (0 peers), best: #5 (0xaef7…2ca5), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:04 DCF: Finality advanced from 4 to 5 in epoch 0    
+2026-03-06 12:30:04 DCF: Progressive finalization advanced to block 5    
+2026-03-06 12:30:04 ProposerFactory: Successfully created block #6 with 1 extrinsics    
+2026-03-06 12:30:04 DCF: Finality advanced from 4 to 5 in epoch 0    
+2026-03-06 12:30:04 DCF: Progressive finalization advanced to block 5    
+2026-03-06 12:30:04 🏆 Imported #6 (0xaef7…2ca5 → 0x1471…70d7)    
+2026-03-06 12:30:04 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:04 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:04 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:04 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:05 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:05 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:05 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:05 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:06 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:06 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:06 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:06 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:07 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:07 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:07 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:07 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:08 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:08 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:08 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:08 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:08 💤 Idle (0 peers), best: #6 (0x1471…70d7), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:09 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:09 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:09 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:09 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:03.958Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:03.958Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:04.046Z] [ThreadId(3)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 6 ==============
+[2026-03-19T12:30:04.046Z] [ThreadId(3)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:04.046Z] [ThreadId(3)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 6 started ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 6 ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:04.047Z] [ThreadId(3)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:04.048Z] [ThreadId(3)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 6 ==============
+[2026-03-19T12:30:04.048Z] [ThreadId(3)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 6 sealed successfully ==============
+[2026-03-19T12:30:04.048Z] [ThreadId(3)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 6 dispatched to import pipeline ==============
+[2026-03-19T12:30:04.048Z] [ThreadId(3)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 6, slot: 6, total: 6) ==============
+[2026-03-19T12:30:04.049Z] [ThreadId(3)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7583, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:10.013Z] [ThreadId(6)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:30:10 DCF: Finality advanced from 5 to 6 in epoch 0    
+2026-03-06 12:30:10 DCF: Progressive finalization advanced to block 6    
+2026-03-06 12:30:10 ProposerFactory: Successfully created block #7 with 1 extrinsics    
+2026-03-06 12:30:10 DCF: Finality advanced from 5 to 6 in epoch 0    
+2026-03-06 12:30:10 DCF: Progressive finalization advanced to block 6    
+2026-03-06 12:30:10 🏆 Imported #7 (0x1471…70d7 → 0xde12…7e1c)    
+2026-03-06 12:30:10 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:10 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:10 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:10 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:11 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:11 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:11 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:11 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:12 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:12 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:12 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:12 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:13 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:13 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:13 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:13 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:13 💤 Idle (0 peers), best: #7 (0xde12…7e1c), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:14 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:14 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:14 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:14 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:15 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:15 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:15 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:15 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:10.013Z] [ThreadId(6)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:10.013Z] [ThreadId(6)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 7 ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 7 started ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 7 ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:10.059Z] [ThreadId(6)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:10.060Z] [ThreadId(6)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 7 ==============
+[2026-03-19T12:30:10.060Z] [ThreadId(6)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 7 sealed successfully ==============
+[2026-03-19T12:30:10.060Z] [ThreadId(6)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 7 dispatched to import pipeline ==============
+[2026-03-19T12:30:10.061Z] [ThreadId(6)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 7, slot: 7, total: 7) ==============
+[2026-03-19T12:30:10.061Z] [ThreadId(6)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7599, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:16.015Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:30:16 DCF: Finality advanced from 6 to 7 in epoch 0    
+2026-03-06 12:30:16 DCF: Progressive finalization advanced to block 7    
+2026-03-06 12:30:16 ProposerFactory: Successfully created block #8 with 1 extrinsics    
+2026-03-06 12:30:16 DCF: Finality advanced from 6 to 7 in epoch 0    
+2026-03-06 12:30:16 DCF: Progressive finalization advanced to block 7    
+2026-03-06 12:30:16 🏆 Imported #8 (0xde12…7e1c → 0x97a9…a590)    
+2026-03-06 12:30:16 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:16 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:16 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:16 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:17 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:17 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:17 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:17 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:18 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:18 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:18 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:18 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:18 💤 Idle (0 peers), best: #8 (0x97a9…a590), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:19 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:19 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:19 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:19 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:20 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:20 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:20 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:20 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:21 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:21 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:21 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:21 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:16.015Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:16.015Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 8 ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 8 started ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 8 ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:16.101Z] [ThreadId(2)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:16.102Z] [ThreadId(2)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 8 ==============
+[2026-03-19T12:30:16.102Z] [ThreadId(2)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 8 sealed successfully ==============
+[2026-03-19T12:30:16.102Z] [ThreadId(2)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 8 dispatched to import pipeline ==============
+[2026-03-19T12:30:16.103Z] [ThreadId(2)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 8, slot: 8, total: 8) ==============
+[2026-03-19T12:30:16.103Z] [ThreadId(2)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7612, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:22.017Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:30:22 DCF: Finality advanced from 7 to 8 in epoch 0    
+2026-03-06 12:30:22 DCF: Progressive finalization advanced to block 8    
+2026-03-06 12:30:22 ProposerFactory: Successfully created block #9 with 1 extrinsics    
+2026-03-06 12:30:22 DCF: Finality advanced from 7 to 8 in epoch 0    
+2026-03-06 12:30:22 DCF: Progressive finalization advanced to block 8    
+2026-03-06 12:30:22 🏆 Imported #9 (0x97a9…a590 → 0xc7c5…a688)    
+2026-03-06 12:30:22 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:22 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:22 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:22 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:23 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:23 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:23 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:23 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:23 💤 Idle (0 peers), best: #9 (0xc7c5…a688), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:24 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:24 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:24 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:24 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:25 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:25 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:25 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:25 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:26 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:26 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:26 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:26 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:27 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:27 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:27 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:27 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:22.017Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:22.017Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:22.113Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 9 ==============
+[2026-03-19T12:30:22.113Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:22.113Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 9 started ==============
+[2026-03-19T12:30:22.113Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:22.113Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 9 ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 9 ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 9 sealed successfully ==============
+[2026-03-19T12:30:22.114Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 9 dispatched to import pipeline ==============
+[2026-03-19T12:30:22.115Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 9, slot: 9, total: 9) ==============
+[2026-03-19T12:30:22.116Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7622, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:28.019Z] [ThreadId(2)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-19T12:30:28.019Z] [ThreadId(2)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:28.019Z] [ThreadId(2)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 10 ==============
+2026-03-06 12:30:28 DCF: Finality advanced from 8 to 9 in epoch 0    
+2026-03-06 12:30:28 DCF: Progressive finalization advanced to block 9    
+2026-03-06 12:30:28 ProposerFactory: Successfully created block #10 with 1 extrinsics    
+2026-03-06 12:30:28 DCF: Finality advanced from 8 to 9 in epoch 0    
+2026-03-06 12:30:28 DCF: Progressive finalization advanced to block 9    
+2026-03-06 12:30:28 DVF Vote Creator: Creating vote for block #10 (0xe7c61e17b5ed1e89e71c10b75363873225d6f6aeb1d1340fa1361e4e26e6d3f4)    
+2026-03-06 12:30:28 🏆 Imported #10 (0xc7c5…a688 → 0xe7c6…d3f4)    
+2026-03-06 12:30:28 DCF: Computed PoI score for validator=88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...), score=0, block=10    
+2026-03-06 12:30:28 DCF off-chain worker completed computation    
+2026-03-06 12:30:28 PoS+PoI: Consensus Health - Block: 10, Slot: 10, Validators: 1, Healthy: 1, Avg Score: 100    
+2026-03-06 12:30:28 DVF Vote Creator: Successfully broadcast vote for block #10 (epoch: 0, round: 0, validator_set: 0)    
+2026-03-06 12:30:28 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:28 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:28 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:28 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:29 💤 Idle (0 peers), best: #10 (0xe7c6…d3f4), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:29 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:29 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:29 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:29 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:30 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:30 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:30 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:30 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:31 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:31 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:31 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:31 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:32 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:32 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:32 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:32 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:33 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:33 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:33 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:33 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 10 started ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 10 ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:28.124Z] [ThreadId(2)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:28.125Z] [ThreadId(2)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 10 ==============
+[2026-03-19T12:30:28.125Z] [ThreadId(2)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 10 sealed successfully ==============
+[2026-03-19T12:30:28.125Z] [ThreadId(2)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 10 dispatched to import pipeline ==============
+[2026-03-19T12:30:28.126Z] [ThreadId(2)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 10, slot: 10, total: 10) ==============
+[2026-03-19T12:30:28.127Z] [ThreadId(2)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7630, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:34.021Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+2026-03-06 12:30:34 💤 Idle (0 peers), best: #10 (0xe7c6…d3f4), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+[2026-03-19T12:30:34.021Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:34.021Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 11 ==============
+2026-03-06 12:30:34 Producing block #11 with author 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...)    
+2026-03-06 12:30:34 DCF: Finality advanced from 9 to 10 in epoch 0    
+2026-03-06 12:30:34 DCF: Progressive finalization advanced to block 10    
+2026-03-06 12:30:34 ProposerFactory: Successfully created block #11 with 1 extrinsics    
+2026-03-06 12:30:34 DCF: Finality advanced from 9 to 10 in epoch 0    
+2026-03-06 12:30:34 DCF: Progressive finalization advanced to block 10    
+2026-03-06 12:30:34 🏆 Imported #11 (0xe7c6…d3f4 → 0x197f…0086)    
+2026-03-06 12:30:34 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:34 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:34 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:34 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:35 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:35 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:35 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:35 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:36 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:36 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:36 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:36 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:37 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:37 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:37 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:37 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:38 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:38 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:38 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:38 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:39 💤 Idle (0 peers), best: #11 (0x197f…0086), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:39 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:39 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:39 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:39 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 11 started ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 11 ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:34.140Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:34.141Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 11 ==============
+[2026-03-19T12:30:34.141Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 11 sealed successfully ==============
+[2026-03-19T12:30:34.141Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 11 dispatched to import pipeline ==============
+[2026-03-19T12:30:34.142Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 11, slot: 11, total: 11) ==============
+[2026-03-19T12:30:34.142Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7637, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:40.023Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-19T12:30:40.023Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:40.023Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 12 ==============
+2026-03-06 12:30:40 DCF: Finality advanced from 10 to 11 in epoch 0    
+2026-03-06 12:30:40 DCF: Progressive finalization advanced to block 11    
+2026-03-06 12:30:40 ProposerFactory: Successfully created block #12 with 1 extrinsics    
+2026-03-06 12:30:40 DCF: Finality advanced from 10 to 11 in epoch 0    
+2026-03-06 12:30:40 DCF: Progressive finalization advanced to block 11    
+2026-03-06 12:30:40 🏆 Imported #12 (0x197f…0086 → 0xd832…ea2f)    
+2026-03-06 12:30:40 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:40 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:40 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:40 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:41 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:41 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:41 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:41 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:42 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:42 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:42 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:42 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:43 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:43 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:43 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:43 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:44 💤 Idle (0 peers), best: #12 (0xd832…ea2f), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:44 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:44 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:44 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:44 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:45 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:45 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:45 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:45 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 12 started ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 12 ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:40.153Z] [ThreadId(4)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:40.154Z] [ThreadId(4)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 12 ==============
+[2026-03-19T12:30:40.154Z] [ThreadId(4)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 12 sealed successfully ==============
+[2026-03-19T12:30:40.154Z] [ThreadId(4)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 12 dispatched to import pipeline ==============
+[2026-03-19T12:30:40.155Z] [ThreadId(4)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 12, slot: 12, total: 12) ==============
+[2026-03-19T12:30:40.155Z] [ThreadId(4)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7642, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:46.025Z] [ThreadId(4)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-19T12:30:46.025Z] [ThreadId(4)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:46.025Z] [ThreadId(4)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:46.188Z] [ThreadId(5)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 13 ==============
+2026-03-06 12:30:46 DCF: Finality advanced from 11 to 12 in epoch 0    
+2026-03-06 12:30:46 DCF: Progressive finalization advanced to block 12    
+2026-03-06 12:30:46 ProposerFactory: Successfully created block #13 with 1 extrinsics    
+2026-03-06 12:30:46 DCF: Finality advanced from 11 to 12 in epoch 0    
+2026-03-06 12:30:46 DCF: Progressive finalization advanced to block 12    
+2026-03-06 12:30:46 🏆 Imported #13 (0xd832…ea2f → 0x7a34…24f8)    
+2026-03-06 12:30:46 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:46 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:46 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:46 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:47 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:47 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:47 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:47 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:48 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:48 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:48 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:48 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:49 💤 Idle (0 peers), best: #13 (0x7a34…24f8), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:49 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:49 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:49 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:49 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:50 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:50 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:50 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:50 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:51 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:51 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:51 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:51 DVF Vote Aggregator: Vote pool size: 0 votes total    
+[2026-03-19T12:30:46.188Z] [ThreadId(5)] ============== [CBC-TRACE] 41. [dcf.rs::run] Active validators retrieved: 1 validators ==============
+[2026-03-19T12:30:46.188Z] [ThreadId(5)] ============== [CBC-TRACE] 42. [dcf.rs::run] Author selection for block 13 started ==============
+[2026-03-19T12:30:46.188Z] [ThreadId(5)] ============== [CBC-TRACE] 43. [dcf.rs::run] Expected author selected: 88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee (5FA9nQDV...) (method: runtime_deterministic) ==============
+[2026-03-19T12:30:46.188Z] [ThreadId(5)] ============== [CBC-TRACE] 44. [dcf.rs::run] Block production triggered for block 13 ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 45. [proposer_factory.rs::create_complete_block] Proposer factory create_complete_block entered ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 46. [proposer_factory.rs::create_complete_block] Inherent data generated ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 47. [proposer_factory.rs::create_complete_block] Transactions harvested from mempool (0 transactions) ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 48. [proposer_factory.rs::create_complete_block] PreRuntime author digest added to header ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 49. [proposer_factory.rs::create_complete_block] Substrate build_block executing ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 50. [proposer_factory.rs::build_block_with_state_root] State root computed for block 13 ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 51. [proposer_factory.rs::build_block_with_state_root] Block 13 sealed successfully ==============
+[2026-03-19T12:30:46.189Z] [ThreadId(5)] ============== [CBC-TRACE] 52. [proposer_factory.rs::create_complete_block] Block 13 dispatched to import pipeline ==============
+[2026-03-19T12:30:46.190Z] [ThreadId(5)] ============== [CBC-TRACE] 53. [dcf.rs::update_consensus_state] Consensus state updated after block production (block: 13, slot: 13, total: 13) ==============
+[2026-03-19T12:30:46.191Z] [ThreadId(5)] ============== [CBC-TRACE] 54. [dcf.rs::update_consensus_state] Author scores updated - PoS: 10000000000000000, PoI: 80, Combined: 100, Trust: 7646, Uptime: 100, Inferences: 0, Participation: 100%, Missed: 0 ==============
+[2026-03-19T12:30:52.027Z] [ThreadId(5)] ============== [CBC-TRACE] 65. [service.rs::dvf-finality-sync] Finality check iteration started ==============
+[2026-03-19T12:30:52.027Z] [ThreadId(5)] ============== [CBC-TRACE] 66. [service.rs::dvf-finality-sync] DVF finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:52.027Z] [ThreadId(5)] ============== [CBC-TRACE] 67. [service.rs::dvf-finality-sync] Client finalized block retrieved (block 0) ==============
+[2026-03-19T12:30:52.198Z] [ThreadId(4)] ============== [CBC-TRACE] 40. [dcf.rs::run] Consensus loop iteration started for block 14 ==============
+2026-03-06 12:30:52 DCF: Finality advanced from 12 to 13 in epoch 0    
+2026-03-06 12:30:52 DCF: Progressive finalization advanced to block 13    
+2026-03-06 12:30:52 ProposerFactory: Successfully created block #14 with 1 extrinsics    
+2026-03-06 12:30:52 DCF: Finality advanced from 12 to 13 in epoch 0    
+2026-03-06 12:30:52 DCF: Progressive finalization advanced to block 13    
+2026-03-06 12:30:52 🏆 Imported #14 (0x7a34…24f8 → 0xea02…5adb)    
+2026-03-06 12:30:52 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:52 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:52 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:52 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:53 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:53 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:53 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:53 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:54 💤 Idle (0 peers), best: #14 (0xea02…5adb), finalized #0 (0xcfb6…5458), ⬇ 0 ⬆ 0    
+2026-03-06 12:30:54 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:54 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:54 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:54 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:55 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:55 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:55 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:55 DVF Vote Aggregator: Vote pool size: 0 votes total    
+2026-03-06 12:30:56 DVF Vote Aggregator: ===== Checking vote accumulation for round 0 =====    
+2026-03-06 12:30:56 DVF Vote Aggregator: Total weight: 10000000000000080000, Finality threshold: 6700000000000053600 (67% of total)    
+2026-03-06 12:30:56 DVF Vote Aggregator: Found 0 candidate blocks for round 0    
+2026-03-06 12:30:56 DVF Vote Aggregator: Vote pool size: 0 votes total    

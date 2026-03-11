@@ -12,9 +12,9 @@ use std::time::Instant;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use prometheus::{
-    Registry, Counter, Gauge, GaugeVec, Histogram, HistogramVec, HistogramOpts, Opts,
-    register_counter_with_registry, register_gauge_with_registry, register_histogram_with_registry,
-    register_gauge_vec_with_registry, register_histogram_vec_with_registry,
+    Registry, Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, HistogramOpts, Opts,
+    register_counter_with_registry, register_counter_vec_with_registry, register_gauge_with_registry, 
+    register_histogram_with_registry, register_gauge_vec_with_registry, register_histogram_vec_with_registry,
 };
 use pallet_cbc_dcf::DcfApi;
 // Remove unused imports - we'll use the runtime types directly in the trait bound
@@ -333,6 +333,95 @@ impl ConsensusMetrics {
         self.rpc_request_duration
             .with_label_values(&[method])
             .observe(duration_seconds);
+    }
+}
+
+/// DVF (Dynamic Validator Finality) metrics for Prometheus
+#[derive(Clone)]
+pub struct DvfMetrics {
+    /// Current finalized block number
+    pub dvf_finalized_block_number: Gauge,
+    /// Total votes received per round
+    pub dvf_votes_received_total: CounterVec,
+    /// Accumulated weight per block hash
+    pub dvf_accumulated_weight: GaugeVec,
+    /// Vote rejections by reason
+    pub dvf_vote_rejections_total: CounterVec,
+    /// Finality latency from checkpoint to finalization
+    pub dvf_finality_latency_seconds: Histogram,
+    /// Double vote detections
+    pub dvf_double_votes_detected_total: Counter,
+}
+
+impl DvfMetrics {
+    /// Create new DVF metrics
+    pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
+        Ok(Self {
+            dvf_finalized_block_number: register_gauge_with_registry!(
+                Opts::new("dvf_finalized_block_number", "Current finalized block number in DVF"),
+                registry
+            )?,
+            dvf_votes_received_total: register_counter_vec_with_registry!(
+                Opts::new("dvf_votes_received_total", "Total DVF votes received per round"),
+                &["round"],
+                registry
+            )?,
+            dvf_accumulated_weight: register_gauge_vec_with_registry!(
+                Opts::new("dvf_accumulated_weight", "Accumulated voting weight per block hash"),
+                &["block_hash"],
+                registry
+            )?,
+            dvf_vote_rejections_total: register_counter_vec_with_registry!(
+                Opts::new("dvf_vote_rejections_total", "Total DVF vote rejections by reason"),
+                &["reason"],
+                registry
+            )?,
+            dvf_finality_latency_seconds: register_histogram_with_registry!(
+                HistogramOpts::new("dvf_finality_latency_seconds", "Time from checkpoint to finalization")
+                    .buckets(vec![1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0]),
+                registry
+            )?,
+            dvf_double_votes_detected_total: register_counter_with_registry!(
+                Opts::new("dvf_double_votes_detected_total", "Total double vote detections"),
+                registry
+            )?,
+        })
+    }
+
+    /// Update finalized block number
+    pub fn update_finalized_block_number(&self, block_number: u32) {
+        self.dvf_finalized_block_number.set(block_number as f64);
+    }
+
+    /// Record vote reception for a round
+    pub fn record_vote_received(&self, round: u32) {
+        self.dvf_votes_received_total
+            .with_label_values(&[&round.to_string()])
+            .inc();
+    }
+
+    /// Update accumulated weight for a block hash
+    pub fn update_accumulated_weight(&self, block_hash: &str, weight: u128) {
+        self.dvf_accumulated_weight
+            .with_label_values(&[block_hash])
+            .set(weight as f64);
+    }
+
+    /// Record vote rejection with reason
+    pub fn record_vote_rejection(&self, reason: &str) {
+        self.dvf_vote_rejections_total
+            .with_label_values(&[reason])
+            .inc();
+    }
+
+    /// Record finality latency
+    pub fn record_finality_latency(&self, latency_seconds: f64) {
+        self.dvf_finality_latency_seconds.observe(latency_seconds);
+    }
+
+    /// Record double vote detection
+    pub fn record_double_vote_detection(&self) {
+        self.dvf_double_votes_detected_total.inc();
     }
 }
 

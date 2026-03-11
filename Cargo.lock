@@ -1267,6 +1267,7 @@ dependencies = [
  "once_cell",
  "pallet-balances",
  "pallet-cbc-dcf",
+ "pallet-cbc-dvf",
  "pallet-cbc-poi",
  "pallet-cbc-pos",
  "pallet-timestamp",
@@ -6405,6 +6406,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-cbc-dcf",
  "parity-scale-codec",
  "scale-info",
