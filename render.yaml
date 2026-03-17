@@ -7,7 +7,6 @@ services:
     dockerContext: .
     region: oregon
     plan: standard
-    port: 9944
 
     disk:
       name: alice-chain-data
@@ -34,7 +33,6 @@ services:
     dockerContext: .
     region: oregon
     plan: standard
-    port: 9944
 
     disk:
       name: bob-chain-data
@@ -66,7 +64,6 @@ services:
     dockerContext: .
     region: oregon
     plan: standard
-    port: 9944
 
     disk:
       name: charlie-chain-data
