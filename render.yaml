@@ -1,0 +1,89 @@
+services:
+  # ─── Alice (bootnode + validator) ───────────────────────────────────────────
+  - type: web
+    name: cbc-alice
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: standard
+    port: 9944
+
+    disk:
+      name: alice-chain-data
+      mountPath: /data
+      sizeGB: 20
+
+    envVars:
+      - key: NODE_ROLE
+        value: alice
+      - key: P2P_PORT
+        value: "30333"
+      - key: RPC_PORT
+        value: "9944"
+      - key: PROMETHEUS_PORT
+        value: "9615"
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
+
+  # ─── Bob (validator) ────────────────────────────────────────────────────────
+  - type: web
+    name: cbc-bob
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: standard
+    port: 9944
+
+    disk:
+      name: bob-chain-data
+      mountPath: /data
+      sizeGB: 20
+
+    envVars:
+      - key: NODE_ROLE
+        value: bob
+      - key: P2P_PORT
+        value: "30333"
+      - key: RPC_PORT
+        value: "9944"
+      - key: PROMETHEUS_PORT
+        value: "9615"
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
+      # Set this after Alice is deployed:
+      # Format: /dns/cbc-alice/tcp/30333/p2p/<ALICE_PEER_ID>
+      # Get Alice's peer ID from her logs: grep "Local node identity" in Alice's log
+      - key: ALICE_BOOTNODE
+        value: "REPLACE_WITH_ALICE_BOOTNODE_MULTIADDR"
+
+  # ─── Charlie (validator) ────────────────────────────────────────────────────
+  - type: web
+    name: cbc-charlie
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: standard
+    port: 9944
+
+    disk:
+      name: charlie-chain-data
+      mountPath: /data
+      sizeGB: 20
+
+    envVars:
+      - key: NODE_ROLE
+        value: charlie
+      - key: P2P_PORT
+        value: "30333"
+      - key: RPC_PORT
+        value: "9944"
+      - key: PROMETHEUS_PORT
+        value: "9615"
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
+      # Same bootnode as Bob
+      - key: ALICE_BOOTNODE
+        value: "REPLACE_WITH_ALICE_BOOTNODE_MULTIADDR"
