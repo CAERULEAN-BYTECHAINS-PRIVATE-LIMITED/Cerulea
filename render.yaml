@@ -8,9 +8,6 @@ services:
     region: oregon
     plan: starter
     healthCheckPath: /
-    cacheDirectories:
-      - /cargo
-      - /target
     envVars:
       - key: NODE_ROLE
         value: alice
