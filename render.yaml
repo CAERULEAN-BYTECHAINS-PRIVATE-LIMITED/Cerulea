@@ -8,8 +8,7 @@ services:
     region: oregon
     plan: starter
     healthCheckPath: /
-    buildCommand: echo "Docker build handled by dockerfile"
-        cacheDirectories:
+    cacheDirectories:
       - /cargo
       - /target
     envVars:
