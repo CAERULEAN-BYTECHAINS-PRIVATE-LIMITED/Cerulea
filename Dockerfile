@@ -11,11 +11,22 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Add the WASM target for Substrate runtime compilation
+RUN rustup target add wasm32-unknown-unknown
+
+# Set cargo cache directories for persistent caching across builds
+ENV CARGO_HOME=/cargo
+ENV CARGO_TARGET_DIR=/target
+
 WORKDIR /build
 
-# Copy workspace manifests first for layer caching
+# Copy workspace manifests first for layer caching (dependencies)
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
+
+# Pre-fetch and cache all dependencies before copying source code
+# This ensures dependency downloads are cached separately from code changes
+RUN cargo fetch --locked || true
 
 # Copy all crate sources
 COPY cbc-node cbc-node
@@ -24,9 +35,10 @@ COPY cbc-pallets cbc-pallets
 COPY tools tools
 
 # Build release binary
-RUN cargo build --release -p cbc-node
+# --locked ensures we use the exact Cargo.lock versions
+RUN cargo build --release --locked -p cbc-node
 
-# Stage 2: Runtime
+# Stage 2: Runtime (minimal image)
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
@@ -35,8 +47,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/cbc-node /usr/local/bin/cbc-node
-
+# Copy only the final binary from builder (no build artifacts, keeps image small)
+COPY --from=builder /target/release/cbc-node /usr/local/bin/cbc-node
 RUN chmod +x /usr/local/bin/cbc-node
 
 # Copy the entrypoint script
@@ -51,5 +63,4 @@ EXPOSE 9944
 EXPOSE 9615
 
 VOLUME ["/data"]
-
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
