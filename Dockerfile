@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 
 # Add the WASM target for Substrate runtime compilation
 RUN rustup target add wasm32-unknown-unknown
+RUN rustup component add rust-src
 
 # Set cargo cache directories for persistent caching across builds
 ENV CARGO_HOME=/cargo
