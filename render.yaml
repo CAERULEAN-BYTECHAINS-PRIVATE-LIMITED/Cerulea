@@ -7,12 +7,11 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
-
-    disk:
-      name: alice-chain-data
-      mountPath: /data
-      sizeGB: 20
-
+    healthCheckPath: /
+    buildCommand: echo "Docker build handled by dockerfile"
+        cacheDirectories:
+      - /cargo
+      - /target
     envVars:
       - key: NODE_ROLE
         value: alice
@@ -24,3 +23,11 @@ services:
         value: "9615"
       - key: RUST_LOG
         value: info,cbc_consensus=debug
+      - key: CARGO_HOME
+        value: /cargo
+      - key: CARGO_BUILD_TARGET_DIR
+        value: /target
+    disk:
+      name: alice-chain-data
+      mountPath: /data
+      sizeGB: 20
