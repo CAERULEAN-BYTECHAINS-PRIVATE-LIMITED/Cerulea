@@ -1,2 +1,4 @@
 target/
 .kiro
+# keys/ is intentionally NOT ignored — Alice's network key is committed so
+# the peer-id is deterministic across all deployments.

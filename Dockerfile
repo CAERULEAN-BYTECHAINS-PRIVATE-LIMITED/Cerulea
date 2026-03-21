@@ -1,67 +1,86 @@
-# Stage 1: Build
-FROM rust:1.85-bookworm AS builder
+###############################################################################
+# Stage 1: Dependency cache
+# Only re-runs when Cargo.toml / Cargo.lock change, not on source edits.
+###############################################################################
+FROM rust:1.85-bookworm AS deps
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    clang \
-    libclang-dev \
-    llvm \
-    protobuf-compiler \
-    pkg-config \
-    libssl-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang libclang-dev llvm protobuf-compiler pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Add the WASM target for Substrate runtime compilation
-RUN rustup target add wasm32-unknown-unknown
-RUN rustup component add rust-src
-
-# Set cargo cache directories for persistent caching across builds
-ENV CARGO_HOME=/cargo
-ENV CARGO_TARGET_DIR=/target
+RUN rustup target add wasm32-unknown-unknown \
+ && rustup component add rust-src
 
 WORKDIR /build
 
-# Copy workspace manifests first for layer caching (dependencies)
+# Copy only manifests first so this layer is cached until deps change
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
+COPY cbc-node/Cargo.toml                          cbc-node/Cargo.toml
+COPY cbc-node/src/cbc-consensus/Cargo.toml        cbc-node/src/cbc-consensus/Cargo.toml
+COPY cbc-runtime/Cargo.toml                       cbc-runtime/Cargo.toml
+COPY cbc-pallets/pallet-cbc-poi/Cargo.toml        cbc-pallets/pallet-cbc-poi/Cargo.toml
+COPY cbc-pallets/pallet-cbc-pos/Cargo.toml        cbc-pallets/pallet-cbc-pos/Cargo.toml
+COPY cbc-pallets/pallet-cbc-dcf/Cargo.toml        cbc-pallets/pallet-cbc-dcf/Cargo.toml
+COPY cbc-pallets/pallet-cbc-dvf/Cargo.toml        cbc-pallets/pallet-cbc-dvf/Cargo.toml
+COPY cbc-pallets/pallet-todo/Cargo.toml           cbc-pallets/pallet-todo/Cargo.toml
+COPY tools/Cargo.toml                             tools/Cargo.toml
 
-# Pre-fetch and cache all dependencies before copying source code
-# This ensures dependency downloads are cached separately from code changes
-RUN cargo fetch --locked || true
+# Create stub lib.rs / main.rs for every crate so `cargo fetch` (and an
+# optional dummy build) can resolve the full dependency graph without needing
+# real source files.
+RUN set -e; \
+    for manifest in \
+        cbc-node/src/cbc-consensus \
+        cbc-runtime \
+        cbc-pallets/pallet-cbc-poi \
+        cbc-pallets/pallet-cbc-pos \
+        cbc-pallets/pallet-cbc-dcf \
+        cbc-pallets/pallet-cbc-dvf \
+        cbc-pallets/pallet-todo \
+        tools \
+    ; do \
+        mkdir -p "$manifest/src" && echo "// stub" > "$manifest/src/lib.rs"; \
+    done; \
+    mkdir -p cbc-node/src && echo "fn main(){}" > cbc-node/src/main.rs; \
+    echo "// stub" > cbc-node/src/lib.rs
 
-# Copy all crate sources
-COPY cbc-node cbc-node
-COPY cbc-runtime cbc-runtime
-COPY cbc-pallets cbc-pallets
-COPY tools tools
+RUN cargo fetch --locked
 
-# Build release binary
-# --locked ensures we use the exact Cargo.lock versions
+###############################################################################
+# Stage 2: Build the real binary
+###############################################################################
+FROM deps AS builder
+
+# Now overwrite stubs with real source
+COPY cbc-node       cbc-node
+COPY cbc-runtime    cbc-runtime
+COPY cbc-pallets    cbc-pallets
+COPY tools          tools
+
 RUN cargo build --release --locked -p cbc-node
 
-# Stage 2: Runtime (minimal image)
-FROM debian:bookworm-slim
+###############################################################################
+# Stage 3: Minimal runtime image
+###############################################################################
+FROM debian:bookworm-slim AS runtime
 
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    ca-certificates \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy only the final binary from builder (no build artifacts, keeps image small)
-COPY --from=builder /target/release/cbc-node /usr/local/bin/cbc-node
-RUN chmod +x /usr/local/bin/cbc-node
-
-# Copy the entrypoint script
+COPY --from=builder /build/target/release/cbc-node /usr/local/bin/cbc-node
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# P2P port
-EXPOSE 30333
-# RPC port
-EXPOSE 9944
-# Prometheus metrics
-EXPOSE 9615
+# Bake Alice's fixed network key into the image.
+# The peer-id derived from this key is deterministic — Bob and Charlie
+# resolve it at startup without any manual configuration.
+COPY keys/alice/secret_ed25519 /etc/cbc/alice_network_key
+
+RUN chmod +x /usr/local/bin/cbc-node /usr/local/bin/docker-entrypoint.sh \
+ && chmod 600 /etc/cbc/alice_network_key
+
+EXPOSE 30333 9944 9615
 
 VOLUME ["/data"]
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

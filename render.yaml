@@ -1,29 +1,71 @@
+###############################################################################
+# CBC Chain — 3-validator network on Render
+#
+# Alice's network key is baked into the Docker image (keys/alice/secret_ed25519)
+# so her peer-id is fixed and known at build time.  Bob and Charlie derive it
+# automatically at startup — no manual peer-id copy-paste required.
+#
+# Deploy all three services at once.  They will self-connect.
+###############################################################################
+
 services:
-  # ─── Alice (bootnode + validator) ───────────────────────────────────────────
-  - type: web
+
+  # ── Alice (bootnode + validator) ──────────────────────────────────────────
+  - type: pserv
     name: cbc-alice
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: oregon
     plan: starter
-    healthCheckPath: /
     envVars:
       - key: NODE_ROLE
         value: alice
-      - key: P2P_PORT
-        value: "30333"
-      - key: RPC_PORT
-        value: "9944"
-      - key: PROMETHEUS_PORT
-        value: "9615"
       - key: RUST_LOG
         value: info,cbc_consensus=debug
-      - key: CARGO_HOME
-        value: /cargo
-      - key: CARGO_BUILD_TARGET_DIR
-        value: /target
     disk:
       name: alice-chain-data
       mountPath: /data
       sizeGB: 20
+
+  # ── Bob (validator) ────────────────────────────────────────────────────────
+  - type: pserv
+    name: cbc-bob
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: starter
+    envVars:
+      - key: NODE_ROLE
+        value: bob
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
+      # ALICE_HOST resolves to Alice's internal Render hostname.
+      # Defaults to "cbc-alice" (the service name above) if not set.
+      - key: ALICE_HOST
+        value: cbc-alice
+    disk:
+      name: bob-chain-data
+      mountPath: /data
+      sizeGB: 10
+
+  # ── Charlie (validator) ────────────────────────────────────────────────────
+  - type: pserv
+    name: cbc-charlie
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: starter
+    envVars:
+      - key: NODE_ROLE
+        value: charlie
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
+      - key: ALICE_HOST
+        value: cbc-alice
+    disk:
+      name: charlie-chain-data
+      mountPath: /data
+      sizeGB: 10

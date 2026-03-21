@@ -10,13 +10,39 @@ P2P_PORT="${P2P_PORT:-30333}"
 RPC_PORT="${RPC_PORT:-9944}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9615}"
 
-# Generate a deterministic network key if one doesn't exist
-if [ ! -f "$NETWORK_KEY_PATH" ]; then
+# Alice's network key is baked into the image at this path.
+# Bob and Charlie derive Alice's peer-id from it — no manual config needed.
+ALICE_BAKED_KEY="/etc/cbc/alice_network_key"
+
+# ── Alice: install her fixed key so her peer-id is always the same ──────────
+if [ "$NODE_ROLE" = "alice" ]; then
+    if [ ! -f "$NETWORK_KEY_PATH" ]; then
+        echo "Installing Alice's fixed network key..."
+        mkdir -p "$(dirname "$NETWORK_KEY_PATH")"
+        cp "$ALICE_BAKED_KEY" "$NETWORK_KEY_PATH"
+        chmod 600 "$NETWORK_KEY_PATH"
+    fi
+fi
+
+# ── Bob / Charlie: generate their own key if missing ────────────────────────
+if [ "$NODE_ROLE" != "alice" ] && [ ! -f "$NETWORK_KEY_PATH" ]; then
     echo "Generating network key for $NODE_ROLE..."
     mkdir -p "$(dirname "$NETWORK_KEY_PATH")"
     cbc-node key generate-node-key --file "$NETWORK_KEY_PATH" 2>/dev/null
-    echo "Network key generated."
 fi
+
+# ── Derive Alice's peer-id from the baked key (same trick as start_bob.sh) ──
+ALICE_PEER_ID=$(cbc-node key inspect-node-key --file "$ALICE_BAKED_KEY" 2>/dev/null | tail -n 1)
+
+# Alice's internal Render hostname — matches the service name in render.yaml
+ALICE_HOST="${ALICE_HOST:-cbc-alice}"
+ALICE_BOOTNODE="/dns/${ALICE_HOST}/tcp/30333/p2p/${ALICE_PEER_ID}"
+
+echo "======================================================"
+echo "  NODE_ROLE      : $NODE_ROLE"
+echo "  ALICE_PEER_ID  : $ALICE_PEER_ID"
+echo "  ALICE_BOOTNODE : $ALICE_BOOTNODE"
+echo "======================================================"
 
 # Base args shared by all nodes
 BASE_ARGS=(
@@ -32,7 +58,6 @@ BASE_ARGS=(
     --lifecycle-trace-format human-readable
 )
 
-# Role-specific args
 case "$NODE_ROLE" in
     alice)
         echo "Starting Alice (bootnode)..."
@@ -43,12 +68,7 @@ case "$NODE_ROLE" in
         ;;
 
     bob)
-        # ALICE_BOOTNODE must be set: /dns/alice-host/tcp/30333/p2p/<peer-id>
-        if [ -z "$ALICE_BOOTNODE" ]; then
-            echo "ERROR: ALICE_BOOTNODE env var is required for Bob"
-            exit 1
-        fi
-        echo "Starting Bob, bootnode: $ALICE_BOOTNODE"
+        echo "Starting Bob -> $ALICE_BOOTNODE"
         exec cbc-node \
             "${BASE_ARGS[@]}" \
             --bob \
@@ -57,11 +77,7 @@ case "$NODE_ROLE" in
         ;;
 
     charlie)
-        if [ -z "$ALICE_BOOTNODE" ]; then
-            echo "ERROR: ALICE_BOOTNODE env var is required for Charlie"
-            exit 1
-        fi
-        echo "Starting Charlie, bootnode: $ALICE_BOOTNODE"
+        echo "Starting Charlie -> $ALICE_BOOTNODE"
         exec cbc-node \
             "${BASE_ARGS[@]}" \
             --charlie \
