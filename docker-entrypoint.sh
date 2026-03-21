@@ -7,7 +7,9 @@ NODE_ROLE="${NODE_ROLE:-alice}"
 BASE_PATH="/data"
 NETWORK_KEY_PATH="$BASE_PATH/chains/cbc_local/network/secret_ed25519"
 P2P_PORT="${P2P_PORT:-30333}"
-RPC_PORT="${RPC_PORT:-9944}"
+# Render sets PORT to tell its proxy which port to forward to.
+# We use it as the RPC port so both are in sync.
+RPC_PORT="${PORT:-${RPC_PORT:-9944}}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9615}"
 
 # Alice's network key is baked into the image at this path.

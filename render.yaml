@@ -25,13 +25,12 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
-    # Render health-check hits GET / — Substrate returns 200 on the RPC port
     healthCheckPath: /health
-    # Tell Render which port the container listens on
-    port: 9944
     envVars:
       - key: NODE_ROLE
         value: alice
+      - key: PORT
+        value: "9944"
       - key: RUST_LOG
         value: info,cbc_consensus=debug
     disk:
