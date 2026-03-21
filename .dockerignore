@@ -1,10 +1,10 @@
-# Build artifacts - never copy these, they're huge and invalidate cache
+# Build artifacts — never copy these, they're huge and bust the cache
 target/
 .cargo/registry/
 .cargo/git/
 
-# keys/ is intentionally included — Alice's network key is committed so
-# the peer-id is deterministic. It is NOT a secret (peer-ids are public).
+# keys/ is intentionally NOT ignored — Alice's network key is committed so
+# the peer-id is deterministic across all deployments.
 
 # Git & IDE
 .git/
@@ -15,21 +15,15 @@ target/
 # Logs & local runtime data
 *.log
 node_output_*.log
-/tmp/
 
-# Docs & scripts (not needed in image)
+# Docs (not needed in image)
 docs/
 scripts/
 *.md
-!cbc-node/src/cbc-consensus/README.md
 
-# Test files (not needed for release build)
-cbc-node/tests/
-cbc-pallets/*/src/tests/
-cbc-node/src/cbc-consensus/src/tests/
-
-# Docker files themselves
+# Docker files — not needed inside the image build context
+# NOTE: docker-entrypoint.sh is intentionally NOT excluded here
+#       because the runtime stage COPYs it in.
 Dockerfile
-docker-entrypoint.sh
 render.yaml
 docker-compose*.yml

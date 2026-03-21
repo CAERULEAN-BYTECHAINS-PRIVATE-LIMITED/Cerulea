@@ -1,6 +1,6 @@
 ###############################################################################
 # Stage 1: Dependency cache
-# Only re-runs when Cargo.toml / Cargo.lock change, not on source edits.
+# Only re-runs when Cargo.toml / Cargo.lock change — not on source edits.
 ###############################################################################
 FROM rust:1.85-bookworm AS deps
 
@@ -13,24 +13,29 @@ RUN rustup target add wasm32-unknown-unknown \
 
 WORKDIR /build
 
-# Copy only manifests first so this layer is cached until deps change
+# ── Workspace manifests (cached until Cargo.toml / Cargo.lock change) ────────
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
-COPY cbc-node/Cargo.toml                          cbc-node/Cargo.toml
-COPY cbc-node/src/cbc-consensus/Cargo.toml        cbc-node/src/cbc-consensus/Cargo.toml
-COPY cbc-runtime/Cargo.toml                       cbc-runtime/Cargo.toml
-COPY cbc-pallets/pallet-cbc-poi/Cargo.toml        cbc-pallets/pallet-cbc-poi/Cargo.toml
-COPY cbc-pallets/pallet-cbc-pos/Cargo.toml        cbc-pallets/pallet-cbc-pos/Cargo.toml
-COPY cbc-pallets/pallet-cbc-dcf/Cargo.toml        cbc-pallets/pallet-cbc-dcf/Cargo.toml
-COPY cbc-pallets/pallet-cbc-dvf/Cargo.toml        cbc-pallets/pallet-cbc-dvf/Cargo.toml
-COPY cbc-pallets/pallet-todo/Cargo.toml           cbc-pallets/pallet-todo/Cargo.toml
-COPY tools/Cargo.toml                             tools/Cargo.toml
 
-# Create stub lib.rs / main.rs for every crate so `cargo fetch` (and an
-# optional dummy build) can resolve the full dependency graph without needing
-# real source files.
+# Per-crate manifests
+COPY cbc-node/Cargo.toml                       cbc-node/Cargo.toml
+COPY cbc-node/build.rs                         cbc-node/build.rs
+COPY cbc-node/src/cbc-consensus/Cargo.toml     cbc-node/src/cbc-consensus/Cargo.toml
+COPY cbc-runtime/Cargo.toml                    cbc-runtime/Cargo.toml
+COPY cbc-runtime/build.rs                      cbc-runtime/build.rs
+COPY cbc-pallets/pallet-cbc-poi/Cargo.toml     cbc-pallets/pallet-cbc-poi/Cargo.toml
+COPY cbc-pallets/pallet-cbc-pos/Cargo.toml     cbc-pallets/pallet-cbc-pos/Cargo.toml
+COPY cbc-pallets/pallet-cbc-dcf/Cargo.toml     cbc-pallets/pallet-cbc-dcf/Cargo.toml
+COPY cbc-pallets/pallet-cbc-dvf/Cargo.toml     cbc-pallets/pallet-cbc-dvf/Cargo.toml
+COPY cbc-pallets/pallet-todo/Cargo.toml        cbc-pallets/pallet-todo/Cargo.toml
+
+# tools has bins at the root (no src/ dir) — copy real source, it's tiny
+COPY tools/ tools/
+
+# ── Stub out lib crates so `cargo fetch` can resolve the dep graph ────────────
+# (tools is already real; cbc-node main.rs is stubbed separately)
 RUN set -e; \
-    for manifest in \
+    for crate in \
         cbc-node/src/cbc-consensus \
         cbc-runtime \
         cbc-pallets/pallet-cbc-poi \
@@ -38,21 +43,21 @@ RUN set -e; \
         cbc-pallets/pallet-cbc-dcf \
         cbc-pallets/pallet-cbc-dvf \
         cbc-pallets/pallet-todo \
-        tools \
     ; do \
-        mkdir -p "$manifest/src" && echo "// stub" > "$manifest/src/lib.rs"; \
+        mkdir -p "$crate/src" && printf '// stub\n' > "$crate/src/lib.rs"; \
     done; \
-    mkdir -p cbc-node/src && echo "fn main(){}" > cbc-node/src/main.rs; \
-    echo "// stub" > cbc-node/src/lib.rs
+    mkdir -p cbc-node/src \
+    && printf 'fn main(){}\n' > cbc-node/src/main.rs \
+    && printf '// stub\n'    > cbc-node/src/lib.rs
 
 RUN cargo fetch --locked
 
 ###############################################################################
 # Stage 2: Build the real binary
+# Inherits the warm dep cache from stage 1 — only recompiles changed crates.
 ###############################################################################
 FROM deps AS builder
 
-# Now overwrite stubs with real source
 COPY cbc-node       cbc-node
 COPY cbc-runtime    cbc-runtime
 COPY cbc-pallets    cbc-pallets
@@ -61,7 +66,7 @@ COPY tools          tools
 RUN cargo build --release --locked -p cbc-node
 
 ###############################################################################
-# Stage 3: Minimal runtime image
+# Stage 3: Minimal runtime image (~100 MB vs ~2 GB builder)
 ###############################################################################
 FROM debian:bookworm-slim AS runtime
 
@@ -72,9 +77,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/target/release/cbc-node /usr/local/bin/cbc-node
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Bake Alice's fixed network key into the image.
-# The peer-id derived from this key is deterministic — Bob and Charlie
-# resolve it at startup without any manual configuration.
+# Alice's fixed network key — baked in so peer-id is deterministic.
+# Bob and Charlie derive it at startup; no manual config needed.
 COPY keys/alice/secret_ed25519 /etc/cbc/alice_network_key
 
 RUN chmod +x /usr/local/bin/cbc-node /usr/local/bin/docker-entrypoint.sh \

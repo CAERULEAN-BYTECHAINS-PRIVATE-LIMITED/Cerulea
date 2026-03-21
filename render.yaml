@@ -5,19 +5,30 @@
 # so her peer-id is fixed and known at build time.  Bob and Charlie derive it
 # automatically at startup — no manual peer-id copy-paste required.
 #
-# Deploy all three services at once.  They will self-connect.
+# Frontend access:
+#   Render terminates TLS and proxies to port 9944 on Alice.
+#   Your frontend connects via:
+#     wss://cbc-alice.onrender.com   (WebSocket RPC)
+#     https://cbc-alice.onrender.com (HTTP RPC)
+#
+#   Bob and Charlie stay private (pserv) — only Alice is the public RPC node.
 ###############################################################################
 
 services:
 
-  # ── Alice (bootnode + validator) ──────────────────────────────────────────
-  - type: pserv
+  # ── Alice (bootnode + validator + public RPC) ──────────────────────────────
+  # type: web  → Render assigns a public URL and routes HTTPS/WSS to port 9944
+  - type: web
     name: cbc-alice
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: oregon
     plan: starter
+    # Render health-check hits GET / — Substrate returns 200 on the RPC port
+    healthCheckPath: /health
+    # Tell Render which port the container listens on
+    port: 9944
     envVars:
       - key: NODE_ROLE
         value: alice
@@ -28,7 +39,7 @@ services:
       mountPath: /data
       sizeGB: 20
 
-  # ── Bob (validator) ────────────────────────────────────────────────────────
+  # ── Bob (validator, private) ───────────────────────────────────────────────
   - type: pserv
     name: cbc-bob
     runtime: docker
@@ -41,8 +52,6 @@ services:
         value: bob
       - key: RUST_LOG
         value: info,cbc_consensus=debug
-      # ALICE_HOST resolves to Alice's internal Render hostname.
-      # Defaults to "cbc-alice" (the service name above) if not set.
       - key: ALICE_HOST
         value: cbc-alice
     disk:
@@ -50,7 +59,7 @@ services:
       mountPath: /data
       sizeGB: 10
 
-  # ── Charlie (validator) ────────────────────────────────────────────────────
+  # ── Charlie (validator, private) ──────────────────────────────────────────
   - type: pserv
     name: cbc-charlie
     runtime: docker

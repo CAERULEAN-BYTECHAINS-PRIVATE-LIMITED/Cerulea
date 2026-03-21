@@ -51,8 +51,6 @@ BASE_ARGS=(
     --port "$P2P_PORT"
     --rpc-port "$RPC_PORT"
     --prometheus-port "$PROMETHEUS_PORT"
-    --unsafe-rpc-external
-    --rpc-cors all
     --validator
     --lifecycle-trace
     --lifecycle-trace-format human-readable
@@ -60,9 +58,15 @@ BASE_ARGS=(
 
 case "$NODE_ROLE" in
     alice)
-        echo "Starting Alice (bootnode)..."
+        echo "Starting Alice (bootnode + public RPC)..."
+        # --unsafe-rpc-external  : bind RPC to 0.0.0.0 so Render can reach it
+        # --rpc-cors all         : allow any frontend origin (lock this down in prod)
+        # --rpc-methods unsafe   : expose all RPC methods (use Safe in prod)
         exec cbc-node \
             "${BASE_ARGS[@]}" \
+            --unsafe-rpc-external \
+            --rpc-cors all \
+            --rpc-methods unsafe \
             --alice \
             --name Alice
         ;;
