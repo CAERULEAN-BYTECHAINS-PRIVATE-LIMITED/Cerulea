@@ -1,18 +1,21 @@
 #!/bin/bash
-
-# Script to stop all running CBC Chain nodes
+# Stop all running cbc-node processes.
 
 echo "Stopping all CBC Chain nodes..."
 
-# Find and kill all cbc-node processes
-pkill -f "cbc-node.*--alice" && echo "Stopped Alice"
-pkill -f "cbc-node.*--bob" && echo "Stopped Bob"
-pkill -f "cbc-node.*--charlie" && echo "Stopped Charlie"
+if pkill -f "cbc-node"; then
+    echo "Sent SIGTERM to all cbc-node processes."
+else
+    echo "No cbc-node processes found."
+    exit 0
+fi
 
-# Wait a moment for graceful shutdown
+# Give nodes a moment for graceful shutdown
 sleep 2
 
-# Force kill if still running
-pkill -9 -f "cbc-node" 2>/dev/null && echo "Force stopped remaining nodes"
+# Force-kill anything still alive
+if pkill -9 -f "cbc-node" 2>/dev/null; then
+    echo "Force-killed remaining cbc-node processes."
+fi
 
-echo "All nodes stopped."
+echo "Done."

@@ -196,8 +196,16 @@ pub fn run() -> sc_cli::Result<()> {
         },
 
         None => {
+            // Auto-generate the P2P network key before create_runner runs.
+            // Substrate's CLI checks for the key file during create_runner and throws
+            // NetworkKeyNotFound if it's missing for non-dev validator nodes.
+            // We resolve the path from CLI args and write the key first so the runner
+            // never sees a missing file — same zero-setup experience as --dev.
+            ensure_network_key_from_cli(&cli);
+
             let runner = cli.create_runner(&cli.run)?;
             runner.run_node_until_exit(|config| async move {
+
                 let node_config = crate::service::NodeConfig {
                     rpc_config: crate::rpc::RpcSecurityConfig {
                         enable_cbc_extensions: cli.enable_cbc_extensions,
@@ -632,4 +640,75 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &Cli) -> sc_cli::Result<()
     })?;
     
     Ok(())
+}
+
+/// Ensures the P2P network key exists before Substrate's CLI runner checks for it.
+///
+/// Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes
+/// if `<base-path>/chains/<chain-id>/network/secret_ed25519` is missing. We resolve the
+/// base path the same way Substrate does (explicit `--base-path` or the platform default
+/// `~/.local/share/cbc-node/` on Linux), load the chain spec for the canonical chain ID,
+/// then write a fresh hex-encoded key — so any new node starts with zero manual setup.
+fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
+    use sc_cli::SubstrateCli;
+
+    // Skip dev — Substrate handles ephemeral keys internally.
+    let raw_chain = match cli.run.shared_params.chain.as_deref() {
+        Some("dev") | Some("development") | Some("CBC") => return,
+        None => return,
+        Some(id) => id,
+    };
+
+    // Resolve base path: explicit --base-path, or the platform default
+    // (~/.local/share/cbc-node/ on Linux, equivalent on other platforms).
+    let base_path = match cli.run.shared_params.base_path.as_ref() {
+        Some(p) => p.clone(),
+        None => {
+            // Mirror Substrate's BasePath::from_project("", "", executable_name)
+            match directories::ProjectDirs::from("", "", &Cli::executable_name()) {
+                Some(dirs) => dirs.data_local_dir().to_path_buf(),
+                None => return, // can't determine path, skip
+            }
+        }
+    };
+
+    // Load the chain spec to resolve the canonical ID ("local" → "cbc_local", etc.)
+    let chain_id = match cli.load_spec(raw_chain) {
+        Ok(spec) => spec.id().to_string(),
+        Err(_) => raw_chain.to_string(),
+    };
+
+    let net_key_path = base_path
+        .join("chains")
+        .join(&chain_id)
+        .join("network")
+        .join("secret_ed25519");
+
+    if net_key_path.exists() {
+        return;
+    }
+
+    if let Some(parent) = net_key_path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            log::warn!("CBC: Could not create network key directory {:?}: {}", parent, e);
+            return;
+        }
+    }
+
+    // Write a fresh random key as 64 hex chars — the exact format sc_network expects,
+    // identical to `cbc-node key generate-node-key --file <path>`.
+    use sp_core::crypto::Pair as _;
+    let (pair, _) = sp_core::ed25519::Pair::generate();
+    let secret_hex = hex::encode(&pair.to_raw_vec()[..32]);
+
+    match fs::write(&net_key_path, secret_hex.as_bytes()) {
+        Ok(_) => log::info!(
+            "CBC: Auto-generated P2P network key at {:?}",
+            net_key_path
+        ),
+        Err(e) => log::warn!(
+            "CBC: Failed to write network key to {:?}: {}",
+            net_key_path, e
+        ),
+    }
 }

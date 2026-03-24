@@ -43,6 +43,7 @@ anyhow = { version = "1.0", default-features = false } # Error handling
 # === new packages ===
 hex-literal = { workspace = true }
 hex = "0.4"
+directories = "5"
 sc-chain-spec = { workspace = true }
 jsonrpsee-core = { workspace = true, features = ["server"] }
 jsonrpsee-http-server = { workspace = true }

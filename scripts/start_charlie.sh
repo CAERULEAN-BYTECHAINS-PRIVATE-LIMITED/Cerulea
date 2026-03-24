@@ -1,58 +1,61 @@
 #!/bin/bash
+# Start Charlie — connects to Alice as bootnode.
+# No manual key generation or directory setup needed; the node handles everything automatically.
 
-# Wait a moment to ensure Alice has started and generated her peer ID
-sleep 2
+set -e
 
-BASE_PATH="/tmp/charlie"
-NETWORK_KEY_PATH="$BASE_PATH/chains/cbc_local/network/secret_ed25519"
+BINARY="${BINARY:-./target/release/cbc-node}"
+BASE_PATH="${BASE_PATH:-$HOME/.local/share/cbc-node/charlie}"
+LOG_FILE="${LOG_FILE:-node_output_charlie.log}"
+ALICE_BASE_PATH="${ALICE_BASE_PATH:-$HOME/.local/share/cbc-node/alice}"
 
-# Clean up old data for fresh start (optional - comment out if you want to keep data)
-# rm -rf "$BASE_PATH"
-
-# Generate network key if it doesn't exist
-if [ ! -f "$NETWORK_KEY_PATH" ]; then
-    echo "Generating network key for Charlie..."
-    mkdir -p "$(dirname "$NETWORK_KEY_PATH")"
-    ./target/release/cbc-node key generate-node-key --file "$NETWORK_KEY_PATH" > /dev/null 2>&1
-    echo "Network key generated"
-fi
-
-# Extract Alice's peer ID dynamically (as she is the bootnode)
-ALICE_PEER_ID=""
-MAX_RETRIES=10
-RETRY_COUNT=0
-
-while [ -z "$ALICE_PEER_ID" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if [ -f /tmp/alice/chains/cbc_local/network/secret_ed25519 ]; then
-        ALICE_PEER_ID=$(./target/release/cbc-node key inspect-node-key --file /tmp/alice/chains/cbc_local/network/secret_ed25519 2>/dev/null | tail -n 1)
-    fi
-    
-    if [ -z "$ALICE_PEER_ID" ]; then
-        echo "Waiting for Alice to generate network key... (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)"
-        sleep 2
-        RETRY_COUNT=$((RETRY_COUNT+1))
-    fi
-done
-
-if [ -z "$ALICE_PEER_ID" ]; then
-    echo "Could not extract Alice's peer ID after $MAX_RETRIES attempts. Please ensure Alice is running."
+if [ ! -f "$BINARY" ]; then
+    echo "ERROR: Binary not found at $BINARY. Run: cargo build --release"
     exit 1
 fi
 
-echo "Connecting Charlie to Alice -> /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID"
+# Derive Alice's peer ID from her network key (written by the node on first start).
+ALICE_NET_KEY="$ALICE_BASE_PATH/chains/cbc_local/network/secret_ed25519"
+MAX_RETRIES=15
+RETRY=0
 
-./target/release/cbc-node \
-  --base-path "$BASE_PATH" \
-  --chain local \
-  --charlie \
-  --port 30335 \
-  --rpc-port 9946 \
-  --prometheus-port 9617 \
-  --unsafe-rpc-external \
-  --rpc-cors all \
-  --validator \
-  --name Charlie \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID \
-  --lifecycle-trace \
-  --lifecycle-trace-format human-readable \
-  > node_output_charlie.log 2>&1
+echo "Waiting for Alice's network key at $ALICE_NET_KEY..."
+while [ ! -f "$ALICE_NET_KEY" ] && [ $RETRY -lt $MAX_RETRIES ]; do
+    sleep 2
+    RETRY=$((RETRY + 1))
+    echo "  ...attempt $RETRY/$MAX_RETRIES"
+done
+
+if [ ! -f "$ALICE_NET_KEY" ]; then
+    echo "ERROR: Alice's network key not found after ${MAX_RETRIES} attempts."
+    echo "Make sure Alice is running: bash scripts/start_alice.sh"
+    exit 1
+fi
+
+ALICE_PEER_ID=$("$BINARY" key inspect-node-key --file "$ALICE_NET_KEY" 2>/dev/null | tail -n 1)
+if [ -z "$ALICE_PEER_ID" ]; then
+    echo "ERROR: Could not derive Alice's peer ID from $ALICE_NET_KEY"
+    exit 1
+fi
+
+echo "Starting Charlie..."
+echo "  Data dir   : $BASE_PATH"
+echo "  RPC port   : 9946"
+echo "  Bootnode   : /ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID"
+echo "  Log file   : $LOG_FILE"
+
+exec "$BINARY" \
+    --base-path "$BASE_PATH" \
+    --chain local \
+    --charlie \
+    --port 30335 \
+    --rpc-port 9946 \
+    --prometheus-port 9617 \
+    --unsafe-rpc-external \
+    --rpc-cors all \
+    --validator \
+    --name Charlie \
+    --bootnodes "/ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID" \
+    --lifecycle-trace \
+    --lifecycle-trace-format human-readable \
+    >> "$LOG_FILE" 2>&1

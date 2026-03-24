@@ -423,83 +423,81 @@ where
 	if config.role.is_authority() {
 		// Get validator account from keystore
 		let keystore = keystore_container.keystore();
-		let mut public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
+		let mut public_keys = keystore.ed25519_public_keys(cbc_consensus::CBC_DVF_KEY_TYPE);
 		
-		// If no ed25519 keys exist, generate and insert one automatically
-		// This works for dev, local, and any other chain type
+		// If no CBC DVF ed25519 keys exist, generate and insert one automatically.
+		// This mirrors how Substrate handles GRANDPA keys: the node generates its own
+		// ed25519 keypair under the CBC DVF key type (b"cdvf") on first start.
 		if public_keys.is_empty() {
 			use sp_core::crypto::{Ss58Codec, Pair};
 			use sp_core::ed25519;
 			
-			// Determine the seed based on chain type and CLI flags
-			let seed = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
-				log::info!("DVF: Dev mode detected - generating ed25519 key for DVF voting");
-				"//Alice"
+			// For well-known dev accounts (--alice, --bob, etc.) use deterministic seeds
+			// so the validator set in genesis always matches. For any other node, generate
+			// a fresh random keypair — the private key is persisted in the keystore on disk
+			// so it survives restarts, exactly like GRANDPA keys.
+			let node_name = config.network.node_name.to_lowercase();
+			
+			let deterministic_seed: Option<&str> = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
+				log::info!("CBC DVF: Dev mode — using //Alice deterministic key");
+				Some("//Alice")
+			} else if node_name.contains("alice") {
+				log::info!("CBC DVF: Using deterministic key for Alice");
+				Some("//Alice")
+			} else if node_name.contains("bob") {
+				log::info!("CBC DVF: Using deterministic key for Bob");
+				Some("//Bob")
+			} else if node_name.contains("charlie") {
+				log::info!("CBC DVF: Using deterministic key for Charlie");
+				Some("//Charlie")
+			} else if node_name.contains("dave") {
+				log::info!("CBC DVF: Using deterministic key for Dave");
+				Some("//Dave")
+			} else if node_name.contains("eve") {
+				log::info!("CBC DVF: Using deterministic key for Eve");
+				Some("//Eve")
+			} else if node_name.contains("ferdie") {
+				log::info!("CBC DVF: Using deterministic key for Ferdie");
+				Some("//Ferdie")
 			} else {
-				// For local/testnet chains, check if we have a well-known account flag
-				// This will work with --alice, --bob, --charlie, etc.
-				let node_name = config.network.node_name.as_str();
-				
-				let seed_str = if node_name.to_lowercase().contains("alice") {
-					log::info!("DVF: Generating ed25519 key for Alice");
-					"//Alice"
-				} else if node_name.to_lowercase().contains("bob") {
-					log::info!("DVF: Generating ed25519 key for Bob");
-					"//Bob"
-				} else if node_name.to_lowercase().contains("charlie") {
-					log::info!("DVF: Generating ed25519 key for Charlie");
-					"//Charlie"
-				} else if node_name.to_lowercase().contains("dave") {
-					log::info!("DVF: Generating ed25519 key for Dave");
-					"//Dave"
-				} else if node_name.to_lowercase().contains("eve") {
-					log::info!("DVF: Generating ed25519 key for Eve");
-					"//Eve"
-				} else if node_name.to_lowercase().contains("ferdie") {
-					log::info!("DVF: Generating ed25519 key for Ferdie");
-					"//Ferdie"
-				} else {
-					// For custom node names, generate a random key
-					log::info!("DVF: Generating random ed25519 key for custom validator");
-					// Generate a random seed
-					use sp_core::crypto::Pair as _;
-					let (pair, seed_phrase, _) = ed25519::Pair::generate_with_phrase(None);
-					
-					// Insert the random key
-					keystore.insert(
-						sp_core::crypto::key_types::ACCOUNT,
-						&seed_phrase,
-						pair.public().as_ref(),
-					).expect("Failed to insert ed25519 key into keystore");
-					
-					log::info!("DVF: Generated and inserted random ed25519 key: {}", pair.public().to_ss58check());
-					log::warn!("DVF: Save this seed phrase to recover the key: {}", seed_phrase);
-					
-					// Refresh the public keys list and skip the deterministic key generation below
-					public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
-					""
-				};
-				
-				seed_str
+				None
 			};
 			
-			// Generate deterministic key if we have a seed
-			if !seed.is_empty() {
-				let pair = ed25519::Pair::from_string(seed, None)
-					.expect("Failed to generate ed25519 pair from seed");
-				
-				// Insert the key into the keystore
-				keystore.insert(
-					sp_core::crypto::key_types::ACCOUNT,
-					seed,
-					pair.public().as_ref(),
-				).expect("Failed to insert ed25519 key into keystore");
-				
-				log::info!("DVF: Generated and inserted ed25519 key: {}", pair.public().to_ss58check());
-				
-				// Refresh the public keys list
-				public_keys = keystore.ed25519_public_keys(sp_core::crypto::key_types::ACCOUNT);
+			match deterministic_seed {
+				Some(seed) => {
+					let pair = ed25519::Pair::from_string(seed, None)
+						.expect("CBC DVF: Failed to derive ed25519 pair from well-known seed");
+					keystore.insert(
+						cbc_consensus::CBC_DVF_KEY_TYPE,
+						seed,
+						pair.public().as_ref(),
+					).expect("CBC DVF: Failed to insert deterministic ed25519 key into keystore");
+					log::info!("CBC DVF: Inserted deterministic ed25519 key: {}", pair.public().to_ss58check());
+				}
+				None => {
+					// Unknown node name — generate a fresh random ed25519 keypair.
+					// The keystore persists this to disk (base-path/chains/.../keystore/)
+					// so the key survives restarts. This is the same mechanism Substrate
+					// uses for GRANDPA keys when you run `key generate` and insert them.
+					let (pair, seed_phrase, _) = ed25519::Pair::generate_with_phrase(None);
+					keystore.insert(
+						cbc_consensus::CBC_DVF_KEY_TYPE,
+						&seed_phrase,
+						pair.public().as_ref(),
+					).expect("CBC DVF: Failed to insert generated ed25519 key into keystore");
+					log::info!(
+						"CBC DVF: Auto-generated ed25519 key for new validator: {}",
+						pair.public().to_ss58check()
+					);
+					log::warn!(
+						"CBC DVF: IMPORTANT — back up this seed phrase to recover your validator key: {}",
+						seed_phrase
+					);
+				}
 			}
+			
+			// Refresh after insertion
+			public_keys = keystore.ed25519_public_keys(cbc_consensus::CBC_DVF_KEY_TYPE);
 		}
 		
 		if !public_keys.is_empty() {

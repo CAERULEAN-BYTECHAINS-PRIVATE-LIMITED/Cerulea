@@ -24,6 +24,12 @@ pub mod types;
 
 /// Consensus engine ID for CBC DCF
 pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
+
+/// Key type ID for CBC DVF consensus keys (ed25519).
+/// This is analogous to Substrate's `GRANDPA` key type (`b"gran"`).
+/// All DVF signing and keystore lookups must use this type ID.
+pub const CBC_DVF_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cdvf");
+
 pub mod error;
 
 /// DVF Networking and Gossip

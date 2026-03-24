@@ -1311,6 +1311,7 @@ dependencies = [
  "cbc-consensus",
  "cbc-runtime",
  "clap",
+ "directories",
  "env_logger",
  "frame-benchmarking-cli",
  "frame-metadata-hash-extension",

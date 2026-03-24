@@ -22,7 +22,18 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentifyAccount, Verify, ConstU32},
     MultiAddress, MultiSignature,
 };
-use sp_application_crypto::ed25519::AppPublic as DcfPublic;
+
+/// CBC DVF consensus key type ID — analogous to Substrate's GRANDPA (`b"gran"`).
+/// All DVF validator signing uses ed25519 keys stored under this type ID.
+pub mod cbc_dvf_crypto {
+    use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
+    /// Key type ID for CBC DVF consensus keys.
+    pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cdvf");
+    app_crypto!(ed25519, KEY_TYPE);
+}
+
+/// The CBC DVF public key type used in SessionKeys and for validator identification.
+pub type DcfPublic = cbc_dvf_crypto::Public;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion; // Used for native runtime versioning.
 use sp_version::RuntimeVersion; // Defines the runtime version.
