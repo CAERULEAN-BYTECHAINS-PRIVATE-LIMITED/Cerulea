@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# NODE_ROLE must be: alice | bob | charlie
-NODE_ROLE="${NODE_ROLE:-alice}"
+# NODE_ROLE must be explicitly set to: alice | bob | charlie
+# No default — fail loudly rather than silently start a second Alice.
+NODE_ROLE="${NODE_ROLE:?ERROR: NODE_ROLE must be set to alice, bob, or charlie}"
 
 BASE_PATH="/data"
 NETWORK_KEY_PATH="$BASE_PATH/chains/cbc_local/network/secret_ed25519"

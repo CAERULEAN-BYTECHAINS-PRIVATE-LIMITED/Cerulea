@@ -34,6 +34,7 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
+    numInstances: 1
     envVars:
       - key: NODE_ROLE
         value: alice
@@ -61,6 +62,7 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
+    numInstances: 1
     envVars:
       - key: NODE_ROLE
         value: bob
@@ -90,6 +92,7 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
+    numInstances: 1
     envVars:
       - key: NODE_ROLE
         value: charlie
