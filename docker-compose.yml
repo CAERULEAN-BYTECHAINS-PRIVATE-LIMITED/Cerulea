@@ -1,0 +1,99 @@
+###############################################################################
+# CBC Chain — local 3-validator Docker Compose network
+#
+# Mirrors the local start_*.sh scripts exactly:
+#   Alice  → bootnode, RPC :9944, P2P :30333, Prometheus :9615
+#   Bob    → validator,  RPC :9945, P2P :30334, Prometheus :9616
+#   Charlie→ validator,  RPC :9946, P2P :30335, Prometheus :9617
+#
+# Usage:
+#   docker compose up --build          # start all three nodes
+#   docker compose up --build alice    # start only Alice
+#   docker compose logs -f alice       # tail Alice's log
+#   docker compose down -v             # stop and wipe chain data
+###############################################################################
+
+version: '3.8'
+
+services:
+
+  # ── Alice (bootnode + validator + public RPC) ──────────────────────────────
+  alice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cbc-alice
+    environment:
+      NODE_ROLE: alice
+      PORT: "9944"
+      P2P_PORT: "30333"
+      PROMETHEUS_PORT: "9615"
+      RUST_LOG: "info,cbc_consensus=debug"
+    ports:
+      - "9944:9944"   # RPC / WebSocket
+      - "30333:30333" # P2P
+      - "9615:9615"   # Prometheus
+    volumes:
+      - alice-data:/data
+    networks:
+      - cbc-net
+    restart: unless-stopped
+
+  # ── Bob (validator) ────────────────────────────────────────────────────────
+  bob:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cbc-bob
+    environment:
+      NODE_ROLE: bob
+      PORT: "9945"
+      P2P_PORT: "30334"
+      PROMETHEUS_PORT: "9616"
+      ALICE_HOST: alice          # docker-compose service name resolves via DNS
+      RUST_LOG: "info,cbc_consensus=debug"
+    ports:
+      - "9945:9945"   # RPC
+      - "30334:30334" # P2P
+      - "9616:9616"   # Prometheus
+    volumes:
+      - bob-data:/data
+    networks:
+      - cbc-net
+    depends_on:
+      - alice
+    restart: unless-stopped
+
+  # ── Charlie (validator) ────────────────────────────────────────────────────
+  charlie:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cbc-charlie
+    environment:
+      NODE_ROLE: charlie
+      PORT: "9946"
+      P2P_PORT: "30335"
+      PROMETHEUS_PORT: "9617"
+      ALICE_HOST: alice          # docker-compose service name resolves via DNS
+      RUST_LOG: "info,cbc_consensus=debug"
+    ports:
+      - "9946:9946"   # RPC
+      - "30335:30335" # P2P
+      - "9617:9617"   # Prometheus
+    volumes:
+      - charlie-data:/data
+    networks:
+      - cbc-net
+    depends_on:
+      - alice
+    restart: unless-stopped
+
+volumes:
+  alice-data:
+  bob-data:
+  charlie-data:
+
+networks:
+  cbc-net:
+    driver: bridge

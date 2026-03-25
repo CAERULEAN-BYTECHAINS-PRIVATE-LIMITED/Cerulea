@@ -1,23 +1,32 @@
 ###############################################################################
 # CBC Chain — 3-validator network on Render
 #
-# Alice's network key is baked into the Docker image (keys/alice/secret_ed25519)
-# so her peer-id is fixed and known at build time.  Bob and Charlie derive it
-# automatically at startup — no manual peer-id copy-paste required.
+# How it works:
+#   - Alice's network key is baked into the Docker image (keys/alice/secret_ed25519)
+#     so her peer-id is fixed and known at build time.
+#   - Bob and Charlie derive Alice's peer-id from the baked key at startup.
+#     No manual peer-id copy-paste required.
+#   - The entrypoint (docker-entrypoint.sh) reads NODE_ROLE and starts the
+#     correct validator automatically. All key/directory setup is automatic.
 #
-# Frontend access:
-#   Render terminates TLS and proxies to port 9944 on Alice.
-#   Your frontend connects via:
-#     wss://cbc-alice.onrender.com   (WebSocket RPC)
-#     https://cbc-alice.onrender.com (HTTP RPC)
+# Network topology:
+#   Alice  — bootnode + validator + public RPC (type: web → gets a public URL)
+#   Bob    — validator only, private           (type: pserv)
+#   Charlie— validator only, private           (type: pserv)
 #
-#   Bob and Charlie stay private (pserv) — only Alice is the public RPC node.
+# Frontend / wallet access (Alice only):
+#   wss://cbc-alice.onrender.com    WebSocket RPC
+#   https://cbc-alice.onrender.com  HTTP RPC
+#
+# Render routes external HTTPS/WSS → internal port 9944 on Alice.
+# Bob and Charlie are not publicly reachable — they peer with Alice over the
+# internal Render network using the service name "cbc-alice" as the hostname.
 ###############################################################################
 
 services:
 
   # ── Alice (bootnode + validator + public RPC) ──────────────────────────────
-  # type: web  → Render assigns a public URL and routes HTTPS/WSS to port 9944
+  # type: web → Render assigns a public URL and proxies HTTPS/WSS to PORT (9944)
   - type: web
     name: cbc-alice
     runtime: docker
@@ -25,12 +34,17 @@ services:
     dockerContext: .
     region: oregon
     plan: starter
-    healthCheckPath: /health
     envVars:
       - key: NODE_ROLE
         value: alice
+      # PORT is read by the entrypoint as the RPC port.
+      # Render's proxy forwards external traffic to this port.
       - key: PORT
         value: "9944"
+      - key: P2P_PORT
+        value: "30333"
+      - key: PROMETHEUS_PORT
+        value: "9615"
       - key: RUST_LOG
         value: info,cbc_consensus=debug
     disk:
@@ -39,6 +53,7 @@ services:
       sizeGB: 20
 
   # ── Bob (validator, private) ───────────────────────────────────────────────
+  # type: pserv → no public URL, reachable only within Render's internal network
   - type: pserv
     name: cbc-bob
     runtime: docker
@@ -49,10 +64,19 @@ services:
     envVars:
       - key: NODE_ROLE
         value: bob
-      - key: RUST_LOG
-        value: info,cbc_consensus=debug
+      - key: PORT
+        value: "9945"
+      - key: P2P_PORT
+        value: "30334"
+      - key: PROMETHEUS_PORT
+        value: "9616"
+      # ALICE_HOST must match the Render service name of Alice exactly.
+      # The entrypoint builds the bootnode address as:
+      #   /dns/cbc-alice/tcp/30333/p2p/<alice-peer-id>
       - key: ALICE_HOST
         value: cbc-alice
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
     disk:
       name: bob-chain-data
       mountPath: /data
@@ -69,10 +93,16 @@ services:
     envVars:
       - key: NODE_ROLE
         value: charlie
-      - key: RUST_LOG
-        value: info,cbc_consensus=debug
+      - key: PORT
+        value: "9946"
+      - key: P2P_PORT
+        value: "30335"
+      - key: PROMETHEUS_PORT
+        value: "9617"
       - key: ALICE_HOST
         value: cbc-alice
+      - key: RUST_LOG
+        value: info,cbc_consensus=debug
     disk:
       name: charlie-chain-data
       mountPath: /data

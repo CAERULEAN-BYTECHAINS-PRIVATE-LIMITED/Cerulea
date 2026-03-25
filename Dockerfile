@@ -77,13 +77,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/target/release/cbc-node /usr/local/bin/cbc-node
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Alice's fixed network key — baked in so peer-id is deterministic.
-# Bob and Charlie derive it at startup; no manual config needed.
-COPY keys/alice/secret_ed25519 /etc/cbc/alice_network_key
+# Alice's fixed network key — baked in so her peer-id is deterministic across
+# restarts and deployments.  Bob and Charlie auto-generate their own keys.
+# If keys/alice/secret_ed25519 doesn't exist the entrypoint generates one at
+# first boot (useful for local dev without the keys/ directory).
+COPY keys/ /etc/cbc/keys/
+RUN if [ -f /etc/cbc/keys/alice/secret_ed25519 ]; then \
+        mkdir -p /etc/cbc && \
+        cp /etc/cbc/keys/alice/secret_ed25519 /etc/cbc/alice_network_key && \
+        chmod 600 /etc/cbc/alice_network_key; \
+    fi
 
-RUN chmod +x /usr/local/bin/cbc-node /usr/local/bin/docker-entrypoint.sh \
- && chmod 600 /etc/cbc/alice_network_key
+RUN chmod +x /usr/local/bin/cbc-node /usr/local/bin/docker-entrypoint.sh
 
+# P2P | RPC | Prometheus
 EXPOSE 30333 9944 9615
 
 VOLUME ["/data"]

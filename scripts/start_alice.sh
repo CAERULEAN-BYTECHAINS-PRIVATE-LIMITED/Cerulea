@@ -29,6 +29,4 @@ exec "$BINARY" \
     --rpc-cors all \
     --validator \
     --name Alice \
-    --lifecycle-trace \
-    --lifecycle-trace-format human-readable \
     >> "$LOG_FILE" 2>&1
