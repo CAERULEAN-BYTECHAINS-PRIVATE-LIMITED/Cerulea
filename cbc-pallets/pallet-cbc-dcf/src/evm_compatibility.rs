@@ -42,11 +42,6 @@ impl EvmEventValidator {
 
     /// Validate that the data structure is EVM-compatible
     fn validate_data_structure(payload: &[u8]) -> Result<(), EvmCompatibilityError> {
-        // Check for null bytes that might cause issues in EVM
-        if payload.contains(&0u8) {
-            return Err(EvmCompatibilityError::ContainsNullBytes);
-        }
-
         // Check for extremely nested structures that might cause stack overflow
         let nesting_level = Self::calculate_nesting_level(payload);
         if nesting_level > 10 {
@@ -224,8 +219,6 @@ pub enum EvmCompatibilityError {
         actual_size: u32,
         max_size: u32,
     },
-    /// Event data contains null bytes that may cause EVM issues
-    ContainsNullBytes,
     /// Event data has excessive nesting that may cause stack overflow
     ExcessiveNesting {
         level: u32,
@@ -359,16 +352,6 @@ mod tests {
         assert!(EvmEventValidator::validate_event_payload(&large_payload).is_err());
     }
 
-    #[test]
-    fn test_null_byte_detection() {
-        // Test payload with null bytes
-        let payload_with_nulls = vec![1u8, 0u8, 2u8];
-        assert!(EvmEventValidator::validate_event_payload(&payload_with_nulls).is_err());
-
-        // Test payload without null bytes
-        let clean_payload = vec![1u8, 2u8, 3u8];
-        assert_ok!(EvmEventValidator::validate_event_payload(&clean_payload));
-    }
 
     #[test]
     fn test_nesting_level_calculation() {

@@ -486,7 +486,7 @@ where
                             Err(e) => {
                                 let err_str = format!("{:?}", e);
                                 // Silence expected noise in a multi-validator environment
-                                if err_str.contains("AlreadyImported") || err_str.contains("TemporarilyBanned") {
+                                if err_str.contains("AlreadyImported") || err_str.contains("TemporarilyBanned") || err_str.contains("TooLowPriority") {
                                     debug!(
                                         "DVF Vote Aggregator: Justification for block #{} was already submitted by another node.",
                                         block_number
