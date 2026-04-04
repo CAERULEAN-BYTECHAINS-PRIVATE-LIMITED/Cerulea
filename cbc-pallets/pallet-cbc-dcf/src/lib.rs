@@ -582,7 +582,7 @@ pub use weights::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use crate::traits::WeightFreezer;
+    use crate::traits::{DvfFinalizedBlockProvider, WeightFreezer};
 
     /// Current storage version for the DCF pallet.
     /// 
@@ -1958,6 +1958,10 @@ pub mod pallet {
         
         /// Interface to notify DVF of epoch transitions and weights
         type WeightFreezer: crate::traits::WeightFreezer<Self::AccountId>;
+
+        /// Interface to query the last DVF-finalized block number.
+        /// DCF progressive finality will not advance past this value.
+        type DvfFinalizedBlockProvider: crate::traits::DvfFinalizedBlockProvider;
         
         // Validator set configuration
         /// Maximum number of validators that can be registered in the network.
@@ -4103,6 +4107,19 @@ pub mod pallet {
     #[pallet::getter(fn epoch_author_sequences)]
     pub type EpochAuthorSequences<T: Config> = StorageMap<
         _, Blake2_128Concat, u32, BoundedVec<T::AccountId, ConstU32<1000>>, OptionQuery
+    >;
+
+    /// Snapshotted validator scores taken at a fixed block before each epoch boundary.
+    /// Used as the weight input for the next epoch's author sequence so all nodes
+    /// compute identical sequences regardless of offchain worker timing.
+    ///
+    /// # Key: u32 - Epoch number the snapshot was taken FOR (i.e. next epoch)
+    /// # Value: BoundedVec<(AccountId, score)> - Scores frozen at snapshot block
+    #[pallet::storage]
+    pub type EpochScoreSnapshot<T: Config> = StorageMap<
+        _, Blake2_128Concat, u32,
+        BoundedVec<(T::AccountId, u64), ConstU32<1000>>,
+        OptionQuery
     >;
 
     /// Aggregated system metrics for operational monitoring.
@@ -8377,22 +8394,9 @@ pub mod pallet {
                 state.current.final_score = final_score;
                 state.last_active_epoch = Self::current_epoch();
                 
-                // If score changed significantly, trigger validator reordering
-                let score_change = if final_score > old_final_score {
-                    final_score - old_final_score
-                } else {
-                    old_final_score - final_score
-                };
-                
-                // Trigger resort if score changed by more than configured percentage or threshold
-                let percentage_threshold = old_final_score / (T::FullPercentage::get() as u64 / T::ScoreChangePercentage::get() as u64);
-                let significant_change = score_change > percentage_threshold.max(T::ScoreChangeThreshold::get());
-                if significant_change && Self::active_validators().contains(validator) {
-                    // Schedule a resort by updating a flag or doing it immediately
-                    let mut active_validators = Self::active_validators();
-                    Self::sort_validators_by_score(&mut active_validators);
-                    ActiveValidators::<T>::put(active_validators);
-                }
+                // NOTE: Do NOT write a score-sorted ActiveValidators list back to storage here.
+                // ActiveValidators is sorted by account ID at epoch transitions only.
+                // Score-based ordering is for metrics/display only (see get_validators_by_score).
                 if state.history.len() == state.history.capacity() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
@@ -8795,30 +8799,64 @@ pub mod pallet {
                 let participation_weight = Self::update_validator_participation_rates();
                 weight = weight.saturating_add(participation_weight);
                 
-                // Resort validators by updated scores
-                let mut active_validators = Self::active_validators();
-                Self::sort_validators_by_score(&mut active_validators);
-                ActiveValidators::<T>::put(active_validators);
+                // Resort validators by updated scores — only in-memory for display,
+                // do NOT write score-sorted order back to ActiveValidators storage
+                // (storage order must stay account-ID sorted for determinism).
             }
             
-            // 4. Check for low-performing validators
+            // 4. Snapshot validator scores 5 blocks before the epoch boundary.
+            // This freezes scores at a fixed, agreed-upon point so all nodes use
+            // identical weights when generating the next epoch's author sequence,
+            // regardless of when each node's offchain worker submitted score updates.
+            {
+                let epoch_config = Self::epoch_config();
+                let blocks_per_epoch = epoch_config.blocks_per_epoch;
+                let next_epoch = current_epoch.saturating_add(1);
+                let snapshot_block = next_epoch
+                    .saturating_mul(blocks_per_epoch)
+                    .saturating_sub(5);
+
+                if block_number == snapshot_block
+                    && EpochScoreSnapshot::<T>::get(next_epoch).is_none()
+                {
+                    let active = ActiveValidators::<T>::get();
+                    let snapshot: BoundedVec<(T::AccountId, u64), ConstU32<1000>> =
+                        BoundedVec::truncate_from(
+                            active.iter().map(|v| {
+                                let score = ValidatorStates::<T>::get(v)
+                                    .map(|s| s.current.final_score)
+                                    .unwrap_or(1)
+                                    .max(1);
+                                (v.clone(), score)
+                            }).collect::<Vec<_>>()
+                        );
+                    EpochScoreSnapshot::<T>::insert(next_epoch, snapshot);
+                    log::info!(
+                        "DCF: Snapshotted validator scores for epoch {} at block {}",
+                        next_epoch, block_number
+                    );
+                    weight = weight.saturating_add(Weight::from_parts(50_000, 0));
+                }
+            }
+
+            // 5. Check for low-performing validators
             if block_number % T::UnderperformanceCheckInterval::get() == 0 {
                 Self::check_and_handle_underperforming_validators();
             }
             
-            // 5. Generate automatic validator proposals based on scores
+            // 6. Generate automatic validator proposals based on scores
             if block_number % T::ValidatorProposalInterval::get() == 0 {
                 Self::generate_automatic_validator_proposals();
             }
             
-            // 6. Process expired leave requests (check every N blocks for timely processing)
+            // 7. Process expired leave requests (check every N blocks for timely processing)
             if block_number % T::LeaveRequestCheckInterval::get() == 0 {
                 Self::process_expired_leave_requests(block_number);
                 // Also cleanup recently removed validators whose cooldown has expired
                 Self::cleanup_recently_removed_validators(block_number);
             }
 
-            // 7. Emit periodic health metrics
+            // 8. Emit periodic health metrics
             if block_number % T::HealthMetricsInterval::get() == 0 {
                 Self::emit_dcf_health_metrics(block_number);
             }
@@ -9145,32 +9183,14 @@ pub mod pallet {
                 }
             }
             
-            // Check 4: Reasonable advancement rate (prevent excessive jumps)
-            let epoch_length = T::EpochLength::get();
-            let max_reasonable_advancement = epoch_length.saturating_mul(2); // Allow up to 2 epochs worth of blocks
-            let advancement = new_finalized_block.saturating_sub(current_finalized);
-            
-            if advancement > max_reasonable_advancement {
-                let reason = format!("Excessive finality advancement: {} blocks (max: {})", advancement, max_reasonable_advancement);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    Self::deposit_event(Event::FinalityAdvancementRejected {
-                        attempted_block: new_finalized_block,
-                        current_finalized,
-                        best_known_block: current_block,
-                        epoch,
-                        reason: bounded_reason.clone(),
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
             // All checks passed - emit successful validation event
+            let advancement = new_finalized_block.saturating_sub(current_finalized);
             Self::deposit_event(Event::FinalityProgressionValidated {
                 previous_finalized: current_finalized,
                 new_finalized: new_finalized_block,
                 advancement,
                 epoch,
-                validation_checks_passed: 4, // Number of checks that passed
+                validation_checks_passed: 3, // Number of checks that passed
             });
             
             Ok(())
@@ -9196,13 +9216,41 @@ pub mod pallet {
         ) -> Result<(), BoundedVec<u8, ConstU32<128>>> {
             // Validate the finality advancement first
             Self::validate_finality_advancement(new_finalized_block, epoch)?;
+
+            // Cap DCF progressive finality at the last DVF-finalized block.
+            // DVF is the primary finality authority; DCF must not advance the hard
+            // finalized head past the last DVF checkpoint.
+            let dvf_finalized = T::DvfFinalizedBlockProvider::dvf_finalized_block();
+            let capped_block = new_finalized_block.min(dvf_finalized);
+
+            if capped_block == 0 {
+                // DVF has not finalized any block yet; skip DCF progressive finality
+                // to avoid advancing ahead of DVF.
+                log::debug!(
+                    "DCF: Progressive finality skipped — DVF has not finalized any block yet"
+                );
+                return Ok(());
+            }
+
+            if capped_block < new_finalized_block {
+                log::debug!(
+                    "DCF: Progressive finality capped at DVF-finalized block {} (requested {})",
+                    capped_block, new_finalized_block
+                );
+            }
             
             // Store current finalized block as previous for next validation
             let current_finalized = LastFinalizedBlock::<T>::get();
+
+            // Nothing to advance if already at or past the cap
+            if current_finalized >= capped_block {
+                return Ok(());
+            }
+
             PreviousFinalizedBlock::<T>::put(current_finalized);
             
             // Update the current finalized block
-            LastFinalizedBlock::<T>::put(new_finalized_block);
+            LastFinalizedBlock::<T>::put(capped_block);
             
             // Update best known block for current epoch
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
@@ -9210,22 +9258,22 @@ pub mod pallet {
             
             // Emit finalization events
             Self::deposit_event(Event::BlockFinalized {
-                block_number: new_finalized_block,
+                block_number: capped_block,
             });
             
             // Get active validators for detailed finality tracking
             let active_validators = Self::active_validators();
-            let block_hash = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(new_finalized_block));
+            let block_hash = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(capped_block));
             
             Self::deposit_event(Event::FinalityMarker {
-                block_number: new_finalized_block,
+                block_number: capped_block,
                 block_hash,
                 participating_validators: active_validators.to_vec(),
                 total_validators: active_validators.len() as u32,
             });
             
             log::info!("DCF: Finality advanced from {} to {} in epoch {}", 
-                      current_finalized, new_finalized_block, epoch);
+                      current_finalized, capped_block, epoch);
             
             Ok(())
         }
@@ -9328,9 +9376,11 @@ pub mod pallet {
             // Update trust scores for all active validators at epoch transition
             let _trust_score_weight = Self::update_all_trust_scores();
 
-            // Ensure validators are sorted by final score for the new epoch
+            // Sort active validators by account ID for deterministic ordering.
+            // MUST use account ID sort, NOT score sort — scores can differ between
+            // nodes causing different orderings and divergent author sequences.
             let mut active_validators = ActiveValidators::<T>::get();
-            Self::sort_validators_by_score(&mut active_validators);
+            active_validators.sort_by(|a, b| a.cmp(b));
             ActiveValidators::<T>::put(active_validators.clone());
 
             // Check invariants at epoch boundary
@@ -9457,6 +9507,12 @@ pub mod pallet {
             let mut weight = Weight::zero();
             let current_epoch = Self::current_epoch();
             let next_epoch = current_epoch.saturating_add(1);
+
+            // Update PreviousEpochBestBlock to the last block of the epoch that just ended.
+            // This is block_number - 1 (the boundary block belongs to the new epoch).
+            // Without this, validate_finality_advancement Check 3 rejects all progressive
+            // finality with "Finality exceeds previous epoch best: N > 1 (not progressive)".
+            PreviousEpochBestBlock::<T>::put(block_number.saturating_sub(1));
             
             // Initialize deterministic engine if not already done
             let mut engine = DeterministicEngineState::<T>::get();
@@ -9606,11 +9662,16 @@ pub mod pallet {
             input.extend_from_slice(randomness_salt);
             input.extend_from_slice(epoch_salt);
             
-            // Add additional deterministic entropy from system state
-            let current_block_hash = frame_system::Pallet::<T>::block_hash(
-                frame_system::Pallet::<T>::block_number()
+            // Add deterministic entropy from the PARENT block's hash.
+            // We are inside on_initialize(block_number) — block_number's own hash
+            // does not exist yet (it is being built). block_hash(block_number - 1)
+            // is the last finalized parent, identical on every node that has
+            // reached this epoch boundary. This is the correct anchor point.
+            let parent_block_number = block_number.saturating_sub(1);
+            let parent_block_hash = frame_system::Pallet::<T>::block_hash(
+                BlockNumberFor::<T>::from(parent_block_number)
             );
-            input.extend_from_slice(current_block_hash.as_ref());
+            input.extend_from_slice(parent_block_hash.as_ref());
             
             // Generate deterministic hash
             blake2_256(&input)
@@ -9649,14 +9710,27 @@ pub mod pallet {
             // Calculate sequence length (limit to reasonable size)
             let sequence_length = blocks_per_epoch.min(1000);
             
-            // Collect validator weights (scores)
-            let mut validator_weights: Vec<(T::AccountId, u64)> = validators.iter()
-                .map(|v| {
-                    let state = ValidatorStates::<T>::get(v);
-                    let score = state.map(|s| s.current.final_score).unwrap_or(1);
-                    (v.clone(), score.max(1))
-                })
-                .collect();
+            // Use snapshotted scores for this epoch if available — scores were frozen
+            // 5 blocks before the epoch boundary so all nodes have identical weights.
+            // Fall back to equal weights only if no snapshot exists (e.g. epoch 0).
+            let snapshot = EpochScoreSnapshot::<T>::get(_epoch);
+            let mut validator_weights: Vec<(T::AccountId, u64)> = match snapshot {
+                Some(snap) => {
+                    // Build weight map from snapshot, preserving PoS+PoI scoring
+                    let weight_map: sp_std::collections::btree_map::BTreeMap<_, _> =
+                        snap.into_iter().collect();
+                    validators.iter()
+                        .map(|v| {
+                            let w = weight_map.get(v).copied().unwrap_or(1).max(1);
+                            (v.clone(), w)
+                        })
+                        .collect()
+                }
+                None => {
+                    // No snapshot — equal weights (epoch 0 or missing snapshot)
+                    validators.iter().map(|v| (v.clone(), 1u64)).collect()
+                }
+            };
             
             // Sort by account ID for deterministic ordering
             validator_weights.sort_by(|a, b| a.0.cmp(&b.0));
@@ -11217,7 +11291,23 @@ pub mod pallet {
                 if let Ok(inference_data) = Self::collect_inference_data(validator, current_epoch) {
                     // Compute PoI score based on collected data
                     let poi_score = Self::compute_poi_score(&inference_data);
-                    
+
+                    // Read the current on-chain inference score for this validator
+                    let current_on_chain_score = ValidatorStates::<T>::get(validator)
+                        .map(|s| s.current.inference_score)
+                        .unwrap_or(0);
+
+                    // Skip submission if the score has not changed (Requirement 10.1, 10.2, 10.3)
+                    if poi_score == current_on_chain_score {
+                        log::trace!(
+                            target: "dcf",
+                            "DCF off-chain worker: score unchanged for validator={:?}, score={}, skipping submission",
+                            validator,
+                            poi_score,
+                        );
+                        continue;
+                    }
+
                     // Submit unsigned transaction to update the score
                     let _ = Self::submit_poi_score_update(validator.clone(), poi_score, block_number);
                 }
@@ -12151,8 +12241,8 @@ pub mod pallet {
                 EpochAuthorSequences::<T>::insert(0, &epoch_0_author_sequence);
 
                 log::info!("  Sequence length: {}", epoch_0_author_sequence.len());
-                log::info!("DCF: Generated deterministic author sequence for epoch 0 with {} authors",
-                          epoch_0_author_sequence.len());
+                log::info!("DCF: Generated deterministic author sequence for epoch 0 with {} slots (distributed among {} validators)",
+                          epoch_0_author_sequence.len(), self.validators.len());
             }
 
             // Initialize system metrics with genesis state
@@ -13765,8 +13855,9 @@ pub mod pallet {
             }
 
             if changed {
-                // Sort active validators by their final weighted score (highest first)
-                Self::sort_validators_by_score(&mut active);
+                // Sort active validators by account ID for deterministic ordering.
+                // Score-based sort is non-deterministic across nodes.
+                active.sort_by(|a, b| a.cmp(b));
                 ActiveValidators::<T>::put(active);
             }
 

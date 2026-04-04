@@ -18,6 +18,9 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
     use sp_runtime::traits::{SaturatedConversion, Verify, IdentifyAccount};
+    use sp_runtime::transaction_validity::{
+        InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
+    };
     use sp_std::prelude::*;
     use codec::{Decode, Encode};
     use alloc::vec::Vec;
@@ -388,8 +391,8 @@ sp_api::decl_runtime_apis! {
             origin: OriginFor<T>,
             justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
         ) -> DispatchResult {
-            // This should be called by inherent or root
-            ensure_signed(origin)?;
+            // Unsigned extrinsics always have a None origin when executed
+            ensure_none(origin)?;
 
             // Verify and process the justification
             Self::verify_and_finalize_justification(justification)?;
@@ -446,9 +449,6 @@ sp_api::decl_runtime_apis! {
 
         pub fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
             // (Validator, Stake, Final_Score) from DCF/PoS pallets
-            let stake_factor = T::StakeWeightFactor::get();
-            let score_factor = T::ScoreWeightFactor::get();
-            let cap = T::ScoreBoostCap::get();
             
             // Detect validator set changes
             let new_validator_accounts: Vec<T::AccountId> = validators.iter().map(|(v, _, _)| v.clone()).collect();
@@ -493,19 +493,29 @@ sp_api::decl_runtime_apis! {
                     });
             PreviousValidatorSet::<T>::put(new_validator_set);
             
-            let mut total_epoch_weight = 0u128;
-            let _ = EpochVotingWeight::<T>::clear(u32::MAX, None); // Clear old tracking 
+            let _ = EpochVotingWeight::<T>::clear(u32::MAX, None); // Clear old weights
 
-            for (validator, stake, score) in validators {
-                let stake_weight = stake.saturating_mul(stake_factor);
-                let mut score_weight = score.saturating_mul(score_factor);
-                if score_weight > cap {
-                    score_weight = cap;
-                }
-                
-                let total_weight = stake_weight.saturating_add(score_weight);
-                EpochVotingWeight::<T>::insert(validator, total_weight);
-                total_epoch_weight = total_epoch_weight.saturating_add(total_weight);
+            // Normalize weights to VOTE_WEIGHT_SCALE per validator to prevent u64 overflow.
+            // weight = (stake * VOTE_WEIGHT_SCALE) / total_stake using u128 arithmetic.
+            // If total_stake == 0, assign VOTE_WEIGHT_SCALE / validator_count to each.
+            const VOTE_WEIGHT_SCALE: u128 = 32_000u128;
+            let validator_count = validators.len() as u128;
+
+            let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
+
+            let mut total_epoch_weight = 0u128;
+
+            for (validator, stake, _score) in validators {
+                let normalized_weight = if total_stake > 0 {
+                    // Use u128 intermediate arithmetic to avoid overflow
+                    stake.saturating_mul(VOTE_WEIGHT_SCALE) / total_stake
+                } else {
+                    // Equal weights when total stake is zero
+                    if validator_count > 0 { VOTE_WEIGHT_SCALE / validator_count } else { 0 }
+                };
+
+                EpochVotingWeight::<T>::insert(validator, normalized_weight);
+                total_epoch_weight = total_epoch_weight.saturating_add(normalized_weight);
             }
 
             TotalVotingWeight::<T>::put(total_epoch_weight);
@@ -629,6 +639,12 @@ sp_api::decl_runtime_apis! {
                 accumulated_weight,
             );
 
+            log::info!(
+                "DVF Pallet: Successfully verified and finalized block #{:?} via justification in round {}",
+                block_number,
+                justification.round_number
+            );
+
             Ok(())
         }
 
@@ -694,10 +710,56 @@ sp_api::decl_runtime_apis! {
             Self::finalize_block(block_hash, block_number, round, tally_weight);
         }
     }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(
+            _source: TransactionSource,
+            call: &Self::Call,
+        ) -> TransactionValidity {
+            if let Call::submit_justification { justification } = call {
+                if justification.votes.is_empty() {
+                    return InvalidTransaction::Custom(1).into();
+                }
+
+                let block_number: BlockNumberFor<T> = justification.votes[0].block_number.saturated_into();
+                let current_finalized_number = FinalizedBlockNumber::<T>::get();
+
+                if block_number <= current_finalized_number {
+                    return InvalidTransaction::Stale.into();
+                }
+
+                // The priority is based on the block number being finalized
+                let priority = block_number.saturated_into::<u64>();
+
+                // Provide a unique tag for this block hash so only one justification per block is permitted
+                let mut tag = b"dvf_justification_".to_vec();
+                justification.block_hash.encode_to(&mut tag);
+
+                ValidTransaction::with_tag_prefix("Dvf")
+                    .priority(priority)
+                    .and_provides(tag)
+                    .longevity(5)
+                    .propagate(true)
+                    .build()
+            } else {
+                InvalidTransaction::Call.into()
+            }
+        }
+    }
 }
 
 impl<T: Config> pallet_cbc_dcf::traits::WeightFreezer<T::AccountId> for Pallet<T> {
     fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
         Self::freeze_epoch_weights(epoch, validators);
+    }
+}
+
+impl<T: Config> pallet_cbc_dcf::traits::DvfFinalizedBlockProvider for Pallet<T> {
+    fn dvf_finalized_block() -> u32 {
+        use sp_runtime::traits::SaturatedConversion;
+        FinalizedBlockNumber::<T>::get().saturated_into::<u32>()
     }
 }

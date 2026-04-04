@@ -141,9 +141,11 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
         let mut votes = self.votes.write();
         let initial_count = votes.len();
         
-        // Remove all votes where the block number is <= finalized
+        // Remove votes for blocks strictly below the finalized checkpoint.
+        // Votes for the finalized checkpoint block itself (block_number == finalized_block_number)
+        // are retained so the aggregator can still act on them during this pruning cycle.
         votes.retain(|_, vote_list| {
-            vote_list.retain(|vote| vote.block_number > finalized_block_number);
+            vote_list.retain(|vote| vote.block_number >= finalized_block_number);
             !vote_list.is_empty()
         });
         
@@ -293,11 +295,11 @@ where
             }
         }
         
-        // 3. Verify Epoch ID - use DvfApi since both DcfApi and DvfApi have get_current_epoch
+        // 3. Verify Epoch ID - allow current epoch or current_epoch+1 (grace period at epoch boundary)
         match <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(&api, best_hash) {
             Ok(current_epoch) => {
-                if message.epoch_id != current_epoch {
-                    warn!("DVF Gossip: DVF Vote epoch mismatch. Expected {}, got {}", current_epoch, message.epoch_id);
+                if message.epoch_id != current_epoch && message.epoch_id != current_epoch.saturating_add(1) {
+                    warn!("DVF Gossip: DVF Vote epoch mismatch. Expected {} (or {}), got {}", current_epoch, current_epoch.saturating_add(1), message.epoch_id);
                     if let Some(ref metrics) = self.metrics {
                         metrics.record_vote_rejection("epoch_mismatch");
                     }

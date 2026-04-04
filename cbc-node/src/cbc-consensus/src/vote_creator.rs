@@ -145,9 +145,16 @@ where
 
     /// Checks if a block is a checkpoint block
     fn is_checkpoint_block(&self, block_number: NumberFor<Block>) -> Result<bool, String> {
-        // For now, use a hardcoded checkpoint interval of 10 blocks
-        // This should match the FinalityCheckpointInterval constant in the runtime
-        let checkpoint_interval: u32 = 10;
+        // Read FinalityCheckpointInterval from the DVF pallet runtime API so that
+        // the Vote_Creator and the DVF_Pallet always use the same value.
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+
+        let checkpoint_interval: u32 = api
+            .get_finality_checkpoint_interval(best_hash)
+            .map_err(|e| format!("Failed to get FinalityCheckpointInterval: {:?}", e))?
+            .try_into()
+            .map_err(|_| "FinalityCheckpointInterval conversion failed")?;
 
         // Convert block_number to u32 for modulo operation
         let block_num_u32: u32 = block_number

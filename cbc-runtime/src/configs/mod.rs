@@ -348,6 +348,8 @@ impl pallet_cbc_dcf::Config for Runtime {
 
     // DVF WeightFreezer Integration
     type WeightFreezer = pallet_cbc_dvf::Pallet<Runtime>;
+    // DVF is the primary finality authority; DCF progressive finality is capped at the DVF-finalized block
+    type DvfFinalizedBlockProvider = pallet_cbc_dvf::Pallet<Runtime>;
 }
 
 

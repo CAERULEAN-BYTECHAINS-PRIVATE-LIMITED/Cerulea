@@ -375,6 +375,10 @@ impl Config for Test {
     type TopPerformerRewardPercentage = ConstU32<15>;
 
     // Trust score configuration (already defined above, removing duplicates)
+
+    // DVF integration — no-op in tests
+    type WeightFreezer = ();
+    type DvfFinalizedBlockProvider = ();
 }
 
 

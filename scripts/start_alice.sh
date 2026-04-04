@@ -22,11 +22,13 @@ exec "$BINARY" \
     --base-path "$BASE_PATH" \
     --chain local \
     --alice \
-    --port 30333 \
     --rpc-port 9944 \
     --prometheus-port 9615 \
     --unsafe-rpc-external \
+    --rpc-methods unsafe \
     --rpc-cors all \
+    --no-mdns \
+    --listen-addr /ip4/127.0.0.1/tcp/30333 \
     --validator \
     --name Alice \
     >> "$LOG_FILE" 2>&1

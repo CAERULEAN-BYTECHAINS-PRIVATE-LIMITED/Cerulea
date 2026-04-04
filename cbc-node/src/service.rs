@@ -533,10 +533,11 @@ where
 			));
 			
 			// Start DVF Vote Aggregator Service
-			let vote_aggregator: cbc_consensus::VoteAggregatorService<Block, FullBackend, FullClient, AccountId> = cbc_consensus::VoteAggregatorService::new(
+			let vote_aggregator = cbc_consensus::VoteAggregatorService::new(
 				client.clone(),
 				dvf_gossip_pool.clone(),
 				justification_builder,
+				transaction_pool.clone(),
 				std::time::Duration::from_secs(1), // Check every 1 second
 			);
 			
@@ -985,9 +986,9 @@ where
                                 // Already in sync, just log occasionally
                                 log::trace!("DVF and Client finality are in sync at #{}", dvf_finalized);
                             } else {
-                                // This shouldn't happen unless client is somehow ahead of DVF
-                                log::warn!(
-                                    "Client finalized head (#{}) is ahead of DVF finalized head (#{})!",
+                                // This is normal: DCF (Deterministic Finality) is faster than DVF (Vote-based Finality)
+                                log::info!(
+                                    "DVF Sync Status: Client head (#{}) is ahead of DVF head (#{}). Normal behavior.",
                                     client_finalized,
                                     dvf_finalized
                                 );

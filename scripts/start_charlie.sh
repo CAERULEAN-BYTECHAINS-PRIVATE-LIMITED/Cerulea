@@ -48,11 +48,12 @@ exec "$BINARY" \
     --base-path "$BASE_PATH" \
     --chain local \
     --charlie \
-    --port 30335 \
     --rpc-port 9946 \
     --prometheus-port 9617 \
     --unsafe-rpc-external \
     --rpc-cors all \
+    --no-mdns \
+    --listen-addr /ip4/127.0.0.1/tcp/30335 \
     --validator \
     --name Charlie \
     --bootnodes "/ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID" \

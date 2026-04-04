@@ -48,11 +48,12 @@ exec "$BINARY" \
     --base-path "$BASE_PATH" \
     --chain local \
     --bob \
-    --port 30334 \
     --rpc-port 9945 \
     --prometheus-port 9616 \
     --unsafe-rpc-external \
     --rpc-cors all \
+    --no-mdns \
+    --listen-addr /ip4/127.0.0.1/tcp/30334 \
     --validator \
     --name Bob \
     --bootnodes "/ip4/127.0.0.1/tcp/30333/p2p/$ALICE_PEER_ID" \

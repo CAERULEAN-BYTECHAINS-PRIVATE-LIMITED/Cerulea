@@ -43,7 +43,6 @@ where
     consensus_metrics: Option<ConsensusMetrics>,
     last_block_time: Duration,
     current_slot: u64,
-    last_epoch_transition_block: Option<u32>,
     _phantom: std::marker::PhantomData<(B, P, TP)>,
 }
 
@@ -81,7 +80,6 @@ where
             consensus_metrics: None,
             last_block_time,
             current_slot: 0,
-            last_epoch_transition_block: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -113,7 +111,6 @@ where
             consensus_metrics: Some(consensus_metrics),
             last_block_time,
             current_slot: 0,
-            last_epoch_transition_block: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -197,7 +194,19 @@ where
                                         &format!("Block production triggered for block {}", block_number),
                                         Some(metadata),
                                     );
-                                    
+
+                                    // Requirement 11: Double block production guard.
+                                    // Re-read best_number immediately before producing to catch any
+                                    // block that a peer may have imported since we entered this branch.
+                                    let current_best: u32 = self.client.info().best_number.saturated_into::<u32>();
+                                    if current_best >= block_number {
+                                        debug!("DCF: Block {} already produced by peer, skipping", block_number);
+                                        // Advance timing so we don't spin-produce on the next loop tick.
+                                        self.last_block_time = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default();
+                                    } else {
+
                                     match self.produce_block_with_validation(&author).await {
                                         Ok(()) => {
                                             debug!("Block production successful for author {:?}", author);
@@ -217,7 +226,8 @@ where
                                             }
                                         }
                                     }
-                                }
+                                    } // end else (double block production guard)
+                                } // end Ok(author)
                                 Err(e) => debug!("Failed to select next author: {:?}", e),
                             }
                         }
@@ -225,32 +235,7 @@ where
                     Err(e) => error!("DCF: Failed to get active validators: {:?}", e),
                 }
                 
-                // Check for epoch transitions - enhanced detection
-                let current_block = self.client.info().best_number.saturated_into::<u32>();
-                let api = self.client.runtime_api();
-                
-                if let Ok(current_epoch) = api.get_current_epoch(best_hash) {
-                    // Check if we need to trigger an epoch transition
-                    if let Ok(epoch_config) = api.get_epoch_config(best_hash) {
-                        let blocks_per_epoch = epoch_config.blocks_per_epoch;
-                        let should_transition = current_block > 0 && current_block % blocks_per_epoch == 0;
-                        
-                        if should_transition {
-                            // Check if this is a new transition we haven't processed
-                            let is_new_transition = self.last_epoch_transition_block
-                                .map(|last_block| current_block > last_block)
-                                .unwrap_or(true);
-                            
-                            if is_new_transition {
-                                info!("DCF: Detected epoch boundary at block {} - triggering transition check", current_block);
-                                self.handle_epoch_transition(current_epoch).await;
-                            }
-                        } else {
-                            // Regular epoch maintenance
-                            self.handle_epoch_transition(current_epoch).await;
-                        }
-                    }
-                }
+                // Epoch transitions are handled exclusively by on_initialize; do not trigger from the consensus loop
             }
             
             // Update validator metrics periodically
@@ -285,198 +270,6 @@ where
         }
         
         should_produce
-    }
-    
-    /// Handle epoch transitions with auto-detection and response
-    async fn handle_epoch_transition(&mut self, current_epoch: u32) {
-        let current_block = self.client.info().best_number.saturated_into::<u32>();
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        if let Ok(epoch_config) = api.get_epoch_config(best_hash) {
-            let blocks_per_epoch = epoch_config.blocks_per_epoch;
-            let epoch_start_block = current_epoch.saturating_mul(blocks_per_epoch);
-            let should_transition = current_block >= epoch_start_block + blocks_per_epoch;
-            
-            if should_transition {
-                info!("DCF: Auto-detected epoch transition needed at block {} (epoch {} -> {})", 
-                      current_block, current_epoch, current_epoch + 1);
-                
-                // The runtime automatically handles epoch transitions in on_initialize
-                // We respond by updating our local state and performing maintenance
-                self.respond_to_epoch_transition(current_epoch, current_block).await;
-            } else {
-                // Regular epoch maintenance
-                self.perform_epoch_maintenance(current_epoch).await;
-            }
-        } else {
-            error!("DCF: Failed to get epoch configuration from runtime");
-        }
-    }
-    
-    /// Respond to an epoch transition that occurred in the runtime
-    async fn respond_to_epoch_transition(&mut self, old_epoch: u32, transition_block: u32) {
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        // Get the new epoch number from runtime
-        if let Ok(new_epoch) = api.get_current_epoch(best_hash) {
-            if new_epoch > old_epoch {
-                info!("DCF: Confirmed epoch transition {} -> {} at block {}", 
-                      old_epoch, new_epoch, transition_block);
-                
-                // Task 8 requirement: Record epoch transition metric
-                if let Some(ref metrics) = self.consensus_metrics {
-                    metrics.record_epoch_transition();
-                    metrics.update_current_epoch(new_epoch);
-                }
-                
-                // Update our internal epoch tracking
-                self.last_epoch_transition_block = Some(transition_block);
-                
-                // Perform comprehensive post-transition maintenance
-                self.perform_post_transition_maintenance(new_epoch).await;
-                
-                // Generate validator management proposals for the new epoch
-                if let Err(e) = self.generate_epoch_validator_proposals(new_epoch).await {
-                    warn!("DCF: Failed to generate epoch validator proposals: {:?}", e);
-                }
-            }
-        }
-    }
-    
-    /// Perform comprehensive maintenance after an epoch transition
-    async fn perform_post_transition_maintenance(&mut self, new_epoch: u32) {
-        info!("DCF: Performing post-transition maintenance for epoch {}", new_epoch);
-        
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        // 1. Update validator set information
-        if let Ok(active_validators) = api.get_active_validators(best_hash) {
-            info!("DCF: New epoch {} has {} active validators", new_epoch, active_validators.len());
-            
-            // Log top validators by score
-            let mut validator_scores = Vec::new();
-            for validator in active_validators.iter().take(self.params.top_validators_display_count as usize) {
-                if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
-                    validator_scores.push((validator.clone(), profile.final_score, 0u64, profile.poi_score as u64));
-                }
-            }
-            
-            // Sort by combined score (highest first)
-            validator_scores.sort_by(|a, b| b.1.cmp(&a.1));
-            
-            info!("DCF: Top validators for epoch {}:", new_epoch);
-            for (i, (validator, combined, pos, poi)) in validator_scores.iter().enumerate() {
-                info!("  {}. {:?} - Combined: {}, PoS: {}, PoI: {}", 
-                      i + 1, validator, combined, pos, poi);
-            }
-        }
-        
-        // 2. Reset epoch-specific metrics
-        self.reset_epoch_metrics().await;
-        
-        // 3. Perform regular maintenance
-        self.perform_epoch_maintenance(new_epoch).await;
-    }
-    
-    /// Generate validator management proposals for a new epoch
-    async fn generate_epoch_validator_proposals(&mut self, epoch: u32) -> ConsensusResult<()> {
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        info!("DCF: Generating validator management proposals for epoch {}", epoch);
-        
-        // Generate validator proposals using runtime logic
-        // Note: This would typically be done through an extrinsic, but we can log the analysis
-        info!("DCF: Analyzing validator performance for epoch {} proposals", epoch);
-        
-        // Get active validators and analyze their performance
-        if let Ok(active_validators) = api.get_active_validators(best_hash) {
-            let mut underperformers = Vec::new();
-            let mut top_performers = Vec::new();
-            
-            for validator in active_validators.iter() {
-                if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
-                    
-                    // Check for underperformance (using placeholder values for now)
-                    if profile.final_score < 50 {
-                        underperformers.push((validator.clone(), profile.final_score, 0u64, profile.poi_score as u64));
-                    }
-                    // Check for top performance
-                    else if profile.final_score >= 90 {
-                        top_performers.push((validator.clone(), profile.final_score, 0u64, profile.poi_score as u64));
-                    }
-                }
-            }
-            
-            // Log analysis results
-            if !underperformers.is_empty() {
-                warn!("DCF: Found {} underperforming validators for epoch {}", underperformers.len(), epoch);
-                for (validator, combined, pos, poi) in underperformers.iter() {
-                    warn!("  - {:?}: Combined={}, PoS={}, PoI={}", validator, combined, pos, poi);
-                }
-            }
-            
-            if !top_performers.is_empty() {
-                info!("DCF: Found {} top-performing validators for epoch {}", top_performers.len(), epoch);
-                for (validator, combined, pos, poi) in top_performers.iter() {
-                    info!("  + {:?}: Combined={}, PoS={}, PoI={}", validator, combined, pos, poi);
-                }
-            }
-        }
-        
-        // The actual proposal generation and execution happens in the runtime pallet
-        // This consensus engine provides monitoring and analysis
-        
-        Ok(())
-    }
-    
-    /// Reset epoch-specific metrics
-    async fn reset_epoch_metrics(&mut self) {
-        // Reset any epoch-specific tracking variables
-        self.last_epoch_transition_block = None;
-        
-        // Could add more epoch-specific metric resets here
-        debug!("DCF: Reset epoch-specific metrics");
-    }
-    
-    /// Perform periodic maintenance during an epoch
-    async fn perform_epoch_maintenance(&mut self, current_epoch: u32) {
-        // Update epoch metric
-        if let Some(ref metrics) = self.consensus_metrics {
-            metrics.update_current_epoch(current_epoch);
-        }
-        
-        // Update validator metrics and check for issues
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        if let Ok(active_validators) = api.get_active_validators(best_hash) {
-            let mut _healthy_validators = 0;
-            let mut total_score = 0u64;
-            
-            for validator in active_validators.iter() {
-                if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
-                    
-                    total_score += profile.final_score;
-                    
-                    // Check validator health (using placeholder values for now)
-                    if profile.final_score >= self.params.healthy_validator_score {
-                        _healthy_validators += 1;
-                    }
-                }
-            }
-            
-            let _average_score = if !active_validators.is_empty() {
-                total_score / active_validators.len() as u64
-            } else {
-                0
-            };
-            
-
-        }
     }
     
     /// Update validator metrics from runtime with fresh PoS and PoI scores
