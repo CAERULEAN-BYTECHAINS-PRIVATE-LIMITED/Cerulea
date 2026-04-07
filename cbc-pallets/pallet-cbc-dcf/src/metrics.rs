@@ -473,10 +473,11 @@ impl<T: Config> Pallet<T> {
             
             (actual_blocks, production_efficiency, avg_block_time)
         } else {
-            // Fallback to defaults if no history available
+            // FB-18: Do NOT report fabricated efficiency (95%) when history is missing.
+            // Report 0 to be honest about the lack of available historical data.
             let avg_blocks_per_epoch = T::EpochLength::get();
-            let production_efficiency = 95; // 95% efficiency
-            let avg_block_time = 6000; // 6 seconds
+            let production_efficiency = 0; 
+            let avg_block_time = 6000;
             
             (avg_blocks_per_epoch, production_efficiency, avg_block_time)
         }
@@ -517,21 +518,23 @@ impl<T: Config> Pallet<T> {
     }
     
     /// Calculate participation metrics
-    fn calculate_participation_metrics(epoch: u32) -> (u32, u32, u32) {
-        // These would be calculated from historical data
-        let avg_uptime = 95; // 95% average uptime
-        let gov_participation = 80; // 80% governance participation
-        let churn_rate = 5; // 5% validator churn rate
+    fn calculate_participation_metrics(_epoch: u32) -> (u32, u32, u32) {
+        // FB-16: Removed fabricated metrics (95% uptime, 80% gov, 5% churn).
+        // These counters are not yet implemented with real historical tracking.
+        // Returning 0 is more honest than fabricating success.
+        let avg_uptime = 0; 
+        let gov_participation = 0;
+        let churn_rate = 0;
         
         (avg_uptime, gov_participation, churn_rate)
     }
     
     /// Calculate system efficiency metrics
-    fn calculate_efficiency_metrics(epoch: u32) -> (u32, u32, u32) {
-        // These would be calculated from historical data
-        let transition_time = 1; // 1 block average transition time
-        let clean_epochs = 95; // 95% of epochs without violations
-        let stability_index = 9500; // High stability
+    fn calculate_efficiency_metrics(_epoch: u32) -> (u32, u32, u32) {
+        // FB-16: Removed fabricated metrics (1 block transition, 95% clean epochs, 9500 stability).
+        let transition_time = 0; 
+        let clean_epochs = 0; 
+        let stability_index = 0; 
         
         (transition_time, clean_epochs, stability_index)
     }
@@ -551,11 +554,9 @@ impl<T: Config> Pallet<T> {
             100 // Balanced when neither
         };
         
-        // Operation efficiency (simplified)
-        let operation_efficiency = 98; // 98% efficiency
-        
-        // Bounds compliance (simplified)
-        let bounds_compliance = 100; // 100% compliance
+        // FB-16: Removed fabricated metrics (98% efficiency, 100% compliance).
+        let operation_efficiency = 0; 
+        let bounds_compliance = 0; 
         
         (reward_slash_ratio, operation_efficiency, bounds_compliance)
     }

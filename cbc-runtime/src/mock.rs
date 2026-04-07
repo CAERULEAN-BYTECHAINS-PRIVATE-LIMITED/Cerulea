@@ -245,8 +245,10 @@ pub fn create_test_validators(count: u32) -> Vec<AccountId> {
             current: pallet_cbc_dcf::EpochStats {
                 epoch: 0,
                 stake_score: 1000,
-                inference_score: 800,
-                final_score: 900,
+                // PoI=0: AI inference not yet integrated; inference_score stays 0 globally.
+                // With DefaultPoiWeight=0, final_score = (stake_score * 10000 + 0 * 0) / 10000 = stake_score.
+                inference_score: 0,
+                final_score: 1000,
                 authored_blocks: 0,
                 missed_blocks: 0,
             },

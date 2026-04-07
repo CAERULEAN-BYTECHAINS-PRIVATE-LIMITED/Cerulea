@@ -254,8 +254,12 @@ parameter_types! {
 
     // DCF parameters
     pub const DcfMaxValidators: u32 = 100;
-    pub const DefaultPosWeight: u64 = 6000; // 60% weight for PoS score (6000/10000)
-    pub const DefaultPoiWeight: u64 = 4000; // 40% weight for PoI score (4000/10000)
+    // TODO(PoI): Restore to 6000/4000 when AI inference integration is complete.
+    // The PoI weight is set to 0 now because inference_score is always 0 (no AI layer yet).
+    // Having poi_weight=4000 with poi_score=0 permanently deflates all validator scores by 40%
+    // relative to pure PoS. When PoI goes live, raise poi_weight via update_consensus_weights.
+    pub const DefaultPosWeight: u64 = 10000; // 100% PoS — pure PoS until PoI integration complete
+    pub const DefaultPoiWeight: u64 = 0;     // 0% PoI — AI inference not yet integrated
     pub const MinStake: Balance = 1000 * CBC; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;

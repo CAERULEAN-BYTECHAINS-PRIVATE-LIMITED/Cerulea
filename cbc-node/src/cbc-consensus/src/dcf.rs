@@ -43,6 +43,8 @@ where
     consensus_metrics: Option<ConsensusMetrics>,
     last_block_time: Duration,
     current_slot: u64,
+    last_metrics_update_slot: u64,
+    last_score_refresh_slot: u64,
     _phantom: std::marker::PhantomData<(B, P, TP)>,
 }
 
@@ -80,6 +82,8 @@ where
             consensus_metrics: None,
             last_block_time,
             current_slot: 0,
+            last_metrics_update_slot: 0,
+            last_score_refresh_slot: 0,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -111,6 +115,8 @@ where
             consensus_metrics: Some(consensus_metrics),
             last_block_time,
             current_slot: 0,
+            last_metrics_update_slot: 0,
+            last_score_refresh_slot: 0,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -204,7 +210,12 @@ where
                                         // Advance timing so we don't spin-produce on the next loop tick.
                                         self.last_block_time = std::time::SystemTime::now()
                                             .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default();
+                                            // FB-13: Zero would immediately re-trigger production;
+                                            // log loudly if the system clock is before UNIX epoch.
+                                            .unwrap_or_else(|e| {
+                                                error!("DCF: System clock before UNIX epoch ({:?}). Using zero — may cause immediate block production.", e);
+                                                Duration::ZERO
+                                            });
                                     } else {
 
                                     match self.produce_block_with_validation(&author).await {
@@ -239,15 +250,21 @@ where
             }
             
             // Update validator metrics periodically
-            if self.current_slot % self.params.metrics_update_interval == 0 {
+            if self.current_slot % self.params.metrics_update_interval == 0 
+                && self.last_metrics_update_slot != self.current_slot 
+            {
                 self.update_validator_metrics().await;
+                self.last_metrics_update_slot = self.current_slot;
             }
             
             // Refresh validator scores periodically to ensure fresh PoS/PoI data
-            if self.current_slot % self.params.score_refresh_interval == 0 {
+            if self.current_slot % self.params.score_refresh_interval == 0 
+                && self.last_score_refresh_slot != self.current_slot 
+            {
                 if let Err(e) = self.refresh_validator_scores().await {
                     debug!("Failed to refresh validator scores: {:?}", e);
                 }
+                self.last_score_refresh_slot = self.current_slot;
             }
             
             sleep(Duration::from_millis(self.params.consensus_loop_interval)).await;
@@ -258,7 +275,12 @@ where
     fn should_produce_block(&self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
+            // FB-13: Zero here means time_since_last will be large, triggering immediate production.
+            // Log loudly if the system clock is anomalous.
+            .unwrap_or_else(|e| {
+                error!("DCF: System clock before UNIX epoch ({:?}). Block production timer may fire immediately.", e);
+                Duration::ZERO
+            });
         
         let block_interval = Duration::from_secs(self.params.block_time);
         let time_since_last = now.saturating_sub(self.last_block_time);
@@ -283,8 +305,17 @@ where
             debug!("DCF: Consensus metrics available, updates handled by service layer");
         }
         
-        // Get consensus weights for score calculation
-        let (pos_weight, poi_weight) = api.get_consensus_weights(best_hash).unwrap_or((60, 40));
+        // FB-09: Do not fabricate weights if the API fails — different nodes could get
+        // different API errors and silently use different weights during an upgrade/migration.
+        // Skip this metrics cycle entirely instead.
+        // Note: PoI weight is intentionally 0 until AI inference integration is complete.
+        let (pos_weight, poi_weight) = match api.get_consensus_weights(best_hash) {
+            Ok(weights) => weights,
+            Err(e) => {
+                warn!("DCF: get_consensus_weights API error: {:?} — skipping metrics update cycle.", e);
+                return;
+            }
+        };
         
         // Get all validator scores and update metrics
         if let Ok(scores) = api.get_validator_scores(best_hash) {
@@ -377,8 +408,14 @@ where
                 // Return the participation rate as uptime percentage
                 uptime_stats.participation_rate
             }
-            _ => {
-                debug!("Failed to calculate uptime for validator {:?}", validator);
+            Ok(None) => {
+                // FB-11: New validator — no uptime data yet. This is not an error.
+                0u32
+            }
+            Err(e) => {
+                // FB-11: Distinguish API errors from "no data yet" so we don't penalise
+                // a validator whose uptime record simply cannot be fetched right now.
+                warn!("DCF: Uptime API error for {:?}: {:?}", validator, e);
                 0u32
             }
         }
@@ -395,13 +432,21 @@ where
                 let participation_rate = if total_blocks > 0 {
                     ((authored * 100) / total_blocks).min(100)
                 } else {
-                    100 // New validators get 100% participation initially
+                    // FB-14: Grace period for brand-new validators (zero authored AND zero missed).
+                    // Starting at 100% prevents false penalisation before their first assigned slot.
+                    // This only applies when total_blocks == 0, i.e., the validator has never
+                    // produced or missed any block yet.
+                    100
                 };
                 (participation_rate, missed)
             }
             Err(e) => {
                 debug!("Failed to get participation metrics for validator {:?}: {:?}", validator, e);
-                (0u32, 0u32)
+                // FB-10: Return u32::MAX as a sentinel meaning "data unavailable".
+                // Callers that use this value for health checks or scoring should treat
+                // u32::MAX as "skip / no data" rather than 0% participation.
+                // TODO: refactor return type to Option<(u32,u32)> in the metrics refactor.
+                (u32::MAX, u32::MAX)
             }
         }
     }
@@ -424,82 +469,25 @@ where
                 }
             }
             Ok(None) => {
-                debug!("No expected author from runtime, using combined score selection");
-                self.select_author_by_combined_score(active_validators)
+                // FB-05/06: Runtime has no queued author for this slot.
+                // Do NOT elect an author locally — two nodes with different API outcomes
+                // would pick different authors, breaking global agreement.
+                // Correct behaviour is to skip production and wait for the next slot.
+                warn!("DCF: No expected author scheduled for block {} — skipping slot.", block_number);
+                Err(ConsensusError::AuthorSelection(
+                    "No author scheduled for this slot".into()
+                ))
             }
             Err(e) => {
-                error!("DCF: Runtime API error for author selection: {:?}", e);
-                debug!("Falling back to combined score selection");
-                self.select_author_by_combined_score(active_validators)
+                // FB-05: Runtime API error — skip slot rather than elect locally.
+                error!("DCF: Runtime API error getting expected author for block {}: {:?}. Skipping slot.", block_number, e);
+                Err(ConsensusError::AuthorSelection(
+                    format!("Runtime API error: {:?}", e)
+                ))
             }
         }
     }
-    
-    /// Enhanced validator selection using combined PoS and PoI scores
-    fn select_author_by_combined_score(&self, active_validators: &[AccountId]) -> ConsensusResult<Public> {
-        if active_validators.is_empty() {
-            return Err(ConsensusError::AuthorSelection("No active validators available".into()));
-        }
 
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        
-        // Collect validator scores with detailed breakdown
-        let mut validator_scores: Vec<(AccountId, u64, u64, u64)> = Vec::new(); // (account, combined_score, pos_score, poi_score)
-        let mut total_weight = 0u64;
-        
-        for validator in active_validators {
-            match api.get_validator_profile(best_hash, validator.clone()) {
-                Ok(Some(profile)) => {
-                    let combined_score = profile.final_score;
-                    let pos_score = self.get_pos_score(validator);
-                    let poi_score = profile.poi_score as u64;
-                    // Use combined score as weight, with minimum weight of 1
-                    let weight = combined_score.max(1);
-                    validator_scores.push((validator.clone(), weight, pos_score, poi_score));
-                    total_weight = total_weight.saturating_add(weight);
-                    
-                    // Only log validator details in trace mode to reduce verbosity
-                    log::trace!("DCF: Validator {:?} - Combined: {}, PoS: {}, PoI: {}", 
-                               validator, combined_score, pos_score, poi_score);
-                }
-                Ok(None) => {
-                    // Validator has no profile, give minimum weight
-                    validator_scores.push((validator.clone(), 1, 0, 0));
-                    total_weight = total_weight.saturating_add(1);
-                    log::trace!("DCF: Validator {:?} - No profile, using minimum weight", validator);
-                }
-                Err(e) => {
-                    log::trace!("DCF: Failed to get profile for validator {:?}: {:?}", validator, e);
-                    // Give minimum weight to avoid excluding validator
-                    validator_scores.push((validator.clone(), 1, 0, 0));
-                    total_weight = total_weight.saturating_add(1);
-                }
-            }
-        }
-        
-        if total_weight == 0 {
-            // Fallback to round-robin if all weights are zero
-            return self.fallback_author_selection(active_validators);
-        }
-        
-        // Use current slot as seed for deterministic but pseudo-random selection
-        let seed = self.current_slot.wrapping_mul(2654435761u64); // Large prime for better distribution
-        let target = seed % total_weight;
-        let mut cumulative_weight = 0u64;
-        
-        for (validator, weight, pos_score, poi_score) in validator_scores {
-            cumulative_weight = cumulative_weight.saturating_add(weight);
-            if target < cumulative_weight {
-                debug!("DCF: Selected validator {:?} (Combined: {}, PoS: {}, PoI: {}, Target: {}/{})", 
-                       validator, weight, pos_score, poi_score, target, total_weight);
-                return Ok(Public::from_raw(*validator.as_ref()));
-            }
-        }
-        
-        // Fallback to first validator if something goes wrong
-        Ok(Public::from_raw(*active_validators[0].as_ref()))
-    }
     
     /// Fallback author selection using round-robin
     fn fallback_author_selection(&self, active_validators: &[AccountId]) -> ConsensusResult<Public> {
@@ -507,10 +495,14 @@ where
             return Err(ConsensusError::AuthorSelection("No active validators available".into()));
         }
         
-        let index = (self.current_slot as usize) % active_validators.len();
+        // FB-07: use chain-agreed best_number as seed, not the local unsynchronised
+        // current_slot counter. Two nodes that restart at different times will have
+        // different current_slot values and would pick different round-robin indices.
+        let best_number = self.client.info().best_number.saturated_into::<u64>();
+        let index = (best_number as usize) % active_validators.len();
         let selected_validator = &active_validators[index];
         
-        debug!("Using fallback selection - validator {} of {}", index + 1, active_validators.len());
+        debug!("Using fallback selection (best_number={}) — validator {} of {}", best_number, index + 1, active_validators.len());
         Ok(Public::from_raw(*selected_validator.as_ref()))
     }
 
@@ -614,42 +606,37 @@ where
             }
             Err(e) => {
                 error!("DCF: Comprehensive block creation failed: {:?}", e);
-                warn!("DCF: Attempting fallback to standard method");
-                
-                // Fallback to standard method
-                match self.proposer_factory.create_block_with_transactions(parent_hash, block_number as u64).await {
-                    Ok(result) => {
-                        warn!("DCF: Fallback method succeeded");
-                        result
-                    }
-                    Err(fallback_error) => {
-                        error!("DCF: Fallback method also failed: {:?}", fallback_error);
-                        warn!("DCF: Attempting emergency block creation");
-                        
-                        // Last resort: emergency block with only inherents
-                        self.proposer_factory.create_emergency_block(
-                            parent_hash, 
-                            block_number as u64, 
-                            author.clone()
-                        ).await.map_err(|emergency_error| {
-                            error!("DCF: Emergency block creation failed: {:?}", emergency_error);
-                            ConsensusError::BlockProduction(format!(
-                                "All block creation methods failed. Original: {:?}, Fallback: {:?}, Emergency: {:?}", 
-                                e, fallback_error, emergency_error
-                            ))
-                        })?
-                    }
-                }
+                warn!("DCF: Attempting emergency block creation (skipping Level-2 to preserve author identity)");
+
+                // FB-02: Level-2 (create_block_with_transactions) is intentionally skipped here.
+                // It does not inject the author digest or force the selected author, so any block
+                // produced through it would arrive at peers without an identity seal. We go directly
+                // to the emergency block which re-injects the author correctly.
+                self.proposer_factory.create_emergency_block(
+                    parent_hash,
+                    block_number as u64,
+                    author.clone()
+                ).await.map_err(|emergency_error| {
+                    error!("DCF: Emergency block creation also failed: {:?}", emergency_error);
+                    ConsensusError::BlockProduction(format!(
+                        "Both comprehensive and emergency block creation failed. Original: {:?}, Emergency: {:?}",
+                        e, emergency_error
+                    ))
+                })?
             }
         };
         
-        // Verify the expected author matches our selected author
+        // Verify the expected author matches our selected author — hard reject on mismatch (FB-01)
         let author_account: AccountId = author.clone().into();
         let expected_account: AccountId = expected_author.into();
         if author_account != expected_account {
-            warn!("DCF: Author mismatch detected but continuing - expected {:?}, got {:?}", 
-                  expected_account, author_account);
-            // Don't fail the block creation for author mismatch - just log it
+            error!("DCF: Author mismatch — proposer returned {:?}, selected {:?}. Aborting block creation.",
+                   expected_account, author_account);
+            return Err(ConsensusError::AuthorMismatch {
+                block_number,
+                expected: Some(expected_account),
+                actual: author_account,
+            });
         }
         
         // Validate the created block
@@ -742,8 +729,11 @@ where
         // Update timing and slot
         self.last_block_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        self.current_slot = self.current_slot.saturating_add(1);
+            // FB-13: Log clock anomalies; Duration::ZERO would cause immediate next-slot production.
+            .unwrap_or_else(|e| {
+                error!("DCF: System clock before UNIX epoch ({:?}). Block timing may be incorrect.", e);
+                Duration::ZERO
+            });
         
         // Update metrics
         self.metrics.total_blocks = self.metrics.total_blocks.saturating_add(1);
@@ -908,13 +898,20 @@ where
     async fn handle_block_production_failure(&mut self, author: &AccountId) -> ConsensusResult<()> {
         let current_block = self.client.info().best_number.saturated_into::<u32>() + 1;
         
-        // Still advance the slot even if block production failed
-        self.current_slot = self.current_slot.saturating_add(1);
+        // FB-12: derive slot from chain state (best_number) instead of a local
+        // unsynchronised counter. This prevents current_slot from diverging between
+        // nodes that restart at different times, which would corrupt the FB-07 seed.
+        self.current_slot = self.client.info().best_number.saturated_into::<u64>()
+            .saturating_add(1);
         
         // Update timing to prevent immediate retry
         self.last_block_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
+            // FB-13: Log clock anomalies; Duration::ZERO would cause immediate retry.
+            .unwrap_or_else(|e| {
+                error!("DCF: System clock before UNIX epoch ({:?}). Block timing on failure may be incorrect.", e);
+                Duration::ZERO
+            });
         
         // Update metrics to track the failure
         self.metrics.failed_blocks = self.metrics.failed_blocks.saturating_add(1);
@@ -1000,7 +997,10 @@ where
         
         if active_validators.is_empty() {
             error!("DCF: Block check failed for block #{}: No active validators", block_number);
-            return Ok(ImportResult::imported(false));
+            // FB-03: hard reject — imported(false) is NOT a rejection, it silently accepts the block.
+            return Err(sp_consensus::Error::ClientImport(
+                format!("No active validators at block #{}", block_number)
+            ));
         }
         
         debug!("Block #{} check passed", block_number);
@@ -1025,7 +1025,10 @@ where
         
         if active_validators.is_empty() {
             error!("DCF: Block import failed for block #{}: No active validators", block_number);
-            return Ok(ImportResult::imported(false));
+            // FB-03: hard reject — imported(false) is NOT a rejection, it silently accepts the block.
+            return Err(sp_consensus::Error::ClientImport(
+                format!("No active validators at block #{}", block_number)
+            ));
         }
         
         // Extract block author from digest before importing
@@ -1038,15 +1041,16 @@ where
                 warn!("Block #{} authored by inactive validator {:?}", block_number, author);
             }
             
-            // Check if this matches the expected author
+            // Check if this matches the expected author — hard reject on mismatch (FB-04)
             if let Ok(Some(expected_author)) = api.get_expected_author(best_hash, block_number) {
                 if *author != expected_author {
-                    warn!("Block #{} author mismatch: expected {:?}, got {:?}", 
-                          block_number, expected_author, author);
-                    
+                    error!("DCF: Block #{} author mismatch: expected {:?}, got {:?}. Rejecting block.",
+                           block_number, expected_author, author);
                     // Report the mismatch and record missed block for expected author
                     let _ = api.report_author_mismatch(best_hash, block_number, Some(expected_author.clone()), author.clone());
                     let _ = api.report_missed_block(best_hash, block_number, expected_author);
+                    // Hard reject — do not import a block from the wrong author
+                    return Err(sp_consensus::Error::InvalidAuthoritiesSet);
                 } else {
                     // Correct author, record successful authorship
                     let _ = api.report_successful_block_authorship(best_hash, block_number, author.clone());

@@ -7118,7 +7118,7 @@ pub mod pallet {
                 .unwrap_or(0);
                 
             if current_score < <T as Config>::MinValidatorScore::get() as u64 {
-                let _ = Self::eject_validator(&target, EjectionReason::ScoreBelowThreshold);
+                Self::eject_validator(&target, EjectionReason::ScoreBelowThreshold)?;
                 log::info!("Validator {:?} ejected due to low score after slashing", target);
             }
 
@@ -13144,11 +13144,10 @@ pub mod pallet {
                 .unwrap_or(0)
         }
 
-        /// Get validator participation data (authored blocks, missed blocks)
         pub fn validator_participation(validator: &T::AccountId) -> (u32, u32) {
             ValidatorStates::<T>::get(validator)
                 .map(|state| (state.current.authored_blocks, state.current.missed_blocks))
-                .unwrap_or((0, 0))
+                .unwrap_or((u32::MAX, u32::MAX))
         }
 
         /// Get validator last active block

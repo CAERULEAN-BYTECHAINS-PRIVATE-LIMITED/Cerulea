@@ -243,7 +243,7 @@ impl_runtime_apis! {
 		fn get_validator_participation(validator: AccountId) -> (u32, u32) {
 			pallet_cbc_dcf::Pallet::<Runtime>::validator_states(&validator)
 				.map(|state| (state.current.authored_blocks, state.current.missed_blocks))
-				.unwrap_or_default()
+				.unwrap_or((u32::MAX, u32::MAX))
 		}
 
 		fn get_active_validators() -> Vec<AccountId> {
