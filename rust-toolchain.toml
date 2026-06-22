@@ -1,0 +1,7 @@
+[toolchain]
+# This version matches the Dockerfile (rust:1.85-bookworm) and is tested to work
+# with all Substrate/Polkadot-SDK dependencies in this project.
+# Rust 1.96 (current stable) should also work, but this is the pinned baseline.
+channel = "1.85"
+targets = ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]
+components = ["rustfmt", "clippy", "rust-src"]

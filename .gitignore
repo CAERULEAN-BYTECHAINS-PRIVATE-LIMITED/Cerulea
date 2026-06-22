@@ -1,4 +1,21 @@
 target/
 .kiro
-# keys/ is intentionally NOT ignored — Alice's network key is committed so
-# the peer-id is deterministic across all deployments.
+# Added by code-review-graph
+.code-review-graph/
+
+# AI Coding Tool Configs
+.claude/
+.gemini/
+.qoder/
+.opencode.json
+.mcp.json
+
+# Editor and AI Tool Instructions
+.github/
+.vscode/
+.cursorrules
+.windsurfrules
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QODER.md
