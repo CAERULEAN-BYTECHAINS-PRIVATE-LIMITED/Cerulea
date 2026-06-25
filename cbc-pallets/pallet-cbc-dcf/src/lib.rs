@@ -9585,16 +9585,20 @@ pub mod pallet {
                 output_hash,
             };
             
-            // Invoke DVF weight freezing
+            // Invoke DVF weight freezing.
+            // Use the live PoS stake (raw u128 token amount) so that freeze_epoch_weights
+            // can normalize it correctly via VOTE_WEIGHT_SCALE. Using the stale
+            // stake_score field (a u64 truncation of the raw amount) caused validators
+            // like Charlie to receive a weight of 0 whenever stake_score was reset to 0
+            // by run_comprehensive_score_aggregation at the epoch boundary.
             let dvf_input: Vec<(T::AccountId, u128, u128)> = new_active_validators.iter().map(|validator| {
-                let state_opt = ValidatorStates::<T>::get(validator);
-                if let Some(state) = state_opt {
-                    let stake = state.current.stake_score as u128; // Approximated. Can be fine tuned.
-                    let score = state.current.final_score as u128;
-                    (validator.clone(), stake, score)
-                } else {
-                    (validator.clone(), 0, 0)
-                }
+                // Read the real PoS stake directly — this is the same source used by
+                // freeze_epoch_weights and always reflects the validator's actual bond.
+                let stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
+                let score = ValidatorStates::<T>::get(validator)
+                    .map(|s| s.current.final_score as u128)
+                    .unwrap_or(1); // Default to 1 so weight is never 0 for active validators
+                (validator.clone(), stake, score)
             }).collect();
             T::WeightFreezer::freeze_epoch_weights(next_epoch, &dvf_input);
             
@@ -14491,10 +14495,24 @@ pub mod pallet {
             let mut updated_count = 0u32;
             
             for validator in validators.iter() {
-                // Update PoS score from stake
-                let stake = pos::Pallet::<T>::stake(validator);
-                let stake_score = stake.saturated_into::<u64>();
-                
+                // Update PoS score from stake.
+                // The raw stake (e.g. 8_000_000_000_000_000_000) overflows u64, so
+                // we scale it down to a sane u64 range before storing in stake_score.
+                // We use the same VOTE_WEIGHT_SCALE (32_000) reference point as the
+                // DVF pallet so that stake_score reflects relative weight correctly.
+                let raw_stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
+                // Compute total stake across all validators for normalisation.
+                // (recomputed per-validator loop but cheap — only 3 validators on testnet).
+                let total_stake: u128 = validators.iter()
+                    .map(|v| pos::Pallet::<T>::stake(v).saturated_into::<u128>())
+                    .sum();
+                const STAKE_SCORE_SCALE: u128 = 32_000u128;
+                let stake_score: u64 = if total_stake > 0 {
+                    (raw_stake.saturating_mul(STAKE_SCORE_SCALE) / total_stake) as u64
+                } else {
+                    0
+                };
+
                 // Update PoI score from inference results
                 let inference_score = poi::Pallet::<T>::inference_results(validator)
                     .map(|(result, _)| result as u64)

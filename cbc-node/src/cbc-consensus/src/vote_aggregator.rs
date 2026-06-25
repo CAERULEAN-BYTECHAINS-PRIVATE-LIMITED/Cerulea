@@ -14,7 +14,8 @@ use std::time::Duration;
 
 use crate::{
     dvf_gossip::DvfVotePool,
-    dvf_block_import::{FinalityNotifier, DVF_ENGINE_ID},
+    finality::FinalityNotifier,
+    DVF_ENGINE_ID,
     justification_builder::JustificationBuilder,
     metrics::DvfMetrics,
 };

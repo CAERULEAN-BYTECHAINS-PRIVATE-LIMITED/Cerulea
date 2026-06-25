@@ -14,8 +14,6 @@ pub mod validator_set;
 pub mod proposer_factory;
 pub mod import_queue;
 pub mod inherent_providers;
-pub mod block_import;
-
 /// Epoch management
 pub mod epoch_manager;
 
@@ -30,6 +28,9 @@ pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
 /// All DVF signing and keystore lookups must use this type ID.
 pub const CBC_DVF_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cdvf");
 
+/// DVF consensus engine ID
+pub const DVF_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dvfd";
+
 pub mod error;
 
 /// DVF Networking and Gossip
@@ -40,8 +41,6 @@ pub mod vote_creator;
 pub mod vote_aggregator;
 /// DVF Justification Builder
 pub mod justification_builder;
-/// DVF Block Import Integration
-pub mod dvf_block_import;
 /// DVF Configuration Validation
 pub mod dvf_config_validator;
 
@@ -66,8 +65,5 @@ pub use finality::FinalityEngine;
 pub use inherent_providers::CbcInherentDataProviders;
 pub use vote_creator::VoteCreatorService;
 pub use vote_aggregator::{VoteAggregatorService, VotePoolPruningService};
-pub use block_import::CbcBlockImport;
-pub use dvf_block_import::{DvfBlockImport, FinalityNotifier, FinalityNotification};
+pub use finality::{FinalityNotifier, FinalityNotification};
 pub use dvf_config_validator::{DvfConfig, ConfigValidationError};
-
-
