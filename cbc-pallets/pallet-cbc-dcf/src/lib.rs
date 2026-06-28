@@ -15851,6 +15851,35 @@ pub mod pallet {
 
 
     }
+
+    // --- DcfInterface Implementation --- //
+    impl<T: Config> pallet_cbc_poi::DcfInterface<<T as frame_system::Config>::AccountId> for Pallet<T> {
+        fn record_inference_activity(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+            let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
+            
+            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                
+                // Increment inference count
+                state.inference_count = state.inference_count.saturating_add(1);
+                
+                // Update last active block
+                state.last_active_block = current_block;
+                
+                // Update last active epoch
+                state.last_active_epoch = Self::current_epoch();
+                
+                Ok::<(), Error<T>>(())
+            })?;
+            
+            // Also update the separate ValidatorInferenceCount storage for compatibility
+            ValidatorInferenceCount::<T>::mutate(validator, |count| {
+                *count = count.saturating_add(1);
+            });
+            
+            Ok(())
+        }
+    }
 }
 
 // Re-export the pallet for external use
@@ -16144,35 +16173,6 @@ pub struct OffchainPoiScore<T: Config> {
 }
 
 
-
-// --- DcfInterface Implementation --- //
-impl<T: Config> pallet_cbc_poi::DcfInterface<<T as frame_system::Config>::AccountId> for Pallet<T> {
-    fn record_inference_activity(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
-        let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-        
-        ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-            let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-            
-            // Increment inference count
-            state.inference_count = state.inference_count.saturating_add(1);
-            
-            // Update last active block
-            state.last_active_block = current_block;
-            
-            // Update last active epoch
-            state.last_active_epoch = Self::current_epoch();
-            
-            Ok::<(), Error<T>>(())
-        })?;
-        
-        // Also update the separate ValidatorInferenceCount storage for compatibility
-        ValidatorInferenceCount::<T>::mutate(validator, |count| {
-            *count = count.saturating_add(1);
-        });
-        
-        Ok(())
-    }
-}
 
 // --- Tests Module --- //
 #[cfg(test)]
