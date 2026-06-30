@@ -79,7 +79,7 @@ mod tests {
             assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(1)));
 
             // Slash validator
-            assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+            assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
 
             // Verify slashing count
             assert_eq!(PalletCbcPos::slashing_count(1), Some(1));
@@ -94,7 +94,7 @@ mod tests {
 
             // Slash validator multiple times to reach max count
             for _ in 0..3 {
-                assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+                assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
             }
 
             // Verify validator was removed
@@ -109,7 +109,7 @@ mod tests {
         new_test_ext().execute_with(|| {
             // Try to slash non-registered validator
             assert_noop!(
-                PalletCbcPos::slash_validator(&1, 100),
+                PalletCbcPos::slash_validator_stake(&1, 100),
                 Error::<Test>::ValidatorNotRegistered
             );
         });
@@ -144,7 +144,7 @@ mod tests {
             assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(1)));
             
             // Try to slash - should work as it's an internal function
-            assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+            assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
         });
     }
 
@@ -258,15 +258,15 @@ mod tests {
             assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(1)));
             
             // Slash validator and check count
-            assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+            assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
             assert_eq!(PalletCbcPos::slashing_count(1), Some(1));
             
             // Slash again
-            assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+            assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
             assert_eq!(PalletCbcPos::slashing_count(1), Some(2));
             
             // One more slash should remove validator
-            assert_ok!(PalletCbcPos::slash_validator(&1, 100));
+            assert_ok!(PalletCbcPos::slash_validator_stake(&1, 100));
             assert_eq!(PalletCbcPos::validators(1), None);
             assert_eq!(PalletCbcPos::slashing_count(1), None);
         });

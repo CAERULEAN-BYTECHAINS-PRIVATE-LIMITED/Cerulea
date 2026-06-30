@@ -361,7 +361,7 @@ impl_runtime_apis! {
 		}
 
 		fn get_validator_leave_request(validator: AccountId) -> Option<u32> {
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_leave_requests(&validator)
+			pallet_cbc_pos::ValidatorLeaveRequests::<Runtime>::get(&validator)
 		}
 
 		fn validate_expected_author(block_number: u32, actual_author: AccountId) -> bool {
@@ -369,14 +369,14 @@ impl_runtime_apis! {
 		}
 
 		fn get_validator_stake(validator: AccountId) -> u128 {
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_stake(&validator)
+			pallet_cbc_pos::Pallet::<Runtime>::stake(&validator).into()
 		}
 
 		fn get_leave_request_status(validator: AccountId) -> Option<(u32, u32, bool)> {
-			if let Some(request_block) = pallet_cbc_dcf::Pallet::<Runtime>::validator_leave_requests(&validator) {
+			if let Some(request_block) = pallet_cbc_pos::ValidatorLeaveRequests::<Runtime>::get(&validator) {
 				use sp_runtime::traits::SaturatedConversion;
 				let current_block = frame_system::Pallet::<Runtime>::block_number().saturated_into::<u32>();
-				let cooldown_period: u32 = <Runtime as pallet_cbc_dcf::Config>::LeaveCooldown::get();
+				let cooldown_period: u32 = <Runtime as pallet_cbc_pos::Config>::LeaveCooldown::get();
 				let expires_at = request_block + cooldown_period;
 				let can_execute = current_block >= expires_at;
 				Some((request_block, expires_at, can_execute))
@@ -388,7 +388,7 @@ impl_runtime_apis! {
 		fn get_epoch_manager_config() -> (u64, u64, u32, u32, u32, u32, u64, u32, u32, u32, u32) {
 			(
 				<Runtime as pallet_cbc_dcf::Config>::MinPerformanceScore::get(),
-				<Runtime as pallet_cbc_dcf::Config>::HighPerformanceScore::get(),
+				<Runtime as pallet_cbc_pos::Config>::HighPerformanceScore::get(),
 				<Runtime as pallet_cbc_dcf::Config>::MinParticipationRate::get(),
 				<Runtime as pallet_cbc_dcf::Config>::HighParticipationRate::get(),
 				<Runtime as pallet_cbc_dcf::Config>::MaxMissedBlocks::get(),
@@ -396,7 +396,7 @@ impl_runtime_apis! {
 				<Runtime as pallet_cbc_dcf::Config>::HealthyValidatorScore::get(),
 				<Runtime as pallet_cbc_dcf::Config>::HealthyParticipationRate::get(),
 				<Runtime as pallet_cbc_dcf::Config>::HealthyMissedBlocksMax::get(),
-				<Runtime as pallet_cbc_dcf::Config>::LeaveCooldown::get(),
+				<Runtime as pallet_cbc_pos::Config>::LeaveCooldown::get(),
 				<Runtime as pallet_cbc_dcf::Config>::TopValidatorsDisplayCount::get()
 			)
 		}

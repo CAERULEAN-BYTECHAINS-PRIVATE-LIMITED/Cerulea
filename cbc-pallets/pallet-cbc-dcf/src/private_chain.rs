@@ -5,7 +5,6 @@
 
 use super::*;
 use frame_support::{
-    traits::Get,
     BoundedBTreeSet,
 };
 use sp_core::ConstU32;
@@ -121,7 +120,7 @@ impl<T: Config> Pallet<T> {
         initial_allowlist: Vec<T::AccountId>,
         allow_updates: bool,
     ) -> Result<(), Error<T>> {
-        if initial_allowlist.len() > <T as pallet::Config>::MaxValidators::get() as usize {
+        if initial_allowlist.len() > <T as pos::Config>::MaxValidators::get() as usize {
             return Err(Error::<T>::TooManyValidators);
         }
         
@@ -134,7 +133,7 @@ impl<T: Config> Pallet<T> {
             enabled: true,
             validator_allowlist,
             allow_allowlist_updates: allow_updates,
-            max_allowlist_size: <T as pallet::Config>::MaxValidators::get(),
+            max_allowlist_size: <T as pos::Config>::MaxValidators::get(),
         };
         
         PrivateChainConfigStorage::<T>::put(config);

@@ -383,193 +383,14 @@ sp_api::decl_runtime_apis! {
         fn report_author_mismatch(block_number: u32, expected: Option<AccountId>, actual: AccountId) -> Result<(), sp_runtime::DispatchError>;
         fn report_successful_block_authorship(block_number: u32, author: AccountId) -> Result<(), sp_runtime::DispatchError>;
         fn report_missed_block(block_number: u32, expected_author: AccountId) -> Result<(), sp_runtime::DispatchError>;
-        
-        /// Get the complete governance configuration with parameter ranges and current values.
-        /// 
-        /// This API provides access to the full parameter governance configuration including:
-        /// - All configurable DCF parameters with their current values
-        /// - Minimum and maximum allowed values for each parameter
-        /// - Parameter validation rules and constraints
-        /// 
-        /// Used by:
-        /// - Governance interfaces to display current parameter values
-        /// - Validation tools to check parameter ranges
-        /// - Monitoring systems to track parameter changes
-        /// - Administrative tools for parameter management
-        /// 
-        /// Returns a comprehensive snapshot of all governance-controlled parameters
-        /// with their safety rails and current active values.
-        fn get_governance_config() -> Vec<u8>; // Encoded GovernanceConfig for type flexibility
-        
-        /// Get the current value of a specific DCF parameter.
-        /// 
-        /// This API allows querying individual parameter values without retrieving
-        /// the entire governance configuration. Useful for:
-        /// - Targeted parameter queries
-        /// - Efficient parameter monitoring
-        /// - Parameter-specific validation
-        /// - Lightweight parameter access
-        /// 
-        /// # Parameters
-        /// - `parameter`: The specific parameter type to query
-        /// 
-        /// # Returns
-        /// - `Some(Vec<u8>)`: Encoded current value if parameter exists
-        /// - `None`: If parameter type is invalid or not found
-        fn get_parameter_value(parameter: Vec<u8>) -> Option<Vec<u8>>; // Encoded ParameterType input, encoded value output
-        
-        /// Validate if a parameter value would be accepted by the governance system.
-        /// 
-        /// This API allows pre-validation of parameter changes without actually
-        /// applying them. Useful for:
-        /// - Governance proposal validation
-        /// - Parameter change simulation
-        /// - Range checking before submission
-        /// - User interface validation feedback
-        /// 
-        /// # Parameters
-        /// - `parameter`: The parameter type to validate (encoded)
-        /// - `value`: The proposed new value (encoded)
-        /// 
-        /// # Returns
-        /// - `true`: If the value would be accepted
-        /// - `false`: If the value would be rejected
+        fn get_governance_config() -> Vec<u8>;
+        fn get_parameter_value(parameter: Vec<u8>) -> Option<Vec<u8>>;
         fn validate_parameter_value(parameter: Vec<u8>, value: Vec<u8>) -> bool;
-        
-        /// Get the latest invariant report generated at the most recent epoch boundary.
-        /// 
-        /// This API provides access to the most recent comprehensive invariant validation
-        /// report, which includes all detected violations and their severity levels.
-        /// The report is generated automatically during each epoch transition.
-        /// 
-        /// # Returns
-        /// - `Some(Vec<u8>)`: Encoded InvariantReport if available
-        /// - `None`: If no report has been generated yet
-        /// 
-        /// # Usage
-        /// - System health monitoring and alerting
-        /// - Automated incident response systems
-        /// - Compliance and audit reporting
-        /// - Debugging system state issues
         fn get_latest_invariant_report() -> Option<Vec<u8>>;
-        
-        /// Get an invariant report for a specific epoch.
-        /// 
-        /// This API allows querying historical invariant reports to analyze
-        /// system health trends and investigate past violations.
-        /// 
-        /// # Parameters
-        /// - `epoch`: The epoch number to query
-        /// 
-        /// # Returns
-        /// - `Some(Vec<u8>)`: Encoded InvariantReport if found
-        /// - `None`: If no report exists for the specified epoch
-        /// 
-        /// # Usage
-        /// - Historical analysis of system health
-        /// - Trend analysis and pattern detection
-        /// - Forensic analysis of past violations
-        /// - Compliance reporting and auditing
         fn get_invariant_report_for_epoch(epoch: u32) -> Option<Vec<u8>>;
-        
-        /// Check if there are any active invariant violations.
-        /// 
-        /// This API provides a quick health check by returning whether
-        /// the latest invariant report contains any violations.
-        /// 
-        /// # Returns
-        /// - `true`: If there are active violations
-        /// - `false`: If no violations are detected
-        /// 
-        /// # Usage
-        /// - Quick health checks
-        /// - Monitoring system status indicators
-        /// - Automated alerting triggers
-        /// - Dashboard health indicators
         fn has_invariant_violations() -> bool;
-
-        /// Get comprehensive system metrics for operational monitoring.
-        /// 
-        /// This API provides aggregated metrics about the DCF system state in a
-        /// single compact call, reducing RPC fan-out and providing efficient access
-        /// to all essential monitoring information.
-        /// 
-        /// The metrics include:
-        /// - Validator counts and capacity information
-        /// - Economic totals (stakes, slashing, rewards)
-        /// - Epoch progress and timing information
-        /// - System health and invariant status
-        /// - Performance indicators and efficiency metrics
-        /// 
-        /// All metrics reflect the current epoch state and are updated automatically
-        /// during epoch transitions to ensure accuracy and consistency.
-        /// 
-        /// # Returns
-        /// - `Vec<u8>`: Encoded SystemMetrics structure containing all system metrics
-        /// 
-        /// # Usage
-        /// - Monitoring dashboards and operational visibility
-        /// - System health checks and alerting
-        /// - Performance analysis and capacity planning
-        /// - Automated monitoring and reporting systems
-        /// 
-        /// # Performance
-        /// - Single RPC call provides comprehensive system overview
-        /// - Constant-time access to cached metrics
-        /// - Minimal computational overhead
-        /// - Efficient for high-frequency monitoring
         fn get_system_metrics() -> Vec<u8>;
-
-        /// Get detailed system performance indicators.
-        /// 
-        /// This API provides comprehensive performance metrics that complement
-        /// the core system metrics, focusing on operational efficiency and
-        /// network performance characteristics.
-        /// 
-        /// Performance indicators include:
-        /// - Block production timing and efficiency metrics
-        /// - Validator score distribution and competition analysis
-        /// - Consensus participation rates and network health
-        /// - Governance activity levels and validator churn rates
-        /// 
-        /// These metrics are particularly useful for performance optimization,
-        /// network analysis, and operational efficiency assessment.
-        /// 
-        /// # Returns
-        /// - `Vec<u8>`: Encoded SystemPerformanceIndicators structure
-        /// 
-        /// # Usage
-        /// - Performance trend analysis and optimization
-        /// - Network efficiency monitoring and assessment
-        /// - Capacity planning and scaling decisions
-        /// - Operational efficiency evaluation
-        /// 
-        /// # Performance
-        /// - Constant-time access to cached indicators
-        /// - Updated during epoch transitions
-        /// - Minimal computational overhead
-        /// - Efficient for performance monitoring systems
         fn get_performance_indicators() -> Vec<u8>;
-
-        /// Get the timestamp when metrics were last updated.
-        /// 
-        /// This API returns the block number when the system metrics were last
-        /// updated, enabling cache invalidation and freshness validation for
-        /// external monitoring systems.
-        /// 
-        /// # Returns
-        /// - `u32`: Block number of the last metrics update
-        /// 
-        /// # Usage
-        /// - Cache invalidation in external monitoring systems
-        /// - Determining if cached metrics need refreshing
-        /// - Monitoring metrics update frequency and reliability
-        /// - Performance optimization for metric consumers
-        /// 
-        /// # Performance
-        /// - Single storage read operation
-        /// - Constant-time execution
-        /// - Minimal overhead for cache validation
         fn get_metrics_last_updated() -> u32;
     }
 }
@@ -849,13 +670,13 @@ pub mod pallet {
         /// Block number where epoch transition occurred
         pub transition_block: u32,
         /// Final active validator set after processing
-        pub active_validators: BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+        pub active_validators: BoundedVec<T::AccountId, <T as pos::Config>::MaxValidators>,
         /// Validators added during this epoch transition
-        pub added_validators: BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+        pub added_validators: BoundedVec<T::AccountId, <T as pos::Config>::MaxValidators>,
         /// Validators removed during this epoch transition
-        pub removed_validators: BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+        pub removed_validators: BoundedVec<T::AccountId, <T as pos::Config>::MaxValidators>,
         /// Final scores for all validators after processing
-        pub validator_scores: BoundedVec<(T::AccountId, u64), <T as Config>::MaxValidators>,
+        pub validator_scores: BoundedVec<(T::AccountId, u64), <T as pos::Config>::MaxValidators>,
         /// Author sequence generated for the new epoch
         pub author_sequence: BoundedVec<T::AccountId, ConstU32<1000>>,
         /// Randomness seed used for this epoch
@@ -1618,11 +1439,11 @@ pub mod pallet {
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
     pub struct EpochHistory<T: Config> {
         pub epoch_number: u32,
-        pub active_validators: BoundedVec<<T as frame_system::Config>::AccountId, <T as Config>::MaxValidators>,
+        pub active_validators: BoundedVec<<T as frame_system::Config>::AccountId, <T as pos::Config>::MaxValidators>,
         pub score_snapshot: BoundedVec
-            <(<T as frame_system::Config>::AccountId, u64), <T as Config>::MaxValidators>,
+            <(<T as frame_system::Config>::AccountId, u64), <T as pos::Config>::MaxValidators>,
         pub inference_summary: BoundedVec
-            <(<T as frame_system::Config>::AccountId, Option<u64>), <T as Config>::MaxValidators>,
+            <(<T as frame_system::Config>::AccountId, Option<u64>), <T as pos::Config>::MaxValidators>,
     }
 
     /// Non-generic struct for runtime API (AccountId = T::AccountId, all BoundedVecs use configurable size).
@@ -1953,7 +1774,7 @@ pub mod pallet {
 
     
     #[pallet::config]
-    pub trait Config: frame_system::Config + pos::Config + poi::Config + TypeInfo + fmt::Debug {
+    pub trait Config: frame_system::Config + pos::Config<Balance = <Self as pallet::Config>::Balance> + poi::Config + TypeInfo + fmt::Debug {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         
         /// Interface to notify DVF of epoch transitions and weights
@@ -1963,27 +1784,7 @@ pub mod pallet {
         /// DCF progressive finality will not advance past this value.
         type DvfFinalizedBlockProvider: crate::traits::DvfFinalizedBlockProvider;
         
-        // Validator set configuration
-        /// Maximum number of validators that can be registered in the network.
-        /// 
-        /// This limit prevents unbounded growth of the validator set which could
-        /// impact network performance and storage requirements. When this limit
-        /// is reached, new validators cannot join until existing ones leave.
-        /// 
-        /// Typical values: 100-1000 depending on network requirements.
-        #[pallet::constant]
-        type MaxValidators: Get<u32>;
-        
-        /// Minimum number of active validators required for network operation.
-        /// 
-        /// The network will not function properly if the active validator count
-        /// falls below this threshold. This ensures sufficient decentralization
-        /// and consensus security at all times.
-        /// 
-        /// Should be set to a value that maintains network security while
-        /// allowing for validator churn and temporary outages.
-        #[pallet::constant]
-        type MinActiveValidators: Get<u32>;
+        // MaxValidators and MinActiveValidators are inherited from pos::Config
         
         /// Maximum number of epoch history records to maintain in storage.
         /// 
@@ -2019,16 +1820,7 @@ pub mod pallet {
         #[pallet::constant]
         type DefaultPoiWeight: Get<u64>;
         
-        /// Minimum score threshold for validator participation in consensus.
-        /// 
-        /// Validators with scores below this threshold are automatically removed
-        /// from the active set and cannot participate in block production until
-        /// their performance improves above this level.
-        /// 
-        /// Prevents low-performing validators from degrading network quality.
-        /// Typical values: 10-50 depending on scoring scale.
-        #[pallet::constant]
-        type MinValidatorScore: Get<u32>;
+        // MinValidatorScore is inherited from pos::Config
         
         /// Maximum possible score a validator can achieve.
         /// 
@@ -2040,16 +1832,7 @@ pub mod pallet {
         #[pallet::constant]
         type MaxValidatorScore: Get<u64>;
         
-        // Score decay and activity parameters
-        /// Percentage of score lost per epoch for inactive validators.
-        /// 
-        /// Inactive validators gradually lose score to encourage active participation
-        /// and prevent dormant validators from maintaining high rankings indefinitely.
-        /// Applied as: new_score = old_score * (100 - decay_percent) / 100
-        /// 
-        /// Typical values: 5-20 (5%-20% decay per epoch of inactivity).
-        #[pallet::constant]
-        type ValidatorScoreDecay: Get<u32>;
+        // ValidatorScoreDecay is inherited from pos::Config
         
         /// Maximum number of consecutive epochs a validator can be inactive.
         /// 
@@ -2121,15 +1904,7 @@ pub mod pallet {
         #[pallet::constant]
         type OffchainWorkerInterval: Get<u32>; // blocks
         
-        /// Cooldown period in blocks before validators can leave after requesting.
-        /// 
-        /// Prevents rapid validator set changes that could destabilize consensus
-        /// by requiring validators to continue participating for a minimum period
-        /// after requesting to leave. Provides time for orderly transitions.
-        /// 
-        /// Typical values: 1000-10000 blocks (2.8-28 hours at 6s block time).
-        #[pallet::constant]
-        type LeaveCooldown: Get<u32>; // blocks
+        // LeaveCooldown is inherited from pos::Config
         
         /// Number of blocks per epoch for validator set management and scoring.
         /// 
@@ -2250,106 +2025,7 @@ pub mod pallet {
         #[pallet::constant]
         type InferenceConfidenceThresholdHigh: Get<u32>;
         
-        // Governance and slashing parameters
-        /// Maximum score penalty that can be applied through slashing actions.
-        /// 
-        /// Caps the score reduction from slashing to prevent excessive punishment
-        /// that could permanently damage a validator's standing. Provides a
-        /// balance between accountability and recovery opportunity.
-        /// 
-        /// Typical values: 50-200 score points maximum penalty.
-        #[pallet::constant]
-        type MaxSlashPenalty: Get<u64>;
-        
-        /// Maximum score boost that can be applied through reward actions.
-        /// 
-        /// Caps the score increase from rewards to prevent excessive inflation
-        /// of validator scores and maintain competitive balance. Ensures rewards
-        /// are meaningful but not game-breaking.
-        /// 
-        /// Typical values: 20-100 score points maximum boost.
-        #[pallet::constant]
-        type MaxRewardBoost: Get<u64>;
-        
-        /// Divisor for calculating score penalties from slashed stake amounts.
-        /// 
-        /// Used in: score_penalty = slashed_amount / divisor
-        /// Higher divisors result in smaller score penalties for the same
-        /// slashed amount, while lower divisors increase the score impact.
-        /// 
-        /// Typical values: 1000-10000 (meaning 1 score point per 1000-10000 units slashed).
-        #[pallet::constant]
-        type SlashPenaltyDivisor: Get<u64>;
-        
-        /// Divisor for calculating score boosts from reward amounts.
-        /// 
-        /// Used in: score_boost = reward_amount / divisor
-        /// Higher divisors result in smaller score boosts for the same
-        /// reward amount, while lower divisors increase the score impact.
-        /// 
-        /// Typical values: 1000-10000 (meaning 1 score point per 1000-10000 units rewarded).
-        #[pallet::constant]
-        type RewardBoostDivisor: Get<u64>;
-        
-        /// Percentage of validator stake to slash for serious misbehavior.
-        /// 
-        /// Applied when validators are found guilty of malicious behavior,
-        /// consensus violations, or other serious infractions. Expressed
-        /// as a percentage (0-100) of the validator's total staked amount.
-        /// 
-        /// Typical values: 5-30 (5%-30% of stake slashed).
-        #[pallet::constant]
-        type SlashPercent: Get<u32>; // Percentage of stake to slash (0-100)
-        
-        /// Default reward amount for validators in governance proposals.
-        /// 
-        /// Used when reward proposals don't specify a custom amount,
-        /// providing a standard reward value for validator incentives.
-        /// Should be meaningful enough to encourage good behavior.
-        /// 
-        /// Typical values: 1000-100000 units depending on token economics.
-        #[pallet::constant]
-        type ValidatorReward: Get<<Self as Config>::Balance>; // Default reward amount for validators
-        
-        /// Maximum slashing amount per epoch across all validators.
-        /// 
-        /// This bound prevents excessive slashing in a single epoch that could
-        /// destabilize the network or drain the treasury. It provides a safety
-        /// limit on total slashing activity per epoch.
-        /// 
-        /// Typical values: 10-50% of total staked amount per epoch.
-        #[pallet::constant]
-        type MaxSlashPerEpoch: Get<<Self as Config>::Balance>;
-        
-        /// Maximum slashing amount per individual validator per epoch.
-        /// 
-        /// This bound prevents excessive slashing of individual validators
-        /// that could lead to unfair penalties or gaming attacks. It ensures
-        /// slashing remains proportional and fair.
-        /// 
-        /// Typical values: 50-100% of validator's stake per epoch.
-        #[pallet::constant]
-        type MaxSlashPerValidator: Get<<Self as Config>::Balance>;
-        
-        /// Maximum reward amount per epoch across all validators.
-        /// 
-        /// This bound prevents excessive reward distribution that could
-        /// lead to inflation or treasury depletion. It provides controlled
-        /// reward distribution limits.
-        /// 
-        /// Typical values: 5-20% of total staked amount per epoch.
-        #[pallet::constant]
-        type MaxRewardPerEpoch: Get<<Self as Config>::Balance>;
-        
-        /// Maximum reward amount per individual validator per epoch.
-        /// 
-        /// This bound prevents excessive rewards to individual validators
-        /// that could create unfair advantages or gaming opportunities.
-        /// It ensures balanced reward distribution.
-        /// 
-        /// Typical values: 10-50% of validator's stake per epoch.
-        #[pallet::constant]
-        type MaxRewardPerValidator: Get<<Self as Config>::Balance>;
+        // Slashing and reward parameters are inherited from pos::Config
         
         // Validator metadata limits
         /// Maximum length in bytes for validator display names.
@@ -2500,15 +2176,7 @@ pub mod pallet {
         #[pallet::constant]
         type MinPerformanceScore: Get<u64>; // Minimum score for good performance (30)
         
-        /// Performance score threshold for high-performance validator recognition.
-        /// 
-        /// Validators with scores above this threshold are eligible for enhanced
-        /// rewards, priority treatment, and recognition as high-quality network
-        /// participants. Encourages excellence in validator operations.
-        /// 
-        /// Typical values: 70-90 score points.
-        #[pallet::constant]
-        type HighPerformanceScore: Get<u64>; // Score for high performance rewards (80)
+        // HighPerformanceScore is inherited from pos::Config
         
         /// Minimum participation rate percentage for acceptable validator behavior.
         /// 
@@ -2746,15 +2414,7 @@ pub mod pallet {
         #[pallet::constant]
         type HighPerformancePercentage: Get<u32>; // 80% for high performance threshold
         
-        /// Percentage of validators eligible for top performer rewards.
-        /// 
-        /// Determines what fraction of the validator set receives the highest
-        /// tier of rewards and recognition. Smaller percentages make top performer
-        /// status more exclusive and valuable.
-        /// 
-        /// Typical values: 10-30 (10%-30% of validators).
-        #[pallet::constant]
-        type TopPerformerPercentage: Get<u32>; // 20% for top performer rewards
+        // TopPerformerPercentage is inherited from pos::Config
         
         // Reward distribution percentages
         /// Percentage of total reward pool allocated to base rewards for all validators.
@@ -2787,21 +2447,7 @@ pub mod pallet {
         #[pallet::constant]
         type TopPerformerRewardPercentage: Get<u32>; // Additional reward for top performers
         
-        // Stake and balance configuration
-        /// Minimum stake amount required for validator participation.
-        /// 
-        /// Sets the economic barrier to entry for becoming a validator, ensuring
-        /// participants have sufficient "skin in the game" for network security.
-        /// Validators must reserve at least this amount to join and maintain
-        /// their position in the validator set.
-        /// 
-        /// The stake is reserved (locked) from the validator's balance and can
-        /// be slashed for misbehavior or poor performance. It is unreserved
-        /// when the validator leaves after completing the cooldown period.
-        /// 
-        /// Typical values: 1000-1000000 units depending on token economics.
-        #[pallet::constant]
-        type MinStake: Get<<Self as Config>::Balance>;
+        // MinStake is inherited from pos::Config
 
         // Trust score calculation weights
         /// Weight for uptime component in trust score calculation.
@@ -2862,7 +2508,7 @@ pub mod pallet {
         type AuthorMismatchErrorCode: Get<u8>;
 
         type Balance: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + MaxEncodedLen + serde::Serialize + for<'de> serde::Deserialize<'de>;
-        type Currency: Currency<Self::AccountId, Balance = <Self as pallet::Config>::Balance> + ReservableCurrency<Self::AccountId>;
+        // Currency is inherited from pos::Config
         type WeightInfo: WeightInfo;
     }
 
@@ -2871,6 +2517,17 @@ pub mod pallet {
 
     // Type alias to resolve Balance type ambiguity
     type BalanceOf<T> = <T as pallet::Config>::Balance;
+
+    type MaxValidatorsOf<T> = <T as pos::Config>::MaxValidators;
+    type MinActiveValidatorsOf<T> = <T as pos::Config>::MinActiveValidators;
+    type MinStakeOf<T> = <T as pos::Config>::MinStake;
+    type ValidatorRewardOf<T> = <T as pos::Config>::ValidatorReward;
+    type LeaveCooldownOf<T> = <T as pos::Config>::LeaveCooldown;
+    type SlashPercentOf<T> = <T as pos::Config>::SlashPercent;
+    type ValidatorScoreDecayOf<T> = <T as pos::Config>::ValidatorScoreDecay;
+    type MinValidatorScoreOf<T> = <T as pos::Config>::MinValidatorScore;
+    type HighPerformanceScoreOf<T> = <T as pos::Config>::HighPerformanceScore;
+    type TopPerformerPercentageOf<T> = <T as pos::Config>::TopPerformerPercentage;
 
     /// Stores state for each validator.
     /// Comprehensive state tracking for each validator in the network.
@@ -2947,7 +2604,7 @@ pub mod pallet {
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of all registered validator accounts
     #[pallet::storage]
     #[pallet::getter(fn validator_set)]
-    pub type ValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, <T as Config>::MaxValidators>, ValueQuery>;
+    pub type ValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, MaxValidatorsOf<T>>, ValueQuery>;
 
     /// Configuration parameters for epoch management and transitions.
     /// 
@@ -3063,7 +2720,7 @@ pub mod pallet {
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of currently active validator accounts
     #[pallet::storage]
     #[pallet::getter(fn active_validators)]
-    pub type ActiveValidators<T: Config> = StorageValue<_, BoundedVec<T::AccountId, <T as Config>::MaxValidators>, ValueQuery>;
+    pub type ActiveValidators<T: Config> = StorageValue<_, BoundedVec<T::AccountId, MaxValidatorsOf<T>>, ValueQuery>;
 
     /// Flag indicating whether governance mode is currently enabled.
     /// 
@@ -3192,23 +2849,51 @@ pub mod pallet {
         Leave,
     }
 
-    /// Data structure for inference data collected by off-chain workers
+    /// Data structure for inference data collected by off-chain workers.
+    /// 
+    /// This structure encapsulates all information related to AI/ML inference
+    /// operations performed by validators as part of the Proof-of-Inference
+    /// consensus mechanism. The data is collected off-chain and submitted
+    /// to the blockchain for validation and scoring.
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
     pub struct InferenceData<T: Config> {
+        /// The validator account that performed the inference operation
         pub validator: T::AccountId,
+        
+        /// The epoch number when the inference was performed
         pub epoch: u32,
+        
+        /// The numerical result of the inference computation
         pub inference_result: u32,
+        
+        /// Confidence score indicating the reliability of the inference result (0-100)
         pub confidence_score: u32,
+        
+        /// Unix timestamp in milliseconds when the inference was completed
         pub timestamp: u64,
+        
+        /// List of data sources used for the inference (URLs, hashes, etc.)
         pub data_sources: Vec<Vec<u8>>,
     }
 
-    /// Off-chain storage structure for PoI scores
+    /// Off-chain storage structure for computed Proof-of-Inference scores.
+    /// 
+    /// This structure stores PoI scores that have been computed off-chain
+    /// and are ready to be submitted to the blockchain. Off-chain computation
+    /// allows for complex AI/ML scoring algorithms that would be too expensive
+    /// to run directly on-chain.
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
     pub struct OffchainPoiScore<T: Config> {
+        /// The validator account whose PoI score was computed
         pub validator: T::AccountId,
+        
+        /// The computed PoI score value
         pub score: u64,
+        
+        /// The block number when the score was computed
         pub block_number: u32,
+        
+        /// Unix timestamp in milliseconds when the score was computed
         pub timestamp: u64,
     }
 
@@ -3538,57 +3223,7 @@ pub mod pallet {
     /// - API responses for validator information
     /// 
     /// The value is None for validators who joined before this tracking
-    /// was implemented, and Some(timestamp) for all validators who joined
-    /// after the feature was activated.
-    /// 
-    /// # Key: T::AccountId - Validator account
-    /// # Value: u64 - Join timestamp in milliseconds since Unix epoch (optional)
-    #[pallet::storage]
-    #[pallet::getter(fn validator_join_time)]
-    pub type ValidatorJoinTime<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u64, // Timestamp in milliseconds
-        OptionQuery,
-    >;
-
-    /// Pending leave requests from validators with the block number when requested.
-    /// 
-    /// Tracks validators who have requested to leave the validator set but are
-    /// still in a cooldown period. The stored block number indicates when the
-    /// leave request was submitted, which is used to calculate when the cooldown
-    /// period expires and the validator can actually leave.
-    /// 
-    /// The leave process works as follows:
-    /// 1. Validator calls `leave_validators` or `leave_validator_set`
-    /// 2. Request is recorded with current block number
-    /// 3. Validator enters cooldown period (T::LeaveCooldown blocks)
-    /// 4. After cooldown, validator is automatically removed and stake unreserved
-    /// 5. Entry is removed from this storage
-    /// 
-    /// During the cooldown period:
-    /// - Validator remains active and must continue participating
-    /// - Stake remains reserved and locked
-    /// - Request can be cancelled via `cancel_leave_request`
-    /// - Validator cannot submit new leave requests
-    /// 
-    /// Used for:
-    /// - Enforcing cooldown periods to prevent rapid validator set changes
-    /// - Calculating when leave requests can be executed
-    /// - Preventing abuse of the leave mechanism
-    /// 
-    /// # Key: T::AccountId - Validator account requesting to leave
-    /// # Value: u32 - Block number when the leave request was submitted
-    #[pallet::storage]
-    #[pallet::getter(fn validator_leave_requests)]
-    pub type ValidatorLeaveRequests<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32, // Block number when leave request was made
-        OptionQuery,
-    >;
+    // ValidatorJoinTime and ValidatorLeaveRequests moved to pallet-cbc-pos.
 
     /// Block number of the most recently finalized block in the network.
     /// 
@@ -3699,73 +3334,7 @@ pub mod pallet {
         OptionQuery,
     >;
 
-    /// Reserved balance amounts staked by each validator for network participation.
-    ///
-    /// Tracks the amount of tokens each validator has locked/reserved as stake
-    /// to participate in the consensus mechanism. This stake serves multiple purposes:
-    /// - Economic security through slashing risk
-    /// - Proof-of-Stake scoring and validator ranking
-    /// - Minimum participation requirements enforcement
-    /// - Incentive alignment with network health
-    ///
-    /// Stake amounts are:
-    /// - Reserved from the validator's free balance when joining
-    /// - Used in PoS score calculations for consensus weight
-    /// - Subject to slashing for misbehavior or poor performance
-    /// - Unreserved when the validator leaves (after cooldown)
-    /// - Adjustable through `increase_validator_stake` and `decrease_validator_stake`
-    ///
-    /// Minimum stake requirements are enforced through `T::MinStake` configuration.
-    /// Validators with insufficient stake are automatically removed from the active set.
-    ///
-    /// The reserved balance cannot be spent or transferred while staked,
-    /// ensuring validators have "skin in the game" for network security.
-    ///
-    /// # Key: T::AccountId - Validator account
-    /// # Value: T::Balance - Amount of tokens reserved as stake
-    #[pallet::storage]
-    #[pallet::getter(fn validator_stake)]
-    pub type ValidatorStake<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        <T as pallet::Config>::Balance,
-        ValueQuery,
-    >;
-
-    /// Tracks validators who recently left and are in cooldown period to prevent immediate re-entry.
-    ///
-    /// This storage prevents validators from gaming the system by leaving and immediately
-    /// rejoining to reset their performance metrics or avoid penalties. It enforces a
-    /// mandatory cooldown period during which validators cannot rejoin the network.
-    ///
-    /// The cooldown mechanism works as follows:
-    /// 1. When a validator completes the leave process (after LeaveCooldown expires)
-    /// 2. Their account is added to this storage with the block number when they left
-    /// 3. During validator selection and proposal generation, accounts in this storage are excluded
-    /// 4. After an additional cooldown period (T::LeaveCooldown), the entry is automatically removed
-    /// 5. Only then can the validator attempt to rejoin the network
-    ///
-    /// This prevents:
-    /// - Rapid validator set changes that could destabilize consensus
-    /// - Gaming of performance metrics by leaving and rejoining
-    /// - Circumvention of penalties through validator cycling
-    /// - Sybil attacks through rapid validator rotation
-    ///
-    /// The storage is automatically cleaned up during on_initialize() processing
-    /// to remove expired cooldown entries and maintain storage efficiency.
-    ///
-    /// # Key: T::AccountId - Validator account that recently left
-    /// # Value: u32 - Block number when the validator completed the leave process
-    #[pallet::storage]
-    #[pallet::getter(fn recently_removed_validators)]
-    pub type RecentlyRemovedValidators<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32, // Block number when validator left
-        OptionQuery,
-    >;
+    // ValidatorStake and RecentlyRemovedValidators moved to pallet-cbc-pos.
 
     /// Current trust scores for all validators in the network.
     ///
@@ -3917,33 +3486,7 @@ pub mod pallet {
     #[pallet::getter(fn latest_invariant_report)]
     pub type LatestInvariantReport<T: Config> = StorageValue<_, InvariantReport<T>, OptionQuery>;
 
-    /// Total amount slashed across all validators in the current epoch.
-    ///
-    /// This storage item tracks the cumulative slashing amount for the current epoch
-    /// to enforce per-epoch slashing bounds. It's reset to zero at the beginning of
-    /// each epoch and incremented with each slashing operation.
-    ///
-    /// Used to prevent excessive slashing that could destabilize the network by
-    /// enforcing the MaxSlashPerEpoch limit.
-    ///
-    /// # Value: T::Balance - Total slashed amount in current epoch
-    #[pallet::storage]
-    #[pallet::getter(fn epoch_total_slashed)]
-    pub type EpochTotalSlashed<T: Config> = StorageValue<_, <T as Config>::Balance, ValueQuery>;
-
-    /// Total amount rewarded across all validators in the current epoch.
-    ///
-    /// This storage item tracks the cumulative reward amount for the current epoch
-    /// to enforce per-epoch reward bounds. It's reset to zero at the beginning of
-    /// each epoch and incremented with each reward operation.
-    ///
-    /// Used to prevent excessive reward distribution that could lead to inflation
-    /// by enforcing the MaxRewardPerEpoch limit.
-    ///
-    /// # Value: T::Balance - Total rewarded amount in current epoch
-    #[pallet::storage]
-    #[pallet::getter(fn epoch_total_rewarded)]
-    pub type EpochTotalRewarded<T: Config> = StorageValue<_, <T as Config>::Balance, ValueQuery>;
+    // EpochTotalSlashed and EpochTotalRewarded moved to pallet-cbc-pos.
 
     /// Storage version for the DCF pallet.
     /// 
@@ -4014,39 +3557,7 @@ pub mod pallet {
         _, Blake2_128Concat, T::AccountId, Blake2_128Concat, DispatchableType, u32, OptionQuery
     >;
 
-    /// Amount slashed for each validator in the current epoch.
-    ///
-    /// This storage map tracks individual validator slashing amounts for the current
-    /// epoch to enforce per-validator slashing bounds. It's cleared at the beginning
-    /// of each epoch and updated with each slashing operation.
-    ///
-    /// Used to prevent excessive slashing of individual validators by enforcing
-    /// the MaxSlashPerValidator limit.
-    ///
-    /// # Key: T::AccountId - Validator account
-    /// # Value: T::Balance - Amount slashed for this validator in current epoch
-    #[pallet::storage]
-    #[pallet::getter(fn validator_epoch_slashed)]
-    pub type ValidatorEpochSlashed<T: Config> = StorageMap<
-        _, Blake2_128Concat, T::AccountId, <T as Config>::Balance, ValueQuery
-    >;
-
-    /// Amount rewarded for each validator in the current epoch.
-    ///
-    /// This storage map tracks individual validator reward amounts for the current
-    /// epoch to enforce per-validator reward bounds. It's cleared at the beginning
-    /// of each epoch and updated with each reward operation.
-    ///
-    /// Used to prevent excessive rewards to individual validators by enforcing
-    /// the MaxRewardPerValidator limit.
-    ///
-    /// # Key: T::AccountId - Validator account
-    /// # Value: T::Balance - Amount rewarded to this validator in current epoch
-    #[pallet::storage]
-    #[pallet::getter(fn validator_epoch_rewarded)]
-    pub type ValidatorEpochRewarded<T: Config> = StorageMap<
-        _, Blake2_128Concat, T::AccountId, <T as Config>::Balance, ValueQuery
-    >;
+    // ValidatorEpochSlashed and ValidatorEpochRewarded moved to pallet-cbc-pos.
 
     /// Deterministic epoch processing engine state.
     ///
@@ -6742,16 +6253,16 @@ pub mod pallet {
                 match &prop.action {
                     ProposalAction::Slash { validator, amount } => {
                         // Implement actual slashing logic
-                        let _ = Self::execute_slash_validator(validator, *amount);
+                        let _ = pos::Pallet::<T>::execute_slash_validator(validator, *amount);
                     }
                     ProposalAction::Reward { validator, amount } => {
                         // Implement actual reward logic
-                        let _ = Self::execute_reward_validator(validator, *amount);
+                        let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
                     }
                     ProposalAction::RewardMultiple { validators, amount } => {
                         // Reward multiple validators with the same amount
                         for validator in validators.iter() {
-                            let _ = Self::execute_reward_validator(validator, *amount);
+                            let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
                         }
                         log::info!("Rewarded {} validators with amount {:?} each", validators.len(), amount);
                     }
@@ -6879,7 +6390,7 @@ pub mod pallet {
             
             // Validate validators list length
             ensure!(
-                validators.len() <= <T as Config>::MaxValidators::get() as usize,
+                validators.len() <= MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
             ensure!(!validators.is_empty(), Error::<T>::NotEnoughValidators);
@@ -6942,7 +6453,7 @@ pub mod pallet {
             
             // Validate validators list length
             ensure!(
-                validators.len() <= <T as Config>::MaxValidators::get() as usize,
+                validators.len() <= MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
             ensure!(!validators.is_empty(), Error::<T>::NotEnoughValidators);
@@ -7018,238 +6529,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Slash a validator's reserved stake directly (Root only)
-        /// This function slashes from the validator's reserved stake, not free balance
-        #[pallet::call_index(30)]
-        #[pallet::weight(<T as Config>::WeightInfo::slash_validator())]
-        pub fn slash_validator(
-            origin: OriginFor<T>,
-            target: T::AccountId,
-            amount: <T as Config>::Balance,
-        ) -> DispatchResult {
-            ensure_root(origin)?;
-
-            // Check if validator exists
-            ensure!(
-                ValidatorStates::<T>::contains_key(&target),
-                Error::<T>::ValidatorNotFound
-            );
-
-            // Check if validator has reserved stake
-            let reserved_balance = T::Currency::reserved_balance(&target);
-            ensure!(
-                reserved_balance > <T as Config>::Balance::default(),
-                Error::<T>::InsufficientStake
-            );
-
-            // Calculate actual slash amount (cannot exceed reserved balance)
-            let actual_slash_amount = amount.min(reserved_balance);
-
-            // Slash from reserved balance
-            let (negative_imbalance, remaining_slash) = T::Currency::slash_reserved(&target, actual_slash_amount);
-            let slashed_amount = actual_slash_amount.saturating_sub(remaining_slash);
-
-            // Record slashing history
-            let current_block = frame_system::Pallet::<T>::block_number();
-            let slashing_record = SlashingRecord {
-                amount: slashed_amount,
-                block_number: current_block,
-                reason: SlashingReason::Governance,
-                epoch: Self::current_epoch(),
-            };
-            
-            ValidatorSlashingHistory::<T>::mutate(&target, |history| {
-                if history.len() >= 100 {
-                    history.remove(0);
-                }
-                let _ = history.try_push(slashing_record);
-            });
-
-            // Update the ValidatorStake storage to reflect the reduced stake
-            ValidatorStake::<T>::mutate(&target, |current_stake| {
-                *current_stake = current_stake.saturating_sub(slashed_amount);
-            });
-
-            // Option 1: Burn the slashed funds (remove from total supply)
-            // T::Currency::burn(negative_imbalance);
-
-            // Option 2: Transfer to treasury (if treasury pallet is available)
-            // For now, we'll burn the funds as it's simpler and doesn't require treasury integration
-            drop(negative_imbalance); // This effectively burns the slashed amount
-
-            // Reduce validator's DCF score based on slash amount
-            let score_penalty = (slashed_amount.saturated_into::<u64>() / T::SlashPenaltyDivisor::get())
-                .min(T::MaxSlashPenalty::get());
-            
-            ValidatorStates::<T>::try_mutate(&target, |maybe_state| {
-                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                let old_score = state.current.final_score;
-                state.current.final_score = state.current.final_score.saturating_sub(score_penalty);
-                
-                // Update stake score to reflect reduced stake
-                let new_stake = ValidatorStake::<T>::get(&target);
-                state.current.stake_score = new_stake.saturated_into::<u64>();
-                
-                // Update last active epoch
-                state.last_active_epoch = Self::current_epoch();
-                
-                // Add to history
-                if state.history.len() == state.history.capacity() {
-                    state.history.remove(0);
-                }
-                let _ = state.history.try_push(EpochStats {
-                    epoch: Self::current_epoch(),
-                    stake_score: state.current.stake_score,
-                    inference_score: state.current.inference_score,
-                    final_score: state.current.final_score,
-                    authored_blocks: state.current.authored_blocks,
-                    missed_blocks: state.current.missed_blocks,
-                });
-                
-                log::info!("Validator {:?} slashed from reserved stake: amount {:?}, score {} -> {}, penalty: {}", 
-                          target, slashed_amount, old_score, state.current.final_score, score_penalty);
-                
-                Ok::<(), Error<T>>(())
-            })?;
-
-            // Check if validator should be ejected due to low score
-            let current_score = ValidatorStates::<T>::get(&target)
-                .map(|s| s.current.final_score)
-                .unwrap_or(0);
-                
-            if current_score < <T as Config>::MinValidatorScore::get() as u64 {
-                Self::eject_validator(&target, EjectionReason::ScoreBelowThreshold)?;
-                log::info!("Validator {:?} ejected due to low score after slashing", target);
-            }
-
-            // Check if remaining stake is below minimum requirement
-            let remaining_stake = ValidatorStake::<T>::get(&target);
-            if remaining_stake < <T as Config>::MinStake::get() {
-                log::warn!("Validator {:?} stake below minimum after slashing. Consider ejection.", target);
-                // Optionally auto-eject validator if stake is too low
-                let _ = Self::eject_validator(&target, EjectionReason::InsufficientStake);
-            }
-
-            // Get balances for enhanced event
-            let pre_balance = reserved_balance;
-            let post_balance = T::Currency::reserved_balance(&target);
-
-            // Update epoch tracking with safe arithmetic
-            EpochTotalSlashed::<T>::mutate(|total| {
-                *total = total.saturating_add(slashed_amount);
-            });
-            ValidatorEpochSlashed::<T>::mutate(&target, |validator_total| {
-                *validator_total = validator_total.saturating_add(slashed_amount);
-            });
-
-            // Emit enhanced slashing event with pre/post balances and reason
-            Self::deposit_event(Event::ValidatorSlashed {
-                validator: target.clone(),
-                amount: slashed_amount,
-                pre_balance,
-                post_balance,
-                reason: SlashReason::ManualSlash,
-            });
-
-            // Emit score update event
-            Self::deposit_event_with_evm_compat(Event::ValidatorScoreUpdated {
-                validator: target.clone(),
-                stake_score: ValidatorStates::<T>::get(&target).map(|s| s.current.stake_score).unwrap_or(0),
-                inference_score: ValidatorStates::<T>::get(&target).map(|s| s.current.inference_score).unwrap_or(0),
-                final_score: current_score,
-            });
-
-            log::info!("Successfully slashed validator {:?} for amount {:?} from reserved stake", target, slashed_amount);
-            Ok(())
-        }
-
-        /// Slash a validator's reserved stake by percentage (Root only)
-        /// This function slashes a percentage of the validator's reserved stake
-        #[pallet::call_index(31)]
-        #[pallet::weight(<T as Config>::WeightInfo::slash_validator_percentage())]
-        pub fn slash_validator_percentage(
-            origin: OriginFor<T>,
-            target: T::AccountId,
-            percentage: u32, // Percentage (0-100)
-        ) -> DispatchResult {
-            ensure_root(origin)?;
-
-            // Validate percentage
-            ensure!(percentage <= T::FullPercentage::get(), Error::<T>::InvalidScore);
-
-            // Check if validator exists
-            ensure!(
-                ValidatorStates::<T>::contains_key(&target),
-                Error::<T>::ValidatorNotFound
-            );
-
-            // Calculate slash amount based on percentage of reserved balance
-            let reserved_balance = T::Currency::reserved_balance(&target);
-            ensure!(
-                reserved_balance > <T as Config>::Balance::default(),
-                Error::<T>::InsufficientStake
-            );
-
-            let slash_amount = reserved_balance * <T as Config>::Balance::from(percentage) / <T as Config>::Balance::from(100u32);
-
-            // Call the main slash_validator function
-            Self::slash_validator(
-                frame_system::RawOrigin::Root.into(),
-                target.clone(),
-                slash_amount,
-            )?;
-
-            log::info!("Slashed validator {:?} by {}% of reserved stake (amount: {:?})", target, percentage, slash_amount);
-            Ok(())
-        }
-
-        /// Slash multiple validators' reserved stakes (Root only)
-        /// This function slashes the same amount from multiple validators
-        #[pallet::call_index(32)]
-        #[pallet::weight(<T as Config>::WeightInfo::slash_multiple_validators())]
-        pub fn slash_multiple_validators(
-            origin: OriginFor<T>,
-            targets: Vec<T::AccountId>,
-            amount: <T as Config>::Balance,
-        ) -> DispatchResult {
-            ensure_root(origin)?;
-
-            // Validate targets list
-            ensure!(!targets.is_empty(), Error::<T>::NotEnoughValidators);
-            ensure!(
-                targets.len() <= <T as Config>::MaxValidators::get() as usize,
-                Error::<T>::NotEnoughValidators
-            );
-
-            let mut slashed_count = 0u32;
-            let mut total_slashed = <T as Config>::Balance::default();
-
-            // Slash each validator
-            for target in targets.iter() {
-                match Self::slash_validator(
-                    frame_system::RawOrigin::Root.into(),
-                    target.clone(),
-                    amount,
-                ) {
-                    Ok(()) => {
-                        slashed_count += 1;
-                        total_slashed = total_slashed.saturating_add(amount);
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to slash validator {:?}: {:?}", target, e);
-                        // Continue with other validators instead of failing the entire operation
-                    }
-                }
-            }
-
-            log::info!("Slashed {} out of {} validators for amount {:?} each (total: {:?})", 
-                      slashed_count, targets.len(), amount, total_slashed);
-
-            // Emit a summary event (we could add this as a new event type)
-            // For now, individual ValidatorSlashed events are emitted by slash_validator
-
-            Ok(())
-        }
+        // direct slashing calls moved to pallet-cbc-pos.
 
         /// Sudo propose to eject a validator.
         #[pallet::call_index(10)]
@@ -7299,272 +6579,20 @@ pub mod pallet {
             // Check minimum stake and score now, but actual addition is at epoch
             let stake = pos::Pallet::<T>::stake(&who);
             ensure!(
-                stake >= <T as pallet_cbc_pos::Config>::MinStake::get(),
+                stake >= MinStakeOf::<T>::get(),
                 Error::<T>::NotEnoughValidators
             );
             let state = ValidatorStates::<T>::get(&who).ok_or(Error::<T>::ValidatorNotFound)?;
             ensure!(
-                state.current.final_score >= <T as pallet::Config>::MinValidatorScore::get() as u64,
+                state.current.final_score >= MinValidatorScoreOf::<T>::get() as u64,
                 Error::<T>::NotValidator
             );
 
             PendingValidatorActions::<T>::insert(&who, ValidatorAction::Join);
             Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
                 validator: who,
-                stake_amount: <T as Config>::MinStake::get(),
+                stake_amount: MinStakeOf::<T>::get(),
             });
-            Ok(())
-        }
-
-        /// Join the validator set by meeting minimum stake requirements.
-        /// This adds the validator to the main ValidatorSet and initializes their state.
-        #[pallet::call_index(18)]
-        #[pallet::weight(<T as Config>::WeightInfo::join_validators())]
-        pub fn join_validators(
-            origin: OriginFor<T>,
-            name: Option<BoundedVec<u8, ConstU32<32>>>,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Check rate limits before proceeding
-            let weight = <T as Config>::WeightInfo::join_validators();
-            if let Err((e, violation_opt)) = Self::check_rate_limits(&who, DispatchableType::JoinValidators, weight) {
-                // Handle rate limit violation using the violation info
-                if let Some(violation) = violation_opt {
-                    let (operation_code, violation_type, current_count, limit) = match violation {
-                        RateLimitViolation::PerBlockLimitExceeded { current_count, limit, .. } => (1u8, 0u8, current_count, limit),
-                        RateLimitViolation::PerAccountLimitExceeded { current_count, limit, .. } => (1u8, 1u8, current_count, limit),
-                        RateLimitViolation::MinimumIntervalViolation { blocks_since_last, required_interval, .. } => (1u8, 2u8, blocks_since_last, required_interval),
-                        RateLimitViolation::WeightLimitExceeded { actual_weight, max_weight, .. } => (1u8, 3u8, (actual_weight / 1000) as u32, (max_weight / 1000) as u32),
-                    };
-                    
-                    Self::deposit_event(Event::RateLimitViolation {
-                        account: who,
-                        operation: operation_code,
-                        violation_type,
-                        current_count,
-                        limit,
-                    });
-                }
-                
-                return Err(e);
-            }
-
-            // Check private chain allowlist if enabled
-            if Self::is_private_chain_mode() {
-                ensure!(
-                    Self::is_validator_allowed(&who),
-                    Error::<T>::NotInAllowlist
-                );
-            }
-
-            // Check minimum stake requirement first to emit ValidatorJoinRequested with correct amount
-            let min_stake = <T as Config>::MinStake::get();
-            let free_balance = T::Currency::free_balance(&who);
-            ensure!(
-                free_balance >= min_stake,
-                Error::<T>::InsufficientStake
-            );
-
-            // Emit join request event at the beginning of the process
-            Self::deposit_event(Event::ValidatorJoinRequested {
-                validator: who.clone(),
-                stake_amount: min_stake,
-            });
-
-            // Enhanced cooldown validation - check multiple cooldown states
-            Self::validate_rejoin_eligibility(&who)?;
-
-            // Check if validator is already in the validator set
-            let mut validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                !validator_set.contains(&who),
-                Error::<T>::ValidatorAlreadyExists
-            );
-
-            // Minimum stake requirement already checked above
-
-            // Reserve the minimum stake to lock it for validator participation
-            T::Currency::reserve(&who, min_stake)
-                .map_err(|_| Error::<T>::InsufficientStake)?;
-
-            // Store the actual locked stake amount
-            ValidatorStake::<T>::insert(&who, min_stake);
-
-            // Emit stake reservation event
-            Self::deposit_event(Event::ValidatorStakeReserved {
-                validator: who.clone(),
-                amount: min_stake,
-            });
-
-            // Check that we haven't exceeded the maximum validators limit
-            ensure!(
-                validator_set.len() < validator_set.capacity(),
-                Error::<T>::NotEnoughValidators
-            );
-
-            // Add validator to the validator set
-            validator_set.try_push(who.clone())
-                .map_err(|_| Error::<T>::NotEnoughValidators)?;
-            ValidatorSet::<T>::put(validator_set);
-
-            // Initialize validator state if it doesn't exist
-            if !ValidatorStates::<T>::contains_key(&who) {
-                let current_epoch = Self::current_epoch();
-                let stake_score = min_stake.saturated_into::<u64>();
-                
-                // Get initial inference score from PoI pallet
-                let inference_score = poi::Pallet::<T>::inference_results(&who)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
-
-                // Calculate initial final score
-                let pos_weight = if !PosWeight::<T>::exists() {
-                    let weight = T::DefaultPosWeight::get();
-                    PosWeight::<T>::put(weight);
-                    weight
-                } else {
-                    PosWeight::<T>::get()
-                };
-                let poi_weight = if !PoiWeight::<T>::exists() {
-                    let weight = T::DefaultPoiWeight::get();
-                    PoiWeight::<T>::put(weight);
-                    weight
-                } else {
-                    PoiWeight::<T>::get()
-                };
-
-                let mut final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
-                if final_score > T::MaxValidatorScore::get() {
-                    final_score = T::MaxValidatorScore::get();
-                }
-
-                let initial_stats = EpochStats {
-                    epoch: current_epoch,
-                    stake_score,
-                    inference_score,
-                    final_score,
-                    authored_blocks: 0,
-                    missed_blocks: 0,
-                };
-
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                
-                let validator_state = ValidatorState {
-                    last_active_epoch: current_epoch,
-                    current: initial_stats.clone(),
-                    history: BoundedVec::try_from(vec![initial_stats]).unwrap_or_default(),
-                    uptime: 1, // Starting with 1 epoch
-                    inference_success_count: 0,
-                    participation_rate: 0,
-                    inference_count: 0, // Starting with 0 inferences
-                    last_active_block: current_block, // Current block number
-                    name: name.as_ref().map(|n| BoundedVec::truncate_from(n.to_vec())), // Optional validator name
-                    trust_score: 0, // Will be calculated later
-                };
-
-                ValidatorStates::<T>::insert(&who, validator_state);
-
-                // Set join time
-                let current_time = sp_io::offchain::timestamp().unix_millis();
-                ValidatorJoinTime::<T>::insert(&who, current_time);
-            }
-
-            // Emit event with stake amount
-            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
-                validator: who.clone(),
-                stake_amount: min_stake,
-            });
-
-            // Emit validator status change event (from not being a validator to Active)
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            Self::deposit_event(Event::ValidatorStatusChanged {
-                validator: who.clone(),
-                old_status: ValidatorStatus::Inactive, // Assume they were inactive before joining
-                new_status: ValidatorStatus::Active,
-                block_number: current_block,
-            });
-
-            // Record the operation for rate limiting
-            Self::record_operation(&who, DispatchableType::JoinValidators);
-
-            Ok(())
-        }
-
-        /// Leave the validator set with cooldown period.
-        /// Marks validator for leaving but keeps funds reserved until cooldown expires.
-        /// Funds are automatically unreserved by on_initialize() hook after cooldown.
-        #[pallet::call_index(19)]
-        #[pallet::weight(<T as Config>::WeightInfo::leave_validators())]
-        pub fn leave_validators(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Check rate limits before proceeding
-            let weight = <T as Config>::WeightInfo::leave_validators();
-            if let Err((e, violation_opt)) = Self::check_rate_limits(&who, DispatchableType::LeaveValidators, weight) {
-                // Handle rate limit violation using the violation info
-                if let Some(violation) = violation_opt {
-                    let (operation_code, violation_type, current_count, limit) = match violation {
-                        RateLimitViolation::PerBlockLimitExceeded { current_count, limit, .. } => (3u8, 0u8, current_count, limit),
-                        RateLimitViolation::PerAccountLimitExceeded { current_count, limit, .. } => (3u8, 1u8, current_count, limit),
-                        RateLimitViolation::MinimumIntervalViolation { blocks_since_last, required_interval, .. } => (3u8, 2u8, blocks_since_last, required_interval),
-                        RateLimitViolation::WeightLimitExceeded { actual_weight, max_weight, .. } => (3u8, 3u8, (actual_weight / 1000) as u32, (max_weight / 1000) as u32),
-                    };
-                    
-                    Self::deposit_event(Event::RateLimitViolation {
-                        account: who,
-                        operation: operation_code,
-                        violation_type,
-                        current_count,
-                        limit,
-                    });
-                }
-                
-                return Err(e);
-            }
-
-            // Check if validator is in the validator set
-            let validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(&who),
-                Error::<T>::ValidatorNotInSet
-            );
-
-            // Enhanced concurrent leave request prevention
-            Self::validate_leave_request_eligibility(&who)?;
-
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-
-            // Mark validator as leaving - funds remain reserved until cooldown expires
-            ValidatorLeaveRequests::<T>::insert(&who, current_block);
-
-            // Remove from active validators immediately to stop them from participating
-            let mut active_validators = ActiveValidators::<T>::get();
-            if let Some(pos) = active_validators.iter().position(|v| v == &who) {
-                active_validators.remove(pos);
-                ActiveValidators::<T>::put(active_validators);
-            }
-
-            // Emit validator status change event (from Active to Leaving)
-            Self::deposit_event(Event::ValidatorStatusChanged {
-                validator: who.clone(),
-                old_status: ValidatorStatus::Active,
-                new_status: ValidatorStatus::Leaving,
-                block_number: current_block,
-            });
-
-            // Emit event to indicate leave request has been made
-            Self::deposit_event(Event::ValidatorLeaveRequested {
-                validator: who.clone(),
-                cooldown_expires_at: current_block + T::LeaveCooldown::get(),
-            });
-
-            log::info!("Validator {:?} requested to leave. Cooldown expires at block {}", 
-                      who, current_block + T::LeaveCooldown::get());
-
-            // Record the operation for rate limiting
-            Self::record_operation(&who, DispatchableType::LeaveValidators);
-
             Ok(())
         }
 
@@ -7695,51 +6723,7 @@ pub mod pallet {
             }
         }
 
-        /// Cancel a pending leave request (before cooldown expires)
-        #[pallet::call_index(25)]
-        #[pallet::weight(<T as Config>::WeightInfo::cancel_leave_request())]
-        pub fn cancel_leave_request(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Enhanced validation for leave request cancellation
-            let leave_request_block = ValidatorLeaveRequests::<T>::get(&who)
-                .ok_or(Error::<T>::ValidatorNotFound)?;
-
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let cooldown_period = T::LeaveCooldown::get();
-            let blocks_since_request = current_block.saturating_sub(leave_request_block);
-
-            // Check if cooldown has already expired (cannot cancel after expiry)
-            if blocks_since_request >= cooldown_period {
-                return Err(Error::<T>::LeaveCooldownActive.into());
-            }
-
-            // Remove the leave request
-            ValidatorLeaveRequests::<T>::remove(&who);
-
-            // Re-add to active validators if they're still in the validator set
-            let validator_set = ValidatorSet::<T>::get();
-            if validator_set.contains(&who) {
-                let mut active_validators = ActiveValidators::<T>::get();
-                if !active_validators.contains(&who) {
-                    // Only add if there's space and they're not already active
-                    if active_validators.len() < active_validators.capacity() {
-                        let _ = active_validators.try_push(who.clone());
-                        ActiveValidators::<T>::put(active_validators);
-                    }
-                }
-            }
-
-            // Emit event with additional context
-            Self::deposit_event(Event::ValidatorLeaveCancelled {
-                validator: who.clone(),
-            });
-
-            log::info!("Validator {:?} cancelled their leave request with {} blocks remaining in cooldown", 
-                      who, cooldown_period.saturating_sub(blocks_since_request));
-
-            Ok(())
-        }
+        // cancel_leave_request moved to pallet-cbc-pos.
 
         /// Request to leave the validator set (opt-out, effective next epoch).
         #[pallet::call_index(14)]
@@ -7862,9 +6846,10 @@ pub mod pallet {
                 name: bounded_name.clone(),
             });
             
-            // Set join time if not already set
-            if !ValidatorJoinTime::<T>::contains_key(&who) {
-                ValidatorJoinTime::<T>::insert(&who, now);
+            // Set join time if not already set in pos pallet
+            if !pos::ValidatorJoinTime::<T>::contains_key(&who) {
+                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                pos::ValidatorJoinTime::<T>::insert(&who, current_block);
             }
             
             // Emit event
@@ -7988,27 +6973,10 @@ pub mod pallet {
             if report_count >= slash_threshold {
                 // Execute automatic slash
                 let slash_amount = Self::calculate_slash_amount(&validator)?;
+                let _ = pos::Pallet::<T>::execute_slash_validator_with_reason(&validator, slash_amount, pos::SlashReason::ConsensusViolation);
                 
-                // Perform the slash
-                let _imbalance = T::Currency::slash(&validator, slash_amount);
-                
-                // Unreserve the minimum stake that was locked when joining
-                let min_stake = <T as Config>::MinStake::get();
-                T::Currency::unreserve(&validator, min_stake);
-
-                // Remove the stake record since it's no longer reserved
-                ValidatorStake::<T>::remove(&validator);
-
-                // Emit stake unreservation event
-                Self::deposit_event(Event::ValidatorStakeUnreserved {
-                    validator: validator.clone(),
-                    amount: min_stake,
-                });
-                
-                // Remove the validator from the set
-                ValidatorSet::<T>::mutate(|set| {
-                    set.retain(|v| v != &validator);
-                });
+                // Force eject validator
+                let _ = pos::Pallet::<T>::force_eject_validator(&validator);
                 
                 // Clear all reports for this validator since they've been slashed
                 let _ = MisbehaviorReports::<T>::clear_prefix(&validator, u32::MAX, None);
@@ -8063,157 +7031,6 @@ pub mod pallet {
                 triggered_by: who,
             });
             
-            Ok(())
-        }
-
-        /// Increase validator stake by reserving additional balance
-        #[pallet::call_index(23)]
-        #[pallet::weight(<T as Config>::WeightInfo::increase_validator_stake())]
-        pub fn increase_validator_stake(
-            origin: OriginFor<T>,
-            additional_amount: <T as Config>::Balance,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Check if validator is in the validator set
-            let validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(&who),
-                Error::<T>::ValidatorNotInSet
-            );
-
-            // Check if validator has sufficient free balance
-            let free_balance = T::Currency::free_balance(&who);
-            ensure!(
-                free_balance >= additional_amount,
-                Error::<T>::InsufficientStake
-            );
-
-            // Reserve the additional amount
-            T::Currency::reserve(&who, additional_amount)
-                .map_err(|_| Error::<T>::InsufficientStake)?;
-
-            // Update the stored stake amount
-            ValidatorStake::<T>::mutate(&who, |current_stake| {
-                *current_stake = current_stake.saturating_add(additional_amount);
-            });
-
-            // Emit stake increase event
-            Self::deposit_event(Event::ValidatorStakeReserved {
-                validator: who.clone(),
-                amount: additional_amount,
-            });
-
-            // Update validator's stake score based on new total stake
-            let new_total_stake = ValidatorStake::<T>::get(&who);
-            let new_stake_score = new_total_stake.saturated_into::<u64>();
-            
-            ValidatorStates::<T>::try_mutate(&who, |maybe_state| {
-                if let Some(state) = maybe_state.as_mut() {
-                    let old_stake_score = state.current.stake_score;
-                    state.current.stake_score = new_stake_score;
-                    
-                    // Recalculate final score
-                    let _ = Self::update_final_score(&who);
-                    
-                    log::info!("Validator {:?} increased stake: {} -> {}", 
-                              who, old_stake_score, new_stake_score);
-                }
-                Ok::<(), Error<T>>(())
-            })?;
-
-            Ok(())
-        }
-
-        /// Decrease validator stake by unreserving some balance (must maintain minimum)
-        #[pallet::call_index(24)]
-        #[pallet::weight(<T as Config>::WeightInfo::decrease_validator_stake())]
-        pub fn decrease_validator_stake(
-            origin: OriginFor<T>,
-            decrease_amount: <T as Config>::Balance,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Check if validator is in the validator set
-            let validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(&who),
-                Error::<T>::ValidatorNotInSet
-            );
-
-            let current_stake = ValidatorStake::<T>::get(&who);
-            let min_stake = <T as Config>::MinStake::get();
-
-            // Ensure the remaining stake after decrease is at least the minimum
-            ensure!(
-                current_stake.saturating_sub(decrease_amount) >= min_stake,
-                Error::<T>::InsufficientStake
-            );
-
-            // Unreserve the specified amount
-            let unreserved = T::Currency::unreserve(&who, decrease_amount);
-
-            // Update the stored stake amount
-            ValidatorStake::<T>::mutate(&who, |current_stake| {
-                *current_stake = current_stake.saturating_sub(unreserved);
-            });
-
-            // Emit stake decrease event
-            Self::deposit_event(Event::ValidatorStakeUnreserved {
-                validator: who.clone(),
-                amount: unreserved,
-            });
-
-            // Update validator's stake score based on new total stake
-            let new_total_stake = ValidatorStake::<T>::get(&who);
-            let new_stake_score = new_total_stake.saturated_into::<u64>();
-            
-            ValidatorStates::<T>::try_mutate(&who, |maybe_state| {
-                if let Some(state) = maybe_state.as_mut() {
-                    let old_stake_score = state.current.stake_score;
-                    state.current.stake_score = new_stake_score;
-                    
-                    // Recalculate final score
-                    let _ = Self::update_final_score(&who);
-                    
-                    log::info!("Validator {:?} decreased stake: {} -> {}", 
-                              who, old_stake_score, new_stake_score);
-                }
-                Ok::<(), Error<T>>(())
-            })?;
-
-            Ok(())
-        }
-
-        /// Distribute epoch rewards using modular reward logic (Root only)
-        /// This function distributes rewards based on performance tiers
-        #[pallet::call_index(33)]
-        #[pallet::weight(<T as Config>::WeightInfo::distribute_epoch_rewards())]
-        pub fn distribute_epoch_rewards(
-            origin: OriginFor<T>,
-            total_reward_pool: <T as Config>::Balance,
-        ) -> DispatchResult {
-            ensure_root(origin)?;
-
-            // Calculate reward pools based on configured percentages
-            let base_pool = (total_reward_pool * T::BaseRewardPercentage::get().into()) / T::FullPercentage::get().into();
-            let performance_pool = (total_reward_pool * T::PerformanceRewardPercentage::get().into()) / T::FullPercentage::get().into();
-            let top_performer_pool = (total_reward_pool * T::TopPerformerRewardPercentage::get().into()) / T::FullPercentage::get().into();
-
-            // Distribute rewards using the modular logic
-            Self::distribute_rewards(base_pool, performance_pool, top_performer_pool)?;
-
-            // Emit event
-            Self::deposit_event(Event::EpochRewardsDistributed {
-                total_pool: total_reward_pool,
-                base_pool,
-                performance_pool,
-                top_performer_pool,
-            });
-
-            log::info!("Epoch rewards distributed: total {:?}, base {:?}, performance {:?}, top performer {:?}",
-                      total_reward_pool, base_pool, performance_pool, top_performer_pool);
-
             Ok(())
         }
     }
@@ -8437,7 +7254,7 @@ pub mod pallet {
                 let last_active = state.last_active_epoch;
                 let inactive_epochs = current_epoch.saturating_sub(last_active);
                 if inactive_epochs > 0 {
-                    let decay_rate = <T as pallet::Config>::ValidatorScoreDecay::get();
+                    let decay_rate = ValidatorScoreDecayOf::<T>::get();
                     let decay_amount = state.current.final_score.saturating_mul(decay_rate as u64) / T::PercentagePrecision::get() as u64;
                     let old_score = state.current.final_score;
                     state.current.final_score = state.current.final_score.saturating_sub(decay_amount);
@@ -8449,7 +7266,7 @@ pub mod pallet {
                         old_score,
                         new_score: state.current.final_score,
                     });
-                    if state.current.final_score < <T as Config>::MinValidatorScore::get() as u64 {
+                    if state.current.final_score < MinValidatorScoreOf::<T>::get() as u64 {
                         Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold)
                             .map_err(|_| Error::<T>::ValidatorNotFound)?;
                     }
@@ -8713,7 +7530,7 @@ pub mod pallet {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 let new_score = state.current.final_score.saturating_sub(penalty);
                 state.current.final_score = new_score;
-                if new_score < <T as Config>::MinValidatorScore::get() as u64 {
+                if new_score < MinValidatorScoreOf::<T>::get() as u64 {
                     Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold)
                         .map_err(|_| Error::<T>::ValidatorNotFound)?;
                 }
@@ -8849,12 +7666,7 @@ pub mod pallet {
                 Self::generate_automatic_validator_proposals();
             }
             
-            // 7. Process expired leave requests (check every N blocks for timely processing)
-            if block_number % T::LeaveRequestCheckInterval::get() == 0 {
-                Self::process_expired_leave_requests(block_number);
-                // Also cleanup recently removed validators whose cooldown has expired
-                Self::cleanup_recently_removed_validators(block_number);
-            }
+            // Cooldown and leave requests are managed by pallet-cbc-pos.
 
             // 8. Emit periodic health metrics
             if block_number % T::HealthMetricsInterval::get() == 0 {
@@ -8945,7 +7757,7 @@ pub mod pallet {
             }
             
             // Check 3: Active validators meet minimum stake requirements
-            let min_stake = <T as pallet::Config>::MinStake::get();
+            let min_stake = MinStakeOf::<T>::get();
             for validator in ActiveValidators::<T>::get().iter() {
                 let stake = T::Currency::reserved_balance(validator);
                 if stake < min_stake {
@@ -8979,7 +7791,7 @@ pub mod pallet {
             let mut violations = Vec::new();
             
             let active_validators = ActiveValidators::<T>::get();
-            let max_validators = <T as pallet::Config>::MaxValidators::get();
+            let max_validators = MaxValidatorsOf::<T>::get();
             
             // Check 1: Active set size does not exceed maximum
             if active_validators.len() as u32 > max_validators {
@@ -8997,8 +7809,8 @@ pub mod pallet {
             
             // Check 2: No validator is both active and in cooldown
             for validator in active_validators.iter() {
-                if ValidatorLeaveRequests::<T>::contains_key(validator) || 
-                   RecentlyRemovedValidators::<T>::contains_key(validator) {
+                if pos::ValidatorLeaveRequests::<T>::contains_key(validator) || 
+                   pos::RecentlyRemovedValidators::<T>::contains_key(validator) {
                     let context = format!("Validator: {:?}", validator);
                     if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                         violations.push(InvariantViolation::Validator {
@@ -9364,11 +8176,8 @@ pub mod pallet {
             let next_epoch = current_epoch.saturating_add(1);
             CurrentEpoch::<T>::put(next_epoch);
 
-            // Reset epoch bounds tracking for the new epoch
-            EpochTotalSlashed::<T>::kill();
-            EpochTotalRewarded::<T>::kill();
-            let _ = ValidatorEpochSlashed::<T>::clear(u32::MAX, None);
-            let _ = ValidatorEpochRewarded::<T>::clear(u32::MAX, None);
+            // Reset epoch bounds tracking in pos pallet for the new epoch
+            pos::Pallet::<T>::reset_epoch_totals();
 
             // Apply pending join/leave requests and get actual changes
             let (added_validators, removed_validators) = Self::apply_pending_validator_actions();
@@ -9456,12 +8265,12 @@ pub mod pallet {
 
 
             // --- EpochHistory recording ---
-            let score_snapshot: BoundedVec<_, <T as Config>::MaxValidators> =
+            let score_snapshot: BoundedVec<_, MaxValidatorsOf<T>> =
                 BoundedVec::truncate_from(active_validators.iter().map(|v| {
                     let score = ValidatorStates::<T>::get(v).map(|s| s.current.final_score).unwrap_or_default();
                     (v.clone(), score)
                 }).collect::<Vec<_>>());
-            let inference_summary: BoundedVec<_, <T as Config>::MaxValidators> =
+            let inference_summary: BoundedVec<_, MaxValidatorsOf<T>> =
                 BoundedVec::truncate_from(active_validators.iter().map(|v| {
                     let inf = poi::Pallet::<T>::inference_results(v).map(|(result, _)| result as u64);
                     (v.clone(), inf)
@@ -9700,7 +8509,7 @@ pub mod pallet {
         /// - Deterministic sequence of authors for the epoch
         pub fn generate_deterministic_author_sequence(
             _epoch: u32,
-            validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+            validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             randomness_seed: &[u8; 32]
         ) -> BoundedVec<T::AccountId, ConstU32<1000>> {
             if validators.is_empty() {
@@ -9929,11 +8738,11 @@ pub mod pallet {
             
             // Validate active validators don't exceed maximum
             let active_validators = ActiveValidators::<T>::get();
-            if active_validators.len() > <T as pallet::Config>::MaxValidators::get() as usize {
+            if active_validators.len() > MaxValidatorsOf::<T>::get() as usize {
                 log::error!(
                     "DCF: Active validator count ({}) exceeds maximum ({})",
                     active_validators.len(),
-                    <T as pallet::Config>::MaxValidators::get()
+                    MaxValidatorsOf::<T>::get()
                 );
                 
                 return Err(MigrationError::PostValidationFailed {
@@ -10057,7 +8866,7 @@ pub mod pallet {
             }
             
             // Validate max validators doesn't exceed system limits
-            if config.max_validators > <T as pallet::Config>::MaxValidators::get() {
+            if config.max_validators > MaxValidatorsOf::<T>::get() {
                 return Err(MigrationError::PostValidationFailed {
                     rule_id: b"max_validators_exceeds_limit".to_vec().try_into().unwrap_or_default(),
                     reason: b"Max validators exceeds system limit".to_vec().try_into().unwrap_or_default(),
@@ -10136,7 +8945,7 @@ pub mod pallet {
         fn compute_epoch_input_hash(
             epoch: u32,
             block_number: u32,
-            validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+            validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             randomness_seed: &[u8; 32]
         ) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
@@ -10174,10 +8983,10 @@ pub mod pallet {
         /// - 32-byte hash of processing outputs
         fn compute_epoch_output_hash(
             epoch: u32,
-            active_validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
-            added_validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
-            removed_validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
-            validator_scores: &BoundedVec<(T::AccountId, u64), <T as Config>::MaxValidators>,
+            active_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
+            added_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
+            removed_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
+            validator_scores: &BoundedVec<(T::AccountId, u64), MaxValidatorsOf<T>>,
             author_sequence: &BoundedVec<T::AccountId, ConstU32<1000>>
         ) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
@@ -10295,7 +9104,7 @@ pub mod pallet {
         /// - Tuple of (added_validators, removed_validators)
         fn get_epoch_validator_changes(
             epoch: u32
-        ) -> (BoundedVec<T::AccountId, <T as Config>::MaxValidators>, BoundedVec<T::AccountId, <T as Config>::MaxValidators>) {
+        ) -> (BoundedVec<T::AccountId, MaxValidatorsOf<T>>, BoundedVec<T::AccountId, MaxValidatorsOf<T>>) {
             // Query epoch history to get validators who joined and left
             if let Some(history) = EpochHistories::<T>::get().iter().find(|h| h.epoch_number == epoch) {
                 let mut joined = BoundedVec::new();
@@ -10340,8 +9149,8 @@ pub mod pallet {
         /// # Returns
         /// - List of (validator, score) pairs
         fn get_all_validator_scores(
-            validators: &BoundedVec<T::AccountId, <T as Config>::MaxValidators>
-        ) -> BoundedVec<(T::AccountId, u64), <T as Config>::MaxValidators> {
+            validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>
+        ) -> BoundedVec<(T::AccountId, u64), MaxValidatorsOf<T>> {
             let scores: Vec<(T::AccountId, u64)> = validators.iter()
                 .map(|v| {
                     let score = ValidatorStates::<T>::get(v)
@@ -10428,14 +9237,14 @@ pub mod pallet {
         /// - `ValidatorRejoinStakeReservationFailed`: If stake reservation would fail
         fn validate_rejoin_eligibility(who: &T::AccountId) -> DispatchResult {
             // Check if validator has a pending leave request
-            if ValidatorLeaveRequests::<T>::contains_key(who) {
+            if pos::ValidatorLeaveRequests::<T>::contains_key(who) {
                 return Err(Error::<T>::ValidatorHasPendingLeaveRequest.into());
             }
 
             // Check if validator is in cooldown period after recently leaving
-            if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(who) {
+            if let Some(left_at_block) = pos::RecentlyRemovedValidators::<T>::get(who) {
                 let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                let cooldown_period = T::LeaveCooldown::get();
+                let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
 
                 // Provide specific error for cooldown not expired
@@ -10444,11 +9253,11 @@ pub mod pallet {
                 }
 
                 // Cooldown has expired, remove from recently removed list
-                RecentlyRemovedValidators::<T>::remove(who);
+                pos::RecentlyRemovedValidators::<T>::remove(who);
             }
 
             // Validate stake reservation eligibility
-            let min_stake = <T as Config>::MinStake::get();
+            let min_stake = MinStakeOf::<T>::get();
             let free_balance = T::Currency::free_balance(who);
             
             // Check if balance is sufficient for stake reservation
@@ -10480,7 +9289,7 @@ pub mod pallet {
         /// - `ValidatorNotInSet`: If validator is not in the validator set
         fn validate_leave_request_eligibility(who: &T::AccountId) -> DispatchResult {
             // Check if there's already a pending leave request (prevent concurrent requests)
-            if ValidatorLeaveRequests::<T>::contains_key(who) {
+            if pos::ValidatorLeaveRequests::<T>::contains_key(who) {
                 return Err(Error::<T>::ConcurrentLeaveRequestNotAllowed.into());
             }
 
@@ -10503,17 +9312,17 @@ pub mod pallet {
         /// - `None`: If validator is not in any cooldown state
         pub fn get_validator_detailed_cooldown_status_internal(who: &T::AccountId) -> Option<(u32, bool)> {
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let cooldown_period = T::LeaveCooldown::get();
+            let cooldown_period = LeaveCooldownOf::<T>::get();
 
             // Check for pending leave request cooldown
-            if let Some(leave_request_block) = ValidatorLeaveRequests::<T>::get(who) {
+            if let Some(leave_request_block) = pos::ValidatorLeaveRequests::<T>::get(who) {
                 let blocks_since_request = current_block.saturating_sub(leave_request_block);
                 let blocks_remaining = cooldown_period.saturating_sub(blocks_since_request);
                 return Some((blocks_remaining, false)); // Cannot rejoin while leaving
             }
 
             // Check for recently removed cooldown
-            if let Some(removed_at_block) = RecentlyRemovedValidators::<T>::get(who) {
+            if let Some(removed_at_block) = pos::RecentlyRemovedValidators::<T>::get(who) {
                 let blocks_since_removed = current_block.saturating_sub(removed_at_block);
                 if blocks_since_removed < cooldown_period {
                     let blocks_remaining = cooldown_period.saturating_sub(blocks_since_removed);
@@ -10634,7 +9443,7 @@ pub mod pallet {
                 // Create a test event
                 let test_event: Event<T> = Event::ValidatorJoined {
                     validator: validator.clone(),
-                    stake_amount: <T as pallet::Config>::MinStake::get(),
+                    stake_amount: MinStakeOf::<T>::get(),
                 };
                 
                 // Validate EVM compatibility
@@ -11461,17 +10270,7 @@ pub mod pallet {
         fn calculate_uptime_percentage(validator: &T::AccountId) -> u32 {
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let last_seen = Self::validator_last_seen(validator);
-            let join_time_block = ValidatorJoinTime::<T>::get(validator)
-                .map(|timestamp| {
-                    // Convert timestamp to approximate block number
-                    // This is a rough approximation - in production you'd want more precise tracking
-                    let blocks_since_genesis = current_block;
-                    let time_since_genesis = Self::get_current_timestamp().saturating_sub(timestamp);
-                    let estimated_block_time = T::EstimatedBlockTime::get();
-                    let estimated_blocks_since_join = time_since_genesis / estimated_block_time;
-                    blocks_since_genesis.saturating_sub(estimated_blocks_since_join as u32)
-                })
-                .unwrap_or(0);
+            let join_time_block = pos::ValidatorJoinTime::<T>::get(validator).unwrap_or(0);
             
             if current_block <= join_time_block {
                 return T::PercentagePrecision::get(); // Full percentage if just joined
@@ -11583,7 +10382,7 @@ pub mod pallet {
             let total_validators = Self::validator_set();
             let active_validator_count = active_validators.len() as u32;
             let total_validator_count = total_validators.len() as u32;
-            let validator_set_capacity = <T as pallet::Config>::MaxValidators::get();
+            let validator_set_capacity = MaxValidatorsOf::<T>::get();
             
             // Calculate economic metrics
             let mut total_reserved = <T as pallet::Config>::Balance::default();
@@ -11591,7 +10390,7 @@ pub mod pallet {
             let mut missed_blocks_current_epoch = 0u32;
             
             for validator in &active_validators {
-                let stake = Self::validator_stake(validator);
+                let stake = pos::Stake::<T>::get(validator);
                 total_reserved = total_reserved.saturating_add(stake);
                 let trust_score = Self::validator_trust_scores(validator);
                 total_trust_score = total_trust_score.saturating_add(trust_score);
@@ -11638,8 +10437,8 @@ pub mod pallet {
             let finality_lag = current_block_u32.saturating_sub(last_finalized);
             
             // Get historical totals (these would be maintained by other tasks)
-            let total_slashed = Self::epoch_total_slashed();
-            let total_rewards = Self::epoch_total_rewarded();
+            let total_slashed = pos::Pallet::<T>::epoch_total_slashed();
+            let total_rewards = pos::Pallet::<T>::epoch_total_rewarded();
             
             // Create and store updated metrics
             let metrics = SystemMetrics {
@@ -11795,7 +10594,7 @@ pub mod pallet {
             
             // Also check current system state for immediate violations
             let active_validators = Self::active_validators();
-            let max_validators = <T as pallet::Config>::MaxValidators::get() as usize;
+            let max_validators = MaxValidatorsOf::<T>::get() as usize;
             
             // Check active set size violation
             if active_validators.len() > max_validators {
@@ -11805,7 +10604,7 @@ pub mod pallet {
             // Check for validators with insufficient stake
             for validator in &active_validators {
                 let reserved = T::Currency::reserved_balance(validator);
-                if reserved < <T as pallet::Config>::MinStake::get() {
+                if reserved < MinStakeOf::<T>::get() {
                     return true;
                 }
             }
@@ -11846,9 +10645,9 @@ pub mod pallet {
             }
 
             // Ensure validators don't exceed MaxValidators
-            if self.validators.len() > <T as pallet::Config>::MaxValidators::get() as usize {
+            if self.validators.len() > MaxValidatorsOf::<T>::get() as usize {
                 panic!("Genesis validators ({}) exceed MaxValidators ({})",
-                       self.validators.len(), <T as pallet::Config>::MaxValidators::get());
+                       self.validators.len(), MaxValidatorsOf::<T>::get());
             }
 
             // STEP 10.2: Genesis configuration loaded
@@ -11868,13 +10667,13 @@ pub mod pallet {
             // Prepare stakes - use provided stakes or default to MinStake
             let stakes = if self.validator_stakes.is_empty() {
                 // Use minimum stake for all validators if stakes not specified
-                vec![<T as pallet::Config>::MinStake::get(); self.validators.len()]
+                vec![MinStakeOf::<T>::get(); self.validators.len()]
             } else if self.validator_stakes.len() == self.validators.len() {
                 // Validate all stakes meet minimum requirement
                 for (i, stake) in self.validator_stakes.iter().enumerate() {
-                    if *stake < <T as pallet::Config>::MinStake::get() {
+                    if *stake < MinStakeOf::<T>::get() {
                         panic!("Genesis validator {} stake ({:?}) below MinStake ({:?})",
-                               i, stake, <T as pallet::Config>::MinStake::get());
+                               i, stake, MinStakeOf::<T>::get());
                     }
                 }
                 self.validator_stakes.clone()
@@ -11950,8 +10749,19 @@ pub mod pallet {
                     }
                 }
 
-                // Store the stake amount in ValidatorStake storage
-                ValidatorStake::<T>::insert(validator, *stake);
+                pos::Stake::<T>::insert(validator, *stake);
+                
+                let mut validator_set = pos::ValidatorSet::<T>::get();
+                if !validator_set.contains(validator) {
+                    let _ = validator_set.try_push(validator.clone());
+                    pos::ValidatorSet::<T>::put(validator_set);
+                }
+
+                let mut active_validators = pos::ActiveValidators::<T>::get();
+                if !active_validators.contains(validator) {
+                    let _ = active_validators.try_push(validator.clone());
+                    pos::ActiveValidators::<T>::put(active_validators);
+                }
 
                 // Calculate scores based on stake and initial score
                 let stake_score = (*stake).saturated_into::<u64>() / T::RewardBoostDivisor::get();
@@ -12073,7 +10883,7 @@ pub mod pallet {
                 min_stake: ParameterRange {
                     min: <T as pallet::Config>::Balance::from(100_000u32),          // Minimum 100k units
                     max: <T as pallet::Config>::Balance::from(1_000_000_000u32),    // Maximum 1B units
-                    current: <T as pallet::Config>::MinStake::get(),
+                    current: MinStakeOf::<T>::get(),
                 },
                 max_validators: ParameterRange {
                     min: 1,                                     // At least 1 validator
@@ -12119,17 +10929,17 @@ pub mod pallet {
                 validator_reward: ParameterRange {
                     min: <T as pallet::Config>::Balance::from(1000u32),             // Minimum 1000 units reward
                     max: <T as pallet::Config>::Balance::from(10_000_000u32),       // Maximum 10M units reward
-                    current: <T as pallet::Config>::ValidatorReward::get(),
+                    current: ValidatorRewardOf::<T>::get(),
                 },
                 slash_percent: ParameterRange {
                     min: 1,                                     // Minimum 1% slash
                     max: 50,                                    // Maximum 50% slash
-                    current: T::SlashPercent::get(),
+                    current: SlashPercentOf::<T>::get(),
                 },
                 leave_cooldown: ParameterRange {
                     min: BlockNumberFor::<T>::from(100u32),          // Minimum 100 blocks cooldown
                     max: BlockNumberFor::<T>::from(100_000u32),      // Maximum 100k blocks cooldown
-                    current: <T as pallet::Config>::LeaveCooldown::get().into(),
+                    current: LeaveCooldownOf::<T>::get().into(),
                 },
                 
                 // Trust score configuration
@@ -12274,9 +11084,9 @@ pub mod pallet {
                 panic!("Genesis must have at least one validator");
             }
 
-            if self.validators.len() > <T as pallet::Config>::MaxValidators::get() as usize {
+            if self.validators.len() > MaxValidatorsOf::<T>::get() as usize {
                 panic!("Genesis validators ({}) exceed MaxValidators ({})",
-                       self.validators.len(), <T as pallet::Config>::MaxValidators::get());
+                       self.validators.len(), MaxValidatorsOf::<T>::get());
             }
 
             // Validate array lengths match or are empty (handled in build())
@@ -12294,9 +11104,9 @@ pub mod pallet {
 
             // Validate stakes meet minimum requirements
             for (i, stake) in self.validator_stakes.iter().enumerate() {
-                if *stake < <T as pallet::Config>::MinStake::get() {
+                if *stake < MinStakeOf::<T>::get() {
                     panic!("Genesis validator {} stake below minimum: {:?} < {:?}",
-                           i, stake, <T as pallet::Config>::MinStake::get());
+                           i, stake, MinStakeOf::<T>::get());
                 }
             }
 
@@ -12348,7 +11158,7 @@ pub mod pallet {
             }
 
             // Validate active set size does not exceed MaxValidators (Requirement 11.2)
-            let max_validators = <T as pallet::Config>::MaxValidators::get() as usize;
+            let max_validators = MaxValidatorsOf::<T>::get() as usize;
             if self.validators.len() > max_validators {
                 return Err(format!(
                     "Genesis validator count ({}) exceeds MaxValidators ({})",
@@ -12358,7 +11168,7 @@ pub mod pallet {
             }
 
             // Validate minimum active validators requirement
-            let min_active_validators = <T as pallet::Config>::MinActiveValidators::get() as usize;
+            let min_active_validators = MinActiveValidatorsOf::<T>::get() as usize;
             if self.validators.len() < min_active_validators {
                 return Err(format!(
                     "Genesis validator count ({}) below MinActiveValidators ({})",
@@ -12369,7 +11179,7 @@ pub mod pallet {
 
             // Prepare stakes for validation - use provided stakes or default to MinStake
             let stakes = if self.validator_stakes.is_empty() {
-                vec![<T as pallet::Config>::MinStake::get(); self.validators.len()]
+                vec![MinStakeOf::<T>::get(); self.validators.len()]
             } else if self.validator_stakes.len() == self.validators.len() {
                 self.validator_stakes.clone()
             } else {
@@ -12381,7 +11191,7 @@ pub mod pallet {
             };
 
             // Validate all stakes meet minimum requirement (Requirement 11.1)
-            let min_stake = <T as pallet::Config>::MinStake::get();
+            let min_stake = MinStakeOf::<T>::get();
             for (i, stake) in stakes.iter().enumerate() {
                 if *stake < min_stake {
                     return Err(format!(
@@ -12455,11 +11265,11 @@ pub mod pallet {
                 ));
             }
 
-            if self.epoch_config.max_validators != <T as pallet::Config>::MaxValidators::get() {
+            if self.epoch_config.max_validators != MaxValidatorsOf::<T>::get() {
                 return Err(format!(
                     "Epoch config max_validators ({}) does not match pallet MaxValidators ({})",
                     self.epoch_config.max_validators,
-                    <T as pallet::Config>::MaxValidators::get()
+                    MaxValidatorsOf::<T>::get()
                 ));
             }
 
@@ -12495,9 +11305,8 @@ pub mod pallet {
                 validation_passed: true,
             };
 
-            // Prepare stakes for analysis
             let stakes = if self.validator_stakes.is_empty() {
-                vec![<T as pallet::Config>::MinStake::get(); self.validators.len()]
+                vec![MinStakeOf::<T>::get(); self.validators.len()]
             } else {
                 self.validator_stakes.clone()
             };
@@ -12544,8 +11353,8 @@ pub mod pallet {
             invariant_checks.push(format!(
                 "Validator Set: Active validator count ({}) within limits (min: {}, max: {})",
                 self.validators.len(),
-                <T as pallet::Config>::MinActiveValidators::get(),
-                <T as pallet::Config>::MaxValidators::get()
+                MinActiveValidatorsOf::<T>::get(),
+                MaxValidatorsOf::<T>::get()
             ));
 
             // Temporal invariant: Epoch configuration is valid
@@ -12708,10 +11517,10 @@ pub mod pallet {
 
             // Check economic invariants
             let active_validators = Self::active_validators();
-            let min_stake = <T as pallet::Config>::MinStake::get();
+            let min_stake = MinStakeOf::<T>::get();
             
             for validator in active_validators.iter() {
-                let stake = Self::validator_stake(validator);
+                let stake = pos::Stake::<T>::get(validator);
                 if stake < min_stake {
                     violations.push(format!(
                         "Economic invariant violation: Validator {:?} stake ({:?}) below MinStake ({:?})",
@@ -12721,7 +11530,7 @@ pub mod pallet {
             }
 
             // Check validator set invariants
-            let max_validators = <T as pallet::Config>::MaxValidators::get();
+            let max_validators = MaxValidatorsOf::<T>::get();
             if active_validators.len() > max_validators as usize {
                 violations.push(format!(
                     "Validator set invariant violation: Active validators ({}) exceed MaxValidators ({})",
@@ -12729,7 +11538,7 @@ pub mod pallet {
                 ));
             }
 
-            let min_active_validators = <T as pallet::Config>::MinActiveValidators::get();
+            let min_active_validators = MinActiveValidatorsOf::<T>::get();
             if active_validators.len() < min_active_validators as usize {
                 violations.push(format!(
                     "Validator set invariant violation: Active validators ({}) below MinActiveValidators ({})",
@@ -12898,7 +11707,7 @@ pub mod pallet {
             let validators = Self::validator_set();
             let pos_weight = Self::pos_weight();
             let poi_weight = Self::poi_weight();
-            let min_score_threshold = <T as Config>::MinValidatorScore::get() as u64;
+            let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
             
             for validator in validators.iter() {
                 // Get fresh PoS and PoI scores
@@ -13020,7 +11829,7 @@ pub mod pallet {
         /// Get comprehensive validator profile information (new API)
         pub fn get_validator_profile_new(validator: T::AccountId) -> Option<ValidatorProfile<T::AccountId, <T as pallet::Config>::Balance, BlockNumberFor<T>>> {
             let state = Self::validator_states(&validator)?;
-            let stake = Self::validator_stake(&validator);
+            let stake = pos::Stake::<T>::get(&validator);
             let poi_score = state.current.inference_score;
             let status = if Self::is_validator_active(&validator) {
                 ValidatorStatus::Active
@@ -13076,20 +11885,19 @@ pub mod pallet {
             ValidatorSlashingHistory::<T>::get(&validator).to_vec()
         }
 
-        /// Get system constants and configuration
         pub fn get_system_constants() -> SystemConstants<<T as pallet::Config>::Balance, BlockNumberFor<T>> {
             SystemConstants {
-                min_stake: <T as pallet::Config>::MinStake::get(),
-                min_score_threshold: <T as pallet::Config>::MinValidatorScore::get() as u64,
+                min_stake: MinStakeOf::<T>::get(),
+                min_score_threshold: MinValidatorScoreOf::<T>::get() as u64,
                 epoch_length: <T as pallet::Config>::EpochLength::get(),
-                max_validators: <T as pallet::Config>::MaxValidators::get(),
-                cooldown_period: <T as pallet::Config>::LeaveCooldown::get().into(),
+                max_validators: MaxValidatorsOf::<T>::get(),
+                cooldown_period: LeaveCooldownOf::<T>::get().into(),
             }
         }
 
         /// Get validator cooldown status
         pub fn get_validator_cooldown_status(validator: T::AccountId) -> Option<BlockNumberFor<T>> {
-            Self::validator_leave_requests(&validator).map(|block| block.into())
+            pos::ValidatorLeaveRequests::<T>::get(&validator).map(|block| block.into())
         }
 
         /// Get detailed validator cooldown status with remaining blocks and eligibility
@@ -13138,7 +11946,7 @@ pub mod pallet {
 
         /// Get validator stake score
         pub fn validator_stake_score(validator: &T::AccountId) -> u128 {
-            Self::validator_stake(validator).saturated_into()
+            pos::Stake::<T>::get(validator).saturated_into()
         }
 
         /// Get validator inference score
@@ -13182,7 +11990,7 @@ pub mod pallet {
         pub fn validator_set_info() -> (u32, u32, u32) {
             let active_count = Self::active_validators().len() as u32;
             let total_count = Self::total_validators_count();
-            let max_validators = <T as Config>::MaxValidators::get();
+            let max_validators = MaxValidatorsOf::<T>::get();
             (active_count, total_count, max_validators)
         }
 
@@ -13208,415 +12016,17 @@ pub mod pallet {
             Self::get_finality_info()
         }
 
-        /// Execute slashing action on a validator with overflow protection and bounds checking
-        fn execute_slash_validator(validator: &T::AccountId, amount: <T as pallet::Config>::Balance) -> DispatchResult {
-            Self::execute_slash_validator_with_reason(validator, amount, SlashReason::ManualSlash)
-        }
-
-        /// Execute slashing action on a validator with specified reason
-        pub fn execute_slash_validator_with_reason(
-            validator: &T::AccountId, 
-            amount: <T as pallet::Config>::Balance,
-            reason: SlashReason
-        ) -> DispatchResult {
-            // Check if validator exists
-            ensure!(
-                ValidatorStates::<T>::contains_key(validator),
-                Error::<T>::ValidatorNotFound
-            );
-
-            // Get pre-slash balance
-            let pre_balance = T::Currency::free_balance(validator);
-
-            // 1. Calculate slash amount based on percentage or fixed amount using safe arithmetic
-            let slash_amount = if amount == <T as pallet::Config>::Balance::default() {
-                // Use percentage-based slashing if no specific amount provided
-                let slash_percent = T::SlashPercent::get();
-                
-                // Safe multiplication to avoid overflow
-                let slash_numerator = pre_balance.checked_mul(&<T as pallet::Config>::Balance::from(slash_percent))
-                    .ok_or(Error::<T>::ArithmeticOverflow)?;
-                let slash_amount = slash_numerator.checked_div(&<T as pallet::Config>::Balance::from(100u32))
-                    .ok_or(Error::<T>::ArithmeticUnderflow)?;
-                
-                slash_amount
-            } else {
-                amount
-            };
-
-            // 2. Check per-epoch and per-validator bounds
-            let current_epoch_total = EpochTotalSlashed::<T>::get();
-            let current_validator_total = ValidatorEpochSlashed::<T>::get(validator);
-
-            // Check epoch-wide slashing bounds
-            let new_epoch_total = current_epoch_total.checked_add(&slash_amount)
-                .ok_or(Error::<T>::ArithmeticOverflow)?;
-            ensure!(
-                new_epoch_total <= T::MaxSlashPerEpoch::get(),
-                Error::<T>::SlashingBoundsExceeded
-            );
-
-            // Check per-validator slashing bounds
-            let new_validator_total = current_validator_total.checked_add(&slash_amount)
-                .ok_or(Error::<T>::ArithmeticOverflow)?;
-            ensure!(
-                new_validator_total <= T::MaxSlashPerValidator::get(),
-                Error::<T>::SlashingBoundsExceeded
-            );
-
-            // 3. Slash tokens from validator's balance using saturating operations
-            let (_negative_imbalance, actual_slashed) = T::Currency::slash(validator, slash_amount);
-            let slashed_amount = actual_slashed.min(slash_amount); // Use actual slashed amount
-
-            // Get post-slash balance
-            let post_balance = T::Currency::free_balance(validator);
-
-            // 4. Update epoch tracking with safe arithmetic
-            EpochTotalSlashed::<T>::mutate(|total| {
-                *total = total.saturating_add(slashed_amount);
-            });
-            ValidatorEpochSlashed::<T>::mutate(validator, |validator_total| {
-                *validator_total = validator_total.saturating_add(slashed_amount);
-            });
-
-            // 5. Reduce validator's DCF score based on slash amount using safe arithmetic
-            let score_penalty = {
-                let penalty_raw = slashed_amount.saturated_into::<u64>()
-                    .checked_div(T::SlashPenaltyDivisor::get())
-                    .unwrap_or(0);
-                penalty_raw.min(T::MaxSlashPenalty::get())
-            };
-
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                let old_score = state.current.final_score;
-                state.current.final_score = state.current.final_score.saturating_sub(score_penalty);
-                
-                // Update last active epoch
-                state.last_active_epoch = Self::current_epoch();
-                
-                // Add to history
-                if state.history.len() == state.history.capacity() {
-                    state.history.remove(0);
-                }
-                let _ = state.history.try_push(EpochStats {
-                    epoch: Self::current_epoch(),
-                    stake_score: state.current.stake_score,
-                    inference_score: state.current.inference_score,
-                    final_score: state.current.final_score,
-                    authored_blocks: state.current.authored_blocks,
-                    missed_blocks: state.current.missed_blocks,
-                });
-                
-                log::info!("Validator {:?} slashed: amount {:?}, score {} -> {}, penalty: {}", 
-                          validator, slashed_amount, old_score, state.current.final_score, score_penalty);
-                
-                Ok::<(), Error<T>>(())
-            })?;
-            
-            // 6. Check if validator should be ejected due to low score
-            let current_score = ValidatorStates::<T>::get(validator)
-                .map(|s| s.current.final_score)
-                .unwrap_or(0);
-                
-            if current_score < <T as pallet::Config>::MinValidatorScore::get() as u64 {
-                let _ = Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold);
-                log::info!("Validator {:?} ejected due to low score after slashing", validator);
-            }
-            
-            // 7. Emit enhanced events with pre/post balances and reason
-            Self::deposit_event(Event::ValidatorSlashed {
-                validator: validator.clone(),
-                amount: slashed_amount,
-                pre_balance,
-                post_balance,
-                reason,
-            });
-            
-            Self::deposit_event(Event::ValidatorScoreUpdated {
-                validator: validator.clone(),
-                stake_score: ValidatorStates::<T>::get(validator).map(|s| s.current.stake_score).unwrap_or(0),
-                inference_score: ValidatorStates::<T>::get(validator).map(|s| s.current.inference_score).unwrap_or(0),
-                final_score: current_score,
-            });
-            
-            Ok(())
-        }
-
-        /// Distribute rewards to validators based on performance tiers
-        fn distribute_rewards(
-            base_reward_pool: <T as pallet::Config>::Balance,
-            performance_reward_pool: <T as pallet::Config>::Balance,
-            top_performer_reward_pool: <T as pallet::Config>::Balance,
-        ) -> DispatchResult {
-            let active_validators = Self::active_validators();
-            if active_validators.is_empty() {
-                return Ok(());
-            }
-
-            // Get validator scores and categorize them
-            let mut validator_scores: Vec<(T::AccountId, u64)> = Vec::new();
-            for validator in &active_validators {
-                if let Some(state) = ValidatorStates::<T>::get(validator) {
-                    validator_scores.push((validator.clone(), state.current.final_score));
-                }
-            }
-
-            // Sort by score (descending)
-            validator_scores.sort_by(|a, b| b.1.cmp(&a.1));
-
-            let total_validators = validator_scores.len();
-            let high_performance_threshold = T::HighPerformanceScore::get();
-            let top_performer_count = (total_validators * T::TopPerformerPercentage::get() as usize) / 100;
-
-            // Distribute base rewards to all active validators
-            let base_reward_per_validator = if total_validators > 0 {
-                base_reward_pool / (total_validators as u32).into()
-            } else {
-                <T as pallet::Config>::Balance::default()
-            };
-
-            // Count high performers and top performers
-            let high_performers: Vec<_> = validator_scores.iter()
-                .filter(|(_, score)| *score >= high_performance_threshold)
-                .collect();
-            
-            let top_performers = &validator_scores[..top_performer_count.min(total_validators)];
-
-            // Distribute performance rewards
-            let performance_reward_per_validator = if !high_performers.is_empty() {
-                performance_reward_pool / (high_performers.len() as u32).into()
-            } else {
-                <T as pallet::Config>::Balance::default()
-            };
-
-            // Distribute top performer rewards
-            let top_performer_reward_per_validator = if !top_performers.is_empty() {
-                top_performer_reward_pool / (top_performers.len() as u32).into()
-            } else {
-                <T as pallet::Config>::Balance::default()
-            };
-
-            // Execute reward distribution
-            for (validator, score) in &validator_scores {
-                let mut total_reward = base_reward_per_validator;
-
-                // Add performance bonus
-                if *score >= high_performance_threshold {
-                    total_reward = total_reward.saturating_add(performance_reward_per_validator);
-                }
-
-                // Add top performer bonus
-                if top_performers.iter().any(|(v, _)| v == validator) {
-                    total_reward = total_reward.saturating_add(top_performer_reward_per_validator);
-                }
-
-                // Distribute the reward
-                Self::execute_reward_validator(validator, total_reward)?;
-            }
-
-            log::info!("Distributed rewards: {} validators, base pool: {:?}, performance pool: {:?}, top performer pool: {:?}",
-                      total_validators, base_reward_pool, performance_reward_pool, top_performer_reward_pool);
-
-            Ok(())
-        }
-
-        /// Execute reward action on a validator with overflow protection and bounds checking
-        fn execute_reward_validator(validator: &T::AccountId, amount: <T as pallet::Config>::Balance) -> DispatchResult {
-            Self::execute_reward_validator_with_reason(validator, amount, RewardReason::ManualReward)
-        }
-
-        /// Execute reward action on a validator with specified reason
-        pub fn execute_reward_validator_with_reason(
-            validator: &T::AccountId, 
-            amount: <T as pallet::Config>::Balance,
-            reason: RewardReason
-        ) -> DispatchResult {
-            // Check if validator exists
-            ensure!(
-                ValidatorStates::<T>::contains_key(validator),
-                Error::<T>::ValidatorNotFound
-            );
-
-            // Get pre-reward balance
-            let pre_balance = T::Currency::free_balance(validator);
-
-            // 1. Calculate reward amount using safe arithmetic
-            let reward_amount = if amount > <T as pallet::Config>::Balance::default() {
-                // Use the specified amount
-                amount
-            } else {
-                // Use the configured default reward amount
-                T::ValidatorReward::get()
-            };
-
-            // 2. Check per-epoch and per-validator bounds
-            let current_epoch_total = EpochTotalRewarded::<T>::get();
-            let current_validator_total = ValidatorEpochRewarded::<T>::get(validator);
-
-            // Check epoch-wide reward bounds
-            let new_epoch_total = current_epoch_total.checked_add(&reward_amount)
-                .ok_or(Error::<T>::ArithmeticOverflow)?;
-            ensure!(
-                new_epoch_total <= T::MaxRewardPerEpoch::get(),
-                Error::<T>::RewardBoundsExceeded
-            );
-
-            // Check per-validator reward bounds
-            let new_validator_total = current_validator_total.checked_add(&reward_amount)
-                .ok_or(Error::<T>::ArithmeticOverflow)?;
-            ensure!(
-                new_validator_total <= T::MaxRewardPerValidator::get(),
-                Error::<T>::RewardBoundsExceeded
-            );
-
-            // 3. Check for balance overflow before issuing reward
-            let _new_balance = pre_balance.checked_add(&reward_amount)
-                .ok_or(Error::<T>::ArithmeticOverflow)?;
-
-            // Issue the reward (mint new tokens to the validator)
-            let _ = T::Currency::deposit_creating(validator, reward_amount);
-
-            // Get post-reward balance
-            let post_balance = T::Currency::free_balance(validator);
-
-            // 4. Update epoch tracking with safe arithmetic
-            EpochTotalRewarded::<T>::mutate(|total| {
-                *total = total.saturating_add(reward_amount);
-            });
-            ValidatorEpochRewarded::<T>::mutate(validator, |validator_total| {
-                *validator_total = validator_total.saturating_add(reward_amount);
-            });
-
-            // 5. Boost validator's DCF score based on reward amount using safe arithmetic
-            let score_boost = {
-                let boost_raw = reward_amount.saturated_into::<u64>()
-                    .checked_div(T::RewardBoostDivisor::get())
-                    .unwrap_or(0);
-                boost_raw.min(T::MaxRewardBoost::get())
-            };
-            
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                let old_score = state.current.final_score;
-                
-                // Use saturating addition to prevent overflow
-                state.current.final_score = state.current.final_score.saturating_add(score_boost);
-                
-                // Cap at maximum score
-                if state.current.final_score > <T as pallet::Config>::MaxValidatorScore::get() {
-                    state.current.final_score = <T as pallet::Config>::MaxValidatorScore::get();
-                }
-                
-                // Update last active epoch
-                state.last_active_epoch = Self::current_epoch();
-                
-                // Add to history
-                if state.history.len() == state.history.capacity() {
-                    state.history.remove(0);
-                }
-                let _ = state.history.try_push(EpochStats {
-                    epoch: Self::current_epoch(),
-                    stake_score: state.current.stake_score,
-                    inference_score: state.current.inference_score,
-                    final_score: state.current.final_score,
-                    authored_blocks: state.current.authored_blocks,
-                    missed_blocks: state.current.missed_blocks,
-                });
-                
-                log::debug!("Validator {:?} rewarded: amount {:?}, score {} -> {}, boost: {}", 
-                           validator, reward_amount, old_score, state.current.final_score, score_boost);
-                
-                Ok::<(), Error<T>>(())
-            })?;
-            
-            // 6. Emit enhanced events with pre/post balances and reason
-            Self::deposit_event(Event::ValidatorRewarded {
-                validator: validator.clone(),
-                amount: reward_amount,
-                pre_balance,
-                post_balance,
-                reason,
-            });
-
-            let current_score = ValidatorStates::<T>::get(validator)
-                .map(|s| s.current.final_score)
-                .unwrap_or(0);
-                
-            Self::deposit_event(Event::ValidatorScoreBoosted {
-                validator: validator.clone(),
-                old_score: current_score.saturating_sub(score_boost),
-                new_score: current_score,
-                reason: ScoreBoostReason::ManualBoost,
-            });
-            
-            Ok(())
-        }
+        // execute_slash_validator, execute_slash_validator_with_reason, distribute_rewards, execute_reward_validator, and execute_reward_validator_with_reason moved to pallet-cbc-pos.
 
         /// Execute ejection action on a validator
         fn execute_eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
-            // 1. Unreserve the minimum stake that was locked when joining
-            let min_stake = <T as Config>::MinStake::get();
-            T::Currency::unreserve(validator, min_stake);
+            pos::Pallet::<T>::force_eject_validator(validator)?;
 
-            // Remove the stake record since it's no longer reserved
-            ValidatorStake::<T>::remove(validator);
-
-            // Emit stake unreservation event
-            Self::deposit_event(Event::ValidatorStakeUnreserved {
-                validator: validator.clone(),
-                amount: min_stake,
-            });
-
-            // 2. Remove from active validator set
-            let mut active_validators = ActiveValidators::<T>::get();
-            let was_active = if let Some(pos) = active_validators.iter().position(|v| v == validator) {
-                active_validators.remove(pos);
-                ActiveValidators::<T>::put(active_validators);
-                true
-            } else {
-                false
-            };
-            
-            // 4. Update validator state to reflect ejection
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-                if let Some(state) = maybe_state.as_mut() {
-                    let old_score = state.current.final_score;
-                    state.current.final_score = 0; // Set score to 0 upon ejection
-                    state.last_active_epoch = Self::current_epoch();
-                    
-                    // Add ejection to history
-                    if state.history.len() == state.history.capacity() {
-                        state.history.remove(0);
-                    }
-                    let _ = state.history.try_push(EpochStats {
-                        epoch: Self::current_epoch(),
-                        stake_score: state.current.stake_score,
-                        inference_score: state.current.inference_score,
-                        final_score: 0, // Ejected validators have 0 score
-                        authored_blocks: state.current.authored_blocks,
-                        missed_blocks: state.current.missed_blocks,
-                    });
-                    
-                    log::info!("Ejected validator {:?}: score {} -> 0, reason: {:?}", 
-                              validator, old_score, reason);
-                }
-                Ok::<(), Error<T>>(())
-            })?;
-            
-            // 5. Remove any pending validator actions
-            PendingValidatorActions::<T>::remove(validator);
-            
-            // 6. Emit ejection event
             Self::deposit_event(Event::ValidatorEjected {
                 validator: validator.clone(),
-                reason: reason.clone(),
+                reason,
             });
-            
-            // 7. Log the ejection with details
-            log::info!("Successfully executed ejection on validator {:?}, reason: {:?}, was_active: {}", 
-                      validator, reason, was_active);
-            
+
             Ok(())
         }
 
@@ -13638,7 +12048,7 @@ pub mod pallet {
             // Check minimum stake requirement
             let stake = pos::Pallet::<T>::stake(validator);
             ensure!(
-                stake >= <T as pallet_cbc_pos::Config>::MinStake::get(),
+                stake >= MinStakeOf::<T>::get(),
                 Error::<T>::InsufficientStake
             );
 
@@ -13691,9 +12101,8 @@ pub mod pallet {
 
                 ValidatorStates::<T>::insert(validator, validator_state);
 
-                // Set join time
-                let current_time = sp_io::offchain::timestamp().unix_millis();
-                ValidatorJoinTime::<T>::insert(validator, current_time);
+                // Set join time in pos pallet
+                pos::ValidatorJoinTime::<T>::insert(validator, current_block);
             }
 
             // Emit event
@@ -13705,64 +12114,15 @@ pub mod pallet {
 
         /// Execute remove validator action
         fn execute_remove_validator(validator: &T::AccountId) -> DispatchResult {
-            // Check if validator exists in the validator set
-            let mut validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(validator),
-                Error::<T>::ValidatorNotInSet
-            );
+            pos::Pallet::<T>::force_eject_validator(validator)?;
 
-            // Unreserve the minimum stake that was locked when joining
-            let min_stake = <T as Config>::MinStake::get();
-            T::Currency::unreserve(validator, min_stake);
-
-            // Emit stake unreservation event
-            Self::deposit_event(Event::ValidatorStakeUnreserved {
-                validator: validator.clone(),
-                amount: min_stake,
-            });
-
-            // Remove from validator set
-            if let Some(pos) = validator_set.iter().position(|v| v == validator) {
-                validator_set.remove(pos);
-                ValidatorSet::<T>::put(validator_set);
-            }
-
-            // Remove from active validators if present
-            let mut active_validators = ActiveValidators::<T>::get();
-            if let Some(pos) = active_validators.iter().position(|v| v == validator) {
-                active_validators.remove(pos);
-                ActiveValidators::<T>::put(active_validators);
-            }
-
-            // Clean up validator state and related data
-            ValidatorStates::<T>::remove(validator);
-            ValidatorNames::<T>::remove(validator);
-            ValidatorMetadata::<T>::remove(validator);
-            ValidatorPerformanceHistory::<T>::remove(validator);
-            ValidatorLastSeen::<T>::remove(validator);
-            ValidatorBlocksAuthored::<T>::remove(validator);
-            ValidatorBlocksMissed::<T>::remove(validator);
-            ValidatorJoinTime::<T>::remove(validator);
-            ValidatorUptime::<T>::remove(validator);
-            ValidatorInferenceCount::<T>::remove(validator);
-            ValidatorStake::<T>::remove(validator);
-
-            // Remove any pending validator actions
-            PendingValidatorActions::<T>::remove(validator);
-
-            // Remove any leave requests
-            ValidatorLeaveRequests::<T>::remove(validator);
-
-            // Emit event
             Self::deposit_event(Event::ValidatorRemoved { validator: validator.clone() });
 
-            log::info!("DCF: Validator {:?} removed via governance proposal", validator);
             Ok(())
         }
 
         /// Sort validators by their final weighted score (highest first).
-        fn sort_validators_by_score(validators: &mut BoundedVec<T::AccountId, <T as Config>::MaxValidators>) {
+        fn sort_validators_by_score(validators: &mut BoundedVec<T::AccountId, MaxValidatorsOf<T>>) {
             validators.sort_by(|a, b| {
                 let score_a = ValidatorStates::<T>::get(a)
                     .map(|state| state.current.final_score)
@@ -13831,7 +12191,7 @@ pub mod pallet {
                 });
 
                 let available_slots = active.capacity() - active.len();
-                let min_score_threshold = <T as pallet::Config>::MinValidatorScore::get() as u64;
+                let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
 
                 for who in join_requests.iter().take(available_slots) {
                     let score = ValidatorStates::<T>::get(who)
@@ -13990,7 +12350,7 @@ pub mod pallet {
         pub fn get_validator_set_info() -> (u32, u32, u32) {
             let current_count = ValidatorSet::<T>::get().len() as u32;
             let active_count = ActiveValidators::<T>::get().len() as u32;
-            let max_validators = <T as pallet::Config>::MaxValidators::get();
+            let max_validators = MaxValidatorsOf::<T>::get();
             (current_count, active_count, max_validators)
         }
 
@@ -14028,7 +12388,7 @@ pub mod pallet {
 
         /// Check for underperforming validators and take action
         fn check_and_handle_underperforming_validators() {
-            let min_score = <T as pallet::Config>::MinValidatorScore::get() as u64;
+            let min_score = MinValidatorScoreOf::<T>::get() as u64;
             let current_epoch = Self::current_epoch();
             
             let validators_to_check: Vec<T::AccountId> = ActiveValidators::<T>::get().into_inner();
@@ -14057,8 +12417,8 @@ pub mod pallet {
         fn generate_automatic_validator_proposals() {
             let active_validators = ActiveValidators::<T>::get();
             let all_validators = ValidatorSet::<T>::get();
-            let max_validators = <T as pallet::Config>::MaxValidators::get() as usize;
-            let _min_active_validators = <T as pallet::Config>::MinActiveValidators::get() as usize;
+            let max_validators = MaxValidatorsOf::<T>::get() as usize;
+            let _min_active_validators = MinActiveValidatorsOf::<T>::get() as usize;
             
             // Don't generate proposals if governance mode is disabled
             if !Self::governance_mode_enabled() {
@@ -14095,12 +12455,12 @@ pub mod pallet {
 
         /// Propose adding high-scoring validators when there's space
         fn propose_add_high_scoring_validators(
-            active_validators: &BoundedVec<T::AccountId, <T as pallet::Config>::MaxValidators>,
+            active_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             all_validators_with_scores: &[(T::AccountId, u64)],
             max_validators: usize,
         ) {
             let available_slots = max_validators - active_validators.len();
-            let min_score_threshold = <T as pallet::Config>::MinValidatorScore::get() as u64;
+            let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
             
             // Find inactive validators with high scores
             let mut candidates = Vec::new();
@@ -14126,7 +12486,7 @@ pub mod pallet {
 
         /// Propose replacing low-scoring active validators with higher-scoring inactive ones
         fn propose_replace_low_scoring_validators(
-            active_validators: &BoundedVec<T::AccountId, <T as pallet::Config>::MaxValidators>,
+            active_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             all_validators_with_scores: &[(T::AccountId, u64)],
         ) {
             // Get active validators with their scores, sorted by score (lowest first)
@@ -14155,7 +12515,7 @@ pub mod pallet {
                     let min_improvement_threshold = percentage_threshold.max(T::ScoreImprovementThreshold::get()); // Configurable improvement threshold
                     
                     if score_improvement >= min_improvement_threshold &&
-                       *inactive_score >= <T as pallet::Config>::MinValidatorScore::get() as u64 &&
+                       *inactive_score >= MinValidatorScoreOf::<T>::get() as u64 &&
                        !Self::has_pending_join_request(inactive_validator) &&
                        !Self::was_recently_ejected(inactive_validator) {
                         
@@ -14178,7 +12538,7 @@ pub mod pallet {
 
         /// Propose removing excess validators (when somehow we have more than MaxValidators)
         fn propose_remove_excess_validators(
-            active_validators: &BoundedVec<T::AccountId, <T as pallet::Config>::MaxValidators>,
+            active_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             max_validators: usize,
         ) {
             let excess_count = active_validators.len() - max_validators;
@@ -14212,9 +12572,9 @@ pub mod pallet {
         /// Check if a validator was recently ejected or removed (to avoid immediate re-addition)
         pub fn was_recently_ejected(validator: &T::AccountId) -> bool {
             // First check if validator is in cooldown period after leaving
-            if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(validator) {
+            if let Some(left_at_block) = pos::RecentlyRemovedValidators::<T>::get(validator) {
                 let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                let cooldown_period = T::LeaveCooldown::get();
+                let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
 
                 // If still in cooldown, they cannot be re-added
@@ -14249,8 +12609,8 @@ pub mod pallet {
             // Add the validator to pending join actions
             PendingValidatorActions::<T>::insert(validator, ValidatorAction::Join);
             
-            // Get the validator's stake amount from our storage (which uses the correct Balance type)
-            let stake_amount = ValidatorStake::<T>::get(validator);
+            // Get the validator's stake amount from pos storage
+            let stake_amount = pos::Pallet::<T>::stake(validator);
             
             // Emit events to indicate automatic addition
             Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
@@ -14360,95 +12720,7 @@ pub mod pallet {
             }
         }
 
-        /// Clean up expired entries from RecentlyRemovedValidators storage
-        fn cleanup_recently_removed_validators(current_block: u32) {
-            let cooldown_period = T::LeaveCooldown::get();
-            let mut expired_entries = Vec::new();
-
-            // Collect expired recently removed validators
-            for (validator, removed_at_block) in RecentlyRemovedValidators::<T>::iter() {
-                let blocks_passed = current_block.saturating_sub(removed_at_block);
-                if blocks_passed >= cooldown_period {
-                    expired_entries.push(validator);
-                }
-            }
-
-            // Remove expired entries
-            for validator in expired_entries {
-                RecentlyRemovedValidators::<T>::remove(&validator);
-                log::debug!("DCF: Removed validator {:?} from recently removed list after cooldown", validator);
-            }
-        }
-
-        /// Process expired leave requests and remove validators after cooldown
-        fn process_expired_leave_requests(current_block: u32) {
-            let cooldown_period = T::LeaveCooldown::get();
-            let mut expired_requests = Vec::new();
-
-            // Collect expired leave requests
-            for (validator, request_block) in ValidatorLeaveRequests::<T>::iter() {
-                let blocks_passed = current_block.saturating_sub(request_block);
-                if blocks_passed >= cooldown_period {
-                    expired_requests.push(validator);
-                }
-            }
-
-            // Process expired requests
-            for validator in expired_requests {
-                // Unreserve the validator's stake now that cooldown has expired
-                let stake_amount = ValidatorStake::<T>::get(&validator);
-                if stake_amount > <T as Config>::Balance::default() {
-                    T::Currency::unreserve(&validator, stake_amount);
-                    
-                    // Emit stake unreservation event
-                    Self::deposit_event(Event::ValidatorStakeUnreserved {
-                        validator: validator.clone(),
-                        amount: stake_amount,
-                    });
-                }
-
-                // Remove from validator set
-                let mut validator_set = ValidatorSet::<T>::get();
-                if let Some(pos) = validator_set.iter().position(|v| v == &validator) {
-                    validator_set.remove(pos);
-                    ValidatorSet::<T>::put(validator_set);
-                }
-
-                // Remove from active validators if present (should already be removed)
-                let mut active_validators = ActiveValidators::<T>::get();
-                if let Some(pos) = active_validators.iter().position(|v| v == &validator) {
-                    active_validators.remove(pos);
-                    ActiveValidators::<T>::put(active_validators);
-                }
-
-                // Clean up validator state and related data
-                ValidatorStates::<T>::remove(&validator);
-                ValidatorNames::<T>::remove(&validator);
-                ValidatorMetadata::<T>::remove(&validator);
-                ValidatorPerformanceHistory::<T>::remove(&validator);
-                ValidatorLastSeen::<T>::remove(&validator);
-                ValidatorBlocksAuthored::<T>::remove(&validator);
-                ValidatorBlocksMissed::<T>::remove(&validator);
-                ValidatorJoinTime::<T>::remove(&validator);
-                ValidatorUptime::<T>::remove(&validator);
-                ValidatorInferenceCount::<T>::remove(&validator);
-                ValidatorStake::<T>::remove(&validator);
-
-                // Remove the leave request
-                ValidatorLeaveRequests::<T>::remove(&validator);
-
-                // Add to recently removed validators to prevent immediate re-entry
-                RecentlyRemovedValidators::<T>::insert(&validator, current_block);
-
-                // Remove any pending validator actions
-                PendingValidatorActions::<T>::remove(&validator);
-
-                // Emit event
-                Self::deposit_event(Event::ValidatorLeft { validator: validator.clone() });
-
-                log::info!("DCF: Validator {:?} left after cooldown period expired", validator);
-            }
-        }
+        // cleanup_recently_removed_validators and process_expired_leave_requests removed because cooldowns are managed by pallet-cbc-pos.
 
         /// Emit DCF health metrics for monitoring
         fn emit_dcf_health_metrics(block_number: u32) {
@@ -14702,7 +12974,7 @@ pub mod pallet {
                 if let Some(state) = ValidatorStates::<T>::get(validator) {
                     let score = state.current.final_score;
                     let _max_score = T::MaxValidatorScore::get();
-                    let _min_score = <T as pallet::Config>::MinValidatorScore::get() as u64;
+                    let _min_score = MinValidatorScoreOf::<T>::get() as u64;
                     
                     // High performer: score > configured high performance threshold
                     if score > T::HighPerformanceScore::get() {
@@ -15880,6 +14152,208 @@ pub mod pallet {
             Ok(())
         }
     }
+
+    // --- ValidatorHandler Implementation --- //
+    impl<T: Config> pallet_cbc_pos::ValidatorHandler<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Balance> for Pallet<T> {
+        fn on_joined(validator: &<T as frame_system::Config>::AccountId, stake: <T as pallet::Config>::Balance) -> DispatchResult {
+            let mut validator_set = ValidatorSet::<T>::get();
+            if !validator_set.contains(validator) {
+                ensure!(
+                    validator_set.len() < T::MaxValidators::get() as usize,
+                    Error::<T>::NotEnoughValidators
+                );
+                validator_set.try_push(validator.clone())
+                    .map_err(|_| Error::<T>::NotEnoughValidators)?;
+                ValidatorSet::<T>::put(validator_set);
+            }
+
+            if !ValidatorStates::<T>::contains_key(validator) {
+                let current_epoch = Self::current_epoch();
+                let stake_score = stake.saturated_into::<u64>();
+                
+                let inference_score = poi::Pallet::<T>::inference_results(validator)
+                    .map(|(result, _)| result as u64)
+                    .unwrap_or(0);
+
+                let pos_weight = if !PosWeight::<T>::exists() {
+                    let weight = T::DefaultPosWeight::get();
+                    PosWeight::<T>::put(weight);
+                    weight
+                } else {
+                    PosWeight::<T>::get()
+                };
+                let poi_weight = if !PoiWeight::<T>::exists() {
+                    let weight = T::DefaultPoiWeight::get();
+                    PoiWeight::<T>::put(weight);
+                    weight
+                } else {
+                    PoiWeight::<T>::get()
+                };
+
+                let mut final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+                if final_score > T::MaxValidatorScore::get() {
+                    final_score = T::MaxValidatorScore::get();
+                }
+
+                let initial_stats = EpochStats {
+                    epoch: current_epoch,
+                    stake_score,
+                    inference_score,
+                    final_score,
+                    authored_blocks: 0,
+                    missed_blocks: 0,
+                };
+
+                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let state = ValidatorState {
+                    last_active_epoch: current_epoch,
+                    current: initial_stats,
+                    history: BoundedVec::new(),
+                    uptime: 0,
+                    inference_success_count: 0,
+                    participation_rate: 0,
+                    inference_count: 0,
+                    last_active_block: current_block,
+                    name: None,
+                    trust_score: 5000,
+                };
+
+                ValidatorStates::<T>::insert(validator, state);
+            }
+
+            Ok(())
+        }
+
+        fn on_leave_requested(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+            let mut active_validators = ActiveValidators::<T>::get();
+            if let Some(pos) = active_validators.iter().position(|v| v == validator) {
+                active_validators.remove(pos);
+                ActiveValidators::<T>::put(active_validators);
+            }
+            Ok(())
+        }
+
+        fn on_left(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+            let mut validator_set = ValidatorSet::<T>::get();
+            if let Some(pos) = validator_set.iter().position(|v| v == validator) {
+                validator_set.remove(pos);
+                ValidatorSet::<T>::put(validator_set);
+            }
+
+            let mut active_validators = ActiveValidators::<T>::get();
+            if let Some(pos) = active_validators.iter().position(|v| v == validator) {
+                active_validators.remove(pos);
+                ActiveValidators::<T>::put(active_validators);
+            }
+
+            ValidatorStates::<T>::remove(validator);
+            ValidatorNames::<T>::remove(validator);
+            ValidatorMetadata::<T>::remove(validator);
+            ValidatorPerformanceHistory::<T>::remove(validator);
+            ValidatorLastSeen::<T>::remove(validator);
+            ValidatorBlocksAuthored::<T>::remove(validator);
+            ValidatorBlocksMissed::<T>::remove(validator);
+            ValidatorUptime::<T>::remove(validator);
+            ValidatorInferenceCount::<T>::remove(validator);
+            PendingValidatorActions::<T>::remove(validator);
+
+            Ok(())
+        }
+
+        fn on_stake_increased(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance) -> DispatchResult {
+            let new_total_stake = pos::Pallet::<T>::stake(validator);
+            let new_stake_score = new_total_stake.saturated_into::<u64>();
+            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+                if let Some(state) = maybe_state.as_mut() {
+                    state.current.stake_score = new_stake_score;
+                    let _ = Self::update_final_score(validator);
+                }
+                Ok::<(), Error<T>>(())
+            })?;
+            Ok(())
+        }
+
+        fn on_stake_decreased(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance) -> DispatchResult {
+            let new_total_stake = pos::Pallet::<T>::stake(validator);
+            let new_stake_score = new_total_stake.saturated_into::<u64>();
+            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+                if let Some(state) = maybe_state.as_mut() {
+                    state.current.stake_score = new_stake_score;
+                    let _ = Self::update_final_score(validator);
+                }
+                Ok::<(), Error<T>>(())
+            })?;
+            Ok(())
+        }
+
+        fn on_slashed(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance, penalty: u64) -> DispatchResult {
+            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                let old_score = state.current.final_score;
+                state.current.final_score = state.current.final_score.saturating_sub(penalty);
+                state.last_active_epoch = Self::current_epoch();
+                
+                let new_total_stake = pos::Pallet::<T>::stake(validator);
+                state.current.stake_score = new_total_stake.saturated_into::<u64>();
+                
+                if state.history.len() == state.history.capacity() {
+                    state.history.remove(0);
+                }
+                let _ = state.history.try_push(EpochStats {
+                    epoch: Self::current_epoch(),
+                    stake_score: state.current.stake_score,
+                    inference_score: state.current.inference_score,
+                    final_score: state.current.final_score,
+                    authored_blocks: state.current.authored_blocks,
+                    missed_blocks: state.current.missed_blocks,
+                });
+                
+                if state.current.final_score < MinValidatorScoreOf::<T>::get() as u64 {
+                    let _ = Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold);
+                }
+                
+                Ok::<(), Error<T>>(())
+            })?;
+            Ok(())
+        }
+
+        fn on_rewarded(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance, boost: u64) -> DispatchResult {
+            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                state.current.final_score = state.current.final_score.saturating_add(boost);
+                if state.current.final_score > T::MaxValidatorScore::get() {
+                    state.current.final_score = T::MaxValidatorScore::get();
+                }
+                state.last_active_epoch = Self::current_epoch();
+                
+                let new_total_stake = pos::Pallet::<T>::stake(validator);
+                state.current.stake_score = new_total_stake.saturated_into::<u64>();
+                
+                if state.history.len() == state.history.capacity() {
+                    state.history.remove(0);
+                }
+                let _ = state.history.try_push(EpochStats {
+                    epoch: Self::current_epoch(),
+                    stake_score: state.current.stake_score,
+                    inference_score: state.current.inference_score,
+                    final_score: state.current.final_score,
+                    authored_blocks: state.current.authored_blocks,
+                    missed_blocks: state.current.missed_blocks,
+                });
+                
+                Ok::<(), Error<T>>(())
+            })?;
+            Ok(())
+        }
+
+        fn get_validator_score(validator: &<T as frame_system::Config>::AccountId) -> u64 {
+            ValidatorStates::<T>::get(validator).map(|s| s.current.final_score).unwrap_or(0)
+        }
+
+        fn get_active_validators() -> Vec<<T as frame_system::Config>::AccountId> {
+            ActiveValidators::<T>::get().into_inner()
+        }
+    }
 }
 
 // Re-export the pallet for external use
@@ -16122,54 +14596,6 @@ pub enum ValidatorStatus {
     /// periods before being allowed to rejoin and may need to demonstrate
     /// improved capabilities or resolve the issues that led to ejection.
     Ejected,
-}
-
-/// Data structure for inference data collected by off-chain workers.
-/// 
-/// This structure encapsulates all information related to AI/ML inference
-/// operations performed by validators as part of the Proof-of-Inference
-/// consensus mechanism. The data is collected off-chain and submitted
-/// to the blockchain for validation and scoring.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct InferenceData<T: Config> {
-    /// The validator account that performed the inference operation
-    pub validator: <T as frame_system::Config>::AccountId,
-    
-    /// The epoch number when the inference was performed
-    pub epoch: u32,
-    
-    /// The numerical result of the inference computation
-    pub inference_result: u32,
-    
-    /// Confidence score indicating the reliability of the inference result (0-100)
-    pub confidence_score: u32,
-    
-    /// Unix timestamp in milliseconds when the inference was completed
-    pub timestamp: u64,
-    
-    /// List of data sources used for the inference (URLs, hashes, etc.)
-    pub data_sources: Vec<Vec<u8>>,
-}
-
-/// Off-chain storage structure for computed Proof-of-Inference scores.
-/// 
-/// This structure stores PoI scores that have been computed off-chain
-/// and are ready to be submitted to the blockchain. Off-chain computation
-/// allows for complex AI/ML scoring algorithms that would be too expensive
-/// to run directly on-chain.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct OffchainPoiScore<T: Config> {
-    /// The validator account whose PoI score was computed
-    pub validator: <T as frame_system::Config>::AccountId,
-    
-    /// The computed PoI score value
-    pub score: u64,
-    
-    /// The block number when the score was computed
-    pub block_number: u32,
-    
-    /// Unix timestamp in milliseconds when the score was computed
-    pub timestamp: u64,
 }
 
 

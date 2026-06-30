@@ -188,7 +188,6 @@ impl pallet_cbc_poi::Config for Runtime {
     type DcfInterface = pallet_cbc_dcf::Pallet<Runtime>;
 }
 
-// === CBC POS Pallet Configuration ===
 impl pallet_cbc_pos::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cbc_pos::weights::SubstrateWeight<Runtime>;
@@ -199,25 +198,35 @@ impl pallet_cbc_pos::Config for Runtime {
     type MaxSlashingCount = MaxSlashingCount;
     type MinStake = ConstU128<1000>; // Minimum stake of 1000 units
     type Balance = Balance;
+    type Currency = Balances;
+    type LeaveCooldown = ConstU32<1000>;
+    type ValidatorReward = ConstU128<10000>;
+    type SlashPercent = ConstU32<10>;
+    type MaxSlashPerEpoch = ConstU128<50000>;
+    type MaxSlashPerValidator = ConstU128<20000>;
+    type MaxRewardPerEpoch = ConstU128<30000>;
+    type MaxRewardPerValidator = ConstU128<10000>;
+    type SlashPenaltyDivisor = ConstU64<1000>;
+    type MaxSlashPenalty = ConstU64<50>;
+    type RewardBoostDivisor = ConstU64<1000>;
+    type MaxRewardBoost = ConstU64<20>;
+    type HighPerformanceScore = HighPerformanceScore;
+    type TopPerformerPercentage = TopPerformerPercentage;
+    type ValidatorHandler = pallet_cbc_dcf::Pallet<Runtime>;
 }
 
 // === CBC DCF Pallet Configuration ===
 impl pallet_cbc_dcf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    
-    // Validator set configuration
-    type MaxValidators = MaxValidators;
-    type MinActiveValidators = MinActiveValidators;
+    type Balance = Balance;
+
+    // Epoch history and scoring weights
     type MaxEpochHistory = ConstU32<24>;
-    
-    // Scoring weights and thresholds
     type DefaultPosWeight = PosWeight;
     type DefaultPoiWeight = PoiWeight;
-    type MinValidatorScore = MinValidatorScore;
     type MaxValidatorScore = MaxValidatorScore;
-    
+
     // Score decay and activity parameters
-    type ValidatorScoreDecay = ValidatorScoreDecay;
     type MaxInactiveEpochs = ConstU32<5>;
     type ScoreDecayInterval = ConstU32<10>; // every 10 blocks
     type ParticipationUpdateInterval = ConstU32<100>; // every 100 blocks
@@ -225,13 +234,12 @@ impl pallet_cbc_dcf::Config for Runtime {
     type ValidatorProposalInterval = ConstU32<200>; // every 200 blocks
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
     type OffchainWorkerInterval = ConstU32<5>; // every 5 blocks
-    type LeaveCooldown = ConstU32<1000>; // 1000 blocks cooldown period
     type EpochLength = ConstU32<100>; // 100 blocks per epoch
-    
+
     // Block authorship rewards and penalties
     type BlockAuthorshipBoost = ConstU64<10>;
     type MissedBlockPenalty = ConstU64<5>;
-    
+
     // Inference scoring parameters
     type InferenceBoostLow = ConstU64<2>;
     type InferenceBoostMedium = ConstU64<5>;
@@ -241,15 +249,7 @@ impl pallet_cbc_dcf::Config for Runtime {
     type InferencePenaltyHigh = ConstU64<7>;
     type InferenceConfidenceThresholdLow = ConstU32<70>;
     type InferenceConfidenceThresholdHigh = ConstU32<90>;
-    
-    // Governance and slashing parameters
-    type MaxSlashPenalty = ConstU64<50>;
-    type MaxRewardBoost = ConstU64<20>;
-    type SlashPenaltyDivisor = ConstU64<1000>;
-    type RewardBoostDivisor = ConstU64<1000>;
-    type SlashPercent = ConstU32<10>; // 10% of validator's balance
-    type ValidatorReward = ConstU128<10000>; // Default reward amount (10,000 units)
-    
+
     // Validator metadata limits
     type MaxValidatorNameLength = ConstU32<32>;
     type MaxValidatorWebsiteLength = ConstU32<64>;
@@ -259,17 +259,16 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxPerformanceHistoryLength = ConstU32<100>;
     type MaxValidatorHistoryLength = ConstU32<10>;
     type MaxCommissionRate = ConstU32<10000>; // 100.00%
-    
+
     // Percentage calculation precision
     type PercentagePrecision = ConstU32<10000>; // 0.01% precision
-    
+
     // Off-chain worker configuration
     type OffchainWorkerTimeout = ConstU64<30000>; // 30 seconds
     type EstimatedBlockTime = ConstU64<6000>; // 6 seconds
-    
-    // Performance thresholds
+
+    // Performance thresholds (DCF-specific ones; HighPerformanceScore and TopPerformerPercentage inherited from pos)
     type MinPerformanceScore = MinPerformanceScore;
-    type HighPerformanceScore = HighPerformanceScore;
     type MinParticipationRate = MinParticipationRate;
     type HighParticipationRate = HighParticipationRate;
     type MaxMissedBlocks = MaxMissedBlocks;
@@ -277,18 +276,18 @@ impl pallet_cbc_dcf::Config for Runtime {
     type HealthyValidatorScore = HealthyValidatorScore;
     type HealthyParticipationRate = HealthyParticipationRate;
     type HealthyMissedBlocksMax = HealthyMissedBlocksMax;
-    
+
     // Score calculation thresholds
     type ScoreChangeThreshold = ScoreChangeThreshold;
     type ScoreChangePercentage = ScoreChangePercentage;
     type ScoreImprovementThreshold = ScoreImprovementThreshold;
     type ScoreImprovementPercentage = ScoreImprovementPercentage;
-    
+
     // Contribution balance thresholds
     type MaxPosContribution = MaxPosContribution;
     type MaxPoiContribution = MaxPoiContribution;
     type ImbalanceWarningThreshold = ImbalanceWarningThreshold;
-    
+
     // Block processing intervals
     type LeaveRequestCheckInterval = LeaveRequestCheckInterval;
     type MetricsUpdateInterval = MetricsUpdateInterval;
@@ -300,20 +299,19 @@ impl pallet_cbc_dcf::Config for Runtime {
     type TopValidatorsDisplayCount = TopValidatorsDisplayCount;
     type HealthCheckSampleSize = HealthCheckSampleSize;
     
-    // Percentage constants
+    // Percentage constants (TopPerformerPercentage is inherited from pos::Config)
     type FullPercentage = FullPercentage;
     type HighPerformancePercentage = HighPerformancePercentage;
-    type TopPerformerPercentage = TopPerformerPercentage;
     
     // Reward distribution percentages
     type BaseRewardPercentage = ConstU32<60>; // 60% of rewards go to base pool
     type PerformanceRewardPercentage = ConstU32<25>; // 25% for high performers
     type TopPerformerRewardPercentage = ConstU32<15>; // 15% for top performers
     
-    // Stake and balance configuration
-    type MinStake = ConstU128<1000>;
-    type Balance = Balance;
-    type Currency = Balances;
+    // Misbehavior reporting configuration
+    type MaxEvidenceLength = MaxEvidenceLength;
+    type MisbehaviorSlashThreshold = MisbehaviorSlashThreshold;
+
     type WeightInfo = pallet_cbc_dcf::weights::SubstrateWeight<Runtime>;
 
     // Constants for hardcoded values
@@ -323,16 +321,6 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxProposalActionBoundedVecSize = ConstU32<100>;
     type AuthorNotActiveErrorCode = ConstU8<1>;
     type AuthorMismatchErrorCode = ConstU8<2>;
-    
-    // Misbehavior reporting configuration
-    type MaxEvidenceLength = MaxEvidenceLength;
-    type MisbehaviorSlashThreshold = MisbehaviorSlashThreshold;
-
-    // Slashing and reward bounds
-    type MaxSlashPerEpoch = ConstU128<50000>; // Maximum total slashing per epoch
-    type MaxSlashPerValidator = ConstU128<20000>; // Maximum slashing per validator per epoch
-    type MaxRewardPerEpoch = ConstU128<30000>; // Maximum total rewards per epoch
-    type MaxRewardPerValidator = ConstU128<10000>; // Maximum reward per validator per epoch
 
     // Trust score calculation weights
     type TrustScoreUptimeWeight = ConstU64<4000>; // 40% weight for uptime
