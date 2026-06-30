@@ -205,7 +205,7 @@ impl<T: Config> Pallet<T> {
         
         // Clear validator data
         ValidatorTrustScores::<T>::remove(validator);
-        ValidatorInferenceCount::<T>::remove(validator);
+        pallet_cbc_poi::ValidatorInferenceCount::<T>::remove(validator);
         ValidatorLastSeen::<T>::remove(validator);
         ValidatorStates::<T>::remove(validator);
         

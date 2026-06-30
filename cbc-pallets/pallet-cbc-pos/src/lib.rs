@@ -920,7 +920,7 @@ pub mod pallet {
         pub fn execute_slash_validator_with_reason(
             validator: &T::AccountId,
             amount: BalanceOf<T>,
-            reason: SlashReason,
+            _reason: SlashReason,
         ) -> DispatchResult {
             let validator_set = ValidatorSet::<T>::get();
             ensure!(

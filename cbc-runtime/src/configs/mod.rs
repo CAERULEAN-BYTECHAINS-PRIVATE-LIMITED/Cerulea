@@ -174,6 +174,9 @@ impl pallet_cbc_poi::PosInterface<AccountId> for PosInterfaceImpl {
             weight,
         )
     }
+    fn get_active_validators() -> sp_runtime::Vec<AccountId> {
+        pallet_cbc_pos::Pallet::<Runtime>::get_active_validators()
+    }
 }
 
 impl pallet_cbc_poi::Config for Runtime {
@@ -186,6 +189,24 @@ impl pallet_cbc_poi::Config for Runtime {
     type ChallengeReward = ChallengeReward;
     type PosInterface = PosInterfaceImpl;
     type DcfInterface = pallet_cbc_dcf::Pallet<Runtime>;
+
+    // PoI scoring parameters
+    type InferenceBoostLow = ConstU64<2>;
+    type InferenceBoostMedium = ConstU64<5>;
+    type InferenceBoostHigh = ConstU64<10>;
+    type InferencePenaltyLow = ConstU64<1>;
+    type InferencePenaltyMedium = ConstU64<3>;
+    type InferencePenaltyHigh = ConstU64<7>;
+    type InferenceConfidenceThresholdLow = ConstU32<70>;
+    type InferenceConfidenceThresholdHigh = ConstU32<90>;
+
+    type MaxValidatorScore = MaxValidatorScore;
+    type PercentagePrecision = ConstU32<10000>;
+    type OffchainWorkerInterval = ConstU32<5>;
+
+    // Rate limiting configurations for apply_offchain_poi_scores
+    type MaxValidatorIterationWeight = ConstU64<1_000_000_000>;
+    type MaxLoopIterations = ConstU32<1000>;
 }
 
 impl pallet_cbc_pos::Config for Runtime {
@@ -224,7 +245,6 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxEpochHistory = ConstU32<24>;
     type DefaultPosWeight = PosWeight;
     type DefaultPoiWeight = PoiWeight;
-    type MaxValidatorScore = MaxValidatorScore;
 
     // Score decay and activity parameters
     type MaxInactiveEpochs = ConstU32<5>;
@@ -233,22 +253,12 @@ impl pallet_cbc_dcf::Config for Runtime {
     type UnderperformanceCheckInterval = ConstU32<50>; // every 50 blocks
     type ValidatorProposalInterval = ConstU32<200>; // every 200 blocks
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
-    type OffchainWorkerInterval = ConstU32<5>; // every 5 blocks
     type EpochLength = ConstU32<100>; // 100 blocks per epoch
 
     // Block authorship rewards and penalties
     type BlockAuthorshipBoost = ConstU64<10>;
     type MissedBlockPenalty = ConstU64<5>;
 
-    // Inference scoring parameters
-    type InferenceBoostLow = ConstU64<2>;
-    type InferenceBoostMedium = ConstU64<5>;
-    type InferenceBoostHigh = ConstU64<10>;
-    type InferencePenaltyLow = ConstU64<1>;
-    type InferencePenaltyMedium = ConstU64<3>;
-    type InferencePenaltyHigh = ConstU64<7>;
-    type InferenceConfidenceThresholdLow = ConstU32<70>;
-    type InferenceConfidenceThresholdHigh = ConstU32<90>;
 
     // Validator metadata limits
     type MaxValidatorNameLength = ConstU32<32>;
@@ -259,9 +269,6 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxPerformanceHistoryLength = ConstU32<100>;
     type MaxValidatorHistoryLength = ConstU32<10>;
     type MaxCommissionRate = ConstU32<10000>; // 100.00%
-
-    // Percentage calculation precision
-    type PercentagePrecision = ConstU32<10000>; // 0.01% precision
 
     // Off-chain worker configuration
     type OffchainWorkerTimeout = ConstU64<30000>; // 30 seconds

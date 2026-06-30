@@ -238,13 +238,6 @@ use frame_system::pallet_prelude::*;
 use sp_runtime::{
     traits::{SaturatedConversion, AtLeast32BitUnsigned, Saturating},
     DigestItem,
-    codec, 
-    offchain::{
-        storage::StorageValueRef,
-        storage_lock::{StorageLock, BlockAndTime},
-        Duration,
-    },
-
 };
 use sp_io;
 use sp_std::prelude::*;
@@ -1820,19 +1813,7 @@ pub mod pallet {
         #[pallet::constant]
         type DefaultPoiWeight: Get<u64>;
         
-        // MinValidatorScore is inherited from pos::Config
-        
-        /// Maximum possible score a validator can achieve.
-        /// 
-        /// Provides an upper bound for validator scores to prevent overflow
-        /// and ensure consistent score calculations across the network.
-        /// Also used for percentage calculations and score normalization.
-        /// 
-        /// Typical values: 1000-10000 depending on desired precision.
-        #[pallet::constant]
-        type MaxValidatorScore: Get<u64>;
-        
-        // ValidatorScoreDecay is inherited from pos::Config
+
         
         /// Maximum number of consecutive epochs a validator can be inactive.
         /// 
@@ -1894,17 +1875,7 @@ pub mod pallet {
         #[pallet::constant]
         type HealthMetricsInterval: Get<u32>; // blocks
         
-        /// Block interval for off-chain worker execution and data collection.
-        /// 
-        /// Controls how often off-chain workers run to collect external data,
-        /// perform inference operations, and submit results back to the chain.
-        /// Affects the freshness of off-chain data integration.
-        /// 
-        /// Typical values: 5-50 blocks (30 seconds to 5 minutes at 6s block time).
-        #[pallet::constant]
-        type OffchainWorkerInterval: Get<u32>; // blocks
-        
-        // LeaveCooldown is inherited from pos::Config
+
         
         /// Number of blocks per epoch for validator set management and scoring.
         /// 
@@ -1943,87 +1914,6 @@ pub mod pallet {
         /// Typical values: 2-20 score points per missed block.
         #[pallet::constant]
         type MissedBlockPenalty: Get<u64>;
-        
-        // Inference scoring parameters
-        /// Score boost for low-quality inference results that meet minimum standards.
-        /// 
-        /// Applied to validators who submit inference results with confidence
-        /// scores above the minimum threshold but below the medium threshold.
-        /// Encourages participation while maintaining quality standards.
-        /// 
-        /// Typical values: 1-5 score points per low-quality inference.
-        #[pallet::constant]
-        type InferenceBoostLow: Get<u64>;
-        
-        /// Score boost for medium-quality inference results.
-        /// 
-        /// Applied to validators who submit inference results with confidence
-        /// scores between the low and high thresholds. Represents the standard
-        /// reward for acceptable inference performance.
-        /// 
-        /// Typical values: 3-10 score points per medium-quality inference.
-        #[pallet::constant]
-        type InferenceBoostMedium: Get<u64>;
-        
-        /// Score boost for high-quality inference results exceeding excellence threshold.
-        /// 
-        /// Applied to validators who submit inference results with confidence
-        /// scores above the high threshold. Rewards exceptional AI/ML performance
-        /// and encourages validators to optimize their inference capabilities.
-        /// 
-        /// Typical values: 5-20 score points per high-quality inference.
-        #[pallet::constant]
-        type InferenceBoostHigh: Get<u64>;
-        
-        /// Score penalty for poor-quality inference results below minimum standards.
-        /// 
-        /// Applied to validators who submit inference results with very low
-        /// confidence scores or incorrect results. Discourages spam submissions
-        /// and maintains network inference quality.
-        /// 
-        /// Typical values: 1-3 score points penalty per poor inference.
-        #[pallet::constant]
-        type InferencePenaltyLow: Get<u64>;
-        
-        /// Score penalty for consistently poor inference performance.
-        /// 
-        /// Applied to validators who repeatedly submit low-quality inference
-        /// results or demonstrate unreliable AI/ML capabilities. Stronger
-        /// penalty than low penalty to address persistent poor performance.
-        /// 
-        /// Typical values: 2-8 score points penalty per medium-level failure.
-        #[pallet::constant]
-        type InferencePenaltyMedium: Get<u64>;
-        
-        /// Score penalty for severely poor inference performance or malicious behavior.
-        /// 
-        /// Applied to validators who submit obviously incorrect results,
-        /// attempt to manipulate inference outcomes, or demonstrate gross
-        /// negligence in AI/ML operations. Strongest penalty level.
-        /// 
-        /// Typical values: 5-25 score points penalty per severe failure.
-        #[pallet::constant]
-        type InferencePenaltyHigh: Get<u64>;
-        
-        /// Confidence score threshold separating low-quality from medium-quality inference.
-        /// 
-        /// Inference results with confidence scores below this threshold receive
-        /// low-quality treatment (minimal rewards or penalties). Results above
-        /// this threshold are considered acceptable quality.
-        /// 
-        /// Typical values: 60-80 (representing 60%-80% confidence).
-        #[pallet::constant]
-        type InferenceConfidenceThresholdLow: Get<u32>;
-        
-        /// Confidence score threshold separating medium-quality from high-quality inference.
-        /// 
-        /// Inference results with confidence scores above this threshold receive
-        /// high-quality rewards and recognition. Sets the bar for exceptional
-        /// AI/ML performance in the network.
-        /// 
-        /// Typical values: 85-95 (representing 85%-95% confidence).
-        #[pallet::constant]
-        type InferenceConfidenceThresholdHigh: Get<u32>;
         
         // Slashing and reward parameters are inherited from pos::Config
         
@@ -2108,20 +1998,7 @@ pub mod pallet {
         #[pallet::constant]
         type MaxCommissionRate: Get<u32>; // basis points (10000 = 100%)
         
-        // Percentage calculation precision
-        /// Precision factor for percentage calculations throughout the pallet.
-        /// 
-        /// Used as the denominator in percentage calculations to provide
-        /// fine-grained precision. Higher values enable more precise
-        /// calculations but may increase computational overhead.
-        /// 
-        /// Common values:
-        /// - 100: 1% precision (whole percentages only)
-        /// - 1000: 0.1% precision (one decimal place)
-        /// - 10000: 0.01% precision (basis points, two decimal places)
-        #[pallet::constant]
-        type PercentagePrecision: Get<u32>; // 10000 for basis points (0.01% precision)
-        
+
         // Misbehavior reporting
         /// Maximum length in bytes for misbehavior evidence submissions.
         /// 
@@ -2849,53 +2726,7 @@ pub mod pallet {
         Leave,
     }
 
-    /// Data structure for inference data collected by off-chain workers.
-    /// 
-    /// This structure encapsulates all information related to AI/ML inference
-    /// operations performed by validators as part of the Proof-of-Inference
-    /// consensus mechanism. The data is collected off-chain and submitted
-    /// to the blockchain for validation and scoring.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-    pub struct InferenceData<T: Config> {
-        /// The validator account that performed the inference operation
-        pub validator: T::AccountId,
-        
-        /// The epoch number when the inference was performed
-        pub epoch: u32,
-        
-        /// The numerical result of the inference computation
-        pub inference_result: u32,
-        
-        /// Confidence score indicating the reliability of the inference result (0-100)
-        pub confidence_score: u32,
-        
-        /// Unix timestamp in milliseconds when the inference was completed
-        pub timestamp: u64,
-        
-        /// List of data sources used for the inference (URLs, hashes, etc.)
-        pub data_sources: Vec<Vec<u8>>,
-    }
 
-    /// Off-chain storage structure for computed Proof-of-Inference scores.
-    /// 
-    /// This structure stores PoI scores that have been computed off-chain
-    /// and are ready to be submitted to the blockchain. Off-chain computation
-    /// allows for complex AI/ML scoring algorithms that would be too expensive
-    /// to run directly on-chain.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-    pub struct OffchainPoiScore<T: Config> {
-        /// The validator account whose PoI score was computed
-        pub validator: T::AccountId,
-        
-        /// The computed PoI score value
-        pub score: u64,
-        
-        /// The block number when the score was computed
-        pub block_number: u32,
-        
-        /// Unix timestamp in milliseconds when the score was computed
-        pub timestamp: u64,
-    }
 
     /// Historical record of recent epochs stored in a circular buffer.
     /// 
@@ -3004,27 +2835,6 @@ pub mod pallet {
     /// - Participate in distributed AI computations
     /// - Contribute to the network's AI capabilities
     /// 
-    /// Used for:
-    /// - PoI score calculations and validator ranking
-    /// - AI contribution assessment and rewards
-    /// - Network AI capacity monitoring
-    /// - Validator specialization tracking
-    /// 
-    /// Higher inference counts indicate validators who are actively contributing
-    /// to the network's AI/ML capabilities and should receive higher PoI scores
-    /// in the consensus algorithm.
-    /// 
-    /// # Key: T::AccountId - Validator account
-    /// # Value: u32 - Total number of successful inference operations completed
-    #[pallet::storage]
-    #[pallet::getter(fn validator_inference_count)]
-    pub type ValidatorInferenceCount<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        ValueQuery,
-    >;
 
     /// Extended metadata and contact information for validators.
     /// 
@@ -5866,82 +5676,6 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Update a validator's inference score (PoI).
-        #[pallet::call_index(1)]
-        #[pallet::weight(<T as Config>::WeightInfo::update_validator_inference_score())]
-        pub fn update_validator_inference_score(
-            origin: OriginFor<T>,
-            validator: T::AccountId,
-        ) -> DispatchResult {
-            if GovernanceModeEnabled::<T>::get() {
-                ensure_root(origin)?;
-            } else {
-                ensure_signed(origin)?;
-            }
-            if let Some((result, _)) = poi::Pallet::<T>::inference_results(&validator) {
-                let inference_score = result as u64;
-                ValidatorStates::<T>::try_mutate(&validator, |maybe_state| {
-                    let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                    state.current.inference_score = inference_score;
-                    Ok::<(), Error<T>>(())
-                }).map_err(|e| sp_runtime::DispatchError::from(e))?;
-                Self::update_final_score(&validator)?;
-            }
-            Ok(())
-        }
-
-        /// Apply PoI scores computed by off-chain worker (signed transaction).
-        #[pallet::call_index(11)]
-        #[pallet::weight(<T as Config>::WeightInfo::apply_offchain_poi_scores())]
-        pub fn apply_offchain_poi_scores(
-            origin: OriginFor<T>,
-            block_number: u32,
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-            
-            let validators = Self::validator_set();
-            let mut _updated_count = 0u32;
-            
-            // Check weight bounds for validator iteration
-            let config = RateLimitConfigStorage::<T>::get();
-            let estimated_weight = validators.len() as u64 * 50_000; // Estimate 50k weight per validator
-            
-            if estimated_weight > config.max_validator_iteration_weight {
-                return Err(Error::<T>::WeightLimitExceeded.into());
-            }
-            
-            // Limit iterations to prevent unbounded loops
-            let max_iterations = config.max_loop_iterations.min(validators.len() as u32);
-            let validators_to_process = &validators[..max_iterations as usize];
-            
-            for validator in validators_to_process.iter() {
-                // Try to retrieve computed PoI score from off-chain storage
-                if let Ok(Some(poi_score)) = Self::get_offchain_poi_score(validator, block_number) {
-                    // Validate the score is within acceptable range
-                    if poi_score <= T::MaxValidatorScore::get() {
-                        // Update the validator's PoI score
-                        if let Ok(()) = ValidatorStates::<T>::try_mutate(&validator, |maybe_state| {
-                            let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                            state.current.inference_score = poi_score;
-                            Ok::<(), Error<T>>(())
-                        }).map_err(|e| sp_runtime::DispatchError::from(e)) {
-                            // Recalculate final score
-                            let _ = Self::update_final_score(&validator);
-                            _updated_count += 1;
-                            
-                            // Emit event
-                            Self::deposit_event(Event::ValidatorPoiScoreUpdated {
-                                validator: validator.clone(),
-                                poi_score,
-                            });
-                        }
-                    }
-                }
-            }
-            
-
-            Ok(())
-        }
 
         /// Update consensus weights for PoS and PoI.
         #[pallet::call_index(2)]
@@ -6992,47 +6726,6 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Simulate an inference event for a validator (for testing/development)
-        #[pallet::call_index(22)]
-        #[pallet::weight(<T as Config>::WeightInfo::simulate_inference())]
-        pub fn simulate_inference(
-            origin: OriginFor<T>,
-            validator: Option<T::AccountId>,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-            
-            // Check if a specific validator is targeted before moving the value
-            let is_targeting_specific_validator = validator.is_some();
-            
-            // Use the caller as validator if none specified, otherwise use the specified validator
-            let target_validator = validator.unwrap_or(who.clone());
-            
-            // Ensure the target validator is in the ValidatorSet
-            let validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(&target_validator),
-                Error::<T>::ValidatorNotInSet
-            );
-            
-            // If a specific validator is targeted, ensure the caller is also a validator (for governance)
-            if is_targeting_specific_validator {
-                ensure!(
-                    validator_set.contains(&who),
-                    Error::<T>::ValidatorNotInSet
-                );
-            }
-            
-            // Increment the inference count for the target validator
-            Self::record_inference_activity(&target_validator)?;
-            
-            // Emit event
-            Self::deposit_event(Event::InferenceSimulated {
-                validator: target_validator.clone(),
-                triggered_by: who,
-            });
-            
-            Ok(())
-        }
     }
 
     // --- Internal Logic --- //
@@ -7347,10 +7040,6 @@ pub mod pallet {
                 Ok::<(), Error<T>>(())
             })?;
             
-            // Also update the separate ValidatorInferenceCount storage for compatibility
-            ValidatorInferenceCount::<T>::mutate(validator, |count| {
-                *count = count.saturating_add(1);
-            });
             
             // Update trust score after inference activity
             Self::update_trust_score(validator)?;
@@ -7486,57 +7175,6 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Handle a valid inference result for a validator.
-        fn handle_valid_inference(
-            validator: &T::AccountId,
-            confidence: u32,
-        ) -> DispatchResult {
-            let boost_amount = if confidence >= T::InferenceConfidenceThresholdHigh::get() {
-                T::InferenceBoostHigh::get()
-            } else if confidence >= T::InferenceConfidenceThresholdLow::get() {
-                T::InferenceBoostMedium::get()
-            } else {
-                T::InferenceBoostLow::get()
-            };
-            
-            // Update inference count and last active block
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-                if let Some(state) = maybe_state {
-                    state.inference_count = state.inference_count.saturating_add(1);
-                    state.last_active_block = current_block;
-                }
-                Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
-            
-            Self::boost_score(
-                validator,
-                boost_amount,
-                ScoreBoostReason::ValidInference,
-            )
-        }
-
-        /// Handle an invalid inference result for a validator.
-        fn handle_invalid_inference(
-            validator: &T::AccountId,
-            severity: InferenceErrorSeverity,
-        ) -> DispatchResult {
-            let penalty = match severity {
-                InferenceErrorSeverity::High => T::InferencePenaltyHigh::get(),
-                InferenceErrorSeverity::Medium => T::InferencePenaltyMedium::get(),
-                InferenceErrorSeverity::Low => T::InferencePenaltyLow::get(),
-            };
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
-                let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                let new_score = state.current.final_score.saturating_sub(penalty);
-                state.current.final_score = new_score;
-                if new_score < MinValidatorScoreOf::<T>::get() as u64 {
-                    Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold)
-                        .map_err(|_| Error::<T>::ValidatorNotFound)?;
-                }
-                Ok::<(), Error<T>>(())
-            }).map_err(Into::into)
-        }
 
         /// Eject a validator from the active set for a given reason.
         fn eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
@@ -9670,17 +9308,6 @@ pub mod pallet {
             // and during epoch transitions to ensure stability and persistence of boosts.
         }
 
-        /// Off-chain worker for automatic PoI score computation and submission
-        fn offchain_worker(block_number: BlockNumberFor<T>) {
-            
-            // Run off-chain worker at configured intervals to reduce overhead
-            if (block_number.saturated_into::<u32>()) % T::OffchainWorkerInterval::get() != 0 {
-                return;
-            }
-
-            let result = Self::run_offchain_computation(block_number);
-            let _ = result;
-        }
 
 
 
@@ -10080,186 +9707,7 @@ pub mod pallet {
         }
     }
 
-    // --- Off-chain Worker Implementation --- //
     impl<T: Config> Pallet<T> {
-        /// Run off-chain computation for PoI score collection and submission
-        fn run_offchain_computation(block_number: BlockNumberFor<T>) -> Result<(), &'static str> {
-            // Create a lock to prevent multiple workers from running simultaneously
-            let mut lock = StorageLock::<BlockAndTime<frame_system::Pallet<T>>>::with_block_and_time_deadline(
-                b"dcf::offchain_worker",
-                block_number.saturated_into::<u32>(),
-                Duration::from_millis(T::OffchainWorkerTimeout::get()),
-            );
-
-            let _guard = lock.try_lock().map_err(|_| "Failed to acquire lock")?;
-
-
-
-            // Get current validators
-            let validators = Self::validator_set();
-            let current_epoch = Self::current_epoch();
-
-            for validator in validators.iter() {
-                // Collect inference data for this validator
-                if let Ok(inference_data) = Self::collect_inference_data(validator, current_epoch) {
-                    // Compute PoI score based on collected data
-                    let poi_score = Self::compute_poi_score(&inference_data);
-
-                    // Read the current on-chain inference score for this validator
-                    let current_on_chain_score = ValidatorStates::<T>::get(validator)
-                        .map(|s| s.current.inference_score)
-                        .unwrap_or(0);
-
-                    // Skip submission if the score has not changed (Requirement 10.1, 10.2, 10.3)
-                    if poi_score == current_on_chain_score {
-                        log::trace!(
-                            target: "dcf",
-                            "DCF off-chain worker: score unchanged for validator={:?}, score={}, skipping submission",
-                            validator,
-                            poi_score,
-                        );
-                        continue;
-                    }
-
-                    // Submit unsigned transaction to update the score
-                    let _ = Self::submit_poi_score_update(validator.clone(), poi_score, block_number);
-                }
-            }
-
-            log::info!("DCF off-chain worker completed computation");
-            Ok(())
-        }
-
-        /// Collect inference data for a validator from external sources
-        fn collect_inference_data(
-            validator: &T::AccountId,
-            epoch: u32,
-        ) -> Result<InferenceData<T>, &'static str> {
-            // Check if we have cached inference results from PoI pallet
-            if let Some((result, confidence)) = poi::Pallet::<T>::inference_results(validator) {
-                return Ok(InferenceData {
-                    validator: validator.clone(),
-                    epoch,
-                    inference_result: result,
-                    confidence_score: confidence,
-                    timestamp: Self::get_offchain_timestamp(),
-                    data_sources: vec![b"poi_pallet".to_vec()],
-                });
-            }
-
-            // Try to collect from external inference endpoints
-            Self::collect_from_external_sources(validator, epoch)
-        }
-
-        /// Collect inference data from external sources via HTTP requests
-        fn collect_from_external_sources(
-            validator: &T::AccountId,
-            epoch: u32,
-        ) -> Result<InferenceData<T>, &'static str> {
-            // This is a placeholder for external data collection
-            // In a real implementation, you would make HTTP requests to inference providers
-            
-            // For now, we'll simulate inference data collection
-            let simulated_result = Self::simulate_inference_computation(validator, epoch);
-            
-            Ok(InferenceData {
-                validator: validator.clone(),
-                epoch,
-                inference_result: simulated_result.0,
-                confidence_score: simulated_result.1,
-                timestamp: Self::get_offchain_timestamp(),
-                data_sources: vec![b"simulation".to_vec()],
-            })
-        }
-
-        /// Simulate inference computation (placeholder for real implementation)
-        fn simulate_inference_computation(validator: &T::AccountId, epoch: u32) -> (u32, u32) {
-            // Use validator account and epoch to generate deterministic but varied results
-            let validator_bytes = validator.encode();
-            let mut hash_input = validator_bytes;
-            hash_input.extend_from_slice(&epoch.to_le_bytes());
-            
-            // Simple hash-based simulation
-            let hash = sp_core::hashing::blake2_256(&hash_input);
-            let result = u32::from_le_bytes([hash[0], hash[1], hash[2], hash[3]]) % T::PercentagePrecision::get();
-            let confidence = T::InferenceConfidenceThresholdLow::get() + 
-                (u32::from_le_bytes([hash[4], hash[5], hash[6], hash[7]]) % 
-                 (T::InferenceConfidenceThresholdHigh::get() - T::InferenceConfidenceThresholdLow::get()));
-            
-            (result, confidence)
-        }
-
-        /// Compute PoI score based on inference data
-        fn compute_poi_score(data: &InferenceData<T>) -> u64 {
-            let base_score = data.inference_result as u64;
-            let confidence_multiplier = data.confidence_score as u64;
-            
-            // Apply confidence weighting: higher confidence = higher score
-            let weighted_score = (base_score * confidence_multiplier) / T::PercentagePrecision::get() as u64;
-            
-            // Cap the score at maximum allowed
-            weighted_score.min(<T as Config>::MaxValidatorScore::get())
-        }
-
-        /// Get current timestamp for off-chain operations
-        fn get_offchain_timestamp() -> u64 {
-            sp_io::offchain::timestamp().unix_millis()
-        }
-
-        /// Store computed PoI score in off-chain storage for later retrieval
-        fn submit_poi_score_update(
-            validator: T::AccountId,
-            poi_score: u64,
-            block_number: BlockNumberFor<T>,
-        ) -> Result<(), &'static str> {
-            log::info!(
-                "DCF: Computed PoI score for validator={:?}, score={}, block={}",
-                validator,
-                poi_score,
-                block_number.saturated_into::<u32>()
-            );
-            
-            // Store the computed score in off-chain storage for later retrieval
-            Self::store_offchain_poi_score(&validator, poi_score, block_number)?;
-            
-            Ok(())
-        }
-
-        /// Store computed PoI score in off-chain storage
-        fn store_offchain_poi_score(
-            validator: &T::AccountId,
-            score: u64,
-            block_number: BlockNumberFor<T>,
-        ) -> Result<(), &'static str> {
-            let key = format!("dcf::poi_score::{:?}::{}", validator, block_number.saturated_into::<u32>());
-            let storage_ref = StorageValueRef::persistent(key.as_bytes());
-            
-            let score_data: OffchainPoiScore<T> = OffchainPoiScore {
-                validator: validator.clone(),
-                score,
-                block_number: block_number.saturated_into::<u32>(),
-                timestamp: Self::get_offchain_timestamp(),
-            };
-            
-            storage_ref.set(&score_data);
-            Ok(())
-        }
-
-        /// Retrieve computed PoI score from off-chain storage
-        fn get_offchain_poi_score(
-            validator: &T::AccountId,
-            block_number: u32,
-        ) -> Result<Option<u64>, &'static str> {
-            let key = format!("dcf::poi_score::{:?}::{}", validator, block_number);
-            let storage_ref = StorageValueRef::persistent(key.as_bytes());
-            
-            match storage_ref.get::<OffchainPoiScore<T>>() {
-                Ok(Some(score_data)) => Ok(Some(score_data.score)),
-                Ok(None) => Ok(None),
-                Err(_) => Err("Failed to retrieve PoI score from off-chain storage"),
-            }
-        }
-
         /// Get current timestamp from the timestamp pallet
         fn get_current_timestamp() -> u64 {
             // Use a simple timestamp for now - in production this would be from timestamp pallet
@@ -11211,7 +10659,7 @@ pub mod pallet {
                     ));
                 }
 
-                let max_score = <T as pallet::Config>::MaxValidatorScore::get() as u32;
+                let max_score = T::MaxValidatorScore::get() as u32;
                 for (i, score) in self.validator_scores.iter().enumerate() {
                     if *score > max_score {
                         return Err(format!(
@@ -11659,9 +11107,7 @@ pub mod pallet {
                 let pos_score = stake.saturated_into::<u64>();
                 
                 // Get fresh PoI score from inference results
-                let poi_score = poi::Pallet::<T>::inference_results(validator)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
+                let poi_score = poi::Pallet::<T>::get_score(validator);
                 
                 // Calculate combined score using current weights
                 let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) 
@@ -11714,9 +11160,7 @@ pub mod pallet {
                 let stake = pos::Pallet::<T>::stake(validator);
                 let pos_score = stake.saturated_into::<u64>();
                 
-                let poi_score = poi::Pallet::<T>::inference_results(validator)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
+                let poi_score = poi::Pallet::<T>::get_score(validator);
                 
                 // Calculate combined score
                 let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) 
@@ -11806,7 +11250,7 @@ pub mod pallet {
                 
                 // Get additional profile information
                 let uptime = Self::validator_uptime(&account_id);
-                let inference_count = Self::validator_inference_count(&account_id);
+                let inference_count = pallet_cbc_poi::Pallet::<T>::validator_inference_count(&account_id) as u32;
                 
                 (
                     combined_score,      // Fresh calculated combined score
@@ -12063,9 +11507,7 @@ pub mod pallet {
                 let stake_score = stake.saturated_into::<u64>();
                 
                 // Get initial inference score from PoI pallet
-                let inference_score = poi::Pallet::<T>::inference_results(validator)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
+                let inference_score = poi::Pallet::<T>::get_score(validator);
 
                 // Calculate initial final score
                 let pos_weight = Self::pos_weight();
@@ -12786,9 +12228,7 @@ pub mod pallet {
                 };
 
                 // Update PoI score from inference results
-                let inference_score = poi::Pallet::<T>::inference_results(validator)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
+                let inference_score = poi::Pallet::<T>::get_score(validator);
                 
                 // Update validator state with fresh scores
                 if let Ok(()) = ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
@@ -14144,12 +13584,15 @@ pub mod pallet {
                 Ok::<(), Error<T>>(())
             })?;
             
-            // Also update the separate ValidatorInferenceCount storage for compatibility
-            ValidatorInferenceCount::<T>::mutate(validator, |count| {
-                *count = count.saturating_add(1);
-            });
-            
             Ok(())
+        }
+
+        fn eject_validator(validator: &<T as frame_system::Config>::AccountId, _reason: &'static str) -> DispatchResult {
+            Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold)
+        }
+
+        fn update_final_score(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+            Self::update_final_score(validator)
         }
     }
 
@@ -14171,9 +13614,7 @@ pub mod pallet {
                 let current_epoch = Self::current_epoch();
                 let stake_score = stake.saturated_into::<u64>();
                 
-                let inference_score = poi::Pallet::<T>::inference_results(validator)
-                    .map(|(result, _)| result as u64)
-                    .unwrap_or(0);
+                let inference_score = poi::Pallet::<T>::get_score(validator);
 
                 let pos_weight = if !PosWeight::<T>::exists() {
                     let weight = T::DefaultPosWeight::get();
@@ -14254,7 +13695,7 @@ pub mod pallet {
             ValidatorBlocksAuthored::<T>::remove(validator);
             ValidatorBlocksMissed::<T>::remove(validator);
             ValidatorUptime::<T>::remove(validator);
-            ValidatorInferenceCount::<T>::remove(validator);
+            pallet_cbc_poi::ValidatorInferenceCount::<T>::remove(validator);
             PendingValidatorActions::<T>::remove(validator);
 
             Ok(())
@@ -14289,7 +13730,6 @@ pub mod pallet {
         fn on_slashed(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance, penalty: u64) -> DispatchResult {
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                let old_score = state.current.final_score;
                 state.current.final_score = state.current.final_score.saturating_sub(penalty);
                 state.last_active_epoch = Self::current_epoch();
                 
@@ -14444,34 +13884,6 @@ pub enum EjectionReason {
     InsufficientStake,
 }
 
-/// Severity levels for inference errors and performance issues.
-/// 
-/// These severity levels help categorize the impact of validator errors
-/// and determine appropriate responses, penalties, and corrective actions.
-/// Higher severity errors typically result in larger penalties.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
-pub enum InferenceErrorSeverity {
-    /// High severity error with major impact on network operations.
-    /// 
-    /// These errors significantly affect network performance, security,
-    /// or reliability and warrant immediate attention and strong penalties.
-    /// Examples include malicious inference manipulation or critical failures.
-    High,
-
-    /// Medium severity error with moderate impact on network operations.
-    /// 
-    /// These errors have noticeable but not critical impact on network
-    /// performance and warrant moderate penalties and corrective action.
-    /// Examples include repeated accuracy issues or performance degradation.
-    Medium,
-
-    /// Low severity error with minimal impact on network operations.
-    /// 
-    /// These errors have minor impact and may be addressed through warnings
-    /// or small penalties. Examples include occasional accuracy issues or
-    /// minor performance variations within acceptable ranges.
-    Low,
-}
 
 /// Reasons for slashing validator stakes as punishment for violations.
 /// 

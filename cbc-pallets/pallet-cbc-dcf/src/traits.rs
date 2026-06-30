@@ -1,4 +1,3 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 
 /// A trait defining the interface needed by DCF to notify DVF of epoch transitions.
 pub trait WeightFreezer<AccountId> {
