@@ -107,8 +107,6 @@ impl EvmEventValidator {
         match event {
             Event::ValidatorJoined { .. } => 1,
             Event::ValidatorLeft { .. } => 2,
-            Event::ValidatorSlashed { .. } => 3,
-            Event::ValidatorRewarded { .. } => 4,
             Event::ValidatorEjected { .. } => 5,
             Event::EpochStarted { .. } => 6,
             Event::ProposalSubmitted { .. } => 7,
@@ -136,8 +134,6 @@ impl EvmEventValidator {
         match event {
             Event::ValidatorJoined { validator, .. } |
             Event::ValidatorLeft { validator, .. } |
-            Event::ValidatorSlashed { validator, .. } |
-            Event::ValidatorRewarded { validator, .. } |
             Event::ValidatorEjected { validator, .. } => {
                 let encoded = validator.encode();
                 if encoded.len() <= 32 {

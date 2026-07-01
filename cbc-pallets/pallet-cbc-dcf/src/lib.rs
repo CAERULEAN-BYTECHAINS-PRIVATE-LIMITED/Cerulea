@@ -4201,46 +4201,7 @@ pub mod pallet {
             validator: T::AccountId,
         },
 
-        /// Emitted when a validator receives a reward payment.
-        /// 
-        /// This event tracks all reward distributions to validators, including:
-        /// - Epoch-based performance rewards
-        /// - Governance-approved bonus payments
-        /// - Block authorship rewards
-        /// - Special recognition rewards
-        /// 
-        /// Rewards are typically paid from treasury or inflation mechanisms.
-        ValidatorRewarded {
-            /// The validator who received the reward
-            validator: T::AccountId,
-            /// Amount of the reward payment
-            amount: <T as pallet::Config>::Balance,
-            /// Validator's balance before the reward
-            pre_balance: <T as pallet::Config>::Balance,
-            /// Validator's balance after the reward
-            post_balance: <T as pallet::Config>::Balance,
-            /// Reason code for the reward
-            reason: RewardReason,
-        },
 
-        /// Emitted when a validator's stake is slashed as punishment.
-        /// 
-        /// This critical event occurs when validators are penalized for misbehavior,
-        /// poor performance, or consensus violations. Slashing reduces the validator's
-        /// reserved stake and typically burns the slashed tokens to maintain economic
-        /// security incentives.
-        ValidatorSlashed {
-            /// The validator whose stake was slashed
-            validator: T::AccountId,
-            /// Amount of stake that was slashed and burned
-            amount: <T as pallet::Config>::Balance,
-            /// Validator's balance before the slash
-            pre_balance: <T as pallet::Config>::Balance,
-            /// Validator's balance after the slash
-            post_balance: <T as pallet::Config>::Balance,
-            /// Reason code for the slashing
-            reason: SlashReason,
-        },
 
         /// Emitted when misbehavior is reported against a validator.
         /// 
@@ -4405,77 +4366,7 @@ pub mod pallet {
             epoch: u32,
         },
 
-        /// Emitted when validator stake is reserved during the joining process.
-        /// 
-        /// This event occurs when validators successfully join the network and
-        /// their stake is locked/reserved to ensure economic security. The
-        /// reserved stake cannot be spent while the validator participates.
-        ValidatorStakeReserved {
-            /// The validator whose stake was reserved
-            validator: T::AccountId,
-            /// Amount of stake that was reserved/locked
-            amount: <T as pallet::Config>::Balance,
-        },
 
-        /// Emitted when validator stake is unreserved after leaving the network.
-        /// 
-        /// This event occurs when validators complete the leaving process and
-        /// their previously reserved stake is unlocked and returned to their
-        /// free balance. This typically happens after cooldown periods expire.
-        ValidatorStakeUnreserved {
-            /// The validator whose stake was unreserved
-            validator: T::AccountId,
-            /// Amount of stake that was unreserved/unlocked
-            amount: <T as pallet::Config>::Balance,
-        },
-
-        /// Emitted when epoch rewards are distributed across different reward pools.
-        /// 
-        /// This event provides transparency into reward distribution mechanisms
-        /// including how the total reward pool is divided among base rewards,
-        /// performance bonuses, and top performer incentives.
-        EpochRewardsDistributed {
-            /// Total reward pool available for distribution
-            total_pool: <T as pallet::Config>::Balance,
-            /// Amount allocated to base rewards for all validators
-            base_pool: <T as pallet::Config>::Balance,
-            /// Amount allocated to performance-based rewards
-            performance_pool: <T as pallet::Config>::Balance,
-            /// Amount allocated to top performer bonuses
-            top_performer_pool: <T as pallet::Config>::Balance,
-        },
-
-        /// Emitted when a validator's stake amount is increased.
-        /// 
-        /// This event tracks stake increases that can occur through additional
-        /// deposits, reward compounding, or other mechanisms that grow the
-        /// validator's economic commitment to the network.
-        ValidatorStakeIncreased {
-            /// The validator whose stake was increased
-            validator: T::AccountId,
-            /// Previous stake amount before increase
-            old_amount: <T as pallet::Config>::Balance,
-            /// New stake amount after increase
-            new_amount: <T as pallet::Config>::Balance,
-            /// Amount by which stake was increased
-            increase: <T as pallet::Config>::Balance,
-        },
-
-        /// Emitted when a validator's stake amount is decreased.
-        /// 
-        /// This event tracks stake decreases that can occur through partial
-        /// withdrawals, slashing events, or other mechanisms that reduce the
-        /// validator's economic commitment to the network.
-        ValidatorStakeDecreased {
-            /// The validator whose stake was decreased
-            validator: T::AccountId,
-            /// Previous stake amount before decrease
-            old_amount: <T as pallet::Config>::Balance,
-            /// New stake amount after decrease
-            new_amount: <T as pallet::Config>::Balance,
-            /// Amount by which stake was decreased
-            decrease: <T as pallet::Config>::Balance,
-        },
 
         /// Emitted when a validator's trust score is updated with component breakdown.
         /// 
@@ -14108,80 +13999,7 @@ pub enum EjectionReason {
 /// Slashing is a critical economic penalty that reduces validator stakes
 /// to maintain network security and incentive alignment. Different slash
 /// reasons may have different penalty amounts and recovery requirements.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
-pub enum RewardReason {
-    /// Reward for exceptional performance above standards.
-    /// 
-    /// This includes consistently high availability, successful block
-    /// production, and high-quality inference results. Rewards recognize
-    /// validators who exceed baseline expectations.
-    ExceptionalPerformance,
 
-    /// Reward for successful block authorship when selected.
-    /// 
-    /// This provides immediate incentives for validators to produce
-    /// valid blocks when chosen as block authors, encouraging
-    /// reliable block production.
-    BlockAuthorship,
-
-    /// Manual reward through governance proposal or administrative action.
-    /// 
-    /// This allows for discretionary rewards for special contributions,
-    /// community service, or other valuable activities that benefit
-    /// the network beyond standard operations.
-    ManualReward,
-
-    /// Reward for high-quality inference results and AI/ML contributions.
-    /// 
-    /// This incentivizes validators to provide accurate and valuable
-    /// inference services, supporting the network's AI/ML capabilities
-    /// and maintaining service quality.
-    InferenceQuality,
-
-    /// Epoch-based performance reward for meeting participation standards.
-    /// 
-    /// This provides regular rewards for validators who maintain
-    /// acceptable performance levels throughout an epoch, encouraging
-    /// consistent participation and network stability.
-    EpochPerformance,
-}
-
-/// Reasons for validator slashing with different severity levels and recovery requirements.
-/// 
-/// Each slashing reason corresponds to different types of validator misbehavior or
-/// poor performance. The reason affects the penalty amount and determines what
-/// actions validators must take to recover their standing. Different slashing
-/// reasons may have different penalty amounts and recovery requirements.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
-pub enum SlashReason {
-    /// Slashing due to malicious behavior or protocol violations.
-    /// 
-    /// This includes actions like double-signing, equivocation, or other
-    /// deliberate attempts to harm the network. Typically results in
-    /// severe penalties and potential permanent ejection.
-    Misbehavior,
-
-    /// Slashing due to consistently poor performance below standards.
-    /// 
-    /// This includes chronic unavailability, repeated missed blocks,
-    /// or consistently low-quality inference results. Penalties are
-    /// typically moderate with opportunities for improvement.
-    PoorPerformance,
-
-    /// Manual slashing through governance proposal or administrative action.
-    /// 
-    /// This allows for discretionary penalties for situations that may
-    /// not fit standard categories but warrant economic punishment.
-    /// Penalty amounts are determined case-by-case.
-    ManualSlash,
-
-    /// Slashing due to violations of consensus rules or protocol requirements.
-    /// 
-    /// This includes technical violations of consensus mechanisms,
-    /// invalid block production, or other protocol-level infractions
-    /// that threaten network integrity.
-    ConsensusViolation,
-}
 
 /// Current status of a validator in the network lifecycle.
 /// 
