@@ -344,7 +344,7 @@ sp_api::decl_runtime_apis! {
         fn get_validator_profile(account_id: AccountId) -> Option<ValidatorProfile<AccountId, Balance, BlockNumber>>;
         fn get_validator_score_breakdown(validator: AccountId) -> Option<ScoreBreakdown>;
         fn get_validator_uptime(validator: AccountId) -> Option<UptimeStats>;
-        fn get_slashing_history(validator: AccountId) -> Vec<SlashingRecord<Balance, BlockNumber>>;
+        fn get_slashing_history(validator: AccountId) -> Vec<pos::SlashingRecord<Balance, BlockNumber>>;
         fn get_system_constants() -> SystemConstants<Balance, BlockNumber>;
         fn get_validator_cooldown_status(validator: AccountId) -> Option<BlockNumber>;
         fn get_validator_detailed_cooldown_status(validator: AccountId) -> Option<(u32, bool)>;
@@ -1737,35 +1737,6 @@ pub mod pallet {
         pub participation_rate: u32,
     }
 
-    /// Slashing record for tracking validator penalties
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-    pub struct SlashingRecord<Balance, BlockNumber> {
-        /// Block number when slashing occurred
-        pub block_number: BlockNumber,
-        /// Amount slashed from validator's stake
-        pub amount: Balance,
-        /// Reason for slashing
-        pub reason: SlashingReason,
-        /// Epoch when slashing occurred
-        pub epoch: u32,
-    }
-
-    /// Reasons for validator slashing
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-    pub enum SlashingReason {
-        /// Validator produced invalid blocks
-        InvalidBlock,
-        /// Validator was offline for extended period
-        Downtime,
-        /// Validator submitted incorrect inference results
-        InvalidInference,
-        /// Validator engaged in malicious behavior
-        Misbehavior,
-        /// Manual slashing by governance
-        Governance,
-    }
-
-    
     #[pallet::config]
     pub trait Config: frame_system::Config + pos::Config<Balance = <Self as pallet::Config>::Balance> + poi::Config + TypeInfo + fmt::Debug {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -3781,22 +3752,6 @@ pub mod pallet {
     /// This storage item maintains a complete history of slashing events
     /// for each validator, including amounts, reasons, and timestamps.
     ///
-    /// # Usage
-    /// - Tracking validator punishment history
-    /// - Risk assessment and validator evaluation
-    /// - Audit trails and compliance reporting
-    ///
-    /// # Key: T::AccountId - Validator account
-    /// # Value: BoundedVec<SlashingRecord> - Complete slashing history for the validator (max 100 records)
-    #[pallet::storage]
-    #[pallet::getter(fn validator_slashing_history)]
-    pub type ValidatorSlashingHistory<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        BoundedVec<SlashingRecord<<T as pallet::Config>::Balance, BlockNumberFor<T>>, ConstU32<100>>,
-        ValueQuery,
-    >;
 
     // --- Events --- //
     /// Events emitted by the pallet for all state transitions and validator lifecycle changes.
@@ -11433,9 +11388,8 @@ pub mod pallet {
         }
 
         /// Get slashing history for a validator
-        pub fn get_slashing_history(validator: T::AccountId) -> Vec<SlashingRecord<<T as pallet::Config>::Balance, BlockNumberFor<T>>> {
-            // Query the validator's slashing history from storage
-            ValidatorSlashingHistory::<T>::get(&validator).to_vec()
+        pub fn get_slashing_history(validator: T::AccountId) -> Vec<pos::SlashingRecord<<T as pallet::Config>::Balance, BlockNumberFor<T>>> {
+            pos::Pallet::<T>::get_slashing_history(validator)
         }
 
         pub fn get_system_constants() -> SystemConstants<<T as pallet::Config>::Balance, BlockNumberFor<T>> {

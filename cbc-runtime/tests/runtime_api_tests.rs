@@ -39,7 +39,7 @@ mod runtime_api_tests {
         let _uptime_stats: Option<pallet_cbc_dcf::UptimeStats> = None;
         
         // Test 8: get_slashing_history - should return slashing records
-        let _slashing_history: Vec<pallet_cbc_dcf::SlashingRecord<Balance, BlockNumber>> = Vec::new();
+        let _slashing_history: Vec<pallet_cbc_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
         
         // Test 9: get_trust_score - calculated from validator scores
         let pos_score: u64 = 100;
@@ -96,7 +96,7 @@ mod runtime_api_tests {
         let _uptime: Option<pallet_cbc_dcf::UptimeStats> = None;
         
         // get_slashing_history(validator: AccountId) -> Vec<SlashingRecord>
-        let _history: Vec<pallet_cbc_dcf::SlashingRecord<Balance, BlockNumber>> = Vec::new();
+        let _history: Vec<pallet_cbc_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
         
         // get_inference_result(validator: AccountId) -> Option<u64>
         let _inference: Option<u64> = None;

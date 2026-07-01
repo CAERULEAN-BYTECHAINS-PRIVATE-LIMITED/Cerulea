@@ -261,7 +261,7 @@ impl_runtime_apis! {
 			pallet_cbc_dcf::Pallet::<Runtime>::get_validator_uptime_stats(validator)
 		}
 
-		fn get_slashing_history(validator: AccountId) -> Vec<pallet_cbc_dcf::SlashingRecord<Balance, BlockNumber>> {
+		fn get_slashing_history(validator: AccountId) -> Vec<pallet_cbc_pos::SlashingRecord<Balance, BlockNumber>> {
 			pallet_cbc_dcf::Pallet::<Runtime>::get_slashing_history(validator)
 		}
 

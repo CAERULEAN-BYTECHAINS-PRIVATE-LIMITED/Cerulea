@@ -35,7 +35,21 @@ pub enum SlashReason {
     PoorPerformance,
     ManualSlash,
     ConsensusViolation,
+    Downtime,
+    InvalidInference,
+    InvalidBlock,
+    Governance,
 }
+
+/// Slashing record for tracking validator penalties
+#[derive(sp_runtime::RuntimeDebug, codec::Encode, codec::Decode, Clone, PartialEq, Eq, scale_info::TypeInfo, codec::MaxEncodedLen)]
+pub struct SlashingRecord<Balance, BlockNumber> {
+    pub block_number: BlockNumber,
+    pub amount: Balance,
+    pub reason: SlashReason,
+    pub epoch: u32,
+}
+
 
 pub trait ValidatorHandler<AccountId, Balance> {
     fn on_joined(validator: &AccountId, stake: Balance) -> sp_runtime::DispatchResult;
@@ -200,6 +214,16 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn slashing_count)]
     pub type SlashingCount<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, u32>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_slashing_history)]
+    pub type ValidatorSlashingHistory<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<SlashingRecord<BalanceOf<T>, BlockNumberFor<T>>, ConstU32<100>>,
+        ValueQuery,
+    >;
 
     #[pallet::storage]
     #[pallet::getter(fn stake)]
@@ -664,6 +688,10 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub fn get_slashing_history(validator: T::AccountId) -> Vec<SlashingRecord<BalanceOf<T>, BlockNumberFor<T>>> {
+            ValidatorSlashingHistory::<T>::get(&validator).to_vec()
+        }
+
         pub fn validator_stake_score(validator: &T::AccountId) -> u128 {
             Self::stake(validator).saturated_into()
         }
