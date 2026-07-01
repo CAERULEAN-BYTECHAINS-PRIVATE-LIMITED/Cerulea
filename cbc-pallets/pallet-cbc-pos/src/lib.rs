@@ -205,35 +205,7 @@ pub mod pallet {
     #[pallet::getter(fn stake)]
     pub type Stake<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn validator_leave_requests)]
-    pub type ValidatorLeaveRequests<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        OptionQuery,
-    >;
 
-    #[pallet::storage]
-    #[pallet::getter(fn recently_removed_validators)]
-    pub type RecentlyRemovedValidators<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        OptionQuery,
-    >;
-
-    #[pallet::storage]
-    #[pallet::getter(fn validator_join_time)]
-    pub type ValidatorJoinTime<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        OptionQuery,
-    >;
 
     #[pallet::storage]
     #[pallet::getter(fn epoch_total_rewarded)]
@@ -356,29 +328,10 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_initialize(n: BlockNumberFor<T>) -> Weight {
-            let block_number = n.saturated_into::<u32>();
-            Self::process_expired_leave_requests(block_number);
-            Self::cleanup_recently_removed_validators(block_number);
+        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
             Weight::zero()
         }
     }
-
-    #[pallet::storage]
-    #[pallet::getter(fn validator_set)]
-    pub type ValidatorSet<T: Config> = StorageValue<
-        _,
-        BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
-        ValueQuery,
-    >;
-
-    #[pallet::storage]
-    #[pallet::getter(fn active_validators_pos)]
-    pub type ActiveValidators<T: Config> = StorageValue<
-        _,
-        BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
-        ValueQuery,
-    >;
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
@@ -530,132 +483,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(8)]
-        #[pallet::weight(T::WeightInfo::register_validator())]
-        pub fn join_validators(
-            origin: OriginFor<T>,
-            _name: Option<BoundedVec<u8, ConstU32<32>>>,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            let min_stake = T::MinStake::get();
-            let free_balance = T::Currency::free_balance(&who);
-            ensure!(
-                free_balance >= min_stake,
-                Error::<T>::InsufficientStake
-            );
-
-            Self::validate_rejoin_eligibility(&who)?;
-
-            let mut validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                !validator_set.contains(&who),
-                Error::<T>::ValidatorAlreadyExists
-            );
-
-            T::Currency::reserve(&who, min_stake)
-                .map_err(|_| Error::<T>::InsufficientStake)?;
-
-            Stake::<T>::insert(&who, min_stake);
-            ValidatorJoinTime::<T>::insert(&who, frame_system::Pallet::<T>::block_number().saturated_into::<u32>());
-
-            ensure!(
-                validator_set.len() < T::MaxValidators::get() as usize,
-                Error::<T>::TooManyValidators
-            );
-
-            validator_set.try_push(who.clone())
-                .map_err(|_| Error::<T>::TooManyValidators)?;
-            ValidatorSet::<T>::put(validator_set);
-
-            Validators::<T>::insert(&who, true);
-
-            T::ValidatorHandler::on_joined(&who, min_stake)?;
-
-            Self::deposit_event(Event::ValidatorJoined {
-                validator: who.clone(),
-                stake_amount: min_stake,
-            });
-
-            Self::deposit_event(Event::ValidatorStakeReserved {
-                validator: who,
-                amount: min_stake,
-            });
-
-            Ok(())
-        }
-
-        #[pallet::call_index(9)]
-        #[pallet::weight(T::WeightInfo::register_validator())]
-        pub fn leave_validators(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            let validator_set = ValidatorSet::<T>::get();
-            ensure!(
-                validator_set.contains(&who),
-                Error::<T>::ValidatorNotInSet
-            );
-
-            Self::validate_leave_request_eligibility(&who)?;
-
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-
-            ValidatorLeaveRequests::<T>::insert(&who, current_block);
-
-            let mut active_validators = ActiveValidators::<T>::get();
-            if let Some(pos) = active_validators.iter().position(|v| v == &who) {
-                active_validators.remove(pos);
-                ActiveValidators::<T>::put(active_validators);
-            }
-
-            Validators::<T>::insert(&who, false);
-
-            T::ValidatorHandler::on_leave_requested(&who)?;
-
-            Self::deposit_event(Event::ValidatorLeaveRequested {
-                validator: who.clone(),
-                cooldown_expires_at: current_block + T::LeaveCooldown::get(),
-            });
-
-            Ok(())
-        }
-
-        #[pallet::call_index(10)]
-        #[pallet::weight(T::WeightInfo::register_validator())]
-        pub fn cancel_leave_request(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            let leave_request_block = ValidatorLeaveRequests::<T>::get(&who)
-                .ok_or(Error::<T>::ValidatorNotInSet)?;
-
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let cooldown_period = T::LeaveCooldown::get();
-            let blocks_since_request = current_block.saturating_sub(leave_request_block);
-
-            if blocks_since_request >= cooldown_period {
-                return Err(Error::<T>::LeaveCooldownActive.into());
-            }
-
-            ValidatorLeaveRequests::<T>::remove(&who);
-
-            let validator_set = ValidatorSet::<T>::get();
-            if validator_set.contains(&who) {
-                let mut active_validators = ActiveValidators::<T>::get();
-                if !active_validators.contains(&who) {
-                    if active_validators.len() < T::MaxValidators::get() as usize {
-                        let _ = active_validators.try_push(who.clone());
-                        ActiveValidators::<T>::put(active_validators);
-                    }
-                }
-                Validators::<T>::insert(&who, true);
-            }
-
-            Self::deposit_event(Event::ValidatorLeaveCancelled {
-                validator: who.clone(),
-            });
-
-            Ok(())
-        }
+        // join_validators, leave_validators, cancel_leave_request moved to pallet-cbc-dvf.
 
         #[pallet::call_index(11)]
         #[pallet::weight(T::WeightInfo::register_validator())]
@@ -665,9 +493,8 @@ pub mod pallet {
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let validator_set = ValidatorSet::<T>::get();
             ensure!(
-                validator_set.contains(&who),
+                Validators::<T>::contains_key(&who),
                 Error::<T>::ValidatorNotInSet
             );
 
@@ -707,9 +534,8 @@ pub mod pallet {
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let validator_set = ValidatorSet::<T>::get();
             ensure!(
-                validator_set.contains(&who),
+                Validators::<T>::contains_key(&who),
                 Error::<T>::ValidatorNotInSet
             );
 
@@ -858,9 +684,8 @@ pub mod pallet {
             amount: BalanceOf<T>,
             _reason: RewardReason,
         ) -> DispatchResult {
-            let validator_set = ValidatorSet::<T>::get();
             ensure!(
-                validator_set.contains(validator),
+                Validators::<T>::contains_key(validator),
                 Error::<T>::ValidatorNotInSet
             );
 
@@ -922,9 +747,8 @@ pub mod pallet {
             amount: BalanceOf<T>,
             _reason: SlashReason,
         ) -> DispatchResult {
-            let validator_set = ValidatorSet::<T>::get();
             ensure!(
-                validator_set.contains(validator),
+                Validators::<T>::contains_key(validator),
                 Error::<T>::ValidatorNotInSet
             );
 
@@ -1059,89 +883,7 @@ pub mod pallet {
             let _ = ValidatorEpochRewarded::<T>::clear(u32::MAX, None);
         }
 
-        fn cleanup_recently_removed_validators(current_block: u32) {
-            let cooldown_period = T::LeaveCooldown::get();
-            let mut expired_entries = Vec::new();
 
-            for (validator, removed_at_block) in RecentlyRemovedValidators::<T>::iter() {
-                let blocks_passed = current_block.saturating_sub(removed_at_block);
-                if blocks_passed >= cooldown_period {
-                    expired_entries.push(validator);
-                }
-            }
-
-            for validator in expired_entries {
-                RecentlyRemovedValidators::<T>::remove(&validator);
-            }
-        }
-
-        fn process_expired_leave_requests(current_block: u32) {
-            let cooldown_period = T::LeaveCooldown::get();
-            let mut expired_requests = Vec::new();
-
-            for (validator, request_block) in ValidatorLeaveRequests::<T>::iter() {
-                let blocks_passed = current_block.saturating_sub(request_block);
-                if blocks_passed >= cooldown_period {
-                    expired_requests.push(validator);
-                }
-            }
-
-            for validator in expired_requests {
-                let stake_amount = Stake::<T>::get(&validator);
-                if stake_amount > BalanceOf::<T>::default() {
-                    let _ = T::Currency::unreserve(&validator, stake_amount);
-                    Self::deposit_event(Event::ValidatorStakeUnreserved {
-                        validator: validator.clone(),
-                        amount: stake_amount,
-                    });
-                }
-
-                let mut validator_set = ValidatorSet::<T>::get();
-                if let Some(pos) = validator_set.iter().position(|v| v == &validator) {
-                    validator_set.remove(pos);
-                    ValidatorSet::<T>::put(validator_set);
-                }
-
-                let mut active_validators = ActiveValidators::<T>::get();
-                if let Some(pos) = active_validators.iter().position(|v| v == &validator) {
-                    active_validators.remove(pos);
-                    ActiveValidators::<T>::put(active_validators);
-                }
-
-                Validators::<T>::remove(&validator);
-                ValidatorJoinTime::<T>::remove(&validator);
-                Stake::<T>::remove(&validator);
-                ValidatorLeaveRequests::<T>::remove(&validator);
-
-                RecentlyRemovedValidators::<T>::insert(&validator, current_block);
-
-                let _ = T::ValidatorHandler::on_left(&validator);
-
-                Self::deposit_event(Event::ValidatorLeft { validator });
-            }
-        }
-
-        fn validate_rejoin_eligibility(validator: &T::AccountId) -> DispatchResult {
-            if let Some(removed_block) = RecentlyRemovedValidators::<T>::get(validator) {
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                let cooldown_period = T::LeaveCooldown::get();
-                let blocks_since_removal = current_block.saturating_sub(removed_block);
-                
-                ensure!(
-                    blocks_since_removal >= cooldown_period,
-                    Error::<T>::CooldownActive
-                );
-            }
-            Ok(())
-        }
-
-        fn validate_leave_request_eligibility(validator: &T::AccountId) -> DispatchResult {
-            ensure!(
-                !ValidatorLeaveRequests::<T>::contains_key(validator),
-                Error::<T>::LeaveCooldownActive
-            );
-            Ok(())
-        }
 
         /// Slash a validator's stake by a specific amount
         pub fn slash_validator_stake(validator: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
@@ -1209,16 +951,7 @@ pub mod pallet {
 
         /// Get all active validators
         pub fn get_active_validators() -> Vec<T::AccountId> {
-            let active_list: Vec<T::AccountId> = Validators::<T>::iter()
-                .filter_map(|(validator, is_active)| {
-                    if is_active {
-                        Some(validator)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            active_list
+            T::ValidatorHandler::get_active_validators()
         }
 
         /// Activate a validator
@@ -1262,27 +995,10 @@ pub mod pallet {
                 });
             }
 
-            let mut validator_set = ValidatorSet::<T>::get();
-            if let Some(pos) = validator_set.iter().position(|v| v == validator) {
-                validator_set.remove(pos);
-                ValidatorSet::<T>::put(validator_set);
-            }
-
-            let mut active_validators = ActiveValidators::<T>::get();
-            if let Some(pos) = active_validators.iter().position(|v| v == validator) {
-                active_validators.remove(pos);
-                ActiveValidators::<T>::put(active_validators);
-            }
-
             Validators::<T>::remove(validator);
-            ValidatorJoinTime::<T>::remove(validator);
             Stake::<T>::remove(validator);
-            ValidatorLeaveRequests::<T>::remove(validator);
 
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            RecentlyRemovedValidators::<T>::insert(validator, current_block);
-
-            // Notify handler (DCF) of removal
+            // Notify handler of removal
             let _ = T::ValidatorHandler::on_left(validator);
 
             Self::deposit_event(Event::ValidatorLeft { validator: validator.clone() });

@@ -343,4 +343,8 @@ impl pallet_cbc_dvf::Config for Runtime {
     type FinalityCheckpointInterval = FinalityCheckpointInterval;
     type VoteRetentionRounds = VoteRetentionRounds;
     type MaxValidators = ConstU32<100>;
+    type MaxInactiveEpochs = ConstU32<5>;
+    type UnderperformanceCheckInterval = ConstU32<50>;
+    type MaxValidatorHistorySize = ConstU32<100>;
+    type MaxValidatorNameSize = ConstU32<32>;
 }

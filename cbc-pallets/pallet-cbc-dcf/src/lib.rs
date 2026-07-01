@@ -1776,6 +1776,9 @@ pub mod pallet {
         /// Interface to query the last DVF-finalized block number.
         /// DCF progressive finality will not advance past this value.
         type DvfFinalizedBlockProvider: crate::traits::DvfFinalizedBlockProvider;
+
+        /// Interface to query and mutate validator registry state.
+        type ValidatorRegistry: crate::traits::ValidatorRegistryProvider<Self::AccountId, <Self as pallet::Config>::Balance, BlockNumberFor<Self>>;
         
         // MaxValidators and MinActiveValidators are inherited from pos::Config
         
@@ -2392,6 +2395,8 @@ pub mod pallet {
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
+    use crate::traits::ValidatorRegistryProvider;
+
     // Type alias to resolve Balance type ambiguity
     type BalanceOf<T> = <T as pallet::Config>::Balance;
 
@@ -2420,15 +2425,81 @@ pub mod pallet {
     ///
     /// # Key: T::AccountId - The validator's account identifier
     /// # Value: ValidatorState<T> - Complete validator state information
-    #[pallet::storage]
-    #[pallet::getter(fn validator_states)]
-    pub type ValidatorStates<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        ValidatorState<T>,
-        OptionQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorStates<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorStates<T> {
+        pub fn get(key: &T::AccountId) -> Option<ValidatorState<T>> {
+            let trait_state = T::ValidatorRegistry::get_validator_state(key)?;
+            let name_bounded = trait_state.name.map(|n| BoundedVec::truncate_from(n));
+            let history_bounded = BoundedVec::truncate_from(trait_state.history);
+            Some(ValidatorState {
+                last_active_epoch: trait_state.last_active_epoch,
+                current: trait_state.current,
+                history: history_bounded,
+                uptime: trait_state.uptime,
+                inference_success_count: trait_state.inference_success_count,
+                participation_rate: trait_state.participation_rate,
+                inference_count: trait_state.inference_count,
+                last_active_block: trait_state.last_active_block,
+                name: name_bounded,
+                trust_score: trait_state.trust_score,
+            })
+        }
+        pub fn insert(key: &T::AccountId, val: impl sp_std::borrow::Borrow<ValidatorState<T>>) {
+            let val = val.borrow();
+            let val_traits = crate::traits::ValidatorState {
+                last_active_epoch: val.last_active_epoch,
+                current: val.current.clone(),
+                history: val.history.to_vec(),
+                uptime: val.uptime,
+                inference_success_count: val.inference_success_count,
+                participation_rate: val.participation_rate,
+                inference_count: val.inference_count,
+                last_active_block: val.last_active_block,
+                name: val.name.as_ref().map(|n| n.to_vec()),
+                trust_score: val.trust_score,
+            };
+            T::ValidatorRegistry::update_validator_state(key, val_traits);
+        }
+        pub fn contains_key(key: &T::AccountId) -> bool {
+            T::ValidatorRegistry::contains_validator_state(key)
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_state(key);
+        }
+        pub fn try_mutate<R, E, F>(key: &T::AccountId, f: F) -> Result<R, E>
+        where
+            F: FnOnce(&mut Option<ValidatorState<T>>) -> Result<R, E>,
+        {
+            let mut opt_state = Self::get(key);
+            let res = f(&mut opt_state)?;
+            if let Some(state) = opt_state {
+                Self::insert(key, state);
+            } else {
+                Self::remove(key);
+            }
+            Ok(res)
+        }
+        pub fn mutate<R, F>(key: &T::AccountId, f: F) -> R
+        where
+            F: FnOnce(&mut Option<ValidatorState<T>>) -> R,
+        {
+            let mut opt_state = Self::get(key);
+            let res = f(&mut opt_state);
+            if let Some(state) = opt_state {
+                Self::insert(key, state);
+            } else {
+                Self::remove(key);
+            }
+            res
+        }
+        pub fn iter() -> impl Iterator<Item = (T::AccountId, ValidatorState<T>)> {
+            T::ValidatorRegistry::get_validator_set().into_iter().filter_map(|v| {
+                let state = Self::get(&v)?;
+                Some((v, state))
+            })
+        }
+    }
 
     /// Current Proof-of-Stake (PoS) weight used in final score calculations.
     /// 
@@ -2479,9 +2550,25 @@ pub mod pallet {
     /// New validators are added through `join_validator_set` or `join_validators` calls.
     /// 
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of all registered validator accounts
-    #[pallet::storage]
-    #[pallet::getter(fn validator_set)]
-    pub type ValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, MaxValidatorsOf<T>>, ValueQuery>;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorSet<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorSet<T> {
+        pub fn get() -> BoundedVec<T::AccountId, MaxValidatorsOf<T>> {
+            BoundedVec::truncate_from(T::ValidatorRegistry::get_validator_set())
+        }
+        pub fn put(val: BoundedVec<T::AccountId, MaxValidatorsOf<T>>) {
+            T::ValidatorRegistry::update_validator_set(val.to_vec());
+        }
+        pub fn mutate<R, F>(f: F) -> R
+        where
+            F: FnOnce(&mut BoundedVec<T::AccountId, MaxValidatorsOf<T>>) -> R,
+        {
+            let mut val = Self::get();
+            let res = f(&mut val);
+            Self::put(val);
+            res
+        }
+    }
 
     /// Configuration parameters for epoch management and transitions.
     /// 
@@ -2595,9 +2682,16 @@ pub mod pallet {
     /// Maximum size is bounded by `T::MaxValidators` to ensure network performance.
     /// 
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of currently active validator accounts
-    #[pallet::storage]
-    #[pallet::getter(fn active_validators)]
-    pub type ActiveValidators<T: Config> = StorageValue<_, BoundedVec<T::AccountId, MaxValidatorsOf<T>>, ValueQuery>;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ActiveValidators<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ActiveValidators<T> {
+        pub fn get() -> BoundedVec<T::AccountId, MaxValidatorsOf<T>> {
+            BoundedVec::truncate_from(T::ValidatorRegistry::get_active_validators())
+        }
+        pub fn put(val: BoundedVec<T::AccountId, MaxValidatorsOf<T>>) {
+            T::ValidatorRegistry::update_active_validators(val.to_vec());
+        }
+    }
 
     /// Flag indicating whether governance mode is currently enabled.
     /// 
@@ -2713,11 +2807,71 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account requesting the action
     /// # Value: ValidatorAction - Type of action requested (Join or Leave)
-    #[pallet::storage]
-    #[pallet::getter(fn pending_validator_actions)]
-    pub type PendingValidatorActions<T: Config> = StorageMap<
-        _, Blake2_128Concat, T::AccountId, ValidatorAction, OptionQuery
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct PendingValidatorActions<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> PendingValidatorActions<T> {
+        pub fn get(key: &T::AccountId) -> Option<ValidatorAction> {
+            let actions = T::ValidatorRegistry::get_pending_actions();
+            actions.into_iter().find(|(k, _)| k == key).map(|(_, a)| a)
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_pending_action(key);
+        }
+        pub fn insert(key: &T::AccountId, val: impl sp_std::borrow::Borrow<ValidatorAction>) {
+            T::ValidatorRegistry::add_pending_action(key, val.borrow().clone());
+        }
+        pub fn iter() -> impl Iterator<Item = (T::AccountId, ValidatorAction)> {
+            T::ValidatorRegistry::get_pending_actions().into_iter()
+        }
+    }
+
+    pub struct ValidatorJoinTime<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorJoinTime<T> {
+        pub fn get(key: &T::AccountId) -> Option<u32> {
+            T::ValidatorRegistry::get_validator_join_time(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_validator_join_time(key, val);
+        }
+        pub fn contains_key(key: &T::AccountId) -> bool {
+            T::ValidatorRegistry::get_validator_join_time(key).is_some()
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_join_time(key);
+        }
+    }
+
+    pub struct ValidatorLeaveRequests<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorLeaveRequests<T> {
+        pub fn get(key: &T::AccountId) -> Option<u32> {
+            T::ValidatorRegistry::get_validator_leave_request(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_validator_leave_request(key, val);
+        }
+        pub fn contains_key(key: &T::AccountId) -> bool {
+            T::ValidatorRegistry::get_validator_leave_request(key).is_some()
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_leave_request(key);
+        }
+    }
+
+    pub struct RecentlyRemovedValidators<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> RecentlyRemovedValidators<T> {
+        pub fn get(key: &T::AccountId) -> Option<u32> {
+            T::ValidatorRegistry::get_recently_removed_validator(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_recently_removed_validator(key, val);
+        }
+        pub fn contains_key(key: &T::AccountId) -> bool {
+            T::ValidatorRegistry::get_recently_removed_validator(key).is_some()
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_recently_removed_validator(key);
+        }
+    }
 
     /// Join/leave intent for validators.
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
@@ -2779,15 +2933,19 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: BoundedVec<u8, ConstU32<32>> - UTF-8 encoded display name (max 32 bytes)
-    #[pallet::storage]
-    #[pallet::getter(fn validator_names)]
-    pub type ValidatorNames<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        BoundedVec<u8, ConstU32<32>>,
-        OptionQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorNames<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorNames<T> {
+        pub fn get(key: &T::AccountId) -> Option<BoundedVec<u8, ConstU32<32>>> {
+            T::ValidatorRegistry::get_validator_name(key).map(|n| BoundedVec::truncate_from(n))
+        }
+        pub fn insert(key: &T::AccountId, val: impl sp_std::borrow::Borrow<BoundedVec<u8, ConstU32<32>>>) {
+            T::ValidatorRegistry::set_validator_name(key, val.borrow().to_vec());
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::set_validator_name(key, Vec::new());
+        }
+    }
 
     /// Cumulative count of epochs each validator has been active.
     /// 
@@ -2813,15 +2971,38 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of epochs the validator has been active
-    #[pallet::storage]
-    #[pallet::getter(fn validator_uptime)]
-    pub type ValidatorUptime<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        ValueQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorUptime<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorUptime<T> {
+        pub fn get(key: &T::AccountId) -> u32 {
+            if let Some(state) = T::ValidatorRegistry::get_validator_state(key) {
+                state.uptime
+            } else {
+                0
+            }
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            if let Some(mut state) = T::ValidatorRegistry::get_validator_state(key) {
+                state.uptime = val;
+                T::ValidatorRegistry::update_validator_state(key, state);
+            }
+        }
+        pub fn mutate<R, F>(key: &T::AccountId, f: F) -> R
+        where
+            F: FnOnce(&mut u32) -> R,
+        {
+            let mut val = Self::get(key);
+            let res = f(&mut val);
+            Self::insert(key, val);
+            res
+        }
+        pub fn remove(key: &T::AccountId) {
+            if let Some(mut state) = T::ValidatorRegistry::get_validator_state(key) {
+                state.uptime = 0;
+                T::ValidatorRegistry::update_validator_state(key, state);
+            }
+        }
+    }
 
     /// Total count of successful inference operations performed by each validator.
     /// 
@@ -2862,15 +3043,19 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: ValidatorMetadataInfo - Comprehensive metadata structure
-    #[pallet::storage]
-    #[pallet::getter(fn validator_metadata)]
-    pub type ValidatorMetadata<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        ValidatorMetadataInfo,
-        OptionQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorMetadata<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorMetadata<T> {
+        pub fn get(key: &T::AccountId) -> Option<ValidatorMetadataInfo> {
+            T::ValidatorRegistry::get_validator_metadata(key)
+        }
+        pub fn insert(key: &T::AccountId, val: ValidatorMetadataInfo) {
+            T::ValidatorRegistry::set_validator_metadata(key, val);
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_metadata(key);
+        }
+    }
 
     /// Historical performance records for each validator over time.
     /// 
@@ -2898,15 +3083,28 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: BoundedVec<PerformanceRecord, ConstU32<100>> - Circular buffer of performance records
-    #[pallet::storage]
-    #[pallet::getter(fn validator_performance_history)]
-    pub type ValidatorPerformanceHistory<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        BoundedVec<PerformanceRecord, ConstU32<100>>,
-        ValueQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorPerformanceHistory<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorPerformanceHistory<T> {
+        pub fn get(key: &T::AccountId) -> BoundedVec<PerformanceRecord, ConstU32<100>> {
+            BoundedVec::truncate_from(T::ValidatorRegistry::get_validator_performance_history(key))
+        }
+        pub fn insert(key: &T::AccountId, val: BoundedVec<PerformanceRecord, ConstU32<100>>) {
+            T::ValidatorRegistry::set_validator_performance_history(key, val.to_vec());
+        }
+        pub fn mutate<R, F>(key: &T::AccountId, f: F) -> R
+        where
+            F: FnOnce(&mut BoundedVec<PerformanceRecord, ConstU32<100>>) -> R,
+        {
+            let mut val = Self::get(key);
+            let res = f(&mut val);
+            Self::insert(key, val);
+            res
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_performance_history(key);
+        }
+    }
 
     /// Block number when each validator was last observed to be active.
     /// 
@@ -2933,15 +3131,19 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Block number of last observed activity
-    #[pallet::storage]
-    #[pallet::getter(fn validator_last_seen)]
-    pub type ValidatorLastSeen<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32, // Block number
-        ValueQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorLastSeen<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorLastSeen<T> {
+        pub fn get(key: &T::AccountId) -> u32 {
+            T::ValidatorRegistry::get_validator_last_seen(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_validator_last_seen(key, val);
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_last_seen(key);
+        }
+    }
 
     /// Cumulative count of blocks successfully authored by each validator.
     /// 
@@ -2968,15 +3170,28 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of blocks successfully authored
-    #[pallet::storage]
-    #[pallet::getter(fn validator_blocks_authored)]
-    pub type ValidatorBlocksAuthored<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        ValueQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorBlocksAuthored<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorBlocksAuthored<T> {
+        pub fn get(key: &T::AccountId) -> u32 {
+            T::ValidatorRegistry::get_validator_blocks_authored(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_validator_blocks_authored(key, val);
+        }
+        pub fn mutate<R, F>(key: &T::AccountId, f: F) -> R
+        where
+            F: FnOnce(&mut u32) -> R,
+        {
+            let mut val = Self::get(key);
+            let res = f(&mut val);
+            Self::insert(key, val);
+            res
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_blocks_authored(key);
+        }
+    }
 
     /// Cumulative count of blocks missed by each validator when they were selected.
     /// 
@@ -3004,15 +3219,28 @@ pub mod pallet {
     /// 
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of blocks missed when selected as author
-    #[pallet::storage]
-    #[pallet::getter(fn validator_blocks_missed)]
-    pub type ValidatorBlocksMissed<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u32,
-        ValueQuery,
-    >;
+    // Wrapped struct redirecting to T::ValidatorRegistry
+    pub struct ValidatorBlocksMissed<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> ValidatorBlocksMissed<T> {
+        pub fn get(key: &T::AccountId) -> u32 {
+            T::ValidatorRegistry::get_validator_blocks_missed(key)
+        }
+        pub fn insert(key: &T::AccountId, val: u32) {
+            T::ValidatorRegistry::set_validator_blocks_missed(key, val);
+        }
+        pub fn mutate<R, F>(key: &T::AccountId, f: F) -> R
+        where
+            F: FnOnce(&mut u32) -> R,
+        {
+            let mut val = Self::get(key);
+            let res = f(&mut val);
+            Self::insert(key, val);
+            res
+        }
+        pub fn remove(key: &T::AccountId) {
+            T::ValidatorRegistry::remove_validator_blocks_missed(key);
+        }
+    }
 
     /// Timestamp recording when each validator joined the network.
     /// 
@@ -6294,41 +6522,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Request to join the validator set (opt-in, effective next epoch).
-        #[pallet::call_index(13)]
-        #[pallet::weight(<T as Config>::WeightInfo::join_validator_set())]
-        pub fn join_validator_set(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Already pending join or already active
-            ensure!(
-                !Self::active_validators().contains(&who),
-                Error::<T>::NotAllowedInGovernanceMode 
-            );
-            ensure!(
-                PendingValidatorActions::<T>::get(&who) != Some(ValidatorAction::Join),
-                Error::<T>::NotAllowedInGovernanceMode
-            );
-
-            // Check minimum stake and score now, but actual addition is at epoch
-            let stake = pos::Pallet::<T>::stake(&who);
-            ensure!(
-                stake >= MinStakeOf::<T>::get(),
-                Error::<T>::NotEnoughValidators
-            );
-            let state = ValidatorStates::<T>::get(&who).ok_or(Error::<T>::ValidatorNotFound)?;
-            ensure!(
-                state.current.final_score >= MinValidatorScoreOf::<T>::get() as u64,
-                Error::<T>::NotValidator
-            );
-
-            PendingValidatorActions::<T>::insert(&who, ValidatorAction::Join);
-            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
-                validator: who,
-                stake_amount: MinStakeOf::<T>::get(),
-            });
-            Ok(())
-        }
+        // join_validator_set moved to pallet-cbc-dvf.
 
         /// Validate a genesis configuration without applying it.
         /// 
@@ -6459,26 +6653,7 @@ pub mod pallet {
 
         // cancel_leave_request moved to pallet-cbc-pos.
 
-        /// Request to leave the validator set (opt-out, effective next epoch).
-        #[pallet::call_index(14)]
-        #[pallet::weight(<T as Config>::WeightInfo::leave_validator_set())]
-        pub fn leave_validator_set(origin: OriginFor<T>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            // Already pending leave or not active
-            ensure!(
-                Self::active_validators().contains(&who),
-                Error::<T>::NotValidator
-            );
-            ensure!(
-                PendingValidatorActions::<T>::get(&who) != Some(ValidatorAction::Leave),
-                Error::<T>::NotAllowedInGovernanceMode
-            );
-
-            PendingValidatorActions::<T>::insert(&who, ValidatorAction::Leave);
-            Self::deposit_event_with_evm_compat(Event::ValidatorLeft { validator: who });
-            Ok(())
-        }
+        // leave_validator_set moved to pallet-cbc-dvf.
 
         /// Set validator display name
         #[pallet::call_index(15)]
@@ -6580,10 +6755,10 @@ pub mod pallet {
                 name: bounded_name.clone(),
             });
             
-            // Set join time if not already set in pos pallet
-            if !pos::ValidatorJoinTime::<T>::contains_key(&who) {
+            // Set join time if not already set
+            if !ValidatorJoinTime::<T>::contains_key(&who) {
                 let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                pos::ValidatorJoinTime::<T>::insert(&who, current_block);
+                ValidatorJoinTime::<T>::insert(&who, current_block);
             }
             
             // Emit event
@@ -7447,8 +7622,8 @@ pub mod pallet {
             
             // Check 2: No validator is both active and in cooldown
             for validator in active_validators.iter() {
-                if pos::ValidatorLeaveRequests::<T>::contains_key(validator) || 
-                   pos::RecentlyRemovedValidators::<T>::contains_key(validator) {
+                if ValidatorLeaveRequests::<T>::contains_key(validator) || 
+                   RecentlyRemovedValidators::<T>::contains_key(validator) {
                     let context = format!("Validator: {:?}", validator);
                     if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                         violations.push(InvariantViolation::Validator {
@@ -8875,12 +9050,12 @@ pub mod pallet {
         /// - `ValidatorRejoinStakeReservationFailed`: If stake reservation would fail
         fn validate_rejoin_eligibility(who: &T::AccountId) -> DispatchResult {
             // Check if validator has a pending leave request
-            if pos::ValidatorLeaveRequests::<T>::contains_key(who) {
+            if ValidatorLeaveRequests::<T>::contains_key(who) {
                 return Err(Error::<T>::ValidatorHasPendingLeaveRequest.into());
             }
 
             // Check if validator is in cooldown period after recently leaving
-            if let Some(left_at_block) = pos::RecentlyRemovedValidators::<T>::get(who) {
+            if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(who) {
                 let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
@@ -8891,7 +9066,7 @@ pub mod pallet {
                 }
 
                 // Cooldown has expired, remove from recently removed list
-                pos::RecentlyRemovedValidators::<T>::remove(who);
+                RecentlyRemovedValidators::<T>::remove(who);
             }
 
             // Validate stake reservation eligibility
@@ -8927,7 +9102,7 @@ pub mod pallet {
         /// - `ValidatorNotInSet`: If validator is not in the validator set
         fn validate_leave_request_eligibility(who: &T::AccountId) -> DispatchResult {
             // Check if there's already a pending leave request (prevent concurrent requests)
-            if pos::ValidatorLeaveRequests::<T>::contains_key(who) {
+            if ValidatorLeaveRequests::<T>::contains_key(who) {
                 return Err(Error::<T>::ConcurrentLeaveRequestNotAllowed.into());
             }
 
@@ -8953,14 +9128,14 @@ pub mod pallet {
             let cooldown_period = LeaveCooldownOf::<T>::get();
 
             // Check for pending leave request cooldown
-            if let Some(leave_request_block) = pos::ValidatorLeaveRequests::<T>::get(who) {
+            if let Some(leave_request_block) = ValidatorLeaveRequests::<T>::get(who) {
                 let blocks_since_request = current_block.saturating_sub(leave_request_block);
                 let blocks_remaining = cooldown_period.saturating_sub(blocks_since_request);
                 return Some((blocks_remaining, false)); // Cannot rejoin while leaving
             }
 
             // Check for recently removed cooldown
-            if let Some(removed_at_block) = pos::RecentlyRemovedValidators::<T>::get(who) {
+            if let Some(removed_at_block) = RecentlyRemovedValidators::<T>::get(who) {
                 let blocks_since_removed = current_block.saturating_sub(removed_at_block);
                 if blocks_since_removed < cooldown_period {
                     let blocks_remaining = cooldown_period.saturating_sub(blocks_since_removed);
@@ -9718,7 +9893,7 @@ pub mod pallet {
         fn calculate_uptime_percentage(validator: &T::AccountId) -> u32 {
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let last_seen = Self::validator_last_seen(validator);
-            let join_time_block = pos::ValidatorJoinTime::<T>::get(validator).unwrap_or(0);
+            let join_time_block = ValidatorJoinTime::<T>::get(validator).unwrap_or(0);
             
             if current_block <= join_time_block {
                 return T::PercentagePrecision::get(); // Full percentage if just joined
@@ -10199,16 +10374,16 @@ pub mod pallet {
 
                 pos::Stake::<T>::insert(validator, *stake);
                 
-                let mut validator_set = pos::ValidatorSet::<T>::get();
+                let mut validator_set = ValidatorSet::<T>::get();
                 if !validator_set.contains(validator) {
                     let _ = validator_set.try_push(validator.clone());
-                    pos::ValidatorSet::<T>::put(validator_set);
+                    ValidatorSet::<T>::put(validator_set);
                 }
 
-                let mut active_validators = pos::ActiveValidators::<T>::get();
+                let mut active_validators = ActiveValidators::<T>::get();
                 if !active_validators.contains(validator) {
                     let _ = active_validators.try_push(validator.clone());
-                    pos::ActiveValidators::<T>::put(active_validators);
+                    ActiveValidators::<T>::put(active_validators);
                 }
 
                 // Calculate scores based on stake and initial score
@@ -10886,6 +11061,49 @@ pub mod pallet {
 
     // --- Public Helper Functions --- //
     impl<T: Config> Pallet<T> {
+        pub fn active_validators() -> BoundedVec<T::AccountId, MaxValidatorsOf<T>> {
+            ActiveValidators::<T>::get()
+        }
+        pub fn validator_set() -> BoundedVec<T::AccountId, MaxValidatorsOf<T>> {
+            ValidatorSet::<T>::get()
+        }
+        pub fn pending_validator_actions(key: &T::AccountId) -> Option<ValidatorAction> {
+            PendingValidatorActions::<T>::get(key)
+        }
+        pub fn validator_join_time(key: &T::AccountId) -> Option<u32> {
+            ValidatorJoinTime::<T>::get(key)
+        }
+        pub fn validator_leave_requests(key: &T::AccountId) -> Option<u32> {
+            ValidatorLeaveRequests::<T>::get(key)
+        }
+        pub fn recently_removed_validators(key: &T::AccountId) -> Option<u32> {
+            RecentlyRemovedValidators::<T>::get(key)
+        }
+        pub fn validator_states(key: &T::AccountId) -> Option<ValidatorState<T>> {
+            ValidatorStates::<T>::get(key)
+        }
+        pub fn validator_names(key: &T::AccountId) -> Option<BoundedVec<u8, ConstU32<32>>> {
+            ValidatorNames::<T>::get(key)
+        }
+        pub fn validator_uptime(key: &T::AccountId) -> u32 {
+            ValidatorUptime::<T>::get(key)
+        }
+        pub fn validator_metadata(key: &T::AccountId) -> Option<ValidatorMetadataInfo> {
+            ValidatorMetadata::<T>::get(key)
+        }
+        pub fn validator_performance_history(key: &T::AccountId) -> BoundedVec<PerformanceRecord, ConstU32<100>> {
+            ValidatorPerformanceHistory::<T>::get(key)
+        }
+        pub fn validator_last_seen(key: &T::AccountId) -> u32 {
+            ValidatorLastSeen::<T>::get(key)
+        }
+        pub fn validator_blocks_authored(key: &T::AccountId) -> u32 {
+            ValidatorBlocksAuthored::<T>::get(key)
+        }
+        pub fn validator_blocks_missed(key: &T::AccountId) -> u32 {
+            ValidatorBlocksMissed::<T>::get(key)
+        }
+
         /// Validate if a block author is an active validator.
         pub fn validate_block_author(block_number: u32, author: T::AccountId) {
             if !Self::is_validator_active(&author) {
@@ -11341,7 +11559,7 @@ pub mod pallet {
 
         /// Get validator cooldown status
         pub fn get_validator_cooldown_status(validator: T::AccountId) -> Option<BlockNumberFor<T>> {
-            pos::ValidatorLeaveRequests::<T>::get(&validator).map(|block| block.into())
+            ValidatorLeaveRequests::<T>::get(&validator).map(|block| block.into())
         }
 
         /// Get detailed validator cooldown status with remaining blocks and eligibility
@@ -11543,8 +11761,8 @@ pub mod pallet {
 
                 ValidatorStates::<T>::insert(validator, validator_state);
 
-                // Set join time in pos pallet
-                pos::ValidatorJoinTime::<T>::insert(validator, current_block);
+                // Set join time
+                ValidatorJoinTime::<T>::insert(validator, current_block);
             }
 
             // Emit event
@@ -12014,7 +12232,7 @@ pub mod pallet {
         /// Check if a validator was recently ejected or removed (to avoid immediate re-addition)
         pub fn was_recently_ejected(validator: &T::AccountId) -> bool {
             // First check if validator is in cooldown period after leaving
-            if let Some(left_at_block) = pos::RecentlyRemovedValidators::<T>::get(validator) {
+            if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(validator) {
                 let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);

@@ -233,7 +233,7 @@ impl pallet_cbc_pos::Config for Runtime {
     type MaxRewardBoost = ConstU64<20>;
     type HighPerformanceScore = HighPerformanceScore;
     type TopPerformerPercentage = TopPerformerPercentage;
-    type ValidatorHandler = pallet_cbc_dcf::Pallet<Runtime>;
+    type ValidatorHandler = pallet_cbc_dvf::Pallet<Runtime>;
 }
 
 // === CBC DCF Pallet Configuration ===
@@ -345,6 +345,9 @@ impl pallet_cbc_dcf::Config for Runtime {
     type WeightFreezer = pallet_cbc_dvf::Pallet<Runtime>;
     // DVF is the primary finality authority; DCF progressive finality is capped at the DVF-finalized block
     type DvfFinalizedBlockProvider = pallet_cbc_dvf::Pallet<Runtime>;
+
+    // Validator Registry
+    type ValidatorRegistry = pallet_cbc_dvf::Pallet<Runtime>;
 }
 
 

@@ -1,9 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
+
+use sp_runtime::SaturatedConversion;
+use frame_support::traits::Get;
+use frame_support::{ensure, BoundedVec};
+use alloc::vec::Vec;
+use frame_system::pallet_prelude::BlockNumberFor;
+use pallet_cbc_dcf::EpochStats;
 
 extern crate alloc;
 
@@ -27,6 +31,27 @@ pub mod pallet {
     use scale_info::TypeInfo;
     use codec::MaxEncodedLen;
     use frame_support::BoundedVec;
+    use frame_support::traits::{Currency, ReservableCurrency, Get};
+
+    type BalanceOf<T> = <T as pallet_cbc_pos::Config>::Balance;
+
+    use pallet_cbc_dcf::{ValidatorStatus, EpochStats, EjectionReason};
+
+    /// Local DVF ValidatorState structure to keep registry decoupled from DCF Config
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    #[scale_info(skip_type_params(T))]
+    pub struct ValidatorState<T: Config> {
+        pub last_active_epoch: u32,
+        pub current: EpochStats,
+        pub history: BoundedVec<EpochStats, T::MaxValidatorHistorySize>,
+        pub uptime: u32,
+        pub inference_success_count: u32,
+        pub participation_rate: u32,
+        pub inference_count: u64,
+        pub last_active_block: u32,
+        pub name: Option<BoundedVec<u8, T::MaxValidatorNameSize>>,
+        pub trust_score: u64,
+    }
     
     /// Information about block finality status
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -40,7 +65,7 @@ pub mod pallet {
     }
     
     /// DVF Vote structure sent over the network and recorded in the runtime
-    	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
     pub struct DvfVote<Hash, AccountId, Signature> {
         pub epoch_id: u32,
         pub validator_set_id: u32,
@@ -91,7 +116,7 @@ sp_api::decl_runtime_apis! {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_cbc_pos::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -127,6 +152,18 @@ sp_api::decl_runtime_apis! {
         /// Maximum number of validators in the validator set.
         #[pallet::constant]
         type MaxValidators: Get<u32>;
+
+        #[pallet::constant]
+        type MaxInactiveEpochs: Get<u32>;
+
+        #[pallet::constant]
+        type UnderperformanceCheckInterval: Get<BlockNumberFor<Self>>;
+
+        #[pallet::constant]
+        type MaxValidatorHistorySize: Get<u32>;
+
+        #[pallet::constant]
+        type MaxValidatorNameSize: Get<u32>;
 	}
 
     /// Frozen weights for active validators during the current epoch.
@@ -187,55 +224,165 @@ sp_api::decl_runtime_apis! {
 
     /// The previous validator set for change detection
     #[pallet::storage]
-    pub type PreviousValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, T::MaxValidators>, ValueQuery>;
+    pub type PreviousValidatorSet<T: Config> = StorageValue<_, BoundedVec<T::AccountId, <T as Config>::MaxValidators>, ValueQuery>;
 
     /// The block number when the validator set ID last changed (for grace period)
     #[pallet::storage]
     pub type ValidatorSetIdChangedAt<T: Config> = StorageValue<_, BlockNumberFor<T>, OptionQuery>;
 
+    // --- Validator Registry Storage Maps ---
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_set)]
+    pub type ValidatorSet<T: Config> = StorageValue<
+        _,
+        BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn active_validators)]
+    pub type ActiveValidators<T: Config> = StorageValue<
+        _,
+        BoundedVec<T::AccountId, <T as Config>::MaxValidators>,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn pending_validator_actions)]
+    pub type PendingValidatorActions<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        pallet_cbc_dcf::ValidatorAction,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_join_time)]
+    pub type ValidatorJoinTime<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_leave_requests)]
+    pub type ValidatorLeaveRequests<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn recently_removed_validators)]
+    pub type RecentlyRemovedValidators<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_states)]
+    pub type ValidatorStates<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        ValidatorState<T>,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_names)]
+    pub type ValidatorNames<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<u8, ConstU32<32>>,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_uptime)]
+    pub type ValidatorUptime<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_metadata)]
+    pub type ValidatorMetadata<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        pallet_cbc_dcf::ValidatorMetadataInfo,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_performance_history)]
+    pub type ValidatorPerformanceHistory<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<pallet_cbc_dcf::PerformanceRecord, ConstU32<100>>,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_last_seen)]
+    pub type ValidatorLastSeen<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_blocks_authored)]
+    pub type ValidatorBlocksAuthored<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        ValueQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn validator_blocks_missed)]
+    pub type ValidatorBlocksMissed<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        u32,
+        ValueQuery,
+    >;
+
     /// Genesis configuration for the DVF pallet.
-    /// 
-    /// This configuration initializes validator voting weights at chain genesis,
-    /// ensuring that finalization can succeed from the very first checkpoint block.
-    /// The weights are calculated using the same freeze_epoch_weights() logic that
-    /// is used at epoch boundaries, maintaining consistency throughout the chain lifetime.
-    /// 
-    /// # Example
-    /// 
-    /// ```ignore
-    /// GenesisConfig {
-    ///     initial_validator_weights: vec![
-    ///         (alice_account, 10_000_000, 80),  // (AccountId, Stake, Score)
-    ///         (bob_account, 8_000_000, 80),
-    ///         (charlie_account, 6_000_000, 80),
-    ///     ],
-    /// }
-    /// ```
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
-        /// Initial validator weights: (AccountId, Stake, Score)
-        /// 
-        /// Each tuple contains:
-        /// - AccountId: The validator's account identifier
-        /// - Stake: The validator's staked amount (in smallest unit)
-        /// - Score: The validator's DCF score (0-100 range)
-        /// 
-        /// These values should be synchronized with the DCF pallet's genesis validators
-        /// to ensure consistency between validator set membership and voting weights.
         pub initial_validator_weights: Vec<(T::AccountId, u128, u128)>,
     }
 
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
-            // Validate genesis configuration
             assert!(
                 !self.initial_validator_weights.is_empty(),
                 "DVF genesis requires at least one validator with non-zero weight"
             );
 
-            // Validate stakes and scores
             for (validator, stake, score) in &self.initial_validator_weights {
                 assert!(
                     *stake > 0,
@@ -250,22 +397,14 @@ sp_api::decl_runtime_apis! {
                 );
             }
 
-            // Log genesis initialization for audit trail
             log::info!(
                 target: "runtime::dvf",
                 "DVF genesis initializing with {} validators",
                 self.initial_validator_weights.len()
             );
 
-            // Initialize ValidatorSetId to 0 at genesis
             ValidatorSetId::<T>::put(0);
-
-            // Reuse existing freeze_epoch_weights logic for consistency
-            // This ensures genesis weight calculation matches epoch transition logic
             Pallet::<T>::freeze_epoch_weights(0, &self.initial_validator_weights);
-
-            // Reset ValidatorSetId back to 0 after freeze_epoch_weights
-            // (freeze_epoch_weights increments it to 1 when it detects the initial validator set)
             ValidatorSetId::<T>::put(0);
 
             log::info!(
@@ -274,8 +413,6 @@ sp_api::decl_runtime_apis! {
             );
         }
     }
-
-
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -288,6 +425,23 @@ sp_api::decl_runtime_apis! {
         ValidatorSetChanged { old_id: u32, new_id: u32 },
         /// Vote validation failed with a specific reason.
         VoteValidationFailed { validator: T::AccountId, block_number: BlockNumberFor<T>, reason: Vec<u8> },
+        
+        // Moved registry events
+		ValidatorJoined { validator: T::AccountId, stake_amount: BalanceOf<T> },
+		ValidatorLeft { validator: T::AccountId },
+		ValidatorLeaveRequested { validator: T::AccountId, cooldown_expires_at: u32 },
+		ValidatorLeaveCancelled { validator: T::AccountId },
+		ValidatorAdded { validator: T::AccountId },
+		ValidatorRemoved { validator: T::AccountId },
+		ValidatorForcedToLeave { validator: T::AccountId },
+		ValidatorStatusChanged {
+			validator: T::AccountId,
+			old_status: pallet_cbc_dcf::ValidatorStatus,
+			new_status: pallet_cbc_dcf::ValidatorStatus,
+			block_number: u32,
+		},
+		ValidatorEjected { validator: T::AccountId, reason: pallet_cbc_dcf::EjectionReason },
+        CooldownExpired { validator: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -314,25 +468,42 @@ sp_api::decl_runtime_apis! {
         BlockHashMismatch,
         /// Votes in justification have mismatched validator set IDs.
         ValidatorSetIdMismatch,
+        /// Action not allowed in governance mode.
+        NotAllowedInGovernanceMode,
+        /// There are not enough validators.
+        NotEnoughValidators,
+        /// The validator was not found.
+        ValidatorNotFound,
+        /// Account is not a validator.
+        NotValidator,
 	}
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(n: BlockNumberFor<T>) -> Weight {
+            let block_number = n.saturated_into::<u32>();
+            Self::cleanup_recently_removed_validators(block_number);
+            Self::process_expired_leave_requests(block_number);
+            
+            if block_number % T::UnderperformanceCheckInterval::get().saturated_into::<u32>() == 0 {
+                Self::check_and_handle_underperforming_validators();
+            }
+            Weight::zero()
+        }
+    }
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
         /// Primary Extrinsic / Inherent entrypoint to submit a vote.
-        /// 
-        /// Nodes aggregate gossip validations and insert them via here.
         #[pallet::call_index(0)]
         #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(1,1))]
         pub fn submit_dvf_vote(
             origin: OriginFor<T>,
             vote: DvfVote<T::Hash, T::AccountId, T::Signature>,
         ) -> DispatchResult {
-            // Validate origin (could be inherent/none or signed)
-            // ensure_none(origin) if via inherent, or ensure_signed if real extrinsic.
             ensure_signed(origin)?;
 
             // Validation Rules
-            // 0. Verify Signature
             let mut encoded_payload = Vec::new();
             vote.epoch_id.encode_to(&mut encoded_payload);
             vote.validator_set_id.encode_to(&mut encoded_payload);
@@ -346,31 +517,25 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::InvalidSignature
             );
             
-            // 1. Validator must have weight in this epoch (frozen active set)
             let voter_weight = EpochVotingWeight::<T>::get(&vote.validator_account)
                 .ok_or(Error::<T>::InvalidValidator)?;
 
-            // 2. Ensure block number is a checkpoint block
             ensure!(
                 Self::is_checkpoint_block(vote.block_number.saturated_into()),
                 Error::<T>::NonCheckpointBlock
             );
 
-            // 3. Ensure block number is above `FinalizedBlockNumber`
             let current_finalized_number = FinalizedBlockNumber::<T>::get();
             ensure!(vote.block_number.saturated_into::<u32>() > current_finalized_number.saturated_into::<u32>(), Error::<T>::BlockAlreadyFinalized);
 
-            // 4. Prevent Double Vote in Same Round
             let current_round = CurrentRound::<T>::get();
             ensure!(!VoteRecords::<T>::contains_key(current_round, &vote.validator_account), Error::<T>::DoubleVote);
 
-            // Insert Vote Records and execute Tally Phase
             VoteRecords::<T>::insert(current_round, &vote.validator_account, vote.clone());
             
             let new_tally = VoteTallies::<T>::get(&vote.block_hash).saturating_add(voter_weight);
             VoteTallies::<T>::insert(&vote.block_hash, new_tally);
 
-            // Check Finality Threshold Execution Trigger
             let total_weight = TotalVotingWeight::<T>::get();
             let threshold_target = T::FinalityThreshold::get() * total_weight;
 
@@ -382,20 +547,215 @@ sp_api::decl_runtime_apis! {
         }
 
         /// Submit a DVF justification to finalize a block.
-        /// 
-        /// This extrinsic is called by the block import pipeline when a justification
-        /// is received. It verifies the justification and updates finality state atomically.
         #[pallet::call_index(1)]
         #[pallet::weight(Weight::from_parts(100_000, 0) + T::DbWeight::get().reads_writes(10, 10))]
         pub fn submit_justification(
             origin: OriginFor<T>,
             justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
         ) -> DispatchResult {
-            // Unsigned extrinsics always have a None origin when executed
             ensure_none(origin)?;
-
-            // Verify and process the justification
             Self::verify_and_finalize_justification(justification)?;
+            Ok(())
+        }
+
+        /// Request to join the validator set (opt-in, effective next epoch).
+        #[pallet::call_index(2)]
+        #[pallet::weight(Weight::from_parts(50_000, 0))]
+        pub fn join_validator_set(origin: OriginFor<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // Already pending join or already active
+            ensure!(
+                !Self::active_validators().contains(&who),
+                Error::<T>::NotAllowedInGovernanceMode 
+            );
+            ensure!(
+                PendingValidatorActions::<T>::get(&who) != Some(pallet_cbc_dcf::ValidatorAction::Join),
+                Error::<T>::NotAllowedInGovernanceMode
+            );
+
+            // Check minimum stake and score now, but actual addition is at epoch
+            let stake = pallet_cbc_pos::Pallet::<T>::stake(&who);
+            ensure!(
+                stake >= T::MinStake::get(),
+                Error::<T>::NotEnoughValidators
+            );
+            let state = ValidatorStates::<T>::get(&who).ok_or(Error::<T>::ValidatorNotFound)?;
+            ensure!(
+                state.current.final_score >= T::MinValidatorScore::get() as u64,
+                Error::<T>::NotValidator
+            );
+
+            PendingValidatorActions::<T>::insert(&who, pallet_cbc_dcf::ValidatorAction::Join);
+            Self::deposit_event(Event::ValidatorJoined { 
+                validator: who,
+                stake_amount: T::MinStake::get(),
+            });
+            Ok(())
+        }
+
+        /// Request to leave the validator set (opt-out, effective next epoch).
+        #[pallet::call_index(3)]
+        #[pallet::weight(Weight::from_parts(50_000, 0))]
+        pub fn leave_validator_set(origin: OriginFor<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // Already pending leave or not active
+            ensure!(
+                Self::active_validators().contains(&who),
+                Error::<T>::NotValidator
+            );
+            ensure!(
+                PendingValidatorActions::<T>::get(&who) != Some(pallet_cbc_dcf::ValidatorAction::Leave),
+                Error::<T>::NotAllowedInGovernanceMode
+            );
+
+            PendingValidatorActions::<T>::insert(&who, pallet_cbc_dcf::ValidatorAction::Leave);
+            Self::deposit_event(Event::ValidatorLeft { validator: who });
+            Ok(())
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(Weight::from_parts(50_000, 0))]
+        pub fn join_validators(
+            origin: OriginFor<T>,
+            _name: Option<BoundedVec<u8, ConstU32<32>>>,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let min_stake = T::MinStake::get();
+            let free_balance = <T::Currency as Currency<T::AccountId>>::free_balance(&who);
+            ensure!(
+                free_balance >= min_stake,
+                pallet_cbc_pos::Error::<T>::InsufficientStake
+            );
+
+            Self::validate_rejoin_eligibility(&who)?;
+
+            let mut validator_set = ValidatorSet::<T>::get();
+            ensure!(
+                !validator_set.contains(&who),
+                pallet_cbc_pos::Error::<T>::ValidatorAlreadyExists
+            );
+
+            <T::Currency as ReservableCurrency<T::AccountId>>::reserve(&who, min_stake)
+                .map_err(|_| pallet_cbc_pos::Error::<T>::InsufficientStake)?;
+
+            pallet_cbc_pos::Stake::<T>::insert(&who, min_stake);
+            ValidatorJoinTime::<T>::insert(&who, frame_system::Pallet::<T>::block_number().saturated_into::<u32>());
+
+            ensure!(
+                validator_set.len() < <T as Config>::MaxValidators::get() as usize,
+                pallet_cbc_pos::Error::<T>::TooManyValidators
+            );
+
+            validator_set.try_push(who.clone())
+                .map_err(|_| pallet_cbc_pos::Error::<T>::TooManyValidators)?;
+            ValidatorSet::<T>::put(validator_set);
+
+            pallet_cbc_pos::Validators::<T>::insert(&who, true);
+
+            // Initialize ValidatorStates
+            if !ValidatorStates::<T>::contains_key(&who) {
+                let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+                let initial_stats = EpochStats {
+                    epoch: current_epoch,
+                    stake_score: min_stake.saturated_into::<u64>(),
+                    inference_score: 0,
+                    final_score: 50,
+                    authored_blocks: 0,
+                    missed_blocks: 0,
+                };
+                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let state = ValidatorState {
+                    last_active_epoch: current_epoch,
+                    current: initial_stats,
+                    history: BoundedVec::new(),
+                    uptime: 0,
+                    inference_success_count: 0,
+                    participation_rate: 0,
+                    inference_count: 0,
+                    last_active_block: current_block,
+                    name: None,
+                    trust_score: 5000,
+                };
+                ValidatorStates::<T>::insert(&who, state);
+            }
+
+            Self::deposit_event(Event::ValidatorJoined {
+                validator: who.clone(),
+                stake_amount: min_stake,
+            });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(5)]
+        #[pallet::weight(Weight::from_parts(50_000, 0))]
+        pub fn leave_validators(origin: OriginFor<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let validator_set = ValidatorSet::<T>::get();
+            ensure!(
+                validator_set.contains(&who),
+                pallet_cbc_pos::Error::<T>::ValidatorNotInSet
+            );
+
+            Self::validate_leave_request_eligibility(&who)?;
+
+            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
+            ValidatorLeaveRequests::<T>::insert(&who, current_block);
+
+            let mut active_validators = ActiveValidators::<T>::get();
+            if let Some(pos) = active_validators.iter().position(|v| v == &who) {
+                active_validators.remove(pos);
+                ActiveValidators::<T>::put(active_validators);
+            }
+
+            pallet_cbc_pos::Validators::<T>::insert(&who, false);
+
+            Self::deposit_event(Event::ValidatorLeaveRequested {
+                validator: who.clone(),
+                cooldown_expires_at: current_block + T::LeaveCooldown::get(),
+            });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(6)]
+        #[pallet::weight(Weight::from_parts(50_000, 0))]
+        pub fn cancel_leave_request(origin: OriginFor<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let leave_request_block = ValidatorLeaveRequests::<T>::get(&who)
+                .ok_or(pallet_cbc_pos::Error::<T>::ValidatorNotInSet)?;
+
+            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let cooldown_period = T::LeaveCooldown::get();
+            let blocks_since_request = current_block.saturating_sub(leave_request_block);
+
+            if blocks_since_request >= cooldown_period {
+                return Err(pallet_cbc_pos::Error::<T>::LeaveCooldownActive.into());
+            }
+
+            ValidatorLeaveRequests::<T>::remove(&who);
+
+            let validator_set = ValidatorSet::<T>::get();
+            if validator_set.contains(&who) {
+                let mut active_validators = ActiveValidators::<T>::get();
+                if !active_validators.contains(&who) {
+                    if active_validators.len() < <T as Config>::MaxValidators::get() as usize {
+                        let _ = active_validators.try_push(who.clone());
+                        ActiveValidators::<T>::put(active_validators);
+                    }
+                }
+                pallet_cbc_pos::Validators::<T>::insert(&who, true);
+            }
+
+            Self::deposit_event(Event::ValidatorLeaveCancelled {
+                validator: who.clone(),
+            });
 
             Ok(())
         }
@@ -412,22 +772,18 @@ sp_api::decl_runtime_apis! {
         }
 
         /// Check if a block is finalized by comparing against the last finalized checkpoint
-        /// All blocks up to and including the last finalized checkpoint are considered finalized
         pub fn is_block_finalized(block_number: BlockNumberFor<T>) -> bool {
             let finalized_checkpoint = FinalizedBlockNumber::<T>::get();
             block_number <= finalized_checkpoint
         }
 
         /// Get detailed finality information for a block number
-        /// Returns finality status and the checkpoint that provides the finality guarantee
         pub fn get_finality_info(block_number: BlockNumberFor<T>) -> FinalityInfo<BlockNumberFor<T>, T::Hash> {
             let finalized_checkpoint = FinalizedBlockNumber::<T>::get();
             
             if block_number <= finalized_checkpoint {
-                // Block is finalized - find the checkpoint that provides finality
                 let checkpoint_interval = T::FinalityCheckpointInterval::get();
                 let providing_checkpoint = if checkpoint_interval > BlockNumberFor::<T>::from(0u32) {
-                    // Calculate the checkpoint that covers this block
                     (block_number / checkpoint_interval) * checkpoint_interval
                 } else {
                     finalized_checkpoint
@@ -448,17 +804,12 @@ sp_api::decl_runtime_apis! {
         }
 
         pub fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
-            // (Validator, Stake, Final_Score) from DCF/PoS pallets
-            
-            // Detect validator set changes
             let new_validator_accounts: Vec<T::AccountId> = validators.iter().map(|(v, _, _)| v.clone()).collect();
             let previous_validator_set = PreviousValidatorSet::<T>::get();
             
-            // Check if validator set composition changed
             let validator_set_changed = if previous_validator_set.len() != new_validator_accounts.len() {
                 true
             } else {
-                // Check if all validators are the same (order doesn't matter)
                 let mut prev_sorted: Vec<T::AccountId> = previous_validator_set.to_vec();
                 prev_sorted.sort();
                 let mut new_sorted = new_validator_accounts.clone();
@@ -466,51 +817,39 @@ sp_api::decl_runtime_apis! {
                 prev_sorted != new_sorted
             };
             
-            // Increment ValidatorSetId if validator set changed
             if validator_set_changed {
                 let old_id = ValidatorSetId::<T>::get();
                 let new_id = old_id.saturating_add(1);
                 ValidatorSetId::<T>::put(new_id);
                 
-                // Store the current block number for grace period tracking
                 let current_block = frame_system::Pallet::<T>::block_number();
                 ValidatorSetIdChangedAt::<T>::put(current_block);
                 
                 Self::deposit_event(Event::ValidatorSetChanged { old_id, new_id });
             }
             
-            // Store the new validator set for next comparison
-            // Convert to BoundedVec, truncating if necessary
-            let new_validator_set: BoundedVec<T::AccountId, T::MaxValidators> = 
+            let new_validator_set: BoundedVec<T::AccountId, <T as Config>::MaxValidators> = 
                 BoundedVec::try_from(new_validator_accounts.clone())
                     .unwrap_or_else(|_| {
-                        // If conversion fails (too many validators), truncate to max
                         let truncated: Vec<T::AccountId> = new_validator_accounts
                             .into_iter()
-                            .take(T::MaxValidators::get() as usize)
+                            .take(<T as Config>::MaxValidators::get() as usize)
                             .collect();
                         BoundedVec::truncate_from(truncated)
                     });
             PreviousValidatorSet::<T>::put(new_validator_set);
             
-            let _ = EpochVotingWeight::<T>::clear(u32::MAX, None); // Clear old weights
+            let _ = EpochVotingWeight::<T>::clear(u32::MAX, None);
 
-            // Normalize weights to VOTE_WEIGHT_SCALE per validator to prevent u64 overflow.
-            // weight = (stake * VOTE_WEIGHT_SCALE) / total_stake using u128 arithmetic.
-            // If total_stake == 0, assign VOTE_WEIGHT_SCALE / validator_count to each.
             const VOTE_WEIGHT_SCALE: u128 = 32_000u128;
             let validator_count = validators.len() as u128;
-
             let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
-
             let mut total_epoch_weight = 0u128;
 
             for (validator, stake, _score) in validators {
                 let normalized_weight = if total_stake > 0 {
-                    // Use u128 intermediate arithmetic to avoid overflow
                     stake.saturating_mul(VOTE_WEIGHT_SCALE) / total_stake
                 } else {
-                    // Equal weights when total stake is zero
                     if validator_count > 0 { VOTE_WEIGHT_SCALE / validator_count } else { 0 }
                 };
 
@@ -523,22 +862,6 @@ sp_api::decl_runtime_apis! {
         }
 
         /// Verify and finalize a justification
-        /// 
-        /// This method verifies all aspects of a justification and updates finality state atomically.
-        /// It performs the following checks:
-        /// - Justification is not empty
-        /// - Block number is a checkpoint
-        /// - Block is not already finalized
-        /// - All votes have valid signatures
-        /// - All votes are from active validators
-        /// - All votes have matching validator_set_id
-        /// - All votes have matching round_number
-        /// - All votes have matching block_hash
-        /// - No duplicate validators
-        /// - Accumulated weight meets threshold
-        /// 
-        /// If all checks pass, it updates FinalizedBlockNumber, FinalizedBlockHash,
-        /// increments CurrentRound, emits BlockFinalized event, and prunes old vote records.
         pub fn verify_and_finalize_justification(
             justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
         ) -> DispatchResult {
@@ -548,38 +871,31 @@ sp_api::decl_runtime_apis! {
                 justification.round_number
             );
 
-            // 1. Check justification is not empty
             ensure!(!justification.votes.is_empty(), Error::<T>::EmptyJustification);
 
-            // 2. Extract block number from first vote (all should match)
             let block_number: BlockNumberFor<T> = justification.votes[0].block_number.saturated_into();
 
-            // 3. Verify block number is a checkpoint
             ensure!(
                 Self::is_checkpoint_block(block_number),
                 Error::<T>::NonCheckpointBlock
             );
 
-            // 4. Ensure block is not already finalized
             let current_finalized_number = FinalizedBlockNumber::<T>::get();
             ensure!(
                 block_number > current_finalized_number,
                 Error::<T>::BlockAlreadyFinalized
             );
 
-            // 5. Verify all votes and accumulate weight
             let mut seen_validators = sp_std::collections::btree_set::BTreeSet::new();
             let mut accumulated_weight = 0u128;
             let mut expected_validator_set_id: Option<u32> = None;
 
             for vote in &justification.votes {
-                // Check for duplicate validators
                 ensure!(
                     seen_validators.insert(vote.validator_account.clone()),
                     Error::<T>::DuplicateValidator
                 );
 
-                // Verify signature
                 let mut encoded_payload = Vec::new();
                 vote.epoch_id.encode_to(&mut encoded_payload);
                 vote.validator_set_id.encode_to(&mut encoded_payload);
@@ -593,7 +909,6 @@ sp_api::decl_runtime_apis! {
                     Error::<T>::InvalidSignature
                 );
 
-                // Check validator set ID consistency
                 if let Some(expected_id) = expected_validator_set_id {
                     ensure!(
                         vote.validator_set_id == expected_id,
@@ -603,26 +918,22 @@ sp_api::decl_runtime_apis! {
                     expected_validator_set_id = Some(vote.validator_set_id);
                 }
 
-                // Check round consistency
                 ensure!(
                     vote.round_id == justification.round_number,
                     Error::<T>::RoundMismatch
                 );
 
-                // Check block hash consistency
                 ensure!(
                     vote.block_hash == justification.block_hash,
                     Error::<T>::BlockHashMismatch
                 );
 
-                // Verify validator is active and get weight
                 let validator_weight = EpochVotingWeight::<T>::get(&vote.validator_account)
                     .ok_or(Error::<T>::InvalidValidator)?;
 
                 accumulated_weight = accumulated_weight.saturating_add(validator_weight);
             }
 
-            // 6. Verify accumulated weight meets threshold
             let total_weight = TotalVotingWeight::<T>::get();
             let threshold = T::FinalityThreshold::get() * total_weight;
 
@@ -631,7 +942,6 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::ThresholdNotReached
             );
 
-            // 7. Update finality state atomically
             Self::finalize_block(
                 justification.block_hash,
                 block_number,
@@ -648,33 +958,18 @@ sp_api::decl_runtime_apis! {
             Ok(())
         }
 
-        /// Finalize a block and update all related state
-        /// 
-        /// This method performs atomic finality state updates:
-        /// - Updates FinalizedBlockNumber to justified block number
-        /// - Updates FinalizedBlockHash to justified block hash
-        /// - Increments CurrentRound by one
-        /// - Ensures monotonic increase of finalized block number
-        /// - Emits BlockFinalized event
-        /// - Prunes VoteRecords older than VoteRetentionRounds
-        /// - Clears VoteTallies for finalized blocks
         fn finalize_block(
             block_hash: T::Hash,
             block_number: BlockNumberFor<T>,
             round: u32,
             accumulated_weight: u128,
         ) {
-            // Update FinalizedBlockNumber (monotonic increase ensured by caller)
             FinalizedBlockNumber::<T>::put(block_number);
-
-            // Update FinalizedBlockHash
             FinalizedBlockHash::<T>::put(block_hash);
 
-            // Increment CurrentRound
             let next_round = round.saturating_add(1);
             CurrentRound::<T>::put(next_round);
 
-            // Emit BlockFinalized event
             Self::deposit_event(Event::BlockFinalized {
                 block_number,
                 block_hash,
@@ -682,24 +977,16 @@ sp_api::decl_runtime_apis! {
                 weight: accumulated_weight,
             });
 
-            // Prune old vote records
             Self::prune_vote_records(round);
-
-            // Clear vote tallies for finalized block
             VoteTallies::<T>::remove(&block_hash);
         }
 
-        /// Prune vote records older than VoteRetentionRounds
-        /// 
-        /// This method removes VoteRecords for rounds older than
-        /// (current_round - VoteRetentionRounds) to prevent unbounded storage growth.
         fn prune_vote_records(current_round: u32) {
             let retention_rounds = T::VoteRetentionRounds::get();
             
             if current_round > retention_rounds {
                 let cutoff_round = current_round.saturating_sub(retention_rounds);
                 
-                // Remove all vote records for rounds older than cutoff
                 for old_round in 0..cutoff_round {
                     let _ = VoteRecords::<T>::clear_prefix(old_round, u32::MAX, None);
                 }
@@ -708,6 +995,148 @@ sp_api::decl_runtime_apis! {
 
         fn trigger_finalization(block_hash: T::Hash, block_number: BlockNumberFor<T>, round: u32, tally_weight: u128) {
             Self::finalize_block(block_hash, block_number, round, tally_weight);
+        }
+
+        // --- Validator Registry Helpers ---
+
+        fn validate_rejoin_eligibility(who: &T::AccountId) -> DispatchResult {
+            if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(who) {
+                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let cooldown_period = T::LeaveCooldown::get();
+                let blocks_since_left = current_block.saturating_sub(left_at_block);
+
+                if blocks_since_left < cooldown_period {
+                    return Err(pallet_cbc_pos::Error::<T>::CooldownActive.into());
+                }
+
+                RecentlyRemovedValidators::<T>::remove(who);
+            }
+
+            if ValidatorLeaveRequests::<T>::contains_key(who) {
+                return Err(pallet_cbc_pos::Error::<T>::LeaveCooldownActive.into());
+            }
+
+            Ok(())
+        }
+
+        fn validate_leave_request_eligibility(who: &T::AccountId) -> DispatchResult {
+            ensure!(
+                !ValidatorLeaveRequests::<T>::contains_key(who),
+                pallet_cbc_pos::Error::<T>::LeaveCooldownActive
+            );
+            Ok(())
+        }
+
+        fn cleanup_recently_removed_validators(current_block: u32) {
+            let cooldown_period = T::LeaveCooldown::get();
+            let mut expired_entries = Vec::new();
+
+            for (validator, removed_at_block) in RecentlyRemovedValidators::<T>::iter() {
+                let blocks_passed = current_block.saturating_sub(removed_at_block);
+                if blocks_passed >= cooldown_period {
+                    expired_entries.push(validator);
+                }
+            }
+
+            for validator in expired_entries {
+                RecentlyRemovedValidators::<T>::remove(&validator);
+                Self::deposit_event(Event::CooldownExpired { validator });
+            }
+        }
+
+        fn process_expired_leave_requests(current_block: u32) {
+            let cooldown_period = T::LeaveCooldown::get();
+            let mut expired_requests = Vec::new();
+
+            for (validator, request_block) in ValidatorLeaveRequests::<T>::iter() {
+                let blocks_passed = current_block.saturating_sub(request_block);
+                if blocks_passed >= cooldown_period {
+                    expired_requests.push(validator);
+                }
+            }
+
+            for validator in expired_requests {
+                let stake_amount = pallet_cbc_pos::Stake::<T>::get(&validator);
+                if stake_amount > BalanceOf::<T>::default() {
+                    let _ = <T::Currency as ReservableCurrency<T::AccountId>>::unreserve(&validator, stake_amount);
+                }
+
+                let mut validator_set = ValidatorSet::<T>::get();
+                if let Some(pos) = validator_set.iter().position(|v| v == &validator) {
+                    validator_set.remove(pos);
+                    ValidatorSet::<T>::put(validator_set);
+                }
+
+                let mut active_validators = ActiveValidators::<T>::get();
+                if let Some(pos) = active_validators.iter().position(|v| v == &validator) {
+                    active_validators.remove(pos);
+                    ActiveValidators::<T>::put(active_validators);
+                }
+
+                pallet_cbc_pos::Validators::<T>::remove(&validator);
+                ValidatorJoinTime::<T>::remove(&validator);
+                pallet_cbc_pos::Stake::<T>::remove(&validator);
+                ValidatorLeaveRequests::<T>::remove(&validator);
+
+                RecentlyRemovedValidators::<T>::insert(&validator, current_block);
+
+                Self::deposit_event(Event::ValidatorLeft { validator });
+            }
+        }
+
+        fn check_and_handle_underperforming_validators() {
+            let min_score = T::MinValidatorScore::get() as u64;
+            let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+            
+            let validators_to_check: Vec<T::AccountId> = ActiveValidators::<T>::get().into_inner();
+            
+            for validator in validators_to_check {
+                if let Some(state) = ValidatorStates::<T>::get(&validator) {
+                    if state.current.final_score < min_score {
+                        log::warn!("DVF: Validator {:?} has low score: {}, ejecting", 
+                                  validator, state.current.final_score);
+                        let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
+                    }
+                    
+                    let inactive_epochs = current_epoch.saturating_sub(state.last_active_epoch);
+                    if inactive_epochs > T::MaxInactiveEpochs::get() {
+                        log::warn!("DVF: Validator {:?} inactive for {} epochs, ejecting", 
+                                  validator, inactive_epochs);
+                        let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
+                    }
+                }
+            }
+        }
+
+        pub fn eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
+            let mut active_validators = ActiveValidators::<T>::get();
+            let pos_found = if let Some(pos) = active_validators.iter().position(|v| v == validator) {
+                active_validators.remove(pos);
+                ActiveValidators::<T>::put(active_validators);
+                true
+            } else {
+                false
+            };
+
+            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let old_status = if pos_found {
+                ValidatorStatus::Active
+            } else {
+                ValidatorStatus::Inactive
+            };
+            Self::deposit_event(Event::ValidatorStatusChanged {
+                validator: validator.clone(),
+                old_status,
+                new_status: ValidatorStatus::Ejected,
+                block_number: current_block,
+            });
+
+            Self::deposit_event(Event::ValidatorEjected {
+                validator: validator.clone(),
+                reason,
+            });
+
+            Ok(())
         }
     }
 
@@ -731,10 +1160,8 @@ sp_api::decl_runtime_apis! {
                     return InvalidTransaction::Stale.into();
                 }
 
-                // The priority is based on the block number being finalized
                 let priority = block_number.saturated_into::<u64>();
 
-                // Provide a unique tag for this block hash so only one justification per block is permitted
                 let mut tag = b"dvf_justification_".to_vec();
                 justification.block_hash.encode_to(&mut tag);
 
@@ -748,6 +1175,379 @@ sp_api::decl_runtime_apis! {
                 InvalidTransaction::Call.into()
             }
         }
+    }
+}
+
+impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_pos::Config>::Balance> for Pallet<T> {
+    fn on_joined(validator: &T::AccountId, stake: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+        let mut validator_set = ValidatorSet::<T>::get();
+        if !validator_set.contains(validator) {
+            ensure!(
+                validator_set.len() < <T as Config>::MaxValidators::get() as usize,
+                pallet_cbc_pos::Error::<T>::TooManyValidators
+            );
+            validator_set.try_push(validator.clone())
+                .map_err(|_| pallet_cbc_pos::Error::<T>::TooManyValidators)?;
+            ValidatorSet::<T>::put(validator_set);
+        }
+
+        if !ValidatorStates::<T>::contains_key(validator) {
+            let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+            let stake_score = stake.saturated_into::<u64>();
+            let inference_score = 0;
+            let final_score = 50;
+
+            let initial_stats = EpochStats {
+                epoch: current_epoch,
+                stake_score,
+                inference_score,
+                final_score,
+                authored_blocks: 0,
+                missed_blocks: 0,
+            };
+
+            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let state = ValidatorState {
+                last_active_epoch: current_epoch,
+                current: initial_stats,
+                history: BoundedVec::new(),
+                uptime: 0,
+                inference_success_count: 0,
+                participation_rate: 0,
+                inference_count: 0,
+                last_active_block: current_block,
+                name: None,
+                trust_score: 5000,
+            };
+            ValidatorStates::<T>::insert(validator, state);
+        }
+
+        Ok(())
+    }
+
+    fn on_leave_requested(validator: &T::AccountId) -> sp_runtime::DispatchResult {
+        let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+        ValidatorLeaveRequests::<T>::insert(validator, current_block);
+
+        let mut active_validators = ActiveValidators::<T>::get();
+        if let Some(pos) = active_validators.iter().position(|v| v == validator) {
+            active_validators.remove(pos);
+            ActiveValidators::<T>::put(active_validators);
+        }
+        Ok(())
+    }
+
+    fn on_left(validator: &T::AccountId) -> sp_runtime::DispatchResult {
+        let mut validator_set = ValidatorSet::<T>::get();
+        if let Some(pos) = validator_set.iter().position(|v| v == validator) {
+            validator_set.remove(pos);
+            ValidatorSet::<T>::put(validator_set);
+        }
+
+        let mut active_validators = ActiveValidators::<T>::get();
+        if let Some(pos) = active_validators.iter().position(|v| v == validator) {
+            active_validators.remove(pos);
+            ActiveValidators::<T>::put(active_validators);
+        }
+
+        ValidatorJoinTime::<T>::remove(validator);
+        ValidatorLeaveRequests::<T>::remove(validator);
+
+        let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+        RecentlyRemovedValidators::<T>::insert(validator, current_block);
+
+        Ok(())
+    }
+
+    fn on_stake_increased(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+        ValidatorStates::<T>::mutate(validator, |state| {
+            if let Some(state) = state {
+                state.current.stake_score = state.current.stake_score.saturating_add(amount.saturated_into::<u64>());
+            }
+        });
+        Ok(())
+    }
+
+    fn on_stake_decreased(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+        ValidatorStates::<T>::mutate(validator, |state| {
+            if let Some(state) = state {
+                state.current.stake_score = state.current.stake_score.saturating_sub(amount.saturated_into::<u64>());
+            }
+        });
+        Ok(())
+    }
+
+    fn on_slashed(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance, penalty: u64) -> sp_runtime::DispatchResult {
+        ValidatorStates::<T>::mutate(validator, |state| {
+            if let Some(state) = state {
+                state.current.stake_score = state.current.stake_score.saturating_sub(amount.saturated_into::<u64>());
+                state.trust_score = state.trust_score.saturating_sub(penalty);
+            }
+        });
+        Ok(())
+    }
+
+    fn on_rewarded(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance, boost: u64) -> sp_runtime::DispatchResult {
+        ValidatorStates::<T>::mutate(validator, |state| {
+            if let Some(state) = state {
+                state.current.stake_score = state.current.stake_score.saturating_add(amount.saturated_into::<u64>());
+                state.trust_score = state.trust_score.saturating_add(boost);
+            }
+        });
+        Ok(())
+    }
+
+    fn get_validator_score(validator: &T::AccountId) -> u64 {
+        ValidatorStates::<T>::get(validator).map(|s| s.current.final_score).unwrap_or(0)
+    }
+
+    fn get_active_validators() -> Vec<T::AccountId> {
+        ActiveValidators::<T>::get().to_vec()
+    }
+}
+
+impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, <T as pallet_cbc_pos::Config>::Balance, BlockNumberFor<T>> for Pallet<T> {
+    fn get_active_validators() -> Vec<T::AccountId> {
+        ActiveValidators::<T>::get().to_vec()
+    }
+
+    fn get_validator_profile(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorProfile<T::AccountId, <T as pallet_cbc_pos::Config>::Balance, BlockNumberFor<T>>> {
+        let state = ValidatorStates::<T>::get(validator)?;
+        let stake = pallet_cbc_pos::Stake::<T>::get(validator);
+        let poi_score = state.current.inference_score;
+        let status = if ActiveValidators::<T>::get().contains(validator) {
+            pallet_cbc_dcf::ValidatorStatus::Active
+        } else {
+            pallet_cbc_dcf::ValidatorStatus::Inactive
+        };
+
+        Some(pallet_cbc_dcf::ValidatorProfile {
+            stake,
+            poi_score: poi_score as u32,
+            final_score: state.current.final_score,
+            trust_score: state.trust_score,
+            status,
+            inference_count: state.inference_count,
+            name: state.name.map(|n| BoundedVec::truncate_from(n.into_inner())),
+            last_active_block: state.last_active_block.into(),
+            _phantom: sp_std::marker::PhantomData,
+        })
+    }
+
+    fn get_validator_status(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorStatus> {
+        if ActiveValidators::<T>::get().contains(validator) {
+            Some(pallet_cbc_dcf::ValidatorStatus::Active)
+        } else if ValidatorSet::<T>::get().contains(validator) {
+            Some(pallet_cbc_dcf::ValidatorStatus::Inactive)
+        } else if ValidatorLeaveRequests::<T>::contains_key(validator) {
+            Some(pallet_cbc_dcf::ValidatorStatus::Leaving)
+        } else if RecentlyRemovedValidators::<T>::contains_key(validator) {
+            Some(pallet_cbc_dcf::ValidatorStatus::Ejected)
+        } else {
+            None
+        }
+    }
+
+    fn get_validator_set() -> Vec<T::AccountId> {
+        ValidatorSet::<T>::get().to_vec()
+    }
+
+    fn is_validator_active(validator: &T::AccountId) -> bool {
+        ActiveValidators::<T>::get().contains(validator)
+    }
+
+    fn eject_validator(validator: &T::AccountId, reason: pallet_cbc_dcf::EjectionReason) -> sp_runtime::DispatchResult {
+        Self::eject_validator(validator, reason)
+    }
+
+    fn get_validator_state(validator: &T::AccountId) -> Option<pallet_cbc_dcf::traits::ValidatorState> {
+        let state = ValidatorStates::<T>::get(validator)?;
+        Some(pallet_cbc_dcf::traits::ValidatorState {
+            last_active_epoch: state.last_active_epoch,
+            current: state.current,
+            history: state.history.into_inner(),
+            uptime: state.uptime,
+            inference_success_count: state.inference_success_count,
+            participation_rate: state.participation_rate,
+            inference_count: state.inference_count,
+            last_active_block: state.last_active_block,
+            name: state.name.map(|n| n.into_inner()),
+            trust_score: state.trust_score,
+        })
+    }
+
+    fn update_validator_state(validator: &T::AccountId, state: pallet_cbc_dcf::traits::ValidatorState) {
+        let name_bounded = state.name.map(|n| BoundedVec::truncate_from(n));
+        let history_bounded = BoundedVec::truncate_from(state.history);
+        
+        let local_state = ValidatorState::<T> {
+            last_active_epoch: state.last_active_epoch,
+            current: state.current,
+            history: history_bounded,
+            uptime: state.uptime,
+            inference_success_count: state.inference_success_count,
+            participation_rate: state.participation_rate,
+            inference_count: state.inference_count,
+            last_active_block: state.last_active_block,
+            name: name_bounded,
+            trust_score: state.trust_score,
+        };
+        ValidatorStates::<T>::insert(validator, local_state);
+    }
+
+    fn contains_validator_state(validator: &T::AccountId) -> bool {
+        ValidatorStates::<T>::contains_key(validator)
+    }
+
+    fn remove_validator_state(validator: &T::AccountId) {
+        ValidatorStates::<T>::remove(validator);
+    }
+
+    fn get_validator_name(validator: &T::AccountId) -> Option<Vec<u8>> {
+        ValidatorNames::<T>::get(validator).map(|n| n.into_inner())
+    }
+
+    fn set_validator_name(validator: &T::AccountId, name: Vec<u8>) {
+        ValidatorNames::<T>::insert(validator, BoundedVec::truncate_from(name));
+    }
+
+    fn get_validator_metadata(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorMetadataInfo> {
+        ValidatorMetadata::<T>::get(validator)
+    }
+
+    fn set_validator_metadata(validator: &T::AccountId, metadata: pallet_cbc_dcf::ValidatorMetadataInfo) {
+        ValidatorMetadata::<T>::insert(validator, metadata);
+    }
+
+    fn get_validator_detailed_cooldown_status(validator: &T::AccountId) -> Option<(u32, bool)> {
+        let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+        let cooldown_period = T::LeaveCooldown::get();
+
+        if let Some(leave_request_block) = ValidatorLeaveRequests::<T>::get(validator) {
+            let blocks_since_request = current_block.saturating_sub(leave_request_block);
+            let blocks_remaining = cooldown_period.saturating_sub(blocks_since_request);
+            return Some((blocks_remaining, false));
+        }
+
+        if let Some(removed_at_block) = RecentlyRemovedValidators::<T>::get(validator) {
+            let blocks_since_removed = current_block.saturating_sub(removed_at_block);
+            if blocks_since_removed < cooldown_period {
+                let blocks_remaining = cooldown_period.saturating_sub(blocks_since_removed);
+                return Some((blocks_remaining, false));
+            } else {
+                return Some((0, true));
+            }
+        }
+
+        None
+    }
+
+    fn get_validator_leave_request(validator: &T::AccountId) -> Option<u32> {
+        ValidatorLeaveRequests::<T>::get(validator)
+    }
+
+    fn get_pending_actions() -> Vec<(T::AccountId, pallet_cbc_dcf::ValidatorAction)> {
+        PendingValidatorActions::<T>::iter().collect()
+    }
+
+    fn remove_pending_action(validator: &T::AccountId) {
+        PendingValidatorActions::<T>::remove(validator);
+    }
+
+    fn update_active_validators(active: Vec<T::AccountId>) {
+        ActiveValidators::<T>::put(BoundedVec::truncate_from(active));
+    }
+
+    fn get_validator_performance_history(validator: &T::AccountId) -> Vec<pallet_cbc_dcf::PerformanceRecord> {
+        ValidatorPerformanceHistory::<T>::get(validator).into_inner()
+    }
+
+    fn set_validator_performance_history(validator: &T::AccountId, history: Vec<pallet_cbc_dcf::PerformanceRecord>) {
+        ValidatorPerformanceHistory::<T>::insert(validator, BoundedVec::truncate_from(history));
+    }
+
+    fn get_validator_last_seen(validator: &T::AccountId) -> u32 {
+        ValidatorLastSeen::<T>::get(validator)
+    }
+
+    fn set_validator_last_seen(validator: &T::AccountId, val: u32) {
+        ValidatorLastSeen::<T>::insert(validator, val);
+    }
+
+    fn get_validator_blocks_authored(validator: &T::AccountId) -> u32 {
+        ValidatorBlocksAuthored::<T>::get(validator)
+    }
+
+    fn set_validator_blocks_authored(validator: &T::AccountId, val: u32) {
+        ValidatorBlocksAuthored::<T>::insert(validator, val);
+    }
+
+    fn get_validator_blocks_missed(validator: &T::AccountId) -> u32 {
+        ValidatorBlocksMissed::<T>::get(validator)
+    }
+
+    fn set_validator_blocks_missed(validator: &T::AccountId, val: u32) {
+        ValidatorBlocksMissed::<T>::insert(validator, val);
+    }
+
+    fn update_validator_set(set: Vec<T::AccountId>) {
+        ValidatorSet::<T>::put(BoundedVec::truncate_from(set));
+    }
+
+    fn remove_validator_metadata(validator: &T::AccountId) {
+        ValidatorMetadata::<T>::remove(validator);
+    }
+
+    fn remove_validator_performance_history(validator: &T::AccountId) {
+        ValidatorPerformanceHistory::<T>::remove(validator);
+    }
+
+    fn remove_validator_last_seen(validator: &T::AccountId) {
+        ValidatorLastSeen::<T>::remove(validator);
+    }
+
+    fn remove_validator_blocks_authored(validator: &T::AccountId) {
+        ValidatorBlocksAuthored::<T>::remove(validator);
+    }
+
+    fn remove_validator_blocks_missed(validator: &T::AccountId) {
+        ValidatorBlocksMissed::<T>::remove(validator);
+    }
+
+    fn add_pending_action(validator: &T::AccountId, action: pallet_cbc_dcf::ValidatorAction) {
+        PendingValidatorActions::<T>::insert(validator, action);
+    }
+
+    fn get_validator_join_time(validator: &T::AccountId) -> Option<u32> {
+        ValidatorJoinTime::<T>::get(validator)
+    }
+
+    fn get_recently_removed_validator(validator: &T::AccountId) -> Option<u32> {
+        RecentlyRemovedValidators::<T>::get(validator)
+    }
+
+    fn set_validator_join_time(validator: &T::AccountId, val: u32) {
+        ValidatorJoinTime::<T>::insert(validator, val);
+    }
+
+    fn remove_validator_join_time(validator: &T::AccountId) {
+        ValidatorJoinTime::<T>::remove(validator);
+    }
+
+    fn set_validator_leave_request(validator: &T::AccountId, val: u32) {
+        ValidatorLeaveRequests::<T>::insert(validator, val);
+    }
+
+    fn remove_validator_leave_request(validator: &T::AccountId) {
+        ValidatorLeaveRequests::<T>::remove(validator);
+    }
+
+    fn set_recently_removed_validator(validator: &T::AccountId, val: u32) {
+        RecentlyRemovedValidators::<T>::insert(validator, val);
+    }
+
+    fn remove_recently_removed_validator(validator: &T::AccountId) {
+        RecentlyRemovedValidators::<T>::remove(validator);
     }
 }
 

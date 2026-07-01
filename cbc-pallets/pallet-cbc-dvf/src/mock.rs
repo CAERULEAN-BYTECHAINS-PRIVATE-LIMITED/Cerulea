@@ -19,6 +19,8 @@ frame_support::construct_runtime!(
     pub enum Test
     {
         System: frame_system,
+        Balances: pallet_balances,
+        PalletCbcPos: pallet_cbc_pos,
         Dvf: pallet_cbc_dvf,
     }
 );
@@ -44,7 +46,7 @@ impl frame_system::Config for Test {
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<u128>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
@@ -58,6 +60,72 @@ impl frame_system::Config for Test {
     type PostTransactions = ();
     type RuntimeTask = ();
     type ExtensionsWeightInfo = ();
+}
+
+impl pallet_balances::Config for Test {
+    type MaxLocks = ConstU32<50>;
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
+    type Balance = u128;
+    type RuntimeEvent = RuntimeEvent;
+    type DustRemoval = ();
+    type ExistentialDeposit = frame_support::traits::ConstU128<500>;
+    type AccountStore = System;
+    type WeightInfo = ();
+    type FreezeIdentifier = ();
+    type MaxFreezes = ();
+    type RuntimeHoldReason = ();
+    type RuntimeFreezeReason = ();
+    type DoneSlashHandler = ();
+}
+
+parameter_types! {
+    pub const MinValidatorScore: u32 = 50;
+    pub const MinActiveValidators: u32 = 3;
+    pub const MaxValidatorsPos: u32 = 10;
+    pub const ValidatorScoreDecay: u32 = 5;
+    pub const MaxSlashingCount: u32 = 3;
+    pub const MinStake: u128 = 1000;
+    pub const LeaveCooldown: u32 = 1000;
+    pub const ValidatorReward: u128 = 10000;
+    pub const SlashPercent: u32 = 10;
+    pub const MaxSlashPerEpoch: u128 = 50000;
+    pub const MaxSlashPerValidator: u128 = 20000;
+    pub const MaxRewardPerEpoch: u128 = 30000;
+    pub const MaxRewardPerValidator: u128 = 10000;
+    pub const SlashPenaltyDivisor: u64 = 1000;
+    pub const MaxSlashPenalty: u64 = 50;
+    pub const RewardBoostDivisor: u64 = 1000;
+    pub const MaxRewardBoost: u64 = 20;
+    pub const HighPerformanceScore: u64 = 80;
+    pub const TopPerformerPercentage: u32 = 20;
+}
+
+impl pallet_cbc_pos::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = ();
+    type MinValidatorScore = MinValidatorScore;
+    type MinActiveValidators = MinActiveValidators;
+    type MaxValidators = MaxValidatorsPos;
+    type ValidatorScoreDecay = ValidatorScoreDecay;
+    type MaxSlashingCount = MaxSlashingCount;
+    type MinStake = MinStake;
+    type Balance = u128;
+    type Currency = Balances;
+    type LeaveCooldown = LeaveCooldown;
+    type ValidatorReward = ValidatorReward;
+    type SlashPercent = SlashPercent;
+    type MaxSlashPerEpoch = MaxSlashPerEpoch;
+    type MaxSlashPerValidator = MaxSlashPerValidator;
+    type MaxRewardPerEpoch = MaxRewardPerEpoch;
+    type MaxRewardPerValidator = MaxRewardPerValidator;
+    type SlashPenaltyDivisor = SlashPenaltyDivisor;
+    type MaxSlashPenalty = MaxSlashPenalty;
+    type RewardBoostDivisor = RewardBoostDivisor;
+    type MaxRewardBoost = MaxRewardBoost;
+    type HighPerformanceScore = HighPerformanceScore;
+    type TopPerformerPercentage = TopPerformerPercentage;
+    type ValidatorHandler = ();
 }
 
 parameter_types! {
@@ -80,6 +148,10 @@ impl pallet_cbc_dvf::Config for Test {
     type FinalityCheckpointInterval = FinalityCheckpointInterval;
     type VoteRetentionRounds = VoteRetentionRounds;
     type MaxValidators = ConstU32<100>;
+    type MaxInactiveEpochs = ConstU32<5>;
+    type UnderperformanceCheckInterval = ConstU32<50>;
+    type MaxValidatorHistorySize = ConstU32<100>;
+    type MaxValidatorNameSize = ConstU32<32>;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -16,6 +16,7 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 pallet-cbc-dcf = { path = "../pallet-cbc-dcf", default-features = false }
+pallet-cbc-pos = { path = "../pallet-cbc-pos", default-features = false }
 sp-api = { workspace = true }
 log = { version = "0.4", default-features = false }
 
@@ -23,6 +24,7 @@ log = { version = "0.4", default-features = false }
 sp-io = { workspace = true, default-features = false }
 sp-core = { workspace = true, default-features = false }
 sp-runtime = { workspace = true, default-features = false }
+pallet-balances = { workspace = true }
 
 [features]
 default = ["std"]
@@ -36,6 +38,7 @@ std = [
 	"sp-runtime/std",
 	"sp-std/std",
     "pallet-cbc-dcf/std",
+    "pallet-cbc-pos/std",
     "sp-api/std"
 ]
 try-runtime = [

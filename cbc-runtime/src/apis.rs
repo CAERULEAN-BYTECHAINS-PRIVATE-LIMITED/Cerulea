@@ -149,18 +149,7 @@ impl_runtime_apis! {
 		}
 
 		fn get_active_validators() -> Vec<AccountId> {
-			// Use ValidatorSet from pallet_cbc_pos if available, otherwise fallback to an empty vec
-			// If not available, you may need to maintain such a list in storage
-			// For now, let's assume pallet_cbc_pos::Pallet::<Runtime>::validator_set() exists
-			#[cfg(feature = "std")] {
-				// For std builds, you might want to use all accounts, but that's not efficient
-			}
-			#[cfg(not(feature = "std"))] {
-				// Try to use a storage value if available
-				// If not, return empty
-			}
-			// Try to use the DCF pallet's ValidatorSet if available
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_set().to_vec()
+			pallet_cbc_pos::Pallet::<Runtime>::get_active_validators()
 		}
 
 		fn get_slashing_count(validator: AccountId) -> u32 {
@@ -235,23 +224,23 @@ impl_runtime_apis! {
 		}
 
 		fn get_validator_score_history(validator: AccountId) -> Vec<u64> {
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_states(&validator)
+			pallet_cbc_dcf::ValidatorStates::<Runtime>::get(&validator)
 				.map(|state| state.history.iter().map(|stats| stats.final_score).collect())
 				.unwrap_or_default()
 		}
 
 		fn get_validator_participation(validator: AccountId) -> (u32, u32) {
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_states(&validator)
+			pallet_cbc_dcf::ValidatorStates::<Runtime>::get(&validator)
 				.map(|state| (state.current.authored_blocks, state.current.missed_blocks))
 				.unwrap_or((u32::MAX, u32::MAX))
 		}
 
 		fn get_active_validators() -> Vec<AccountId> {
-			pallet_cbc_dcf::Pallet::<Runtime>::active_validators().to_vec()
+			pallet_cbc_dcf::ActiveValidators::<Runtime>::get().to_vec()
 		}
 
 		fn get_validator_last_active(validator: AccountId) -> u32 {
-			pallet_cbc_dcf::Pallet::<Runtime>::validator_states(&validator)
+			pallet_cbc_dcf::ValidatorStates::<Runtime>::get(&validator)
 				.map(|state| state.last_active_epoch)
 				.unwrap_or_default()
 		}
@@ -361,7 +350,7 @@ impl_runtime_apis! {
 		}
 
 		fn get_validator_leave_request(validator: AccountId) -> Option<u32> {
-			pallet_cbc_pos::ValidatorLeaveRequests::<Runtime>::get(&validator)
+			pallet_cbc_dvf::ValidatorLeaveRequests::<Runtime>::get(&validator)
 		}
 
 		fn validate_expected_author(block_number: u32, actual_author: AccountId) -> bool {
@@ -373,7 +362,7 @@ impl_runtime_apis! {
 		}
 
 		fn get_leave_request_status(validator: AccountId) -> Option<(u32, u32, bool)> {
-			if let Some(request_block) = pallet_cbc_pos::ValidatorLeaveRequests::<Runtime>::get(&validator) {
+			if let Some(request_block) = pallet_cbc_dvf::ValidatorLeaveRequests::<Runtime>::get(&validator) {
 				use sp_runtime::traits::SaturatedConversion;
 				let current_block = frame_system::Pallet::<Runtime>::block_number().saturated_into::<u32>();
 				let cooldown_period: u32 = <Runtime as pallet_cbc_pos::Config>::LeaveCooldown::get();
