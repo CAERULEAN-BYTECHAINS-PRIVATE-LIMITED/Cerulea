@@ -41,9 +41,9 @@ echo "Available memory: $AVAILABLE_MEMORY"
 echo "Available disk space: $AVAILABLE_SPACE"
 
 # Check if binary already exists
-if [ -f "target/release/cbc-node" ]; then
-    echo -e "${GREEN}SUCCESS: Found existing binary: target/release/cbc-node${NC}"
-    BINARY_SIZE=$(ls -lh target/release/cbc-node | awk '{print $5}')
+if [ -f "target/release/cerulea-node" ]; then
+    echo -e "${GREEN}SUCCESS: Found existing binary: target/release/cerulea-node${NC}"
+    BINARY_SIZE=$(ls -lh target/release/cerulea-node | awk '{print $5}')
     echo "Binary size: $BINARY_SIZE"
     
     read -p "Do you want to rebuild? (y/N): " -n 1 -r
@@ -66,17 +66,17 @@ export RUST_BACKTRACE=1
 echo -e "${YELLOW}Building dependencies and CBC components...${NC}"
 
 # Build with progress indicator
-if cargo build --release --bin cbc-node; then
+if cargo build --release --bin cerulea-node; then
     echo -e "\n${GREEN}SUCCESS: CBC Node built successfully!${NC}"
-    echo "Binary location: target/release/cbc-node"
+    echo "Binary location: target/release/cerulea-node"
     
     # Show binary size
-    BINARY_SIZE=$(ls -lh target/release/cbc-node | awk '{print $5}')
+    BINARY_SIZE=$(ls -lh target/release/cerulea-node | awk '{print $5}')
     echo "Binary size: $BINARY_SIZE"
     
     # Test the binary
     echo -e "\n${YELLOW}Testing the binary...${NC}"
-    if ./target/release/cbc-node --version; then
+    if ./target/release/cerulea-node --version; then
         echo -e "${GREEN}SUCCESS: Binary works correctly!${NC}"
     else
         echo -e "${RED}WARNING: Binary test failed, but continuing...${NC}"
@@ -85,7 +85,7 @@ if cargo build --release --bin cbc-node; then
     echo -e "\n${GREEN}Build completed successfully!${NC}"
     echo "=================================================="
     echo -e "${YELLOW}Next steps:${NC}"
-    echo "1. Run the node: ./target/release/cbc-node --dev"
+    echo "1. Run the node: ./target/release/cerulea-node --dev"
     echo "2. Access RPC endpoints at: http://localhost:9944"
     
 else

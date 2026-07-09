@@ -1,9 +1,9 @@
 [package]
-name = "cbc-tools"
+name = "cerulea-tools"
 version = "0.1.0"
 edition = "2021"
-authors = ["CBC-Chain Team"]
-description = "Tools for CBC-Chain development and maintenance"
+authors = ["Cerulea Team"]
+description = "Tools for Cerulea development and maintenance"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }

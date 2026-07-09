@@ -1,5 +1,5 @@
 ###############################################################################
-# CBC Chain — 3-validator network on Render
+# Cerulea — 3-validator network on Render
 #
 # How it works:
 #   - Alice's network key is baked into the Docker image (keys/alice/secret_ed25519)
@@ -47,7 +47,7 @@ services:
       - key: PROMETHEUS_PORT
         value: "9615"
       - key: RUST_LOG
-        value: info,cbc_consensus=debug
+        value: info,cerulea_consensus=debug
     disk:
       name: alice-chain-data
       mountPath: /data
@@ -78,7 +78,7 @@ services:
       - key: ALICE_HOST
         value: cbc-alice
       - key: RUST_LOG
-        value: info,cbc_consensus=debug
+        value: info,cerulea_consensus=debug
     disk:
       name: bob-chain-data
       mountPath: /data
@@ -105,7 +105,7 @@ services:
       - key: ALICE_HOST
         value: cbc-alice
       - key: RUST_LOG
-        value: info,cbc_consensus=debug
+        value: info,cerulea_consensus=debug
     disk:
       name: charlie-chain-data
       mountPath: /data

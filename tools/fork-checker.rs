@@ -13,7 +13,7 @@ use tokio::time::timeout;
 
 #[derive(Parser)]
 #[command(name = "fork-checker")]
-#[command(about = "CBC Chain Fork Detection Tool")]
+#[command(about = "Cerulea Fork Detection Tool")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

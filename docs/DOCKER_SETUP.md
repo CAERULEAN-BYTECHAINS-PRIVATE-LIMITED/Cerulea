@@ -1,6 +1,6 @@
-# CBC Chain — Docker Setup Guide
+# Cerulea — Docker Setup Guide
 
-This document covers everything you need to run, develop, and maintain the CBC Chain
+This document covers everything you need to run, develop, and maintain the Cerulea
 3-validator network using Docker locally, and how it maps to the Render deployment.
 
 ---
@@ -139,7 +139,7 @@ docker-compose down -v
 
 ### Source file changes (fast — ~2–5 min)
 
-If you edit any `.rs` file under `cbc-node/`, `cbc-runtime/`, or `cbc-pallets/`:
+If you edit any `.rs` file under `cerulea-node/`, `cerulea-runtime/`, or `cerulea-pallets/`:
 
 ```bash
 docker-compose down
@@ -198,7 +198,7 @@ All nodes accept these environment variables (set in `docker-compose.yml` or pas
 | `P2P_PORT`         | `30333`     | P2P listening port                               |
 | `PROMETHEUS_PORT`  | `9615`      | Prometheus metrics port                          |
 | `ALICE_HOST`       | `cbc-alice` | Hostname for Alice (used by Bob/Charlie to build bootnode address) |
-| `RUST_LOG`         | —           | Log filter, e.g. `info,cbc_consensus=debug`      |
+| `RUST_LOG`         | —           | Log filter, e.g. `info,cerulea_consensus=debug`      |
 
 ---
 
@@ -251,7 +251,7 @@ configuration needed.
 If you ever need to regenerate Alice's key (this will change her peer-id and break
 existing bootnodes pointing to her):
 ```bash
-./target/release/cbc-node key generate-node-key --file keys/alice/secret_ed25519
+./target/release/cerulea-node key generate-node-key --file keys/alice/secret_ed25519
 ```
 
 Then rebuild the image.

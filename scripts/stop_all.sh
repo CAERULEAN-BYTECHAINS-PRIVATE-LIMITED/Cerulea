@@ -1,12 +1,12 @@
 #!/bin/bash
-# Stop all running cbc-node processes.
+# Stop all running cerulea-node processes.
 
-echo "Stopping all CBC Chain nodes..."
+echo "Stopping all Cerulea nodes..."
 
-if pkill -f "cbc-node"; then
-    echo "Sent SIGTERM to all cbc-node processes."
+if pkill -f "cerulea-node"; then
+    echo "Sent SIGTERM to all cerulea-node processes."
 else
-    echo "No cbc-node processes found."
+    echo "No cerulea-node processes found."
     exit 0
 fi
 
@@ -14,8 +14,8 @@ fi
 sleep 2
 
 # Force-kill anything still alive
-if pkill -9 -f "cbc-node" 2>/dev/null; then
-    echo "Force-killed remaining cbc-node processes."
+if pkill -9 -f "cerulea-node" 2>/dev/null; then
+    echo "Force-killed remaining cerulea-node processes."
 fi
 
 echo "Done."

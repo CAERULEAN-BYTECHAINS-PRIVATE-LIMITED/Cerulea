@@ -4,15 +4,15 @@
 
 set -e
 
-BINARY="${BINARY:-./target/release/cbc-node}"
+BINARY="${BINARY:-./target/release/cerulea-node}"
 
 if [ ! -f "$BINARY" ]; then
     echo "ERROR: Binary not found at $BINARY. Run: cargo build --release"
     exit 1
 fi
 
-echo "Starting CBC Chain multi-validator network..."
-echo "Data dir: ~/.local/share/cbc-node/"
+echo "Starting Cerulea multi-validator network..."
+echo "Data dir: ~/.local/share/cerulea-node/"
 echo ""
 
 # Clean up old logs

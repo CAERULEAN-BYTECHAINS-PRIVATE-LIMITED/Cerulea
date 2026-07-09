@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup-build-env.sh - Fix build environment for CBC-Chain on Ubuntu with modern toolchains
+# setup-build-env.sh - Fix build environment for Cerulea on Ubuntu with modern toolchains
 # Run this ONCE before building. It installs required system packages and Rust toolchain.
 
 set -e
@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  CBC-Chain Build Environment Setup     ${NC}"
+echo -e "${BLUE}  Cerulea Build Environment Setup     ${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 

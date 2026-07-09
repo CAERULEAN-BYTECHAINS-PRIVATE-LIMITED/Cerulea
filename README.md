@@ -1,10 +1,10 @@
-# CBC Chain - Caerulean ByteChains
+# Cerulea - Caerulean ByteChains
 
 A production-ready Substrate-based blockchain implementing a sophisticated **Dynamic Consensus Framework (DCF)** that combines **Proof of Stake (PoS)** and **Proof of Inference (PoI)** for advanced validator selection and network security.
 
 ## Overview
 
-CBC Chain represents a next-generation blockchain platform that extends traditional PoS consensus by incorporating **Proof of Inference (PoI)** - validators are selected and rewarded based on both their economic stake and their computational contributions to AI inference tasks. The system features comprehensive monitoring, advanced RPC APIs, and production-ready infrastructure.
+Cerulea represents a next-generation blockchain platform that extends traditional PoS consensus by incorporating **Proof of Inference (PoI)** - validators are selected and rewarded based on both their economic stake and their computational contributions to AI inference tasks. The system features comprehensive monitoring, advanced RPC APIs, and production-ready infrastructure.
 
 ### Key Features
 
@@ -25,7 +25,7 @@ CBC Chain represents a next-generation blockchain platform that extends traditio
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CBC Chain Production Architecture                   │
+│                         Cerulea Production Architecture                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Application Layer                                                          │
 │  ├── RPC APIs (19+ endpoints)    ├── CLI Tools & Utilities                  │
@@ -33,9 +33,9 @@ CBC Chain represents a next-generation blockchain platform that extends traditio
 │  └── External Integrations       └── Development Tools                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Runtime Layer (WASM + Native)                                              │
-│  ├── pallet-cbc-dcf    (Dynamic Consensus Framework)                        │
-│  ├── pallet-cbc-pos    (Proof of Stake with Advanced Scoring)               │
-│  ├── pallet-cbc-poi    (Proof of Inference with Challenge System)           │
+│  ├── pallet-cerulea-dcf    (Dynamic Consensus Framework)                        │
+│  ├── pallet-cerulea-pos    (Proof of Stake with Advanced Scoring)               │
+│  ├── pallet-cerulea-poi    (Proof of Inference with Challenge System)           │
 │  ├── Standard Pallets  (System, Balances, Timestamp, TransactionPayment)    │
 │  └── Runtime APIs      (13+ specialized endpoints)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -246,28 +246,28 @@ fn select_next_author(validators: &[ValidatorProfile], mode: AuthorSelectionMode
 
 ### Architecture Components
 
-#### **Runtime Layer** (`cbc-runtime/`)
+#### **Runtime Layer** (`cerulea-runtime/`)
 - **Complete WASM Runtime**: Production-ready runtime with all pallets
 - **13+ Runtime APIs**: Comprehensive API coverage for external integration
 - **Advanced Configuration**: Multiple chain specifications and genesis presets
 - **Testing Infrastructure**: Complete test coverage with mock runtime
 
-#### **Consensus Engine** (`cbc-node/src/cbc-consensus/`)
+#### **Consensus Engine** (`cerulea-node/src/cerulea-consensus/`)
 - **DCF Implementation**: Sophisticated consensus with real-time adaptation
 - **Validator Management**: Complete lifecycle with performance tracking
 - **Block Import Pipeline**: Advanced validation with CBC-specific checks
 - **Metrics System**: Comprehensive Prometheus metrics collection
 
-#### **Node Implementation** (`cbc-node/src/`)
+#### **Node Implementation** (`cerulea-node/src/`)
 - **Multi-mode Support**: Development, testing, and production configurations
 - **Advanced RPC Server**: 19+ specialized endpoints with rate limiting
 - **Fork Detection**: Real-time network monitoring and resolution
 - **Security Features**: Comprehensive validation and access controls
 
-#### **Custom Pallets** (`cbc-pallets/`)
-- **pallet-cbc-dcf**: Dynamic Consensus Framework with advanced features
-- **pallet-cbc-pos**: Proof of Stake with sophisticated scoring
-- **pallet-cbc-poi**: Proof of Inference with challenge mechanisms
+#### **Custom Pallets** (`cerulea-pallets/`)
+- **pallet-cerulea-dcf**: Dynamic Consensus Framework with advanced features
+- **pallet-cerulea-pos**: Proof of Stake with sophisticated scoring
+- **pallet-cerulea-poi**: Proof of Inference with challenge mechanisms
 
 #### **Infrastructure** (`monitoring/`, `scripts/`, `docs/`)
 - **Monitoring Stack**: Grafana dashboards with Prometheus integration
@@ -286,49 +286,49 @@ fn select_next_author(validators: &[ValidatorProfile], mode: AuthorSelectionMode
 
 ```bash
 # Clone the repository
-git clone https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/CBC-Chain.git
-cd CBC-Chain
+git clone https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/Cerulea.git
+cd Cerulea
 
 # Build the node (optimized release)
 cargo build --release
 
 # Run development node with temporary storage
-./target/release/cbc-node --dev --tmp
+./target/release/cerulea-node --dev --tmp
 
 # Run with custom chain specification
-./target/release/cbc-node --chain local
+./target/release/cerulea-node --chain local
 
 # Run multi-validator testnet
-./target/release/cbc-node --chain multi_validator
+./target/release/cerulea-node --chain multi_validator
 ```
 
 ### Available Chain Modes
 
 ```bash
 # Development mode (single validator - Alice)
-./target/release/cbc-node --dev
+./target/release/cerulea-node --dev
 
 # Local testnet (multiple validators)
-./target/release/cbc-node --chain local
+./target/release/cerulea-node --chain local
 
 # Multi-validator testnet configuration
-./target/release/cbc-node --chain multi_validator
+./target/release/cerulea-node --chain multi_validator
 
 # High-stake validator configuration
-./target/release/cbc-node --chain high_stake
+./target/release/cerulea-node --chain high_stake
 ```
 
 ### Advanced Node Options
 
 ```bash
 # Enable CBC RPC extensions
-./target/release/cbc-node --dev --enable-cbc-extensions
+./target/release/cerulea-node --dev --enable-cbc-extensions
 
 # Custom logging with file output
-./target/release/cbc-node --dev --log-file cbc.log --cbc-log-only
+./target/release/cerulea-node --dev --log-file cbc.log --cbc-log-only
 
 # Production mode with monitoring
-./target/release/cbc-node --chain multi_validator \
+./target/release/cerulea-node --chain multi_validator \
   --cbc-mode production \
   --enable-cbc-extensions \
   --rpc-rate-limit-window 60 \
@@ -342,15 +342,15 @@ cargo build --release
 cargo test --all-features
 
 # Test specific components
-cargo test -p pallet-cbc-dcf
-cargo test -p cbc-consensus
-cargo test -p cbc-node
+cargo test -p pallet-cerulea-dcf
+cargo test -p cerulea-consensus
+cargo test -p cerulea-node
 
 # Run RPC API tests (19 endpoints)
-cargo test --package cbc-node --test rpc_api_tests
+cargo test --package cerulea-node --test rpc_api_tests
 
 # Run integration tests
-cargo test --package cbc-node --test multi_node_integration_test
+cargo test --package cerulea-node --test multi_node_integration_test
 
 # Run with detailed output
 cargo test -- --nocapture
@@ -364,14 +364,14 @@ cd monitoring
 docker-compose up -d
 
 # Check node health
-./target/release/cbc-node health
+./target/release/cerulea-node health
 
 # Fork detection
-./target/release/cbc-node fork-check --node-url ws://localhost:9944
+./target/release/cerulea-node fork-check --node-url ws://localhost:9944
 
 # Query validator information
 curl -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"cbc_listValidators","params":[],"id":1}' \
+  --data '{"jsonrpc":"2.0","method":"cerulea_listValidators","params":[],"id":1}' \
   http://localhost:9944
 ```
 
@@ -407,24 +407,24 @@ curl -X POST -H "Content-Type: application/json" \
 ### Repository Organization
 
 ```
-CBC-Chain/
-├── cbc-node/                    # Node implementation
+Cerulea/
+├── cerulea-node/                    # Node implementation
 │   ├── src/                     # Node source code
-│   │   ├── cbc-consensus/       # Consensus engine
+│   │   ├── cerulea-consensus/       # Consensus engine
 │   │   ├── fork_detection.rs    # Fork detection system
 │   │   ├── logging.rs           # Advanced logging
 │   │   ├── rpc.rs               # 19+ RPC endpoints
 │   │   └── ...                  # Other node components
 │   ├── tests/                   # Comprehensive test suite
 │   └── README.md                # Node documentation
-├── cbc-runtime/                 # Runtime implementation
+├── cerulea-runtime/                 # Runtime implementation
 │   ├── src/                     # Runtime source code
 │   ├── tests/                   # Runtime API tests
 │   └── README.md                # Runtime documentation
-├── cbc-pallets/                 # Custom pallets
-│   ├── pallet-cbc-dcf/          # Dynamic Consensus Framework
-│   ├── pallet-cbc-pos/          # Proof of Stake
-│   └── pallet-cbc-poi/          # Proof of Inference
+├── cerulea-pallets/                 # Custom pallets
+│   ├── pallet-cerulea-dcf/          # Dynamic Consensus Framework
+│   ├── pallet-cerulea-pos/          # Proof of Stake
+│   └── pallet-cerulea-poi/          # Proof of Inference
 ├── monitoring/                  # Monitoring infrastructure
 │   ├── grafana/                 # Grafana dashboards
 │   ├── prometheus.yml           # Prometheus configuration
@@ -437,10 +437,10 @@ CBC-Chain/
 
 ### Component Documentation
 
-- **[Node Documentation](cbc-node/README.md)** - Complete node setup and operation
-- **[Runtime Documentation](cbc-runtime/README.md)** - Runtime implementation details
-- **[Consensus Documentation](cbc-node/src/cbc-consensus/README.md)** - Consensus mechanism
-- **[DCF Pallet Documentation](cbc-pallets/pallet-cbc-dcf/README.md)** - DCF implementation
+- **[Node Documentation](cerulea-node/README.md)** - Complete node setup and operation
+- **[Runtime Documentation](cerulea-runtime/README.md)** - Runtime implementation details
+- **[Consensus Documentation](cerulea-node/src/cerulea-consensus/README.md)** - Consensus mechanism
+- **[DCF Pallet Documentation](cerulea-pallets/pallet-cerulea-dcf/README.md)** - DCF implementation
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing documentation
 - **[Node Architecture](docs/node-architecture.md)** - System architecture overview
 - **[Developer Onboarding](docs/developer-onboarding.md)** - Getting started guide
@@ -497,13 +497,13 @@ This project is licensed under the MIT-0 License - see the [LICENSE](LICENSE) fi
 ## Links and Resources
 
 ### Official Links
-- **Repository**: https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/CBC-Chain
+- **Repository**: https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/Cerulea
 - **Organization**: https://cbytechains.com/
 - **Technical Documentation**: See `docs/` directory for comprehensive guides
 
 ### Key Documentation
-- **[Node Setup Guide](cbc-node/README.md)** - Complete node installation and configuration
-- **[Runtime Guide](cbc-runtime/README.md)** - Runtime development and deployment
+- **[Node Setup Guide](cerulea-node/README.md)** - Complete node installation and configuration
+- **[Runtime Guide](cerulea-runtime/README.md)** - Runtime development and deployment
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing procedures
 - **[API Reference](docs/rpc-endpoints.md)** - Complete RPC API documentation
 - **[Architecture Overview](docs/node-architecture.md)** - System design and components
@@ -520,7 +520,7 @@ This project is licensed under the MIT-0 License - see the [LICENSE](LICENSE) fi
 
 ---
 
-**CBC Chain** - Next-generation blockchain with hybrid PoS/PoI consensus  
+**Cerulea** - Next-generation blockchain with hybrid PoS/PoI consensus  
 *Built by Caerulean ByteChains Private Limited*  
 
 

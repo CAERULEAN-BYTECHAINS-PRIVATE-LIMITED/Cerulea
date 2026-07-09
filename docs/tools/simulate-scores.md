@@ -1,7 +1,7 @@
 # CBC Validator Score Simulation Tool
 
 ## Purpose
-The Validator Score Simulation Tool is a command-line utility designed to simulate and analyze validator behavior in the CBC-Chain network. It helps model various scenarios of validator participation, inference accuracy, slashing events, and rewards over multiple epochs.
+The Validator Score Simulation Tool is a command-line utility designed to simulate and analyze validator behavior in the Cerulea network. It helps model various scenarios of validator participation, inference accuracy, slashing events, and rewards over multiple epochs.
 
 This tool is particularly useful for:
 - Testing validator scoring algorithms
@@ -73,7 +73,7 @@ cargo run --bin simulate-scores -- --help
 
 ## Installation
 1. Ensure you have Rust installed
-2. Clone the CBC-Chain repository
+2. Clone the Cerulea repository
 3. Navigate to the tools directory
 4. Build the tool:
 ```bash

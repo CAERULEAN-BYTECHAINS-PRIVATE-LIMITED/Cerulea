@@ -1,0 +1,69 @@
+//! CBC Consensus Engine
+#![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
+
+/// Core consensus engine implementation
+pub mod dcf;
+
+/// Validator and author selection
+pub mod author_selection;
+/// Validator set management and operations
+pub mod validator_set;
+
+/// Block production and import
+pub mod proposer_factory;
+pub mod import_queue;
+pub mod inherent_providers;
+/// Epoch management
+pub mod epoch_manager;
+
+/// Core types and error handling
+pub mod types;
+
+/// Consensus engine ID for CBC DCF
+pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
+
+/// Key type ID for CBC DVF consensus keys (ed25519).
+/// This is analogous to Substrate's `GRANDPA` key type (`b"gran"`).
+/// All DVF signing and keystore lookups must use this type ID.
+pub const CBC_DVF_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cdvf");
+
+/// DVF consensus engine ID
+pub const DVF_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dvfd";
+
+pub mod error;
+
+/// DVF Networking and Gossip
+pub mod dvf_gossip;
+/// DVF Vote Creator Service
+pub mod vote_creator;
+/// DVF Vote Aggregator Service
+pub mod vote_aggregator;
+/// DVF Justification Builder
+pub mod justification_builder;
+/// DVF Configuration Validation
+pub mod dvf_config_validator;
+
+/// Monitoring and finality
+pub mod metrics;
+pub mod finality;
+/// Lifecycle tracing subsystem
+pub mod lifecycle_tracer;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+// Re-export commonly used types
+pub use error::{ConsensusError, ConsensusResult};
+pub use dcf::{RealBlockImport, DcfConsensus};
+pub use types::{ValidatorInfo, ValidatorMetrics, EpochConfig, AuthorSelectionMode, ConsensusParams, BlockT};
+pub use proposer_factory::ProposerFactory;
+pub use finality::FinalityEngine;
+pub use inherent_providers::CeruleaInherentDataProviders;
+pub use vote_creator::VoteCreatorService;
+pub use vote_aggregator::{VoteAggregatorService, VotePoolPruningService};
+pub use finality::{FinalityNotifier, FinalityNotification};
+pub use dvf_config_validator::{DvfConfig, ConfigValidationError};

@@ -8,14 +8,14 @@
 
 set -e
 
-BINARY="${BINARY:-./target/release/cbc-node}"
+BINARY="${BINARY:-./target/release/cerulea-node}"
 NAME="${NAME:-validator}"
 PORT="${PORT:-30336}"
 RPC_PORT="${RPC_PORT:-9947}"
 PROM_PORT="${PROM_PORT:-9618}"
-BASE_PATH="${BASE_PATH:-$HOME/.local/share/cbc-node/$NAME}"
+BASE_PATH="${BASE_PATH:-$HOME/.local/share/cerulea-node/$NAME}"
 LOG_FILE="${LOG_FILE:-node_output_$NAME.log}"
-ALICE_BASE_PATH="${ALICE_BASE_PATH:-$HOME/.local/share/cbc-node/alice}"
+ALICE_BASE_PATH="${ALICE_BASE_PATH:-$HOME/.local/share/cerulea-node/alice}"
 
 if [ ! -f "$BINARY" ]; then
     echo "ERROR: Binary not found at $BINARY. Run: cargo build --release"

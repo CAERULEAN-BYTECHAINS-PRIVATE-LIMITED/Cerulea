@@ -1,7 +1,7 @@
 # CBC Validator Score Checker
 
 ## Purpose
-The Validator Score Checker is a comprehensive command-line tool for analyzing validator performance in the CBC-Chain network. It provides detailed insights into validator metrics across multiple dimensions:
+The Validator Score Checker is a comprehensive command-line tool for analyzing validator performance in the Cerulea network. It provides detailed insights into validator metrics across multiple dimensions:
 
 1. PoS (Proof of Stake) scores and stake amounts
 2. PoI (Proof of Inference) scores and inference results
@@ -73,7 +73,7 @@ cargo run --bin score-checker -- --help
 
 ## Installation
 1. Ensure you have Rust installed
-2. Clone the CBC-Chain repository
+2. Clone the Cerulea repository
 3. Navigate to the tools directory
 4. Build the tool:
 ```bash
@@ -81,7 +81,7 @@ cargo build --bin score-checker
 ```
 
 ## Options
-- `--url`: WebSocket URL of the CBC-Chain node (default: ws://127.0.0.1:9944)
+- `--url`: WebSocket URL of the Cerulea node (default: ws://127.0.0.1:9944)
 - `--format`: Output format (table, json, csv) (default: table)
 - `--export`: Export file path (optional)
 - `-H, --history`: Show detailed epoch history (optional)
@@ -89,11 +89,11 @@ cargo build --bin score-checker
 
 ## Requirements
 - Rust 1.68 or later
-- CBC-Chain node running with WebSocket RPC enabled
+- Cerulea node running with WebSocket RPC enabled
 - JSON-RPC enabled on the node
 
 ## Troubleshooting
-- Connection refused: Ensure the CBC-Chain node is running and accessible at the specified URL
+- Connection refused: Ensure the Cerulea node is running and accessible at the specified URL
 - Invalid format: Check the format parameter is one of: table, json, or csv
 - Missing RPC methods: Ensure the node has the required runtime APIs enabled
 
@@ -108,7 +108,7 @@ cargo build --release
 ```
 
 ## Usage
-1. Start your CBC-Chain node
+1. Start your Cerulea node
 2. Run the tool:
 ```bash
 ./target/release/score-checker

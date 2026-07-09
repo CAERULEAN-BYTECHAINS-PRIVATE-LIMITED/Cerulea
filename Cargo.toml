@@ -2,29 +2,29 @@
 license = "MIT-0"
 authors = ["Caerulean ByteChains Private Limited"]
 homepage = "https://cbytechains.com/"
-repository = "https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/CBC-Chain.git"
+repository = "https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/Cerulea.git"
 edition = "2021"
 
 [workspace]
 members = [
-    "cbc-node",
-    "cbc-runtime",
-    "cbc-pallets/pallet-cbc-poi",
-    "cbc-pallets/pallet-cbc-pos",
-    "cbc-pallets/pallet-cbc-dcf",
-    "cbc-pallets/pallet-todo",
+    "cerulea-node",
+    "cerulea-runtime",
+    "cerulea-pallets/pallet-cerulea-poi",
+    "cerulea-pallets/pallet-cerulea-pos",
+    "cerulea-pallets/pallet-cerulea-dcf",
+    "cerulea-pallets/pallet-todo",
     "tools",
-    "cbc-node/src/cbc-consensus",  "cbc-pallets/pallet-cbc-dvf",
+    "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-cbc-runtime= { path = "./cbc-runtime", default-features = false }
-pallet-cbc-poi = { path="./cbc-pallets/pallet-cbc-poi", default-features = false }
-pallet-cbc-pos = { path="./cbc-pallets/pallet-cbc-pos", default-features = false}
-pallet-cbc-dcf = {path="./cbc-pallets/pallet-cbc-dcf", default-features = false}
-pallet-cbc-dvf = {path="./cbc-pallets/pallet-cbc-dvf", default-features = false}
-pallet-todo = { path = "./cbc-pallets/pallet-todo", default-features = false }
+cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
+pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
+pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
+pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
+pallet-cerulea-dvf = {path="./cerulea-pallets/pallet-cerulea-dvf", default-features = false}
+pallet-todo = { path = "./cerulea-pallets/pallet-todo", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.8.0", default-features = false }

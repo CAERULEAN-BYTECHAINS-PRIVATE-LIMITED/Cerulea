@@ -1,4 +1,4 @@
-# CBC Chain — Consensus Bug Solutions
+# Cerulea — Consensus Bug Solutions
 
 
 ## Overview
@@ -9,7 +9,7 @@
 
 **Bug Reference:** Bug 1  
 **Severity:** Critical — causes permanent chain fork at every epoch boundary  
-**Component:** `pallet-cbc-dcf/src/lib.rs` → `generate_deterministic_randomness()`
+**Component:** `pallet-cerulea-dcf/src/lib.rs` → `generate_deterministic_randomness()`
 
 ### Root Cause
 
@@ -56,7 +56,7 @@ Guarantee:
 
 ### Code Change
 
-**File:** `cbc-chain/cbc-pallets/pallet-cbc-dcf/src/lib.rs`  
+**File:** `cerulea-chain/cerulea-pallets/pallet-cerulea-dcf/src/lib.rs`  
 **Function:** `generate_deterministic_randomness(block_number, epoch, randomness_salt, epoch_salt)`
 
 ```rust
@@ -89,7 +89,7 @@ input.extend_from_slice(parent_block_hash.as_ref());
 
 **Bug Reference:** Bug 2  
 **Severity:** Critical — causes fork inside epoch when offchain worker timing differs  
-**Component:** `pallet-cbc-dcf/src/lib.rs` → `generate_deterministic_author_sequence()`
+**Component:** `pallet-cerulea-dcf/src/lib.rs` → `generate_deterministic_author_sequence()`
 
 ### Root Cause
 
@@ -213,7 +213,7 @@ validator_weights.sort_by(|a, b| a.0.cmp(&b.0));
 
 **Bug Reference:** Bug 3  
 **Severity:** Critical — causes fork when scores are equal (stable sort preserves different existing orders)  
-**Component:** `pallet-cbc-dcf/src/lib.rs` → `handle_epoch_transition()` and `apply_pending_validator_actions()`
+**Component:** `pallet-cerulea-dcf/src/lib.rs` → `handle_epoch_transition()` and `apply_pending_validator_actions()`
 
 ### Root Cause
 
@@ -248,7 +248,7 @@ Why account ID sort is correct:
 
 ### Code Changes
 
-**File:** `pallet-cbc-dcf/src/lib.rs`
+**File:** `pallet-cerulea-dcf/src/lib.rs`
 
 **Change 1 — `handle_epoch_transition`:**
 ```rust
@@ -296,7 +296,7 @@ ActiveValidators::<T>::put(active_validators);
 
 **Bug Reference:** Bug 4  
 **Severity:** Medium — constant mempool flux amplifies score divergence between nodes  
-**Component:** Offchain worker in `pallet-cbc-dcf/src/lib.rs`
+**Component:** Offchain worker in `pallet-cerulea-dcf/src/lib.rs`
 
 ### Context
 
@@ -397,7 +397,7 @@ ahead of DVF finalized head" every 6 seconds indefinitely.
 after successfully finalizing a block. This is the single missing write.
 
 ```rust
-// In pallet-cbc-dvf/src/lib.rs → trigger_finalization():
+// In pallet-cerulea-dvf/src/lib.rs → trigger_finalization():
 
 // AFTER successful client.finalize_block() call:
 LastFinalizedBlock::<T>::put(block_number);
