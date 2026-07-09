@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@types/*": ["packages/types/src/*"],
+      "@ui/*": ["packages/ui/src/*"],
+      "@utils/*": ["packages/utils/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

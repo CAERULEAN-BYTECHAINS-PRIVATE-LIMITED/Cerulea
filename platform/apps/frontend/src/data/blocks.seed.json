@@ -1,0 +1,1606 @@
+{
+  "version": 1,
+  "generatedAt": "2025-12-25T20:42:51.158359Z",
+  "edgeDefaults": {
+    "propertiesSchema": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "default": 0
+        },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "times": {
+              "type": "integer",
+              "default": 0
+            },
+            "intervalMs": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        },
+        "rateLimitRps": {
+          "type": "number",
+          "default": 0
+        },
+        "transform": {
+          "type": "string"
+        },
+        "errorPath": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  },
+  "blocks": [
+    {
+      "id": "start",
+      "title": "Start",
+      "track": "any",
+      "category": "control",
+      "description": "Entry point.",
+      "ports": {
+        "in": [],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "end",
+      "title": "End",
+      "track": "any",
+      "category": "control",
+      "description": "End point.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": []
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "condition",
+      "title": "Condition",
+      "track": "any",
+      "category": "control",
+      "description": "If/else route.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "true",
+          "false"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string"
+          },
+          "strict": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    {
+      "id": "switch",
+      "title": "Switch",
+      "track": "any",
+      "category": "control",
+      "description": "Multi-branch by value.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "case1",
+          "case2",
+          "default"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "foreach",
+      "title": "For Each",
+      "track": "any",
+      "category": "control",
+      "description": "Iterate array.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "item",
+          "done"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "parallel",
+      "title": "Parallel",
+      "track": "any",
+      "category": "control",
+      "description": "Parallel branches.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "branch1",
+          "branch2",
+          "joined",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "branches": {
+            "type": "integer",
+            "default": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "join",
+      "title": "Join",
+      "track": "any",
+      "category": "control",
+      "description": "Wait for branches.",
+      "ports": {
+        "in": [
+          "in1",
+          "in2",
+          "in3"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "waitFor": {
+            "type": "integer",
+            "default": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "delay",
+      "title": "Delay",
+      "track": "any",
+      "category": "control",
+      "description": "Wait.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "ms": {
+            "type": "integer",
+            "default": 1000
+          }
+        }
+      }
+    },
+    {
+      "id": "retry",
+      "title": "Retry",
+      "track": "any",
+      "category": "control",
+      "description": "Retry failures.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "success",
+          "failed"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "retries": {
+            "type": "integer",
+            "default": 3
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "exp"
+            ],
+            "default": "exp"
+          },
+          "intervalMs": {
+            "type": "integer",
+            "default": 500
+          }
+        }
+      }
+    },
+    {
+      "id": "throttle",
+      "title": "Throttle",
+      "track": "any",
+      "category": "control",
+      "description": "Rate limit.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "ratePerSec": {
+            "type": "number",
+            "default": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "debounce",
+      "title": "Debounce",
+      "track": "any",
+      "category": "control",
+      "description": "Coalesce bursts.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "ms": {
+            "type": "integer",
+            "default": 300
+          }
+        }
+      }
+    },
+    {
+      "id": "error-handler",
+      "title": "Error Handler",
+      "track": "any",
+      "category": "control",
+      "description": "Catch errors.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "recovered",
+          "failed"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "resume": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    {
+      "id": "transform",
+      "title": "Transform",
+      "track": "any",
+      "category": "data",
+      "description": "Map payload.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "validate",
+      "title": "Validate",
+      "track": "any",
+      "category": "data",
+      "description": "JSON Schema validate.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "valid",
+          "invalid"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "id": "db-create",
+      "title": "DB Create",
+      "track": "any",
+      "category": "data",
+      "description": "Insert entity.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "id": "db-read",
+      "title": "DB Read",
+      "track": "any",
+      "category": "data",
+      "description": "Query entity.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "rows",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "where": {
+            "type": "object"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 50
+          }
+        }
+      }
+    },
+    {
+      "id": "db-update",
+      "title": "DB Update",
+      "track": "any",
+      "category": "data",
+      "description": "Update entity.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "where": {
+            "type": "object"
+          },
+          "values": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "id": "db-delete",
+      "title": "DB Delete",
+      "track": "any",
+      "category": "data",
+      "description": "Delete entity.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "where": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "id": "cache-get",
+      "title": "Cache Get",
+      "track": "any",
+      "category": "data",
+      "description": "Read from cache.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "hit",
+          "miss",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "cache-set",
+      "title": "Cache Set",
+      "track": "any",
+      "category": "data",
+      "description": "Write to cache.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "ttlSec": {
+            "type": "integer",
+            "default": 60
+          },
+          "value": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "id": "secrets-get",
+      "title": "Secrets Get",
+      "track": "any",
+      "category": "data",
+      "description": "Read secret.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "http-request",
+      "title": "HTTP Request",
+      "track": "any",
+      "category": "integrations",
+      "description": "HTTP call.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "default": "GET"
+          },
+          "url": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "object"
+          },
+          "body": {
+            "type": "object"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "default": 10000
+          }
+        }
+      }
+    },
+    {
+      "id": "webhook-receive",
+      "title": "Webhook Receive",
+      "track": "any",
+      "category": "integrations",
+      "description": "Start from webhook.",
+      "ports": {
+        "in": [],
+        "out": [
+          "next"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string",
+            "enum": [
+              "none",
+              "secret",
+              "basic",
+              "jwt"
+            ],
+            "default": "secret"
+          }
+        }
+      }
+    },
+    {
+      "id": "email-send",
+      "title": "Email Send",
+      "track": "dapp",
+      "category": "integrations",
+      "description": "Send an email.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "sendgrid",
+              "ses",
+              "smtp"
+            ],
+            "default": "sendgrid"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "emails"
+      }
+    },
+    {
+      "id": "sms-send",
+      "title": "SMS Send",
+      "track": "dapp",
+      "category": "integrations",
+      "description": "Send SMS via Twilio.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "twilio-adapter"
+      }
+    },
+    {
+      "id": "stripe-charge",
+      "title": "Stripe Charge",
+      "track": "dapp",
+      "category": "integrations",
+      "description": "Stripe payment.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "default": "usd"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "capture": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "stripe-adapter"
+      }
+    },
+    {
+      "id": "wallet-connect",
+      "title": "Wallet Connect",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Connect wallet.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "connected",
+          "cancel"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "metamask"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "sign-message",
+      "title": "Sign Message",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Sign a message.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "signed",
+          "cancel"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "contract-read",
+      "title": "Contract Read",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Read call.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "result",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "abi": {
+            "type": "object"
+          },
+          "address": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "id": "contract-write",
+      "title": "Contract Write",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Write tx.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "txHash",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "abi": {
+            "type": "object"
+          },
+          "address": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array"
+          },
+          "gasLimit": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "erc20-transfer",
+      "title": "ERC20 Transfer",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Transfer tokens.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "txHash",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "erc20"
+      }
+    },
+    {
+      "id": "erc20-approve",
+      "title": "ERC20 Approve",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Approve spending.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "txHash",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "spender": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "erc20"
+      }
+    },
+    {
+      "id": "erc721-mint",
+      "title": "ERC721 Mint",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Mint NFT.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "txHash",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "tokenURI": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "erc721"
+      }
+    },
+    {
+      "id": "erc1155-mint",
+      "title": "ERC1155 Mint",
+      "track": "dapp",
+      "category": "evm",
+      "description": "Mint 1155.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "txHash",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "erc1155"
+      }
+    },
+    {
+      "id": "ipfs-upload",
+      "title": "IPFS Upload",
+      "track": "dapp",
+      "category": "storage",
+      "description": "Upload to IPFS.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "pin": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "ipfs"
+      }
+    },
+    {
+      "id": "market-create",
+      "title": "Market: Create Listing",
+      "track": "dapp",
+      "category": "market",
+      "description": "Create listing.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "listed",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "itemType": {
+            "type": "string",
+            "enum": [
+              "erc721",
+              "erc1155"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "marketplace"
+      }
+    },
+    {
+      "id": "market-fill",
+      "title": "Market: Buy/Fill",
+      "track": "dapp",
+      "category": "market",
+      "description": "Buy listing.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "filled",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "marketplace"
+      }
+    },
+    {
+      "id": "auction-open",
+      "title": "Auction: Open",
+      "track": "dapp",
+      "category": "market",
+      "description": "Open auction.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "opened",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "itemType": {
+            "type": "string",
+            "enum": [
+              "erc721",
+              "erc1155"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "reservePrice": {
+            "type": "number"
+          },
+          "endAt": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "auction-engine"
+      }
+    },
+    {
+      "id": "auction-bid",
+      "title": "Auction: Bid",
+      "track": "dapp",
+      "category": "market",
+      "description": "Place bid.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "bid",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "auctionId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "auction-engine"
+      }
+    },
+    {
+      "id": "amm-swap",
+      "title": "AMM Swap",
+      "track": "dapp",
+      "category": "defi",
+      "description": "Swap via AMM.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "swap",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "pool": {
+            "type": "string"
+          },
+          "tokenIn": {
+            "type": "string"
+          },
+          "amountIn": {
+            "type": "number"
+          },
+          "minOut": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "amm"
+      }
+    },
+    {
+      "id": "oracle-get-price",
+      "title": "Oracle: Get Price",
+      "track": "dapp",
+      "category": "defi",
+      "description": "Read price feed.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "price",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "pair": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "default": "chainlink"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "oracles"
+      }
+    },
+    {
+      "id": "runtime-set-param",
+      "title": "Runtime: Set Param",
+      "track": "blockchain",
+      "category": "runtime",
+      "description": "Change param.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "object"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "runtime-params"
+      }
+    },
+    {
+      "id": "validator-score",
+      "title": "Validator: Score",
+      "track": "blockchain",
+      "category": "validators",
+      "description": "Update score.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "validators"
+      }
+    },
+    {
+      "id": "staking-reward",
+      "title": "Staking: Reward",
+      "track": "blockchain",
+      "category": "staking",
+      "description": "Distribute reward.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "staker": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "staking-pos"
+      }
+    },
+    {
+      "id": "fee-set-model",
+      "title": "Fees: Set Model",
+      "track": "blockchain",
+      "category": "fees",
+      "description": "Apply fee model.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "baseFee": {
+            "type": "number"
+          },
+          "maxFee": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "fee-model"
+      }
+    },
+    {
+      "id": "evm-param",
+      "title": "EVM: Param",
+      "track": "blockchain",
+      "category": "evm",
+      "description": "Set EVM param.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "object"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "evm-config"
+      }
+    },
+    {
+      "id": "genesis-alloc",
+      "title": "Genesis: Alloc",
+      "track": "blockchain",
+      "category": "genesis",
+      "description": "Edit alloc.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "genesis-config"
+      }
+    },
+    {
+      "id": "rpc-throttle",
+      "title": "RPC: Throttle",
+      "track": "blockchain",
+      "category": "rpc",
+      "description": "Throttle endpoint.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "rps": {
+            "type": "number"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "rpc-api"
+      }
+    },
+    {
+      "id": "explorer-index",
+      "title": "Explorer: Index Block",
+      "track": "blockchain",
+      "category": "explorer",
+      "description": "Index block.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "integer"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "explorer"
+      }
+    },
+    {
+      "id": "govern-proposal",
+      "title": "Governance: Proposal",
+      "track": "blockchain",
+      "category": "governance",
+      "description": "Create proposal.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "moduleBinding": {
+        "moduleId": "governance"
+      }
+    },
+    {
+      "id": "bridge-transfer",
+      "title": "Bridge: Transfer",
+      "track": "blockchain",
+      "category": "bridge",
+      "description": "Bridge asset.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "toChain": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "id": "poi-submit",
+      "title": "PoI: Submit Inference",
+      "track": "blockchain",
+      "category": "ai",
+      "description": "Submit inference result.",
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "ok",
+          "error"
+        ]
+      },
+      "propertiesSchema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  ]
+}
