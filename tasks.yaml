@@ -429,8 +429,8 @@ tasks:
   domain: chain
   model: opus
   priority: 1
-  status: failed
-  attempts: 1
+  status: running
+  attempts: 2
   depends_on: []
   spec: "Task audit-chain failed 3 times.\n\nOriginal spec:\nRead the chain codebase in full. It is roughly\
     \ 60000 lines of Rust across\ncerulea-node, cerulea-runtime, and four pallets (dcf, poi, pos, dvf),\
