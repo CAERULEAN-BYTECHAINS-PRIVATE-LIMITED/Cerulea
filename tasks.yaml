@@ -133,8 +133,8 @@ tasks:
   domain: devops
   model: sonnet
   priority: 2
-  status: pending
-  attempts: 0
+  status: running
+  attempts: 1
   depends_on: []
   owns:
   - .github/workflows/ci.yml
