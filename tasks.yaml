@@ -74,8 +74,8 @@ tasks:
   domain: studio
   model: opus
   priority: 1
-  status: pending
-  attempts: 0
+  status: running
+  attempts: 1
   depends_on: []
   owns:
   - docs/AUDIT_STUDIO.md
