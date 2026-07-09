@@ -133,7 +133,7 @@ tasks:
   domain: devops
   model: sonnet
   priority: 2
-  status: running
+  status: failed
   attempts: 2
   depends_on: []
   owns:
