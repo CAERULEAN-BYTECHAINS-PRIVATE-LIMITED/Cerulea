@@ -74,7 +74,7 @@ tasks:
   domain: studio
   model: opus
   priority: 1
-  status: running
+  status: failed
   attempts: 2
   depends_on: []
   owns:
