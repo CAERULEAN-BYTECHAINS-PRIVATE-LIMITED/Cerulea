@@ -623,7 +623,7 @@ tasks:
   domain: devops
   model: opus
   priority: 1
-  status: running
+  status: failed
   attempts: 2
   depends_on: []
   spec: "Task ci-pipeline failed 3 times.\n\nOriginal spec:\nCreate GitHub Actions workflows that run\
