@@ -11,8 +11,8 @@ tasks:
   domain: chain
   model: opus
   priority: 1
-  status: failed
-  attempts: 2
+  status: running
+  attempts: 3
   depends_on: []
   owns:
   - docs/AUDIT_CHAIN.md
