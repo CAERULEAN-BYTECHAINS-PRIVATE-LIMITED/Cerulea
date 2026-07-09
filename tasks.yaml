@@ -429,7 +429,7 @@ tasks:
   domain: chain
   model: opus
   priority: 1
-  status: running
+  status: failed
   attempts: 2
   depends_on: []
   spec: "Task audit-chain failed 3 times.\n\nOriginal spec:\nRead the chain codebase in full. It is roughly\
