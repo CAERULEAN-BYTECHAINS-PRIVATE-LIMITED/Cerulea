@@ -1,4 +1,4 @@
-# CBC Chain — Consensus Bug Report
+# Cerulea — Consensus Bug Report
 
 All problems found through log analysis and code review. No solutions included.
 
@@ -6,7 +6,7 @@ All problems found through log analysis and code review. No solutions included.
 
 ## Bug 1 — Non-Deterministic Randomness Seed (Live Block Number)
 
-**Location:** `generate_deterministic_randomness()` in `pallet-cbc-dcf/src/lib.rs`
+**Location:** `generate_deterministic_randomness()` in `pallet-cerulea-dcf/src/lib.rs`
 
 **What it does:** Generates the seed used to produce the author sequence for the next epoch. Every node must produce the exact same seed to get the same author sequence.
 
@@ -45,7 +45,7 @@ Error importing block: block has an unknown parent
 
 ## Bug 2 — Live Validator Scores Used as Author Sequence Weights
 
-**Location:** `generate_deterministic_author_sequence()` in `pallet-cbc-dcf/src/lib.rs`
+**Location:** `generate_deterministic_author_sequence()` in `pallet-cerulea-dcf/src/lib.rs`
 
 **What it does:** Uses validator scores as weights to decide how many authoring slots each validator gets in the epoch sequence. Higher score = more slots.
 
@@ -88,7 +88,7 @@ Fork happens inside the epoch, not at the boundary, because the sequence was gen
 
 ## Bug 3 — Score-Based Sort of ActiveValidators Written to Storage
 
-**Location:** `handle_epoch_transition()` and `apply_pending_validator_actions()` in `pallet-cbc-dcf/src/lib.rs`
+**Location:** `handle_epoch_transition()` and `apply_pending_validator_actions()` in `pallet-cerulea-dcf/src/lib.rs`
 
 **What it does:** At every epoch boundary, after updating validator states, the code sorts `ActiveValidators` by `final_score` and writes that sorted order back to storage. The block verifier reads this stored order to check who should author each block.
 
@@ -141,7 +141,7 @@ Epoch transition at block 800 logged successfully on all nodes. Fork appears 19 
 
 ## Bug 4 — PoI Score Computed Per Block, Always Returns Zero
 
-**Location:** Offchain worker in `pallet-cbc-dcf/src/lib.rs`
+**Location:** Offchain worker in `pallet-cerulea-dcf/src/lib.rs`
 
 **What it does:** The offchain worker runs every block and computes PoI scores for all validators, submitting results as unsigned transactions.
 

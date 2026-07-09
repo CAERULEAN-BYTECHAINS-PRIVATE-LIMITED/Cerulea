@@ -19,3 +19,9 @@ AGENTS.md
 CLAUDE.md
 GEMINI.md
 QODER.md
+
+keys/
+*.pem
+*.key
+secret_*
+.env

@@ -40,72 +40,72 @@ jobs:
     
     - name: Run basic CI readiness tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_basic_functionality_check --no-fail-fast
     
     - name: Run multi-epoch validation tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_multi_epoch_validation --no-fail-fast
     
     - name: Run comprehensive invariant validation tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_comprehensive_invariant_validation --no-fail-fast
     
     - name: Run stress tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_stress_test_readiness --no-fail-fast
     
     - name: Run error recovery tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_error_recovery_test --no-fail-fast
     
     - name: Run performance regression tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_performance_regression_test --no-fail-fast
     
     - name: Run memory usage tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_memory_usage_test --no-fail-fast
     
     - name: Run integration tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests ci_integration_test --no-fail-fast
     
     - name: Run all CI readiness tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test ci_readiness_tests --no-fail-fast
     
     - name: Run property tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test comprehensive_property_tests --no-fail-fast
     
     - name: Run fuzz tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --test comprehensive_property_tests fuzz_extreme_input_values --no-fail-fast
         cargo test --test comprehensive_property_tests fuzz_randomized_operation_sequences --no-fail-fast
         cargo test --test comprehensive_property_tests fuzz_concurrent_access_patterns --no-fail-fast
     
     - name: Run all tests
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo test --no-fail-fast
     
     - name: Run clippy
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo clippy -- -D warnings
     
     - name: Run fmt check
       run: |
-        cd cbc-pallets/pallet-cbc-dcf
+        cd cerulea-pallets/pallet-cerulea-dcf
         cargo fmt -- --check

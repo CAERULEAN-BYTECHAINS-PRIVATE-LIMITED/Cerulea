@@ -26,7 +26,7 @@ if [ "$NODE_ROLE" = "alice" ]; then
             cp "$ALICE_BAKED_KEY" "$NETWORK_KEY_PATH"
         else
             echo "No baked key found — generating Alice's network key..."
-            cbc-node key generate-node-key --file "$NETWORK_KEY_PATH" 2>/dev/null
+            cerulea-node key generate-node-key --file "$NETWORK_KEY_PATH" 2>/dev/null
         fi
         chmod 600 "$NETWORK_KEY_PATH"
     fi
@@ -36,14 +36,14 @@ fi
 if [ "$NODE_ROLE" != "alice" ] && [ ! -f "$NETWORK_KEY_PATH" ]; then
     echo "Generating network key for $NODE_ROLE..."
     mkdir -p "$(dirname "$NETWORK_KEY_PATH")"
-    cbc-node key generate-node-key --file "$NETWORK_KEY_PATH" 2>/dev/null
+    cerulea-node key generate-node-key --file "$NETWORK_KEY_PATH" 2>/dev/null
 fi
 
 # ── Derive Alice's peer-id ───────────────────────────────────────────────────
 # Prefer the baked key (always available); fall back to Alice's live key
 # (useful in docker-compose where all nodes share a network volume).
 if [ -f "$ALICE_BAKED_KEY" ]; then
-    ALICE_PEER_ID=$(cbc-node key inspect-node-key --file "$ALICE_BAKED_KEY" 2>/dev/null | tail -n 1)
+    ALICE_PEER_ID=$(cerulea-node key inspect-node-key --file "$ALICE_BAKED_KEY" 2>/dev/null | tail -n 1)
 else
     # docker-compose local mode: wait for Alice's key to appear on the shared volume
     ALICE_LIVE_KEY="${ALICE_DATA_PATH:-/data-alice}/chains/cbc_local/network/secret_ed25519"
@@ -59,7 +59,7 @@ else
         echo "ERROR: Alice's network key not found after $MAX_RETRIES attempts."
         exit 1
     fi
-    ALICE_PEER_ID=$(cbc-node key inspect-node-key --file "$ALICE_LIVE_KEY" 2>/dev/null | tail -n 1)
+    ALICE_PEER_ID=$(cerulea-node key inspect-node-key --file "$ALICE_LIVE_KEY" 2>/dev/null | tail -n 1)
 fi
 
 if [ -z "$ALICE_PEER_ID" ]; then
@@ -95,7 +95,7 @@ BASE_ARGS=(
 case "$NODE_ROLE" in
     alice)
         echo "Starting Alice (bootnode + public RPC)..."
-        exec cbc-node \
+        exec cerulea-node \
             "${BASE_ARGS[@]}" \
             --alice \
             --name Alice
@@ -103,7 +103,7 @@ case "$NODE_ROLE" in
 
     bob)
         echo "Starting Bob -> $ALICE_BOOTNODE"
-        exec cbc-node \
+        exec cerulea-node \
             "${BASE_ARGS[@]}" \
             --bob \
             --name Bob \
@@ -112,7 +112,7 @@ case "$NODE_ROLE" in
 
     charlie)
         echo "Starting Charlie -> $ALICE_BOOTNODE"
-        exec cbc-node \
+        exec cerulea-node \
             "${BASE_ARGS[@]}" \
             --charlie \
             --name Charlie \

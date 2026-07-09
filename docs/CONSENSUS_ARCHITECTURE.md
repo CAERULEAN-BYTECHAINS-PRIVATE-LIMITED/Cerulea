@@ -1,6 +1,6 @@
-# CBC Chain — Block Confirmation and Finality Architecture
+# Cerulea — Block Confirmation and Finality Architecture
 
-This document describes the layered consensus model of CBC Chain as observed
+This document describes the layered consensus model of Cerulea as observed
 from the codebase and node logs. There are three distinct levels, each with a
 specific responsibility.
 

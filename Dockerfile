@@ -18,37 +18,37 @@ COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
 
 # Per-crate manifests
-COPY cbc-node/Cargo.toml                       cbc-node/Cargo.toml
-COPY cbc-node/build.rs                         cbc-node/build.rs
-COPY cbc-node/src/cbc-consensus/Cargo.toml     cbc-node/src/cbc-consensus/Cargo.toml
-COPY cbc-runtime/Cargo.toml                    cbc-runtime/Cargo.toml
-COPY cbc-runtime/build.rs                      cbc-runtime/build.rs
-COPY cbc-pallets/pallet-cbc-poi/Cargo.toml     cbc-pallets/pallet-cbc-poi/Cargo.toml
-COPY cbc-pallets/pallet-cbc-pos/Cargo.toml     cbc-pallets/pallet-cbc-pos/Cargo.toml
-COPY cbc-pallets/pallet-cbc-dcf/Cargo.toml     cbc-pallets/pallet-cbc-dcf/Cargo.toml
-COPY cbc-pallets/pallet-cbc-dvf/Cargo.toml     cbc-pallets/pallet-cbc-dvf/Cargo.toml
-COPY cbc-pallets/pallet-todo/Cargo.toml        cbc-pallets/pallet-todo/Cargo.toml
+COPY cerulea-node/Cargo.toml                       cerulea-node/Cargo.toml
+COPY cerulea-node/build.rs                         cerulea-node/build.rs
+COPY cerulea-node/src/cerulea-consensus/Cargo.toml     cerulea-node/src/cerulea-consensus/Cargo.toml
+COPY cerulea-runtime/Cargo.toml                    cerulea-runtime/Cargo.toml
+COPY cerulea-runtime/build.rs                      cerulea-runtime/build.rs
+COPY cerulea-pallets/pallet-cerulea-poi/Cargo.toml     cerulea-pallets/pallet-cerulea-poi/Cargo.toml
+COPY cerulea-pallets/pallet-cerulea-pos/Cargo.toml     cerulea-pallets/pallet-cerulea-pos/Cargo.toml
+COPY cerulea-pallets/pallet-cerulea-dcf/Cargo.toml     cerulea-pallets/pallet-cerulea-dcf/Cargo.toml
+COPY cerulea-pallets/pallet-cerulea-dvf/Cargo.toml     cerulea-pallets/pallet-cerulea-dvf/Cargo.toml
+COPY cerulea-pallets/pallet-todo/Cargo.toml        cerulea-pallets/pallet-todo/Cargo.toml
 
 # tools has bins at the root (no src/ dir) — copy real source, it's tiny
 COPY tools/ tools/
 
 # ── Stub out lib crates so `cargo fetch` can resolve the dep graph ────────────
-# (tools is already real; cbc-node main.rs is stubbed separately)
+# (tools is already real; cerulea-node main.rs is stubbed separately)
 RUN set -e; \
     for crate in \
-        cbc-node/src/cbc-consensus \
-        cbc-runtime \
-        cbc-pallets/pallet-cbc-poi \
-        cbc-pallets/pallet-cbc-pos \
-        cbc-pallets/pallet-cbc-dcf \
-        cbc-pallets/pallet-cbc-dvf \
-        cbc-pallets/pallet-todo \
+        cerulea-node/src/cerulea-consensus \
+        cerulea-runtime \
+        cerulea-pallets/pallet-cerulea-poi \
+        cerulea-pallets/pallet-cerulea-pos \
+        cerulea-pallets/pallet-cerulea-dcf \
+        cerulea-pallets/pallet-cerulea-dvf \
+        cerulea-pallets/pallet-todo \
     ; do \
         mkdir -p "$crate/src" && printf '// stub\n' > "$crate/src/lib.rs"; \
     done; \
-    mkdir -p cbc-node/src \
-    && printf 'fn main(){}\n' > cbc-node/src/main.rs \
-    && printf '// stub\n'    > cbc-node/src/lib.rs
+    mkdir -p cerulea-node/src \
+    && printf 'fn main(){}\n' > cerulea-node/src/main.rs \
+    && printf '// stub\n'    > cerulea-node/src/lib.rs
 
 RUN cargo fetch --locked
 
@@ -58,12 +58,12 @@ RUN cargo fetch --locked
 ###############################################################################
 FROM deps AS builder
 
-COPY cbc-node       cbc-node
-COPY cbc-runtime    cbc-runtime
-COPY cbc-pallets    cbc-pallets
+COPY cerulea-node       cerulea-node
+COPY cerulea-runtime    cerulea-runtime
+COPY cerulea-pallets    cerulea-pallets
 COPY tools          tools
 
-RUN cargo build --release --locked -p cbc-node
+RUN cargo build --release --locked -p cerulea-node
 
 ###############################################################################
 # Stage 3: Minimal runtime image (~100 MB vs ~2 GB builder)
@@ -74,7 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/cbc-node /usr/local/bin/cbc-node
+COPY --from=builder /build/target/release/cerulea-node /usr/local/bin/cerulea-node
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Alice's fixed network key — baked in so her peer-id is deterministic across
@@ -88,7 +88,7 @@ RUN if [ -f /etc/cbc/keys/alice/secret_ed25519 ]; then \
         chmod 600 /etc/cbc/alice_network_key; \
     fi
 
-RUN chmod +x /usr/local/bin/cbc-node /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/cerulea-node /usr/local/bin/docker-entrypoint.sh
 
 # P2P | RPC | Prometheus
 EXPOSE 30333 9944 9615

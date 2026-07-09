@@ -4,10 +4,10 @@
 
 set -e
 
-BINARY="${BINARY:-./target/release/cbc-node}"
-BASE_PATH="${BASE_PATH:-$HOME/.local/share/cbc-node/bob}"
+BINARY="${BINARY:-./target/release/cerulea-node}"
+BASE_PATH="${BASE_PATH:-$HOME/.local/share/cerulea-node/bob}"
 LOG_FILE="${LOG_FILE:-node_output_bob.log}"
-ALICE_BASE_PATH="${ALICE_BASE_PATH:-$HOME/.local/share/cbc-node/alice}"
+ALICE_BASE_PATH="${ALICE_BASE_PATH:-$HOME/.local/share/cerulea-node/alice}"
 
 if [ ! -f "$BINARY" ]; then
     echo "ERROR: Binary not found at $BINARY. Run: cargo build --release"

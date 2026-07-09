@@ -1,5 +1,5 @@
 ###############################################################################
-# CBC Chain — local 3-validator Docker Compose network
+# Cerulea — local 3-validator Docker Compose network
 #
 # Mirrors the local start_*.sh scripts exactly:
 #   Alice  → bootnode, RPC :9944, P2P :30333, Prometheus :9615
@@ -28,7 +28,7 @@ services:
       PORT: "9944"
       P2P_PORT: "30333"
       PROMETHEUS_PORT: "9615"
-      RUST_LOG: "info,cbc_consensus=debug"
+      RUST_LOG: "info,cerulea_consensus=debug"
     ports:
       - "9944:9944"   # RPC / WebSocket
       - "30333:30333" # P2P
@@ -51,7 +51,7 @@ services:
       P2P_PORT: "30334"
       PROMETHEUS_PORT: "9616"
       ALICE_HOST: alice          # docker-compose service name resolves via DNS
-      RUST_LOG: "info,cbc_consensus=debug"
+      RUST_LOG: "info,cerulea_consensus=debug"
     ports:
       - "9945:9945"   # RPC
       - "30334:30334" # P2P
@@ -76,7 +76,7 @@ services:
       P2P_PORT: "30335"
       PROMETHEUS_PORT: "9617"
       ALICE_HOST: alice          # docker-compose service name resolves via DNS
-      RUST_LOG: "info,cbc_consensus=debug"
+      RUST_LOG: "info,cerulea_consensus=debug"
     ports:
       - "9946:9946"   # RPC
       - "30335:30335" # P2P

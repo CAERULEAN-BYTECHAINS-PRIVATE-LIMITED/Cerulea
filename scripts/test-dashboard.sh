@@ -39,19 +39,19 @@ if curl -s http://localhost:9615/metrics > /dev/null 2>&1; then
     echo "   SUCCESS: CBC node metrics endpoint is accessible"
     
     # Check for specific CBC metrics
-    if curl -s http://localhost:9615/metrics | grep -q "cbc_"; then
+    if curl -s http://localhost:9615/metrics | grep -q "cerulea_"; then
         echo "   SUCCESS: CBC metrics are being exported"
     else
         echo "   WARNING: CBC metrics not found - node might not be running with --prometheus-external"
     fi
 else
     echo "   WARNING: CBC node metrics endpoint not accessible"
-    echo "      Make sure your CBC node is running with: ./target/release/cbc-node --dev --prometheus-external"
+    echo "      Make sure your CBC node is running with: ./target/release/cerulea-node --dev --prometheus-external"
 fi
 
 # Test Prometheus targets
 echo "Checking Prometheus targets..."
-if curl -s http://localhost:9090/api/v1/targets | grep -q "cbc-node"; then
+if curl -s http://localhost:9090/api/v1/targets | grep -q "cerulea-node"; then
     echo "   SUCCESS: CBC node target is configured in Prometheus"
 else
     echo "   WARNING: CBC node target not found in Prometheus"

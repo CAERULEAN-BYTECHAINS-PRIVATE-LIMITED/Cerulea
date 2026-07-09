@@ -4,8 +4,8 @@
 
 set -e
 
-BINARY="${BINARY:-./target/release/cbc-node}"
-BASE_PATH="${BASE_PATH:-$HOME/.local/share/cbc-node/alice}"
+BINARY="${BINARY:-./target/release/cerulea-node}"
+BASE_PATH="${BASE_PATH:-$HOME/.local/share/cerulea-node/alice}"
 LOG_FILE="${LOG_FILE:-node_output_alice.log}"
 
 if [ ! -f "$BINARY" ]; then

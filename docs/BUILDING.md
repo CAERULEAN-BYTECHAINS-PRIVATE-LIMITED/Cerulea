@@ -1,4 +1,4 @@
-# CBC-Chain — Build Guide (Linux)
+# Cerulea — Build Guide (Linux)
 
 > **Tested on:** Ubuntu 25.04 (Plucky) with gcc-15, clang-18, Rust 1.85.1  
 > **Build time:** ~55 minutes (first build, single core) · ~5–10 min (incremental)
@@ -9,8 +9,8 @@
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/CBC-Chain.git
-cd CBC-Chain
+git clone https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/Cerulea.git
+cd Cerulea
 
 # 2. Install system dependencies (one-time)
 ./scripts/setup-build-env.sh
@@ -19,7 +19,7 @@ cd CBC-Chain
 ./scripts/build-node-local.sh
 ```
 
-Binary output: `target/release/cbc-node`
+Binary output: `target/release/cerulea-node`
 
 ---
 
@@ -81,7 +81,7 @@ cargo --version
 ### 3 — Build
 
 ```bash
-cargo build --release --bin cbc-node
+cargo build --release --bin cerulea-node
 ```
 
 ---
@@ -185,7 +185,7 @@ To silence it and use the newer WASM target:
 ```bash
 rustup target add wasm32v1-none --toolchain 1.85-x86_64-unknown-linux-gnu
 cargo clean
-cargo build --release --bin cbc-node
+cargo build --release --bin cerulea-node
 ```
 
 > **Note:** `cargo clean` is required after adding the new target, as the WASM
@@ -207,14 +207,14 @@ cargo build --release --bin cbc-node
 
 ```bash
 # Regular incremental rebuild (fast, ~1–5 min depending on changes)
-cargo build --release --bin cbc-node
+cargo build --release --bin cerulea-node
 
 # Full clean rebuild (slow, use only when necessary)
-cargo clean && cargo build --release --bin cbc-node
+cargo clean && cargo build --release --bin cerulea-node
 
 # Clean only the rocksdb C++ artifacts (useful if tweaking CXXFLAGS)
 find target/release/build -name "librocksdb-sys-*" -type d -exec rm -rf {} + 2>/dev/null || true
-cargo build --release --bin cbc-node
+cargo build --release --bin cerulea-node
 ```
 
 ---
@@ -223,10 +223,10 @@ cargo build --release --bin cbc-node
 
 ```bash
 # Development mode (single node, no peers needed)
-./target/release/cbc-node --dev
+./target/release/cerulea-node --dev
 
 # Check version
-./target/release/cbc-node --version
+./target/release/cerulea-node --version
 
 # RPC endpoint (once running)
 # WebSocket: ws://localhost:9944
@@ -241,8 +241,8 @@ The `Dockerfile` in the repo root builds a production image using the same
 toolchain and fixes described above:
 
 ```bash
-docker build -t cbc-node:latest .
-docker run --rm cbc-node:latest --version
+docker build -t cerulea-node:latest .
+docker run --rm cerulea-node:latest --version
 ```
 
 ---

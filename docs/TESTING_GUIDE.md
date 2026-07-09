@@ -1,4 +1,4 @@
-# CBC Chain Testing Guide
+# Cerulea Testing Guide
 
 This document provides a comprehensive guide to the testing infrastructure for the CBC (Consensus-Based Chain) system.
 
@@ -16,8 +16,8 @@ The CBC system includes comprehensive testing across multiple layers:
 
 ### Pallet Tests
 
-#### DCF Pallet (`pallet-cbc-dcf`)
-- **Location**: `cbc-pallets/pallet-cbc-dcf/src/`
+#### DCF Pallet (`pallet-cerulea-dcf`)
+- **Location**: `cerulea-pallets/pallet-cerulea-dcf/src/`
 - **Files**:
   - `tests.rs` - Core functionality tests
   - `integration_tests.rs` - Complex scenario tests
@@ -26,15 +26,15 @@ The CBC system includes comprehensive testing across multiple layers:
   - `mock.rs` - Mock runtime for testing
   - `benchmarking.rs` - Performance benchmarks
 
-#### PoS Pallet (`pallet-cbc-pos`)
-- **Location**: `cbc-pallets/pallet-cbc-pos/src/`
+#### PoS Pallet (`pallet-cerulea-pos`)
+- **Location**: `cerulea-pallets/pallet-cerulea-pos/src/`
 - **Files**:
   - `tests.rs` - Proof-of-Stake functionality
   - `mock.rs` - Mock runtime
   - `benchmarking.rs` - PoS benchmarks
 
-#### PoI Pallet (`pallet-cbc-poi`)
-- **Location**: `cbc-pallets/pallet-cbc-poi/src/`
+#### PoI Pallet (`pallet-cerulea-poi`)
+- **Location**: `cerulea-pallets/pallet-cerulea-poi/src/`
 - **Files**:
   - `tests.rs` - Proof-of-Inference functionality
   - `mock.rs` - Mock runtime
@@ -42,8 +42,8 @@ The CBC system includes comprehensive testing across multiple layers:
 
 ### Consensus Tests
 
-#### Consensus Module (`cbc-consensus`)
-- **Location**: `cbc-node/src/cbc-consensus/src/`
+#### Consensus Module (`cerulea-consensus`)
+- **Location**: `cerulea-node/src/cerulea-consensus/src/`
 - **Files**:
   - `mock.rs` - Consensus mock runtime
   - `metrics_test.rs` - Metrics system tests
@@ -61,18 +61,18 @@ clea
 ### Specific Pallet Tests
 ```bash
 # DCF pallet tests
-cargo test -p pallet-cbc-dcf
+cargo test -p pallet-cerulea-dcf
 
 # PoS pallet tests
-cargo test -p pallet-cbc-pos
+cargo test -p pallet-cerulea-pos
 
 # PoI pallet tests
-cargo test -p pallet-cbc-poi
+cargo test -p pallet-cerulea-poi
 ```
 
 ### Consensus Tests
 ```bash
-cargo test -p cbc-consensus
+cargo test -p cerulea-consensus
 ```
 
 ### Integration Tests Only
@@ -88,13 +88,13 @@ cargo test performance
 ### Benchmarking
 ```bash
 # Run benchmarks for DCF pallet
-cargo test --features runtime-benchmarks -p pallet-cbc-dcf
+cargo test --features runtime-benchmarks -p pallet-cerulea-dcf
 
 # Run benchmarks for PoS pallet
-cargo test --features runtime-benchmarks -p pallet-cbc-pos
+cargo test --features runtime-benchmarks -p pallet-cerulea-pos
 
 # Run benchmarks for PoI pallet
-cargo test --features runtime-benchmarks -p pallet-cbc-poi
+cargo test --features runtime-benchmarks -p pallet-cerulea-poi
 ```
 
 ## Test Categories
@@ -110,9 +110,9 @@ cargo test --features runtime-benchmarks -p pallet-cbc-poi
 - Inference submission
 
 **Key Test Files**:
-- `pallet-cbc-dcf/src/tests.rs`
-- `pallet-cbc-pos/src/tests.rs`
-- `pallet-cbc-poi/src/tests.rs`
+- `pallet-cerulea-dcf/src/tests.rs`
+- `pallet-cerulea-pos/src/tests.rs`
+- `pallet-cerulea-poi/src/tests.rs`
 
 ### 2. Integration Tests
 
@@ -125,8 +125,8 @@ cargo test --features runtime-benchmarks -p pallet-cbc-poi
 - Epoch transitions affecting all pallets
 
 **Key Test Files**:
-- `pallet-cbc-dcf/src/integration_tests.rs`
-- `pallet-cbc-dcf/src/system_integration_tests.rs`
+- `pallet-cerulea-dcf/src/integration_tests.rs`
+- `pallet-cerulea-dcf/src/system_integration_tests.rs`
 
 ### 3. Performance Tests
 
@@ -139,7 +139,7 @@ cargo test --features runtime-benchmarks -p pallet-cbc-poi
 - Memory usage validation
 
 **Key Test Files**:
-- `pallet-cbc-dcf/src/performance_tests.rs`
+- `pallet-cerulea-dcf/src/performance_tests.rs`
 - Benchmark files (`benchmarking.rs`)
 
 ### 4. Consensus Tests
@@ -153,16 +153,16 @@ cargo test --features runtime-benchmarks -p pallet-cbc-poi
 - Authority rotation
 
 **Key Test Files**:
-- `cbc-consensus/src/validator_set_test.rs`
-- `cbc-consensus/src/epoch_manager_test.rs`
-- `cbc-consensus/src/metrics_test.rs`
+- `cerulea-consensus/src/validator_set_test.rs`
+- `cerulea-consensus/src/epoch_manager_test.rs`
+- `cerulea-consensus/src/metrics_test.rs`
 
 ## Mock Runtime
 
 The testing infrastructure uses comprehensive mock runtimes that simulate the full CBC system:
 
 ### DCF Mock Runtime
-- **File**: `pallet-cbc-dcf/src/mock.rs`
+- **File**: `pallet-cerulea-dcf/src/mock.rs`
 - **Features**:
   - Full pallet configuration
   - Mock PoS/PoI interfaces
@@ -170,7 +170,7 @@ The testing infrastructure uses comprehensive mock runtimes that simulate the fu
   - Balance management
 
 ### Consensus Mock Runtime
-- **File**: `cbc-consensus/src/mock.rs`
+- **File**: `cerulea-consensus/src/mock.rs`
 - **Features**:
   - Authority management
   - Keystore integration

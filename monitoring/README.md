@@ -12,7 +12,7 @@ This directory contains the configuration files for monitoring your CBC node wit
 2. **Start your CBC node with metrics:**
    ```bash
    cargo build --release
-   ./target/release/cbc-node --dev --prometheus-external
+   ./target/release/cerulea-node --dev --prometheus-external
    ```
 
 3. **Test the setup:**

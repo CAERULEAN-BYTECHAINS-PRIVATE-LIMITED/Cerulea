@@ -1,0 +1,180 @@
+# 									=======  CBC-NODE  ======
+
+[package]
+# Basic package metadata
+name = "cerulea-node"                     # Name of the package
+description = "Cerulea Node"             # Short description of the package
+version = "0.1.0"                     # Version of the package
+license = "Unlicense"                 # License under which the package is distributed
+authors.workspace = true              # Authors are inherited from the workspace
+homepage.workspace = true             # Homepage URL is inherited from the workspace
+repository.workspace = true           # Repository URL is inherited from the workspace
+edition.workspace = true              # Rust edition is inherited from the workspace
+publish = false                       # Prevent this package from being published to crates.io
+
+# Build script
+build = "build.rs"                    # Specifies the build script for this package
+
+# Binary target
+[[bin]]
+name = "cerulea-node"
+path = "src/main.rs"
+
+# Library target for testing
+[lib]
+name = "cerulea_node"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+# Documentation settings for docs.rs
+targets = ["x86_64-unknown-linux-gnu"] # Target platforms for which documentation is built
+
+[dependencies]
+
+pallet-cerulea-dcf = { path = "../cerulea-pallets/pallet-cerulea-dcf" }
+pallet-cerulea-pos = { path = "../cerulea-pallets/pallet-cerulea-pos" }
+pallet-cerulea-dvf = { path = "../cerulea-pallets/pallet-cerulea-dvf" }
+serde = { workspace = true }
+
+# === CLI and Command-Line Parsing ===
+clap = { features = ["derive"], workspace = true } # Command-line argument parsing library
+anyhow = { version = "1.0", default-features = false } # Error handling
+
+# === new packages ===
+hex-literal = { workspace = true }
+hex = "0.4"
+directories = "5"
+sc-chain-spec = { workspace = true }
+jsonrpsee-core = { workspace = true, features = ["server"] }
+jsonrpsee-http-server = { workspace = true }
+sc-rpc-api = { workspace = true }
+sc-rpc = { workspace = true }
+
+# === Benchmarking ===
+frame-benchmarking-cli.default-features = true    # CLI tools for runtime benchmarking
+frame-benchmarking-cli.workspace = true          # Use workspace version
+
+# === Metadata and Extensions ===
+frame-metadata-hash-extension.default-features = true # Metadata hash extension
+frame-metadata-hash-extension.workspace = true       # Use workspace version
+
+# === FRAME System ===
+frame-system.default-features = true            # FRAME system module
+frame-system.workspace = true                   # Use workspace version
+
+# === Async and Futures ===
+futures = { features = ["thread-pool"], workspace = true } # Asynchronous programming utilities
+tokio = { version = "1.0", features = ["full"] } # Async runtime
+
+# === Logging ===
+log = "0.4" # Logging framework
+env_logger = "0.10" # Environment-based logger
+atty = "0.2" # Terminal detection for color support
+
+# === Lifecycle Tracing ===
+once_cell = "1.19" # Lazy static initialization
+toml = "0.8" # TOML configuration parsing
+
+# === JSON-RPC ===
+jsonrpsee = { features = ["server", "http-client"], workspace = true }    # JSON-RPC server implementation
+serde_json = { workspace = true }
+# === Pallet Transaction Payment ===
+pallet-transaction-payment-rpc.default-features = true # RPC for transaction payment pallet
+pallet-transaction-payment-rpc.workspace = true       # Use workspace version
+pallet-transaction-payment.default-features = true    # Transaction payment pallet
+pallet-transaction-payment.workspace = true           # Use workspace version
+
+# === Substrate Core Components ===
+sc-basic-authorship.default-features = true # Basic authorship logic for block production
+sc-basic-authorship.workspace = true        # Use workspace version
+sc-cli.default-features = true              # Substrate CLI utilities
+sc-cli.workspace = true                     # Use workspace version
+sc-client-api.default-features = true       # Substrate client API
+sc-client-api.workspace = true              # Use workspace version
+sc-consensus.default-features = true        # General consensus utilities
+sc-consensus.workspace = true               # Use workspace version
+sp-consensus.default-features = true        # General consensus utilities
+sp-consensus.workspace = true               # Use workspace version
+sc-executor.default-features = true         # Substrate executor
+sc-executor.workspace = true                # Use workspace version
+sc-network = { workspace = true, default-features = false }
+sc-network-types = { workspace = true, default-features = false }
+sc-network-gossip = { workspace = true }
+sc-offchain.default-features = true         # Offchain worker utilities
+sc-offchain.workspace = true                # Use workspace version
+sc-service.default-features = true          # Substrate service utilities
+sc-service.workspace = true                 # Use workspace version
+sc-telemetry.default-features = true        # Telemetry support
+sc-telemetry.workspace = true               # Use workspace version
+sc-transaction-pool-api.default-features = true # Transaction pool API
+sc-transaction-pool-api.workspace = true    # Use workspace version
+sc-transaction-pool.default-features = true # Transaction pool implementation
+sc-transaction-pool.workspace = true        # Use workspace version
+
+# === Runtime ===
+cerulea-runtime.workspace = true                # CBC runtime
+cerulea-consensus = { path = "src/cerulea-consensus" } # CBC consensus implementation
+
+# === Substrate Primitives ===
+sp-api.default-features = true              # Substrate API primitives
+sp-api.workspace = true                     # Use workspace version
+sp-block-builder.default-features = true    # Block builder primitives
+sp-block-builder.workspace = true           # Use workspace version
+sp-blockchain.default-features = true       # Blockchain primitives
+sp-blockchain.workspace = true              # Use workspace version
+sp-core.default-features = true             # Core Substrate primitives
+sp-core.workspace = true                    # Use workspace version
+sp-genesis-builder.default-features = true  # Genesis block builder
+sp-genesis-builder.workspace = true         # Use workspace version
+sp-inherents.default-features = true        # Inherent data primitives
+sp-inherents.workspace = true               # Use workspace version
+sp-io.default-features = true               # Substrate I/O primitives
+sp-io.workspace = true                      # Use workspace version
+sp-keyring.default-features = true          # Keyring for testing and development
+sp-keyring.workspace = true                 # Use workspace version
+sp-runtime.default-features = true          # Runtime primitives
+sp-runtime.workspace = true                 # Use workspace version
+sp-timestamp.default-features = true        # Timestamp pallet primitives
+sp-timestamp.workspace = true               # Use workspace version
+
+# === RPC System ===
+substrate-frame-rpc-system.default-features = true # FRAME RPC system
+substrate-frame-rpc-system.workspace = true       # Use workspace version
+
+[dev-dependencies]
+proptest = "1.0"
+env_logger = "0.10"
+tokio-test = "0.4"
+serde_json = { workspace = true }
+tempfile = "3.0"
+rand = "0.8"
+
+[build-dependencies]
+# === Build Script Utilities ===
+substrate-build-script-utils.default-features = true # Utilities for build scripts
+substrate-build-script-utils.workspace = true       # Use workspace version
+
+[features]
+# === Default Features ===
+default = ["std"]                      # Default feature set includes standard library support
+std = ["cerulea-runtime/std"]              # Enable standard library support for the runtime
+
+# === Runtime Benchmarking ===
+runtime-benchmarks = [
+    "frame-benchmarking-cli/runtime-benchmarks", # Enable runtime benchmarking for CLI
+    "frame-system/runtime-benchmarks",          # Enable runtime benchmarking for FRAME system
+    "pallet-transaction-payment/runtime-benchmarks", # Enable runtime benchmarking for transaction payment pallet
+    "sc-service/runtime-benchmarks",            # Enable runtime benchmarking for Substrate service
+    "cerulea-runtime/runtime-benchmarks",           # Enable runtime benchmarking for CBC runtime
+    "sp-runtime/runtime-benchmarks",            # Enable runtime benchmarking for runtime primitives
+]
+
+# === Try Runtime ===
+try-runtime = [
+    "frame-system/try-runtime",                 # Enable try-runtime for FRAME system
+    "pallet-transaction-payment/try-runtime",   # Enable try-runtime for transaction payment pallet
+    "cerulea-runtime/try-runtime",                  # Enable try-runtime for CBC runtime
+    "sp-runtime/try-runtime",                   # Enable try-runtime for runtime primitives
+]
+
+

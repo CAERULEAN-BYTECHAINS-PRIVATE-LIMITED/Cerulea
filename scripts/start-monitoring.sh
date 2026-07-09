@@ -56,7 +56,7 @@ if docker-compose -f docker-compose.monitoring.yml ps | grep -q "Up"; then
     echo "   Prometheus: http://localhost:9090"
     echo ""
     echo "Next steps:"
-    echo "   1. Start your CBC node with: ./target/release/cbc-node --dev --prometheus-external"
+    echo "   1. Start your CBC node with: ./target/release/cerulea-node --dev --prometheus-external"
     echo "   2. Open Grafana and navigate to 'CBC Consensus Dashboard'"
     echo "   3. If no data appears, check the troubleshooting section in docs/grafana-setup-guide.md"
     echo "   4. To reset all data (e.g. after restarting chain), use: ./start-monitoring.sh --fresh"
