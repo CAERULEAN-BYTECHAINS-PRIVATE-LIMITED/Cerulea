@@ -11,7 +11,7 @@ tasks:
   domain: chain
   model: opus
   priority: 1
-  status: running
+  status: blocked
   attempts: 3
   depends_on: []
   owns:
@@ -424,3 +424,66 @@ tasks:
   - docs/COHERENCE.md updated with dated findings
   - corrective tasks appended for every material finding
   - a fresh coherence sweep task appended for the next day
+- id: audit-chain-diagnose
+  title: Diagnose repeated failure of audit-chain
+  domain: chain
+  model: opus
+  priority: 1
+  status: pending
+  attempts: 0
+  depends_on: []
+  spec: "Task audit-chain failed 3 times.\n\nOriginal spec:\nRead the chain codebase in full. It is roughly\
+    \ 60000 lines of Rust across\ncerulea-node, cerulea-runtime, and four pallets (dcf, poi, pos, dvf),\
+    \ with\na custom consensus engine under cerulea-node/src/cerulea-consensus.\n\nProduce docs/AUDIT_CHAIN.md\
+    \ covering:\n1. Module map. What each crate and pallet actually does.\n2. The DCF consensus path end\
+    \ to end: block authoring, the PoS weighted 65\n   and Proof of Inference weighted 35 selection, vote\
+    \ aggregation, and\n   justification building for finality.\n3. Every issue listed in docs/CONSENSUS_BUGS.md,\
+    \ cross referenced against\n   the current code. State for each whether it is still present, fixed,\
+    \ or\n   unclear, with file and line evidence.\n4. Safety analysis of the finality gadget. Specifically:\
+    \ can a validator\n   equivocate, can the chain fork under a network partition, what happens\n   if\
+    \ more than one third of validators are offline, and is there any\n   unbounded loop or panic reachable\
+    \ from a network message.\n5. Test coverage gaps, ranked by risk.\n6. A prioritized remediation list.\n\
+    \nDo not change code. This task produces one document.\n\n\nLast failure output:\n=== cargo fmt check\
+    \ ===\nFAIL: cargo fmt check\n=== cargo clippy ===\nFAIL: cargo clippy\n=== cargo test ===\nFAIL:\
+    \ cargo test\n=== cargo build ===\nFAIL: cargo build\n=== security gate ===\nFAIL: security gate\n\
+    === guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
+    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
+    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
+    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
+    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
+    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
+    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
+    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
+    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
+    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
+    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
+    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
+    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
+    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
+    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
+    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
+    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
+    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
+    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
+    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
+    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
+    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
+    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
+    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
+    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
+    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
+    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
+    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
+    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
+    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
+    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
+    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
+    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
+    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n\
+    \n\nDetermine whether the specification is wrong, a dependency is missing, or the work is genuinely\
+    \ hard. Then either rewrite the task spec in tasks.yaml, insert the missing prerequisite task, or\
+    \ mark it blocked with a written explanation for the founder. Do not attempt the original task yourself."
+  done_when:
+  - tasks.yaml updated with a corrected plan or a written block reason
+  owns:
+  - tasks.yaml
