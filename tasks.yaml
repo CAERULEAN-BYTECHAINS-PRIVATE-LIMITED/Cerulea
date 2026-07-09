@@ -623,8 +623,8 @@ tasks:
   domain: devops
   model: opus
   priority: 1
-  status: failed
-  attempts: 1
+  status: running
+  attempts: 2
   depends_on: []
   spec: "Task ci-pipeline failed 3 times.\n\nOriginal spec:\nCreate GitHub Actions workflows that run\
     \ on every pull request to develop\nand to main.\n\nci.yml: rust fmt check, clippy with warnings denied,\
