@@ -1,0 +1,52 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Build output
+/.next/
+/out/
+/build
+
+# Turborepo
+.turbo
+build
+dist
+
+# Next.js
+.next
+next-env.d.ts
+
+# Local environment variables
+.env*.local
+.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test output
+/coverage
+
+# IDEs and editors
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System files
+.DS_Store
+Thumbs.db
+
+
+apps/frontend/.data/
+*.sqlite
+*.sqlite3
+*.db

@@ -1,0 +1,39 @@
+{
+  "dapp": [
+    {"id":"trigger.user","kind":"trigger","label":"Trigger: User Action","configSchema":{"event":{"type":"enum","values":["click","submit","routeEnter"]}}},
+    {"id":"trigger.webhook","kind":"trigger","label":"Trigger: Webhook","configSchema":{"path":{"type":"string"},"secret":{"type":"string"}}},
+
+    {"id":"data.read","kind":"data","label":"Data: Read","configSchema":{"entity":{"type":"entity"},"where":{"type":"json"}}},
+    {"id":"data.create","kind":"data","label":"Data: Create","configSchema":{"entity":{"type":"entity"},"values":{"type":"json"}}},
+    {"id":"data.update","kind":"data","label":"Data: Update","configSchema":{"entity":{"type":"entity"},"where":{"type":"json"},"values":{"type":"json"}}},
+    {"id":"data.delete","kind":"data","label":"Data: Delete","configSchema":{"entity":{"type":"entity"},"where":{"type":"json"}}},
+
+    {"id":"control.if","kind":"control","label":"Control: If","configSchema":{"expr":{"type":"typescript"}}},
+    {"id":"control.foreach","kind":"control","label":"Control: ForEach","configSchema":{"list":{"type":"ref"},"var":{"type":"string"}}},
+
+    {"id":"integration.http","kind":"integration","label":"Integration: HTTP","configSchema":{"method":{"type":"enum","values":["GET","POST","PUT","PATCH","DELETE"]},"url":{"type":"string"},"headers":{"type":"json"},"body":{"type":"json"}}},
+
+    {"id":"chain.transfer","kind":"chain","label":"Blockchain: Transfer","configSchema":{"to":{"type":"address"},"amount":{"type":"number"},"asset":{"type":"string"}}},
+
+    {"id":"email.send","kind":"integration","label":"Email: Send","configSchema":{"provider":{"type":"enum","values":["resend","ses","sendgrid"]},"to":{"type":"string"},"subject":{"type":"string"},"html":{"type":"text"}}},
+    {"id":"notify.push","kind":"integration","label":"Notification: Push","configSchema":{"channel":{"type":"enum","values":["fcm","onesignal"]},"target":{"type":"string"},"payload":{"type":"json"}}},
+    {"id":"storage.pin","kind":"integration","label":"Storage: Pin to IPFS","configSchema":{"fileRef":{"type":"ref"},"pinName":{"type":"string"}}},
+    {"id":"oracle.price","kind":"integration","label":"Oracle: Price Feed","configSchema":{"symbol":{"type":"string"},"chain":{"type":"string"}}}
+  ],
+  "blockchain": [
+    {"id":"trigger.block","kind":"trigger","label":"Trigger: New Block","configSchema":{"everyN":{"type":"number"}}},
+    {"id":"trigger.extrinsic","kind":"trigger","label":"Trigger: Extrinsic Received","configSchema":{"call":{"type":"string"}}},
+
+    {"id":"runtime.validate","kind":"runtime","label":"Runtime: Validate Tx","configSchema":{"typescript":{"type":"typescript"}}},
+    {"id":"runtime.execute","kind":"runtime","label":"Runtime: Execute Tx","configSchema":{"typescript":{"type":"typescript"}}},
+
+    {"id":"state.read","kind":"state","label":"State: Read","configSchema":{"key":{"type":"string"}}},
+    {"id":"state.write","kind":"state","label":"State: Write","configSchema":{"key":{"type":"string"},"value":{"type":"json"}}},
+
+    {"id":"fees.calculate","kind":"runtime","label":"Fees: Calculate","configSchema":{"typescript":{"type":"typescript"}}},
+    {"id":"rewards.distribute","kind":"runtime","label":"Rewards: Distribute","configSchema":{"typescript":{"type":"typescript"}}},
+
+    {"id":"bridge.lock","kind":"chain","label":"Bridge: Lock","configSchema":{"asset":{"type":"string"},"amount":{"type":"number"},"remoteChain":{"type":"string"}}},
+    {"id":"bridge.mint","kind":"chain","label":"Bridge: Mint","configSchema":{"asset":{"type":"string"},"amount":{"type":"number"},"recipient":{"type":"address"}}}
+  ]
+}

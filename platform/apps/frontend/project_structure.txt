@@ -1,0 +1,235 @@
+├── .data
+│   └── cerulea.sqlite
+├── .turbo
+│   └── turbo-build.log
+├── apps
+│   └── frontend
+│       └── data
+│           ├── cerulea.db
+│           ├── cerulea.db-shm
+│           └── cerulea.db-wal
+├── drizzle
+│   ├── meta
+│   │   ├── _journal.json
+│   │   └── 0000_snapshot.json
+│   └── 0000_mute_mimic.sql
+├── public
+│   ├── media
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── scripts
+│   ├── fix-step-dupes.cjs
+│   ├── list-api-routes.mjs
+│   ├── now-audit.js
+│   └── now-audit.sh
+├── sqlite
+│   ├── data.db
+│   ├── data.db-shm
+│   └── data.db-wal
+├── src
+│   ├── app
+│   │   ├── _studio
+│   │   │   ├── shell
+│   │   │   │   ├── StepRegistry.tsx
+│   │   │   │   ├── StudioFooter.tsx
+│   │   │   │   ├── StudioHeader.tsx
+│   │   │   │   ├── StudioShell.tsx
+│   │   │   │   └── types.ts
+│   │   │   └── StudioEntry.tsx
+│   │   ├── api
+│   │   │   ├── ai
+│   │   │   │   └── threads
+│   │   │   │       ├── [id]
+│   │   │   │       │   └── messages
+│   │   │   │       │       └── route.ts
+│   │   │   │       └── route.ts
+│   │   │   ├── auth
+│   │   │   │   ├── [...nextauth]
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── forgot-password
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── register
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── reset-password
+│   │   │   │       └── route.ts
+│   │   │   ├── blocks
+│   │   │   │   └── route.ts
+│   │   │   ├── compile
+│   │   │   │   └── solidity
+│   │   │   │       └── route.ts
+│   │   │   ├── dbcheck
+│   │   │   │   └── route.ts
+│   │   │   ├── drafts
+│   │   │   │   └── [[...slug]]
+│   │   │   │       └── route.ts
+│   │   │   ├── module-presets
+│   │   │   │   └── route.ts
+│   │   │   ├── modules
+│   │   │   │   └── route.ts
+│   │   │   ├── presets
+│   │   │   │   ├── modules
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── templates
+│   │   │   │       └── route.ts
+│   │   │   ├── projects
+│   │   │   │   ├── [id]
+│   │   │   │   │   ├── blueprint
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── draft
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── logic
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── schema
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── scripts
+│   │   │   │   └── compile
+│   │   │   │       └── route.ts
+│   │   │   ├── solc
+│   │   │   │   └── compile
+│   │   │   │       └── route.ts
+│   │   │   ├── static
+│   │   │   │   ├── logic-palette
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── module-entity-presets
+│   │   │   │       └── route.ts
+│   │   │   ├── templates
+│   │   │   │   ├── New Text Document.txt
+│   │   │   │   └── route.ts
+│   │   │   ├── tools
+│   │   │   │   ├── solc
+│   │   │   │   │   └── compile
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── ts
+│   │   │   │       └── compile
+│   │   │   │           └── route.ts
+│   │   │   └── workspaces
+│   │   │       └── route.ts
+│   │   ├── app
+│   │   │   └── [slug]
+│   │   │       └── page.tsx
+│   │   ├── auth
+│   │   │   ├── forgot-password
+│   │   │   │   └── page.tsx
+│   │   │   ├── login
+│   │   │   │   ├── LoginClient.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── register
+│   │   │   │   └── page.tsx
+│   │   │   └── reset-password
+│   │   │       ├── page.tsx
+│   │   │       └── ResetPasswordClient.tsx
+│   │   ├── dashboard
+│   │   │   ├── loading.tsx
+│   │   │   └── page.tsx
+│   │   ├── settings
+│   │   │   └── profile
+│   │   │       └── page.tsx
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── page.module.css
+│   │   ├── page.tsx
+│   │   └── providers.tsx
+│   ├── components
+│   │   ├── AI
+│   │   │   └── Assistant.tsx
+│   │   ├── common
+│   │   │   ├── AutosaveBadge.tsx
+│   │   │   └── InfoTooltip.tsx
+│   │   ├── landing
+│   │   │   └── Hero.tsx
+│   │   ├── shared
+│   │   │   └── InfoTooltip.tsx
+│   │   ├── studio
+│   │   │   ├── backup of steps
+│   │   │   │   ├── module-entity-presets.json
+│   │   │   │   ├── step0.tsx
+│   │   │   │   └── step1.tsx
+│   │   │   ├── common
+│   │   │   │   └── PropertiesDrawer.tsx
+│   │   │   ├── custom
+│   │   │   │   └── CustomScriptPanel.tsx
+│   │   │   ├── flow
+│   │   │   │   └── FlowCanvasCompat.tsx
+│   │   │   ├── logic
+│   │   │   │   ├── Logic_old.tsx
+│   │   │   │   ├── LogicCanvas.tsx
+│   │   │   │   ├── PropertiesDrawer.tsx
+│   │   │   │   └── RelationshipCanvas.tsx
+│   │   │   ├── relationships
+│   │   │   │   ├── relationship_old.tsx
+│   │   │   │   └── RelationshipCanvas.tsx
+│   │   │   ├── steps
+│   │   │   │   ├── step0.tsx
+│   │   │   │   ├── step1.tsx
+│   │   │   │   ├── step2.tsx
+│   │   │   │   ├── step3.tsx
+│   │   │   │   ├── step4.tsx
+│   │   │   │   ├── step5.tsx
+│   │   │   │   └── step6.tsx
+│   │   │   └── StyledComponents.tsx
+│   │   ├── Theme
+│   │   │   └── Background.tsx
+│   │   ├── ui
+│   │   │   └── GlassPanel.tsx
+│   │   ├── AuthGate.tsx
+│   │   ├── NavBar.tsx
+│   │   ├── StepperNav.tsx
+│   │   └── UserMenu.tsx
+│   ├── config
+│   │   └── templates.ts
+│   ├── context
+│   │   └── StudioContext.tsx
+│   ├── data
+│   │   ├── blocks.seed.json
+│   │   ├── logic-palette.seed.json
+│   │   ├── module-entity-presets.json
+│   │   ├── modules.seed.json
+│   │   ├── template-presets.json
+│   │   └── templates.seed.json
+│   ├── db
+│   │   ├── client.ts
+│   │   ├── index.ts
+│   │   └── schema.ts
+│   ├── hooks
+│   │   └── useAutoSave.ts
+│   ├── lib
+│   │   ├── apiClient.ts
+│   │   ├── auth.ts
+│   │   ├── email.ts
+│   │   ├── idb.ts
+│   │   ├── passwords.ts
+│   │   ├── saveToBackend.ts
+│   │   ├── slug.ts
+│   │   ├── sqlite.ts
+│   │   └── useAutoSave.ts
+│   ├── modules
+│   │   └── module-registry.ts
+│   ├── server
+│   │   └── db
+│   │       ├── queries.ts
+│   │       └── sqlite.ts
+│   ├── theme
+│   │   └── theme.ts
+│   └── module-entity-presets.json
+├── var
+│   └── data
+│       ├── cerulea.db
+│       ├── cerulea.db-shm
+│       └── cerulea.db-wal
+├── .env.local
+├── drizzle.config.ts
+├── How to run.txt
+├── map_project.js
+├── middleware.ts
+├── next-env.d.ts
+├── next.config.js
+├── package-lock.json
+├── package.json
+├── package.json.bak
+├── README.md
+└── tsconfig.json

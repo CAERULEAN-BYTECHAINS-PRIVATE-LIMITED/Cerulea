@@ -1,0 +1,64 @@
+{
+  "dapp": {
+    "erc20": {
+      "entities": [
+        { "name": "Token", "fields": [{"name":"id","type":"string","required":true},{"name":"symbol","type":"string"},{"name":"decimals","type":"number"},{"name":"totalSupply","type":"bigint"}] },
+        { "name": "Allowance", "fields": [{"name":"id","type":"string","required":true},{"name":"owner","type":"address"},{"name":"spender","type":"address"},{"name":"amount","type":"bigint"}] }
+      ]
+    },
+    "erc721": {
+      "entities": [
+        { "name": "NFT", "fields": [{"name":"id","type":"string","required":true},{"name":"tokenId","type":"bigint"},{"name":"owner","type":"address"},{"name":"uri","type":"string"}] },
+        { "name": "Collection", "fields": [{"name":"id","type":"string","required":true},{"name":"name","type":"string"},{"name":"symbol","type":"string"}] }
+      ],
+      "relationships": [
+        { "from":"NFT", "to":"Collection", "cardinality":"N-1", "label":"belongs_to" }
+      ]
+    },
+    "marketplace": {
+      "entities": [
+        { "name":"User", "fields":[{"name":"id","type":"string","required":true},{"name":"address","type":"address","unique":true}]},
+        { "name":"Listing", "fields":[{"name":"id","type":"string","required":true},{"name":"seller","type":"address"},{"name":"price","type":"decimal"},{"name":"status","type":"enum:s,ACTIVE,CLOSED"}]},
+        { "name":"Order", "fields":[{"name":"id","type":"string","required":true},{"name":"buyer","type":"address"},{"name":"total","type":"decimal"}]}
+      ],
+      "relationships": [
+        { "from":"Listing","to":"User","cardinality":"N-1","label":"listed_by" },
+        { "from":"Order","to":"User","cardinality":"N-1","label":"ordered_by" }
+      ]
+    },
+    "payments": {
+      "entities": [
+        { "name":"Payment", "fields":[{"name":"id","type":"string","required":true},{"name":"provider","type":"string"},{"name":"amount","type":"decimal"},{"name":"currency","type":"string"},{"name":"status","type":"string"}] }
+      ]
+    }
+  },
+  "blockchain": {
+    "staking": {
+      "entities": [
+        { "name":"Validator", "fields":[{"name":"id","type":"string","required":true},{"name":"address","type":"address"},{"name":"commission","type":"decimal"},{"name":"active","type":"boolean"}] },
+        { "name":"Delegation", "fields":[{"name":"id","type":"string","required":true},{"name":"delegator","type":"address"},{"name":"validatorId","type":"string"},{"name":"amount","type":"bigint"}] }
+      ],
+      "relationships": [
+        { "from":"Delegation","to":"Validator","cardinality":"N-1","label":"delegated_to" }
+      ]
+    },
+    "governance": {
+      "entities": [
+        { "name":"Proposal", "fields":[{"name":"id","type":"string","required":true},{"name":"title","type":"string"},{"name":"status","type":"string"}] },
+        { "name":"Vote", "fields":[{"name":"id","type":"string","required":true},{"name":"proposalId","type":"string"},{"name":"voter","type":"address"},{"name":"choice","type":"string"}] }
+      ],
+      "relationships": [
+        { "from":"Vote","to":"Proposal","cardinality":"N-1","label":"for" }
+      ]
+    },
+    "runtime": {
+      "entities": [
+        { "name":"Block", "fields":[{"name":"id","type":"string","required":true},{"name":"number","type":"bigint"},{"name":"hash","type":"bytes"},{"name":"timestamp","type":"datetime"}] },
+        { "name":"Transaction", "fields":[{"name":"id","type":"string","required":true},{"name":"from","type":"address"},{"name":"to","type":"address"},{"name":"method","type":"string"},{"name":"success","type":"boolean"}] }
+      ],
+      "relationships": [
+        { "from":"Transaction","to":"Block","cardinality":"N-1","label":"included_in" }
+      ]
+    }
+  }
+}

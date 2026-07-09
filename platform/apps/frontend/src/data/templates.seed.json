@@ -1,0 +1,1318 @@
+{
+  "version": 1,
+  "updatedAt": "2025-09-29T00:00:00.000Z",
+  "templates": [
+    {
+      "id": "dapp-crypto-wallet",
+      "projectType": "dapp",
+      "title": "Crypto Wallet",
+      "description": "User wallets with balances, transfers, token lists, and activity history.",
+      "tags": ["wallet", "tokens", "transfers", "profiles"],
+      "preinstalledModules": ["wallet-auth", "profiles", "erc20", "notifications", "analytics", "audit-logs", "rate-limit"],
+      "modules": ["wallet-auth", "profiles", "erc20", "notifications", "analytics", "audit-logs", "rate-limit", "aa-policy-wallet", "paymaster"],
+      "edges": [
+        { "from": "erc20", "to": "analytics", "rel": "emits" },
+        { "from": "wallet-auth", "to": "audit-logs", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Balances", "Transfer", "Tokens", "Activity"] }
+    },
+    {
+      "id": "dapp-nft-marketplace",
+      "projectType": "dapp",
+      "title": "NFT Marketplace",
+      "description": "Create, list, buy, and sell NFTs with royalties and drop tools.",
+      "tags": ["nft", "marketplace", "royalties", "drops"],
+      "preinstalledModules": ["erc721", "erc1155", "nft-mint", "royalties", "marketplace", "wallet-auth", "profiles", "ipfs", "analytics", "notifications", "emails", "rate-limit", "audit-logs"],
+      "modules": ["erc721", "erc1155", "nft-mint", "royalties", "marketplace", "wallet-auth", "profiles", "ipfs", "analytics", "notifications", "emails", "kyc", "auction-engine"],
+      "edges": [
+        { "from": "nft-mint", "to": "marketplace", "rel": "lists" },
+        { "from": "marketplace", "to": "royalties", "rel": "pays" }
+      ],
+      "ui": { "pages": ["Explore", "Collections", "Item", "Sell", "Profile"] }
+    },
+    {
+      "id": "dapp-defi-amm",
+      "projectType": "dapp",
+      "title": "DeFi DEX (AMM)",
+      "description": "Swap tokens with automated market makers, pools, and price oracles.",
+      "tags": ["defi", "amm", "swap", "oracles"],
+      "preinstalledModules": ["amm", "erc20", "oracles", "treasury", "wallet-auth", "analytics", "notifications"],
+      "modules": ["amm", "erc20", "oracles", "treasury", "wallet-auth", "analytics", "notifications", "router-aggregator"],
+      "edges": [
+        { "from": "oracles", "to": "amm", "rel": "feeds" },
+        { "from": "amm", "to": "analytics", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Swap", "Pools", "Analytics"] }
+    },
+    {
+      "id": "dapp-lending-borrowing",
+      "projectType": "dapp",
+      "title": "Lending & Borrowing",
+      "description": "Overcollateralized money markets with interest rate models and liquidations.",
+      "tags": ["defi", "lending", "borrowing"],
+      "preinstalledModules": ["erc20", "wallet-auth", "analytics", "notifications"],
+      "modules": ["lending-pool", "erc20", "wallet-auth", "analytics", "notifications", "oracles", "liquidation-bot-hooks"],
+      "edges": [
+        { "from": "oracles", "to": "lending-pool", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Dashboard", "Markets", "My Positions"] }
+    },
+    {
+      "id": "dapp-stablecoin-issuer",
+      "projectType": "dapp",
+      "title": "Stablecoin Issuer",
+      "description": "Fiat/crypto-collateralized or algorithmic stablecoin with treasury policies.",
+      "tags": ["stablecoin", "payments", "treasury"],
+      "preinstalledModules": ["erc20", "wallet-auth", "kyc", "analytics", "notifications"],
+      "modules": ["stablecoin-minter", "peg-controller", "erc20", "treasury", "wallet-auth", "kyc", "analytics", "notifications", "oracles"],
+      "edges": [
+        { "from": "oracles", "to": "peg-controller", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Mint/Redeem", "Reserves", "Policies"] }
+    },
+    {
+      "id": "dapp-derivatives-exchange",
+      "projectType": "dapp",
+      "title": "Derivatives Exchange",
+      "description": "Perpetuals/options with margin, funding, and risk engines.",
+      "tags": ["derivatives", "perps", "options", "defi"],
+      "preinstalledModules": ["erc20", "oracles", "wallet-auth", "analytics", "notifications"],
+      "modules": ["perps-engine", "options-engine", "erc20", "oracles", "wallet-auth", "analytics", "notifications"],
+      "edges": [
+        { "from": "oracles", "to": "perps-engine", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Trade", "Positions", "Risk"] }
+    },
+    {
+      "id": "dapp-prediction-markets",
+      "projectType": "dapp",
+      "title": "Prediction Markets",
+      "description": "Scalar and categorical markets with resolvers and dispute rounds.",
+      "tags": ["markets", "prediction", "oracle"],
+      "preinstalledModules": ["oracles", "wallet-auth", "profiles", "analytics", "notifications"],
+      "modules": ["prediction-market", "oracles", "wallet-auth", "profiles", "analytics", "notifications"],
+      "edges": [
+        { "from": "oracles", "to": "prediction-market", "rel": "resolves" }
+      ],
+      "ui": { "pages": ["Markets", "My Bets", "Create"] }
+    },
+    {
+      "id": "dapp-insurance-mutual",
+      "projectType": "dapp",
+      "title": "Insurance Mutual",
+      "description": "Parametric triggers, underwriting pools, and claims workflow.",
+      "tags": ["insurance", "parametric", "defi"],
+      "preinstalledModules": ["oracles", "treasury", "proposals", "voting", "wallet-auth", "notifications"],
+      "modules": ["insurance-parametric", "oracles", "treasury", "proposals", "voting", "wallet-auth", "analytics", "notifications"],
+      "edges": [
+        { "from": "oracles", "to": "insurance-parametric", "rel": "triggers" }
+      ],
+      "ui": { "pages": ["Policies", "Claims", "Governance"] }
+    },
+    {
+      "id": "dapp-crowdfunding-launchpad",
+      "projectType": "dapp",
+      "title": "Crowdfunding / Launchpad",
+      "description": "Sale phases, vesting, allowlists, and milestone-based payouts.",
+      "tags": ["launchpad", "crowdfunding", "vesting"],
+      "preinstalledModules": ["erc20", "proposals", "treasury", "wallet-auth", "analytics", "notifications", "emails"],
+      "modules": ["token-sale-launchpad", "erc20", "proposals", "treasury", "wallet-auth", "analytics", "notifications", "emails"],
+      "edges": [
+        { "from": "token-sale-launchpad", "to": "treasury", "rel": "pays" }
+      ],
+      "ui": { "pages": ["Launches", "Buy", "Vesting"] }
+    },
+    {
+      "id": "dapp-grants-dao",
+      "projectType": "dapp",
+      "title": "Grants DAO",
+      "description": "Quadratic funding rounds, proposals, voting, and scheduled payouts.",
+      "tags": ["dao", "grants", "funding"],
+      "preinstalledModules": ["voting", "proposals", "treasury", "erc20", "wallet-auth", "emails", "notifications"],
+      "modules": ["voting", "proposals", "treasury", "erc20", "wallet-auth", "emails", "notifications", "quadratic-funding"],
+      "edges": [
+        { "from": "proposals", "to": "treasury", "rel": "executes" }
+      ],
+      "ui": { "pages": ["Proposals", "Rounds", "Treasury"] }
+    },
+    {
+      "id": "dapp-creator-platform",
+      "projectType": "dapp",
+      "title": "Creator Platform",
+      "description": "Mint/sell content, subscriptions, and royalty splits.",
+      "tags": ["creator", "subscriptions", "royalties"],
+      "preinstalledModules": ["erc721", "nft-mint", "royalties", "subscriptions", "wallet-auth", "profiles", "emails", "notifications", "ipfs"],
+      "modules": ["erc721", "nft-mint", "royalties", "subscriptions", "wallet-auth", "profiles", "emails", "notifications", "ipfs"],
+      "edges": [
+        { "from": "subscriptions", "to": "royalties", "rel": "pays" }
+      ],
+      "ui": { "pages": ["Discover", "Creator", "Subscribe"] }
+    },
+    {
+      "id": "dapp-social-app",
+      "projectType": "dapp",
+      "title": "Social App",
+      "description": "Profiles, social graph, feeds, comments, and messaging.",
+      "tags": ["social", "profiles", "chat"],
+      "preinstalledModules": ["profiles", "social-feed", "chat", "wallet-auth", "notifications", "rate-limit", "audit-logs"],
+      "modules": ["profiles", "social-feed", "chat", "wallet-auth", "notifications", "rate-limit", "audit-logs", "tipping-micropayments"],
+      "edges": [
+        { "from": "profiles", "to": "social-feed", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Feed", "Profile", "Messages"] }
+    }
+    ,
+    {
+      "id": "dapp-ticketing-passes",
+      "projectType": "dapp",
+      "title": "Ticketing & Passes",
+      "description": "Event tickets and access passes as NFTs with scans and resale royalties.",
+      "tags": ["tickets", "passes", "nft", "events"],
+      "preinstalledModules": ["erc721", "nft-mint", "royalties", "wallet-auth", "ipfs", "notifications", "analytics"],
+      "modules": ["erc721", "nft-mint", "royalties", "wallet-auth", "ipfs", "notifications", "analytics", "kyc"],
+      "edges": [
+        { "from": "nft-mint", "to": "erc721", "rel": "mints" },
+        { "from": "erc721", "to": "analytics", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Events", "My Passes", "Scan", "Resale"] }
+    },
+    {
+      "id": "dapp-education-certificates",
+      "projectType": "dapp",
+      "title": "Education & Certificates",
+      "description": "Issue and verify learner credentials as NFTs with verifiable metadata.",
+      "tags": ["education", "credentials", "nft"],
+      "preinstalledModules": ["erc721", "wallet-auth", "profiles", "emails", "notifications", "ipfs", "analytics"],
+      "modules": ["erc721", "wallet-auth", "profiles", "emails", "notifications", "ipfs", "analytics", "credential-issuer"],
+      "edges": [
+        { "from": "profiles", "to": "erc721", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Issue", "Verify", "Directory"] }
+    },
+    {
+      "id": "dapp-ecommerce-crypto",
+      "projectType": "dapp",
+      "title": "E-commerce + Crypto Checkout",
+      "description": "Storefront with crypto checkout and optional NFT receipts.",
+      "tags": ["commerce", "checkout", "nft", "payments"],
+      "preinstalledModules": ["marketplace", "fiat-onramp", "wallet-auth", "emails", "notifications", "analytics"],
+      "modules": ["marketplace", "fiat-onramp", "wallet-auth", "emails", "notifications", "analytics", "erc721"],
+      "edges": [
+        { "from": "marketplace", "to": "emails", "rel": "notifies" },
+        { "from": "marketplace", "to": "analytics", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Store", "Cart", "Checkout", "Orders"] }
+    },
+    {
+      "id": "dapp-rwa-tokenization",
+      "projectType": "dapp",
+      "title": "Real-World Asset Tokenization",
+      "description": "Tokenize assets (ERC-20/721) with compliance checks and treasury flows.",
+      "tags": ["rwa", "tokenization", "compliance"],
+      "preinstalledModules": ["erc20", "erc721", "wallet-auth", "kyc", "rbac", "treasury", "analytics", "notifications"],
+      "modules": ["erc20", "erc721", "wallet-auth", "kyc", "rbac", "treasury", "analytics", "notifications", "rwa-tokenization"],
+      "edges": [
+        { "from": "kyc", "to": "erc20", "rel": "gates" },
+        { "from": "treasury", "to": "analytics", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Assets", "Invest", "Compliance"] }
+    },
+    {
+      "id": "dapp-donations-charity",
+      "projectType": "dapp",
+      "title": "Donations & Charity Transparency",
+      "description": "Accept donations with public reports, receipts, and payouts.",
+      "tags": ["donations", "charity", "payouts"],
+      "preinstalledModules": ["treasury", "erc20", "wallet-auth", "analytics", "notifications", "emails"],
+      "modules": ["treasury", "erc20", "wallet-auth", "analytics", "notifications", "emails", "donations-splits"],
+      "edges": [
+        { "from": "treasury", "to": "emails", "rel": "notifies" }
+      ],
+      "ui": { "pages": ["Donate", "Impact", "Reports"] }
+    },
+    {
+      "id": "dapp-gaming-platform",
+      "projectType": "dapp",
+      "title": "Gaming Platform",
+      "description": "Player profiles, ERC-1155 items, marketplace hooks, and analytics.",
+      "tags": ["gaming", "items", "marketplace"],
+      "preinstalledModules": ["erc1155", "wallet-auth", "profiles", "marketplace", "analytics", "notifications"],
+      "modules": ["erc1155", "wallet-auth", "profiles", "marketplace", "analytics", "notifications", "vrf-randomness"],
+      "edges": [
+        { "from": "erc1155", "to": "marketplace", "rel": "lists" }
+      ],
+      "ui": { "pages": ["Inventory", "Market", "Profile"] }
+    },
+    {
+      "id": "dapp-analytics-dashboard",
+      "projectType": "dapp",
+      "title": "Analytics Dashboard dApp",
+      "description": "Auth, dashboards, alerts, and connectors; plug into any contracts later.",
+      "tags": ["analytics", "dashboards", "alerts"],
+      "preinstalledModules": ["analytics", "wallet-auth", "emails", "notifications", "audit-logs"],
+      "modules": ["analytics", "wallet-auth", "emails", "notifications", "audit-logs", "onchain-alerts"],
+      "edges": [
+        { "from": "analytics", "to": "emails", "rel": "alerts" }
+      ],
+      "ui": { "pages": ["Overview", "Dashboards", "Alerts"] }
+    },
+    {
+      "id": "dapp-oracle-board",
+      "projectType": "dapp",
+      "title": "Oracle Board / Data Feeds",
+      "description": "On-chain price and data feeds with alerting and dashboards.",
+      "tags": ["oracle", "data", "analytics"],
+      "preinstalledModules": ["oracles", "analytics", "wallet-auth", "notifications"],
+      "modules": ["oracles", "analytics", "wallet-auth", "notifications"],
+      "edges": [
+        { "from": "oracles", "to": "analytics", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Feeds", "Alerts", "Integrations"] }
+    },
+    {
+      "id": "dapp-kyc-community",
+      "projectType": "dapp",
+      "title": "KYC-Gated Community",
+      "description": "Gate access with KYC and roles; private spaces, profiles, and notices.",
+      "tags": ["kyc", "access", "community"],
+      "preinstalledModules": ["kyc", "wallet-auth", "rbac", "profiles", "notifications", "audit-logs"],
+      "modules": ["kyc", "wallet-auth", "rbac", "profiles", "notifications", "audit-logs"],
+      "edges": [
+        { "from": "kyc", "to": "rbac", "rel": "gates" }
+      ],
+      "ui": { "pages": ["Join", "Members", "Spaces"] }
+    },
+    {
+      "id": "dapp-subscriptions-app",
+      "projectType": "dapp",
+      "title": "Subscriptions / Paywall",
+      "description": "Recurring access for content or SaaS with on-chain receipts and email.",
+      "tags": ["subscriptions", "saas", "payments"],
+      "preinstalledModules": ["subscriptions", "erc20", "wallet-auth", "emails", "notifications", "analytics"],
+      "modules": ["subscriptions", "erc20", "wallet-auth", "emails", "notifications", "analytics", "fiat-onramp"],
+      "edges": [
+        { "from": "subscriptions", "to": "emails", "rel": "notifies" }
+      ],
+      "ui": { "pages": ["Plans", "Subscribe", "Billing"] }
+    },
+    {
+      "id": "dapp-file-backed-nfts",
+      "projectType": "dapp",
+      "title": "File-Backed NFTs (Media)",
+      "description": "Media on IPFS/Arweave, minting and royalties, viewer pages.",
+      "tags": ["storage", "nft", "media"],
+      "preinstalledModules": ["ipfs", "erc721", "nft-mint", "royalties", "wallet-auth", "notifications", "analytics"],
+      "modules": ["ipfs", "erc721", "nft-mint", "royalties", "wallet-auth", "notifications", "analytics"],
+      "edges": [
+        { "from": "ipfs", "to": "nft-mint", "rel": "stores" }
+      ],
+      "ui": { "pages": ["Gallery", "Mint", "Item"] }
+    },
+    {
+      "id": "dapp-services-marketplace",
+      "projectType": "dapp",
+      "title": "Services Marketplace",
+      "description": "Hire and get paid; listings, reviews, escrowed payouts.",
+      "tags": ["marketplace", "services", "escrow"],
+      "preinstalledModules": ["profiles", "wallet-auth", "marketplace", "notifications", "analytics"],
+      "modules": ["profiles", "wallet-auth", "marketplace", "notifications", "analytics", "escrow-reviews"],
+      "edges": [
+        { "from": "marketplace", "to": "notifications", "rel": "notifies" }
+      ],
+      "ui": { "pages": ["Browse", "Post a Job", "My Jobs"] }
+    },
+    {
+      "id": "dapp-blank",
+      "projectType": "dapp",
+      "title": "Blank dApp",
+      "description": "A clean slate. Auth and profiles included; add anything in Step 1.",
+      "tags": ["starter", "blank"],
+      "preinstalledModules": ["wallet-auth", "profiles", "notifications"],
+      "modules": ["wallet-auth", "profiles", "notifications"],
+      "edges": [],
+      "ui": { "pages": ["Home"] }
+    }
+    ,
+    {
+      "id": "chain-evm-poa",
+      "projectType": "blockchain",
+      "title": "Sovereign EVM (PoA)",
+      "description": "General-purpose private EVM chain with authority-based finality and a standard tool stack.",
+      "tags": ["evm", "poa", "private", "general-purpose"],
+      "preinstalledModules": ["consensus", "evm-config", "p2p", "genesis", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "p2p", "genesis", "rpc", "explorer", "fees", "metrics-monitoring", "api-gateway"],
+      "edges": [
+        { "from": "consensus", "to": "evm-config", "rel": "drives" },
+        { "from": "rpc", "to": "explorer", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Explorer", "RPC Console", "Network Status"] }
+    },
+    {
+      "id": "chain-staking-pos",
+      "projectType": "blockchain",
+      "title": "Staking Chain (PoS)",
+      "description": "Delegated staking with validator set management, rewards, and slashing policies.",
+      "tags": ["pos", "staking", "validators"],
+      "preinstalledModules": ["consensus", "validators", "tokenomics", "evm-config", "genesis", "p2p", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "validators", "tokenomics", "evm-config", "genesis", "p2p", "rpc", "explorer", "fees", "metrics-monitoring", "chain-params-governance"],
+      "edges": [
+        { "from": "validators", "to": "consensus", "rel": "governs" },
+        { "from": "fees", "to": "tokenomics", "rel": "funds" }
+      ],
+      "ui": { "pages": ["Validators", "Staking", "Blocks"] }
+    },
+    {
+      "id": "chain-consortium-evm",
+      "projectType": "blockchain",
+      "title": "Consortium EVM",
+      "description": "Multi-organization chain with curated validator governance and access policies.",
+      "tags": ["consortium", "governance", "evm"],
+      "preinstalledModules": ["consensus", "validators", "evm-config", "genesis", "p2p", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "validators", "evm-config", "genesis", "p2p", "rpc", "explorer", "fees", "chain-params-governance", "api-gateway"],
+      "edges": [
+        { "from": "validators", "to": "chain-params-governance", "rel": "manages" }
+      ],
+      "ui": { "pages": ["Members", "Validators", "Explorer"] }
+    },
+    {
+      "id": "chain-payments-ht",
+      "projectType": "blockchain",
+      "title": "High-Throughput Payments",
+      "description": "Payments-tuned chain with fast finality and fee controls for low-latency retail flows.",
+      "tags": ["payments", "throughput", "fees"],
+      "preinstalledModules": ["consensus", "evm-config", "fees", "p2p", "genesis", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "fees", "p2p", "genesis", "rpc", "explorer", "metrics-monitoring", "api-gateway"],
+      "edges": [
+        { "from": "fees", "to": "evm-config", "rel": "param" }
+      ],
+      "ui": { "pages": ["Explorer", "Mempool", "Fee Controls"] }
+    },
+    {
+      "id": "chain-supply-provenance",
+      "projectType": "blockchain",
+      "title": "Supply Chain Provenance",
+      "description": "Track-and-trace events with batch genealogy and permissioned read APIs.",
+      "tags": ["supply-chain", "provenance", "logistics"],
+      "preinstalledModules": ["consensus", "evm-config", "genesis", "stf", "p2p", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "genesis", "stf", "p2p", "rpc", "explorer", "traceability-ledger", "quality-recalls", "api-gateway"],
+      "edges": [
+        { "from": "stf", "to": "traceability-ledger", "rel": "validates" }
+      ],
+      "ui": { "pages": ["Lots & Batches", "Events", "Explorer"] }
+    },
+    {
+      "id": "chain-notary-timestamps",
+      "projectType": "blockchain",
+      "title": "Document Notarization",
+      "description": "Immutable timestamping and proof of existence for documents and records.",
+      "tags": ["notarization", "timestamping", "audit"],
+      "preinstalledModules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer", "provenance-notary"],
+      "edges": [
+        { "from": "stf", "to": "provenance-notary", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Notary", "Verify", "Explorer"] }
+    },
+    {
+      "id": "chain-identity-ssi",
+      "projectType": "blockchain",
+      "title": "Identity & Credentials (DID/VC)",
+      "description": "Ledgers for decentralized identity, credential issuance, and revocation.",
+      "tags": ["identity", "did", "vc", "credentials"],
+      "preinstalledModules": ["consensus", "evm-config", "genesis", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "genesis", "rpc", "explorer", "did-vc-ledger", "api-gateway"],
+      "edges": [
+        { "from": "did-vc-ledger", "to": "rpc", "rel": "exposes" }
+      ],
+      "ui": { "pages": ["Issuers", "Verify", "Explorer"] }
+    },
+    {
+      "id": "chain-enterprise-defi-l2",
+      "projectType": "blockchain",
+      "title": "Enterprise DeFi L2 (Private)",
+      "description": "Private EVM environment for internal markets with configurable fees and monitoring.",
+      "tags": ["defi", "l2", "enterprise"],
+      "preinstalledModules": ["consensus", "evm-config", "tokenomics", "fees", "p2p", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "tokenomics", "fees", "p2p", "rpc", "explorer", "metrics-monitoring", "api-gateway"],
+      "edges": [
+        { "from": "fees", "to": "tokenomics", "rel": "funds" }
+      ],
+      "ui": { "pages": ["Markets", "Explorer", "Metrics"] }
+    },
+    {
+      "id": "chain-gaming-sidechain",
+      "projectType": "blockchain",
+      "title": "Gaming Sidechain",
+      "description": "Low-fee, fast-finality chain for gaming workloads and asset economies.",
+      "tags": ["gaming", "sidechain", "low-fee"],
+      "preinstalledModules": ["consensus", "evm-config", "p2p", "genesis", "fees", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "p2p", "genesis", "fees", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "fees", "to": "evm-config", "rel": "param" }
+      ],
+      "ui": { "pages": ["Explorer", "Game Ops", "Metrics"] }
+    },
+    {
+      "id": "chain-iot-telemetry",
+      "projectType": "blockchain",
+      "title": "IoT / Telemetry Ledger",
+      "description": "Device identities and high-volume small payload attestations.",
+      "tags": ["iot", "telemetry", "devices"],
+      "preinstalledModules": ["consensus", "p2p", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "p2p", "evm-config", "stf", "rpc", "explorer", "device-attestation", "api-gateway"],
+      "edges": [
+        { "from": "device-attestation", "to": "stf", "rel": "validates" }
+      ],
+      "ui": { "pages": ["Devices", "Events", "Explorer"] }
+    },
+    {
+      "id": "chain-audit-compliance",
+      "projectType": "blockchain",
+      "title": "Audit & Compliance Ledger",
+      "description": "Tamper-evident event logging with retention and query tooling.",
+      "tags": ["audit", "compliance", "logging"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "indexer-sink", "api-gateway"],
+      "edges": [
+        { "from": "stf", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Streams", "Explorer", "Sinks"] }
+    },
+    {
+      "id": "chain-health-records",
+      "projectType": "blockchain",
+      "title": "Healthcare Records Anchor",
+      "description": "Anchoring for patient records with consented verification and audit trails.",
+      "tags": ["healthcare", "records", "audit"],
+      "preinstalledModules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer", "civil-registry", "evidence-chain"],
+      "edges": [
+        { "from": "evidence-chain", "to": "stf", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Providers", "Audit", "Explorer"] }
+    }
+    ,
+    {
+      "id": "chain-zk-rollup-l2",
+      "projectType": "blockchain",
+      "title": "Validity Rollup (ZK Rollup) L2",
+      "description": "Execution on L2 with validity proofs posted to L1; pluggable prover and DA adapters.",
+      "tags": ["rollup", "l2", "zk", "validity"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["rollup-sequencer", "rollup-prover", "rollup-batcher", "da-adapter-eth", "bridge-contracts-l1l2", "evm-config", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "rollup-sequencer", "to": "rollup-batcher", "rel": "batches" },
+        { "from": "rollup-prover", "to": "bridge-contracts-l1l2", "rel": "submits" }
+      ],
+      "ui": { "pages": ["L2 Explorer", "Sequencer", "Batches"] }
+    },
+    {
+      "id": "chain-optimistic-rollup-l2",
+      "projectType": "blockchain",
+      "title": "Optimistic Rollup L2",
+      "description": "Optimistic execution with fraud/fault proofs and challenge windows.",
+      "tags": ["rollup", "l2", "optimistic", "fraud-proofs"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["rollup-sequencer", "rollup-fault-proofs", "rollup-batcher", "da-adapter-eth", "bridge-contracts-l1l2", "evm-config", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "rollup-sequencer", "to": "rollup-batcher", "rel": "batches" },
+        { "from": "rollup-fault-proofs", "to": "bridge-contracts-l1l2", "rel": "challenges" }
+      ],
+      "ui": { "pages": ["L2 Explorer", "Sequencer", "Challenges"] }
+    },
+    {
+      "id": "chain-app-rollup-l3",
+      "projectType": "blockchain",
+      "title": "App-Chain Rollup (L3)",
+      "description": "Domain-specific rollup layered on an L2; slim execution with app-focused parameters.",
+      "tags": ["rollup", "l3", "app-chain"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["rollup-sequencer", "rollup-prover", "rollup-batcher", "bridge-contracts-l1l2", "evm-config", "rpc", "explorer", "api-gateway"],
+      "edges": [
+        { "from": "rollup-sequencer", "to": "rollup-batcher", "rel": "batches" }
+      ],
+      "ui": { "pages": ["Explorer", "App Params", "Sequencer"] }
+    },
+    {
+      "id": "chain-shared-sequencer",
+      "projectType": "blockchain",
+      "title": "Shared Sequencer Network",
+      "description": "Neutral sequencing layer for multiple rollups to reduce MEV and reorgs.",
+      "tags": ["sequencing", "mev", "interop"],
+      "preinstalledModules": ["p2p", "rpc", "explorer"],
+      "modules": ["shared-sequencer-adapter", "p2p", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "shared-sequencer-adapter", "to": "rpc", "rel": "exposes" }
+      ],
+      "ui": { "pages": ["Rollups", "Relays", "Metrics"] }
+    },
+    {
+      "id": "chain-pbs-mev",
+      "projectType": "blockchain",
+      "title": "PBS / MEV-Aware Chain",
+      "description": "Proposer–Builder Separation with relay integration and MEV policies.",
+      "tags": ["pbs", "mev", "builders"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["pbs-engine", "mev-relay-adapter", "consensus", "evm-config", "rpc", "explorer", "mempool-policy", "metrics-monitoring"],
+      "edges": [
+        { "from": "pbs-engine", "to": "mev-relay-adapter", "rel": "integrates" }
+      ],
+      "ui": { "pages": ["Blocks", "Builders", "Relays"] }
+    },
+    {
+      "id": "chain-fhe-first",
+      "projectType": "blockchain",
+      "title": "FHE-First Confidential Compute Chain",
+      "description": "Encrypted-state compute using FHE with aggregation/execution adapters.",
+      "tags": ["privacy", "fhe", "confidential-compute"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["fhe-executor", "evm-config", "rpc", "explorer", "privacy-compliance", "metrics-monitoring"],
+      "edges": [
+        { "from": "fhe-executor", "to": "evm-config", "rel": "hooks" }
+      ],
+      "ui": { "pages": ["Jobs", "Keys", "Explorer"] }
+    },
+    {
+      "id": "chain-data-availability",
+      "projectType": "blockchain",
+      "title": "Data Availability Chain",
+      "description": "Optimized for publishing and sampling large blobs of data for rollups.",
+      "tags": ["da", "rollups", "blobs"],
+      "preinstalledModules": ["p2p", "rpc", "explorer"],
+      "modules": ["da-adapter-celestia", "p2p", "rpc", "explorer", "metrics-monitoring", "api-gateway"],
+      "edges": [
+        { "from": "da-adapter-celestia", "to": "rpc", "rel": "exposes" }
+      ],
+      "ui": { "pages": ["Blobs", "Sampling", "Explorer"] }
+    },
+    {
+      "id": "chain-oracle-utility",
+      "projectType": "blockchain",
+      "title": "Oracle / Data Feeds Utility Chain",
+      "description": "Specialized network for publishing curated price and data feeds.",
+      "tags": ["oracle", "feeds", "data"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["oracles", "consensus", "evm-config", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "oracles", "to": "rpc", "rel": "exposes" }
+      ],
+      "ui": { "pages": ["Feeds", "Publishers", "Explorer"] }
+    },
+    {
+      "id": "chain-bridge-hub",
+      "projectType": "blockchain",
+      "title": "Cross-Chain Hub / Bridge Coordination Chain",
+      "description": "Hub for routing messages and assets across multiple chains with attestations.",
+      "tags": ["bridge", "interop", "xchain"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["bridge-contracts-l1l2", "xchain-messaging", "evm-config", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "xchain-messaging", "to": "bridge-contracts-l1l2", "rel": "routes" }
+      ],
+      "ui": { "pages": ["Routes", "Attestations", "Explorer"] }
+    },
+    {
+      "id": "chain-mpc-custody",
+      "projectType": "blockchain",
+      "title": "Key Custody / MPC Wallet Backbone",
+      "description": "Custodial backbone for multiparty key management and policy wallets.",
+      "tags": ["mpc", "custody", "wallets"],
+      "preinstalledModules": ["evm-config", "rpc", "explorer"],
+      "modules": ["mpc-wallet-kit", "aa-policy-wallet", "evm-config", "rpc", "explorer", "api-gateway"],
+      "edges": [
+        { "from": "mpc-wallet-kit", "to": "aa-policy-wallet", "rel": "controls" }
+      ],
+      "ui": { "pages": ["Wallets", "Policies", "Explorer"] }
+    },
+    {
+      "id": "chain-pki-ct",
+      "projectType": "blockchain",
+      "title": "PKI / Certificate Transparency Ledger",
+      "description": "Auditable registry of certificates and key events for Internet PKI.",
+      "tags": ["pki", "ct", "security"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["pki-ct-ledger", "consensus", "evm-config", "rpc", "explorer", "api-gateway"],
+      "edges": [
+        { "from": "pki-ct-ledger", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Certificates", "Monitors", "Explorer"] }
+    },
+    {
+      "id": "chain-research-reproducibility",
+      "projectType": "blockchain",
+      "title": "Scientific Reproducibility Ledger",
+      "description": "Methods, datasets, and results hashed with review/replication attestations.",
+      "tags": ["research", "science", "attestations"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["evidence-chain", "indexer-sink", "consensus", "evm-config", "rpc", "explorer", "api-gateway"],
+      "edges": [
+        { "from": "evidence-chain", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Studies", "Attestations", "Explorer"] }
+    }
+    ,
+    {
+      "id": "chain-land-title-registry",
+      "projectType": "blockchain",
+      "title": "Land & Property Registry",
+      "description": "Parcel records, transfers, liens, and title history with public verification.",
+      "tags": ["land", "property", "registry"],
+      "preinstalledModules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "genesis", "stf", "rpc", "explorer", "land-title-registry", "escrow-settlement", "api-gateway"],
+      "edges": [
+        { "from": "stf", "to": "land-title-registry", "rel": "validates" }
+      ],
+      "ui": { "pages": ["Parcels", "Transfers", "Explorer"] }
+    },
+    {
+      "id": "chain-voting-audit",
+      "projectType": "blockchain",
+      "title": "Voting & Auditable Tallies",
+      "description": "Auditable ballots with verifiable counts, proofs, and public results.",
+      "tags": ["voting", "ballots", "audit"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "e-voting-core", "api-gateway"],
+      "edges": [
+        { "from": "e-voting-core", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Elections", "Results", "Explorer"] }
+    },
+    {
+      "id": "chain-procurement-grants",
+      "projectType": "blockchain",
+      "title": "Public Procurement & Grants Transparency",
+      "description": "Open tenders, awards, and grants with immutable audit trails and documents.",
+      "tags": ["procurement", "grants", "transparency"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "procurement-ledger", "indexer-sink", "api-gateway"],
+      "edges": [
+        { "from": "procurement-ledger", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Tenders", "Awards", "Explorer"] }
+    },
+    {
+      "id": "chain-benefits-subsidy",
+      "projectType": "blockchain",
+      "title": "Benefits/Subsidy Disbursement Ledger",
+      "description": "Eligibility, approvals, and payout records with transparent reporting.",
+      "tags": ["benefits", "subsidy", "payouts"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "aid-disbursement", "kyc-utility-registry", "api-gateway"],
+      "edges": [
+        { "from": "kyc-utility-registry", "to": "aid-disbursement", "rel": "gates" }
+      ],
+      "ui": { "pages": ["Programs", "Beneficiaries", "Reports"] }
+    },
+    {
+      "id": "chain-court-evidence",
+      "projectType": "blockchain",
+      "title": "Court Records & Evidence Chain",
+      "description": "Evidence hashing and chain-of-custody with access logs and verification.",
+      "tags": ["court", "evidence", "audit"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "evidence-chain", "api-gateway"],
+      "edges": [
+        { "from": "evidence-chain", "to": "stf", "rel": "writes" }
+      ],
+      "ui": { "pages": ["Cases", "Submissions", "Explorer"] }
+    },
+    {
+      "id": "chain-carbon-credits",
+      "projectType": "blockchain",
+      "title": "Carbon Credits MRV & Registry",
+      "description": "Issuance, transfers, and retirements with measurement and verification records.",
+      "tags": ["carbon", "mrv", "registry"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "carbon-mrv", "indexer-sink", "api-gateway"],
+      "edges": [
+        { "from": "carbon-mrv", "to": "indexer-sink", "rel": "publishes" }
+      ],
+      "ui": { "pages": ["Credits", "Retirements", "Explorer"] }
+    },
+    {
+      "id": "chain-rec-registry",
+      "projectType": "blockchain",
+      "title": "Renewable Energy Certificates (REC)",
+      "description": "REC issuance, transfers, and retirements with auditable provenance.",
+      "tags": ["rec", "energy", "registry"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "rec-registry", "api-gateway"],
+      "edges": [
+        { "from": "rec-registry", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Issuance", "Transfers", "Explorer"] }
+    },
+    {
+      "id": "chain-p2p-energy",
+      "projectType": "blockchain",
+      "title": "P2P Energy Trading / Microgrids",
+      "description": "Metered production/consumption with P2P settlements and tariffs.",
+      "tags": ["energy", "p2p", "microgrid"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "p2p-energy-market", "api-gateway"],
+      "edges": [
+        { "from": "p2p-energy-market", "to": "stf", "rel": "settles" }
+      ],
+      "ui": { "pages": ["Meters", "Settlement", "Explorer"] }
+    },
+    {
+      "id": "chain-ev-charging",
+      "projectType": "blockchain",
+      "title": "EV Charging / Roaming Settlement",
+      "description": "Inter-operator charging events and roaming settlements.",
+      "tags": ["ev", "roaming", "settlement"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "roaming-clearing", "api-gateway"],
+      "edges": [
+        { "from": "roaming-clearing", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Sessions", "Settlements", "Explorer"] }
+    },
+    {
+      "id": "chain-realestate-registry",
+      "projectType": "blockchain",
+      "title": "Real Estate Registry & Escrow",
+      "description": "Property registry with escrowed settlements and compliance hooks.",
+      "tags": ["real-estate", "registry", "escrow"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "land-title-registry", "escrow-settlement", "kyc-utility-registry"],
+      "edges": [
+        { "from": "kyc-utility-registry", "to": "escrow-settlement", "rel": "gates" }
+      ],
+      "ui": { "pages": ["Properties", "Closings", "Explorer"] }
+    },
+    {
+      "id": "chain-construction-bim",
+      "projectType": "blockchain",
+      "title": "Construction Project Ledger (BIM Events)",
+      "description": "BIM milestones, change orders, and approvals with audit trails.",
+      "tags": ["construction", "bim", "projects"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "bim-events", "indexer-sink"],
+      "edges": [
+        { "from": "bim-events", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Projects", "Milestones", "Explorer"] }
+    },
+    {
+      "id": "chain-telecom-roaming",
+      "projectType": "blockchain",
+      "title": "Roaming & Interconnect Settlement",
+      "description": "CDR-based clearing and bilateral settlements among operators.",
+      "tags": ["telecom", "roaming", "settlement"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "roaming-clearing", "api-gateway"],
+      "edges": [
+        { "from": "roaming-clearing", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Operators", "Settlements", "Explorer"] }
+    },
+    {
+      "id": "chain-spectrum-number",
+      "projectType": "blockchain",
+      "title": "Spectrum/Number Allocation Registry",
+      "description": "Allocations, leases, and transfers for spectrum and numbering resources.",
+      "tags": ["spectrum", "numbers", "registry"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "spectrum-registry", "number-registry", "api-gateway"],
+      "edges": [
+        { "from": "spectrum-registry", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Allocations", "Leases", "Explorer"] }
+    },
+    {
+      "id": "chain-royalty-licensing",
+      "projectType": "blockchain",
+      "title": "Content Licensing & Royalty Chain",
+      "description": "Licensing registries, splits, and royalty clearing across participants.",
+      "tags": ["media", "royalties", "licensing"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "royalty-clearing", "api-gateway"],
+      "edges": [
+        { "from": "royalty-clearing", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Licenses", "Splits", "Explorer"] }
+    },
+    {
+      "id": "chain-ad-measurement",
+      "projectType": "blockchain",
+      "title": "Advertising Measurement & Anti-Fraud",
+      "description": "Impression and conversion attestation with anti-fraud signals.",
+      "tags": ["ads", "measurement", "anti-fraud"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "ad-measurement", "indexer-sink"],
+      "edges": [
+        { "from": "ad-measurement", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Signals", "Partners", "Explorer"] }
+    },
+    {
+      "id": "chain-loyalty-coalition",
+      "projectType": "blockchain",
+      "title": "Coalition Loyalty & Rewards Interop",
+      "description": "Shared ledger for earn/burn programs across multiple brands.",
+      "tags": ["loyalty", "rewards", "interop"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "loyalty-ledger", "api-gateway"],
+      "edges": [
+        { "from": "loyalty-ledger", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Programs", "Partners", "Explorer"] }
+    }
+    ,
+    {
+      "id": "chain-retail-warranty",
+      "projectType": "blockchain",
+      "title": "Warranty/Receipt & Returns Ledger",
+      "description": "Receipts, warranties, and return authorizations with auditable histories.",
+      "tags": ["retail", "warranty", "receipts"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "warranty-returns", "api-gateway"],
+      "edges": [
+        { "from": "warranty-returns", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Receipts", "Returns", "Explorer"] }
+    },
+    {
+      "id": "chain-marketplace-settlement",
+      "projectType": "blockchain",
+      "title": "Marketplace Settlement & Disputes",
+      "description": "Settlement clearing for multi-party marketplaces with escrow and disputes.",
+      "tags": ["marketplace", "settlement", "escrow"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "otc-rfq-ledger", "escrow-settlement", "api-gateway"],
+      "edges": [
+        { "from": "escrow-settlement", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Disputes", "Settlements", "Explorer"] }
+    },
+    {
+      "id": "chain-supply-inventory-visibility",
+      "projectType": "blockchain",
+      "title": "Supply & Inventory Visibility Network",
+      "description": "Shared stock levels and shipments across partners with permissions.",
+      "tags": ["supply-chain", "inventory", "visibility"],
+      "preinstalledModules": ["consensus", "evm-config", "p2p", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "p2p", "rpc", "explorer", "traceability-ledger", "indexer-sink", "api-gateway"],
+      "edges": [
+        { "from": "traceability-ledger", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Partners", "Inventory", "Explorer"] }
+    },
+    {
+      "id": "chain-agri-traceability",
+      "projectType": "blockchain",
+      "title": "Farm-to-Fork Traceability",
+      "description": "Produce origin, grades, and batch lineage with retailer verification.",
+      "tags": ["agriculture", "traceability", "grades"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "produce-grades", "traceability-ledger", "api-gateway"],
+      "edges": [
+        { "from": "produce-grades", "to": "traceability-ledger", "rel": "attests" }
+      ],
+      "ui": { "pages": ["Batches", "Certificates", "Explorer"] }
+    },
+    {
+      "id": "chain-agri-parametric-insurance",
+      "projectType": "blockchain",
+      "title": "Parametric Agri-Insurance",
+      "description": "Weather/oracle-triggered payouts with farmer enrollment and audits.",
+      "tags": ["agriculture", "insurance", "parametric"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "parametric-insurance", "oracles", "api-gateway"],
+      "edges": [
+        { "from": "oracles", "to": "parametric-insurance", "rel": "triggers" }
+      ],
+      "ui": { "pages": ["Policies", "Claims", "Explorer"] }
+    },
+    {
+      "id": "chain-agri-subsidy-ledger",
+      "projectType": "blockchain",
+      "title": "Subsidy/Benefit Distribution for Farmers",
+      "description": "Eligibility, disbursement, and audits for agricultural support programs.",
+      "tags": ["agriculture", "benefits", "subsidy"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "farm-subsidy-ledger", "kyc-utility-registry", "api-gateway"],
+      "edges": [
+        { "from": "kyc-utility-registry", "to": "farm-subsidy-ledger", "rel": "gates" }
+      ],
+      "ui": { "pages": ["Programs", "Beneficiaries", "Explorer"] }
+    },
+    {
+      "id": "chain-commodities-grades",
+      "projectType": "blockchain",
+      "title": "Commodities & Grades Registry",
+      "description": "Commodity lots with grade attestations, transfers, and audit trails.",
+      "tags": ["commodities", "grades", "registry"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "produce-grades", "indexer-sink"],
+      "edges": [
+        { "from": "produce-grades", "to": "stf", "rel": "validates" }
+      ],
+      "ui": { "pages": ["Lots", "Grades", "Explorer"] }
+    },
+    {
+      "id": "chain-mobility-clearing",
+      "projectType": "blockchain",
+      "title": "Mobility-as-a-Service Clearing & Settlement",
+      "description": "Trip aggregation and multi-operator clearing/settlement for MaaS.",
+      "tags": ["mobility", "clearing", "settlement"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "roaming-clearing", "api-gateway"],
+      "edges": [
+        { "from": "roaming-clearing", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Trips", "Operators", "Explorer"] }
+    },
+    {
+      "id": "chain-toll-parking",
+      "projectType": "blockchain",
+      "title": "Tolling/Parking Micropayments Ledger",
+      "description": "Micropayment channels for tolling, parking, and access control.",
+      "tags": ["tolling", "parking", "micropayments"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "state-channels", "api-gateway"],
+      "edges": [
+        { "from": "state-channels", "to": "fees", "rel": "settles" }
+      ],
+      "ui": { "pages": ["Stations", "Channels", "Explorer"] }
+    },
+    {
+      "id": "chain-fleet-maintenance",
+      "projectType": "blockchain",
+      "title": "Fleet Maintenance & Parts History",
+      "description": "Service records, parts provenance, and mileage/usage attestations.",
+      "tags": ["fleet", "maintenance", "provenance"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "evidence-chain", "device-attestation"],
+      "edges": [
+        { "from": "device-attestation", "to": "evidence-chain", "rel": "attests" }
+      ],
+      "ui": { "pages": ["Vehicles", "Records", "Explorer"] }
+    }
+    ,
+    {
+      "id": "chain-core-banking",
+      "projectType": "blockchain",
+      "title": "Core Banking Ledger",
+      "description": "Retail/commercial accounts, postings, end-of-day, and reconciliation hooks.",
+      "tags": ["banking", "accounts", "ledger"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "core-banking-accounts", "api-gateway", "indexer-sink"],
+      "edges": [
+        { "from": "core-banking-accounts", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Accounts", "Postings", "Explorer"] }
+    },
+    {
+      "id": "chain-interbank-rtgs",
+      "projectType": "blockchain",
+      "title": "Interbank / RTGS Settlement",
+      "description": "Gross/net settlement windows, queues, and liquidity controls for banks.",
+      "tags": ["interbank", "rtgs", "settlement"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "rtgs-settlement", "api-gateway"],
+      "edges": [
+        { "from": "rtgs-settlement", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Participants", "Windows", "Explorer"] }
+    },
+    {
+      "id": "chain-cbdc-controls",
+      "projectType": "blockchain",
+      "title": "CBDC Distribution & Controls",
+      "description": "Tiered wallets, limits, and policy controls for central bank distribution.",
+      "tags": ["cbdc", "policy", "distribution"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "core-banking-accounts", "api-gateway"],
+      "edges": [
+        { "from": "core-banking-accounts", "to": "evm-config", "rel": "param" }
+      ],
+      "ui": { "pages": ["Wallet Tiers", "Policies", "Explorer"] }
+    },
+    {
+      "id": "chain-securities-issuance",
+      "projectType": "blockchain",
+      "title": "Securities Issuance & Settlement",
+      "description": "Equity/debt/funds lifecycle with corporate actions and transfer restrictions.",
+      "tags": ["securities", "issuance", "settlement"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "securities-lifecycle", "fund-admin", "kyc-utility-registry"],
+      "edges": [
+        { "from": "kyc-utility-registry", "to": "securities-lifecycle", "rel": "gates" }
+      ],
+      "ui": { "pages": ["Instruments", "Actions", "Explorer"] }
+    },
+    {
+      "id": "chain-rwa-fund-admin",
+      "projectType": "blockchain",
+      "title": "Tokenized Assets & Fund Administration",
+      "description": "NAV calculation, share registries, subscriptions/redemptions, and audits.",
+      "tags": ["rwa", "funds", "admin"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fund-admin", "indexer-sink"],
+      "edges": [
+        { "from": "fund-admin", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Funds", "Investors", "Explorer"] }
+    },
+    {
+      "id": "chain-trade-finance",
+      "projectType": "blockchain",
+      "title": "Trade Finance (LCs, eBL, Invoices)",
+      "description": "Letters of credit, electronic bills of lading, and invoice factoring flows.",
+      "tags": ["trade-finance", "lc", "documents"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "trade-finance-docs", "escrow-settlement", "api-gateway"],
+      "edges": [
+        { "from": "trade-finance-docs", "to": "escrow-settlement", "rel": "settles" }
+      ],
+      "ui": { "pages": ["LCs", "eBL", "Explorer"] }
+    },
+    {
+      "id": "chain-collateral-repo",
+      "projectType": "blockchain",
+      "title": "Collateral, Repo & Margin Chain",
+      "description": "Collateral schedules, rehypothecation rules, and margin calls.",
+      "tags": ["collateral", "repo", "margin"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "collateral-repo", "api-gateway"],
+      "edges": [
+        { "from": "collateral-repo", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Positions", "Eligibility", "Explorer"] }
+    },
+    {
+      "id": "chain-insurance-claims",
+      "projectType": "blockchain",
+      "title": "Insurance Claims & Parametric Payouts",
+      "description": "Claims lifecycle with parametric triggers and auditability.",
+      "tags": ["insurance", "claims", "parametric"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "parametric-insurance", "oracles", "api-gateway"],
+      "edges": [
+        { "from": "oracles", "to": "parametric-insurance", "rel": "triggers" }
+      ],
+      "ui": { "pages": ["Policies", "Claims", "Explorer"] }
+    },
+    {
+      "id": "chain-private-exchange",
+      "projectType": "blockchain",
+      "title": "Private Exchange Infrastructure (RFQ/OTC)",
+      "description": "OTC and RFQ matching with settlement and surveillance feeds.",
+      "tags": ["exchange", "rfq", "otc"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "otc-rfq-ledger", "indexer-sink"],
+      "edges": [
+        { "from": "otc-rfq-ledger", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["RFQs", "Surveillance", "Explorer"] }
+    },
+    {
+      "id": "chain-kyc-utility",
+      "projectType": "blockchain",
+      "title": "KYC/AML Utility Ledger",
+      "description": "Shared identity attestations with expiry, refresh, and revocation.",
+      "tags": ["kyc", "aml", "identity"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "kyc-utility-registry", "api-gateway"],
+      "edges": [
+        { "from": "kyc-utility-registry", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Providers", "Attestations", "Explorer"] }
+    },
+    {
+      "id": "chain-merchant-rails",
+      "projectType": "blockchain",
+      "title": "Payments & Merchant Acquiring",
+      "description": "RTP flows, refunds/chargebacks, and settlement routing for merchants.",
+      "tags": ["payments", "merchants", "rtp"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "payments-rails", "api-gateway"],
+      "edges": [
+        { "from": "payments-rails", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Merchants", "Disputes", "Explorer"] }
+    },
+    {
+      "id": "chain-enterprise-ops",
+      "projectType": "blockchain",
+      "title": "Enterprise Ops: Payroll & Expenses",
+      "description": "Payroll cycles, benefits, and expense reimbursements with audit trails.",
+      "tags": ["enterprise", "payroll", "expenses"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "payroll-ledger", "expense-manager", "api-gateway"],
+      "edges": [
+        { "from": "expense-manager", "to": "payroll-ledger", "rel": "settles" }
+      ],
+      "ui": { "pages": ["Payroll", "Expenses", "Explorer"] }
+    },
+    {
+      "id": "chain-procurement-ledger",
+      "projectType": "blockchain",
+      "title": "Vendor/Sourcing & Procurement",
+      "description": "RFPs, bids, POs, and receiving with immutable audit trails.",
+      "tags": ["procurement", "vendors", "rfp"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "procurement-ledger", "indexer-sink"],
+      "edges": [
+        { "from": "procurement-ledger", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["RFPs", "POs", "Explorer"] }
+    },
+    {
+      "id": "chain-itam-inventory",
+      "projectType": "blockchain",
+      "title": "Internal Asset Inventory (ITAM)",
+      "description": "Equipment and software assets with lifecycle events and audits.",
+      "tags": ["itam", "assets", "inventory"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "itam-asset-inventory", "evidence-chain"],
+      "edges": [
+        { "from": "itam-asset-inventory", "to": "evidence-chain", "rel": "attests" }
+      ],
+      "ui": { "pages": ["Assets", "Events", "Explorer"] }
+    },
+    {
+      "id": "chain-compliance-attest",
+      "projectType": "blockchain",
+      "title": "Compliance Attestations Ledger",
+      "description": "Policies, attestations, and evidence with time-bound reviews.",
+      "tags": ["compliance", "attestations", "audit"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "compliance-attestations", "indexer-sink"],
+      "edges": [
+        { "from": "compliance-attestations", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Policies", "Attestations", "Explorer"] }
+    },
+    {
+      "id": "chain-sports-membership",
+      "projectType": "blockchain",
+      "title": "Sports Clubs: Membership & Governance",
+      "description": "Fans/members registry, voting, and club policies with payouts.",
+      "tags": ["sports", "membership", "governance"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "loyalty-ledger", "chain-params-governance"],
+      "edges": [
+        { "from": "chain-params-governance", "to": "fees", "rel": "param" }
+      ],
+      "ui": { "pages": ["Members", "Votes", "Explorer"] }
+    },
+    {
+      "id": "chain-royalty-contracts",
+      "projectType": "blockchain",
+      "title": "Talent/Contract & Royalty Agreements",
+      "description": "Contract registries, splits, and time-based payouts for talent deals.",
+      "tags": ["royalties", "contracts", "talent"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "royalty-clearing", "escrow-settlement"],
+      "edges": [
+        { "from": "royalty-clearing", "to": "escrow-settlement", "rel": "pays" }
+      ],
+      "ui": { "pages": ["Contracts", "Splits", "Explorer"] }
+    },
+    {
+      "id": "chain-venue-ops",
+      "projectType": "blockchain",
+      "title": "Venue/League Operations Ledger",
+      "description": "Scheduling, results, stats, and settlements between venues and teams.",
+      "tags": ["venues", "leagues", "ops"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "fees", "escrow-settlement", "indexer-sink"],
+      "edges": [
+        { "from": "escrow-settlement", "to": "fees", "rel": "charges" }
+      ],
+      "ui": { "pages": ["Schedule", "Settlements", "Explorer"] }
+    },
+    {
+      "id": "chain-ai-provenance",
+      "projectType": "blockchain",
+      "title": "Dataset/Model Provenance & Licensing",
+      "description": "Model/dataset lineage, licensing, and audit trails for usage.",
+      "tags": ["ai", "provenance", "licensing"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "evidence-chain", "royalty-clearing", "api-gateway"],
+      "edges": [
+        { "from": "evidence-chain", "to": "royalty-clearing", "rel": "licenses" }
+      ],
+      "ui": { "pages": ["Assets", "Licenses", "Explorer"] }
+    },
+    {
+      "id": "chain-data-clean-room",
+      "projectType": "blockchain",
+      "title": "Data Clean-Room / Controlled Sharing",
+      "description": "Access-controlled queries over shared datasets with signed outputs.",
+      "tags": ["clean-room", "data", "privacy"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "privacy-compliance", "api-gateway"],
+      "edges": [
+        { "from": "privacy-compliance", "to": "api-gateway", "rel": "enforces" }
+      ],
+      "ui": { "pages": ["Datasets", "Policies", "Explorer"] }
+    },
+    {
+      "id": "chain-analytics-federation",
+      "projectType": "blockchain",
+      "title": "Federation of Analytics Results",
+      "description": "Signed analytics outputs with lineage and reproducibility anchors.",
+      "tags": ["analytics", "federation", "results"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "indexer-sink", "evidence-chain"],
+      "edges": [
+        { "from": "evidence-chain", "to": "indexer-sink", "rel": "emits" }
+      ],
+      "ui": { "pages": ["Pipelines", "Results", "Explorer"] }
+    },
+    {
+      "id": "chain-devnet",
+      "projectType": "blockchain",
+      "title": "Developer Devnet",
+      "description": "Single-validator dev network with hot reloads and local explorer.",
+      "tags": ["devnet", "developer", "single-node"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "rpc", "to": "explorer", "rel": "feeds" }
+      ],
+      "ui": { "pages": ["Explorer", "Console", "Status"] }
+    },
+    {
+      "id": "chain-public-testnet",
+      "projectType": "blockchain",
+      "title": "Public Testnet Preset",
+      "description": "Multi-validator preset with faucets, explorers, and permissive params.",
+      "tags": ["testnet", "public", "faucet"],
+      "preinstalledModules": ["consensus", "evm-config", "validators", "rpc", "explorer", "fees"],
+      "modules": ["consensus", "evm-config", "validators", "rpc", "explorer", "fees", "faucet", "metrics-monitoring"],
+      "edges": [
+        { "from": "fees", "to": "evm-config", "rel": "param" }
+      ],
+      "ui": { "pages": ["Faucet", "Explorer", "Validators"] }
+    },
+    {
+      "id": "chain-research-sandbox",
+      "projectType": "blockchain",
+      "title": "Research Sandbox",
+      "description": "Open parameters for rapid experimentation with STF hooks.",
+      "tags": ["research", "sandbox", "stf"],
+      "preinstalledModules": ["consensus", "evm-config", "stf", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "stf", "rpc", "explorer", "metrics-monitoring"],
+      "edges": [
+        { "from": "stf", "to": "explorer", "rel": "indexes" }
+      ],
+      "ui": { "pages": ["Params", "Hooks", "Explorer"] }
+    },
+    {
+      "id": "chain-blank",
+      "projectType": "blockchain",
+      "title": "Blank Chain",
+      "description": "A clean slate with core services; add modules freely in Step 1.",
+      "tags": ["starter", "blank"],
+      "preinstalledModules": ["consensus", "evm-config", "rpc", "explorer"],
+      "modules": ["consensus", "evm-config", "rpc", "explorer"],
+      "edges": [],
+      "ui": { "pages": ["Explorer"] }
+    }
+  ]
+}

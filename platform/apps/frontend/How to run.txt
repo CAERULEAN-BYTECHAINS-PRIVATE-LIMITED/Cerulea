@@ -1,0 +1,14 @@
+Start backend:
+
+cd apps/backend
+node index.js
+
+
+Start frontend:
+
+cd apps/frontend
+npm run dev
+
+
+
+Visit http://localhost:3000
