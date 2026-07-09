@@ -528,8 +528,8 @@ tasks:
   domain: studio
   model: opus
   priority: 1
-  status: failed
-  attempts: 1
+  status: running
+  attempts: 2
   depends_on: []
   spec: "Task audit-studio failed 3 times.\n\nOriginal spec:\nRead the Studio monorepo in full. Roughly\
     \ 29000 lines of TypeScript and\nReact across a pnpm and Turbo workspace, currently a single frontend\
