@@ -528,7 +528,7 @@ tasks:
   domain: studio
   model: opus
   priority: 1
-  status: running
+  status: failed
   attempts: 2
   depends_on: []
   spec: "Task audit-studio failed 3 times.\n\nOriginal spec:\nRead the Studio monorepo in full. Roughly\
