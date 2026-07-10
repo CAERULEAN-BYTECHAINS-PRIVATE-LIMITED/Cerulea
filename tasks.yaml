@@ -112,7 +112,7 @@ tasks:
   domain: studio
   model: opus
   priority: 1
-  status: running
+  status: failed
   attempts: 1
   depends_on: []
   owns:
@@ -132,6 +132,21 @@ tasks:
   - the builder gap analysis names specific missing capabilities
   - no code files are modified
   verify: docs
+  last_failure: "=== changed files ===\ndocs/AUDIT_STUDIO.md\n=== scope docs, skipping build and test\
+    \ ===\nPASS: no code touched\n=== security gate ===\nFAIL: security gate\n=== guardrail: forbidden\
+    \ branding ===\nPASS: forbidden branding (nothing relevant changed)\n=== guardrail: em dash ===\n\
+    FAIL: em dash\n1:# Cerulea Studio \u2014 Deep Audit\n8:**Date:** 2026-07-10. **No code files were\
+    \ modified** \u2014 this document is the only artifact.\n29:Against the target \u2014 *a no-code builder\
+    \ where a developer, enterprise, or government can\n31:escape hatch* \u2014 the gap is not incremental.\
+    \ The wizard **collects configuration** but there\n60:| Studio | `/app/[slug]` | `app/app/[slug]/page.tsx`\
+    \ | client | Deployed-app runtime renderer; **hardcodes `http://localhost:4000`** for config (`:36`)\
+    \ \u2014 cannot work in prod. |\n97:- **Broken endpoint references:** `/api/auth/me` (from live `settings/profile`),\
+    \ `/api/auth/logout`, `/api/apps`, `/api/deployments`, `/api/drafts/upsert` \u2014 none exist.\n105:sections\
+    \ (`type, blueprint, data, economics, integrations, ui, deploy`) \u2014 the \"ui\" section has\n108:**Step\
+    \ 0 \u2014 Project Foundation (`steps/step0.tsx`, 754 lines).** Choose `dapp` vs\n118:**Step 1 \u2014\
+    \ Application Blueprint (`steps/step1.tsx`, 957 lines).** A ReactFlow canvas: add\n126:**Step 2 \u2014\
+    \ Data & Logic (`steps/step2.tsx`, 1,524 lines).** Four phases:\n=== guardrail: placeholders ===\n\
+    PASS: placeholders (nothing relevant changed)\nVERIFY: FAILED\n"
 - id: ci-pipeline
   title: CI pipeline with the security gate on every pull request
   domain: devops
