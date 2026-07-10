@@ -165,8 +165,18 @@ def build_prompt(task):
     return "\n".join(parts)
 
 
+class InfrastructureFault(Exception):
+    """The agent could not run at all. Not a code failure. Do not retry blindly."""
+
+
 def run_agent(task, worktree):
-    """Invoke Claude Code headless. Returns (exit_code, cost_usd, output)."""
+    """Invoke Claude Code headless. Returns (exit_code, cost_usd, output).
+
+    Raises InfrastructureFault when the agent never actually ran. Claude Code can
+    exit 0 while refusing to start, for example when invoked as root with
+    --dangerously-skip-permissions. Treating that as a code failure sends the
+    orchestrator chasing phantom test errors.
+    """
     tier = task.get("model", "sonnet")
     model = MODEL_MAP[tier]
     tools = task.get("allowed_tools", "Read,Write,Edit,Bash,Glob,Grep")
@@ -184,18 +194,31 @@ def run_agent(task, worktree):
         timeout=task.get("timeout_seconds", 5400), check=False
     )
 
-    cost = 0.0
-    try:
-        payload = json.loads(proc.stdout)
-        cost = float(payload.get("total_cost_usd", 0.0))
-    except (json.JSONDecodeError, ValueError, TypeError):
-        pass
-    return proc.returncode, cost, (proc.stdout + proc.stderr)[-6000:]
+    combined = (proc.stdout + proc.stderr)[-6000:]
+
+    # A real run always emits JSON containing total_cost_usd on the last line.
+    payload = None
+    for line in reversed(proc.stdout.strip().splitlines()):
+        try:
+            candidate = json.loads(line)
+            if "total_cost_usd" in candidate:
+                payload = candidate
+                break
+        except json.JSONDecodeError:
+            continue
+
+    if payload is None:
+        raise InfrastructureFault(
+            f"agent produced no result JSON (exit {proc.returncode}). "
+            f"Output: {combined[:800]}"
+        )
+
+    return proc.returncode, float(payload["total_cost_usd"]), combined
 
 
-def verify(worktree, domain):
+def verify(worktree, domain, scope="full"):
     p = subprocess.run(
-        [str(ORCH / "verify.sh"), str(worktree), domain],
+        [str(ORCH / "verify.sh"), str(worktree), domain, scope],
         capture_output=True, text=True, check=False, timeout=3600
     )
     return p.returncode, (p.stdout + p.stderr)[-6000:]
@@ -321,10 +344,28 @@ def main():
             running[t["id"]] = {"task": t, "wt": wt, "branch": branch, "domain": t["domain"]}
             notify("info", f"Started {t['id']} ({t['model']}): {t['title']}")
 
-            rc, cost, out = run_agent(t, wt)
+            try:
+                rc, cost, out = run_agent(t, wt)
+            except InfrastructureFault as fault:
+                # Never burn an attempt on a broken environment, and never let
+                # this masquerade as a failing test.
+                t["status"] = "pending"
+                t["attempts"] = max(0, t["attempts"] - 1)
+                save_tasks(data)
+                cleanup(wt, branch)
+                del running[t["id"]]
+                notify(
+                    "alert",
+                    "INFRASTRUCTURE FAULT. The agent did not run.\n"
+                    f"Task: {t['id']}\n{fault}\n\n"
+                    "Build halted. No money spent. This is a setup problem, "
+                    "not a code problem."
+                )
+                return 3
+
             new_total = add_spend(t["id"], cost)
 
-            vrc, vout = verify(wt, t["domain"])
+            vrc, vout = verify(wt, t["domain"], t.get("verify", "full"))
             if rc == 0 and vrc == 0:
                 ok, merr = merge_task(branch, t["id"])
                 if ok:
