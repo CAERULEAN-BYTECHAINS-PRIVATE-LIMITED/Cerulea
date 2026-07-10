@@ -11,7 +11,7 @@ tasks:
   domain: chain
   model: sonnet
   priority: 0
-  status: running
+  status: failed
   attempts: 2
   verify: rust
   depends_on: []
