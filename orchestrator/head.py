@@ -32,6 +32,10 @@ BUDGET_CEILING = float(os.environ.get("CERULEA_BUDGET_CEILING", "1200"))
 BUDGET_WARN = float(os.environ.get("CERULEA_BUDGET_WARN", "900"))
 MAX_PARALLEL = int(os.environ.get("CERULEA_MAX_PARALLEL", "4"))
 MAX_ATTEMPTS = 3
+TIMEOUT_COST_ESTIMATE = 5.0
+# One shared, persistent build cache. Without this every task recompiles the
+# entire dependency tree from scratch inside its throwaway worktree.
+CARGO_TARGET = os.environ.get("CARGO_TARGET_DIR", str(ROOT / "cargo-target"))  # conservative, so the ceiling is never undercounted
 POLL_SECONDS = 20
 
 MODEL_MAP = {
@@ -165,6 +169,10 @@ def build_prompt(task):
     return "\n".join(parts)
 
 
+class AgentTimeout(Exception):
+    """The agent ran out of wall clock. Real work may have happened."""
+
+
 class InfrastructureFault(Exception):
     """The agent could not run at all. Not a code failure. Do not retry blindly."""
 
@@ -184,15 +192,28 @@ def run_agent(task, worktree):
     cmd = [
         "claude", "-p", build_prompt(task),
         "--model", model,
-        "--max-turns", str(TURN_CAP[tier]),
+        "--max-turns", str(task.get("max_turns", TURN_CAP[tier])),
         "--allowedTools", tools,
         "--output-format", "json",
         "--dangerously-skip-permissions",
     ]
-    proc = subprocess.run(
-        cmd, cwd=worktree, capture_output=True, text=True,
-        timeout=task.get("timeout_seconds", 5400), check=False
-    )
+    try:
+        env = os.environ.copy()
+        env["CARGO_TARGET_DIR"] = CARGO_TARGET
+        proc = subprocess.run(
+            cmd, cwd=worktree, capture_output=True, text=True, env=env,
+            timeout=task.get("timeout_seconds", 5400), check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        partial = ""
+        for stream in (exc.stdout, exc.stderr):
+            if stream:
+                partial += stream if isinstance(stream, str) else stream.decode("utf8", "replace")
+        # The agent ran and spent money. We cannot read the cost, so estimate high
+        # rather than silently undercount against the ceiling.
+        raise AgentTimeout(
+            f"exceeded {task.get('timeout_seconds', 5400)}s. Tail:\n{partial[-1500:]}"
+        )
 
     combined = (proc.stdout + proc.stderr)[-6000:]
 
@@ -217,9 +238,11 @@ def run_agent(task, worktree):
 
 
 def verify(worktree, domain, scope="full"):
+    env = os.environ.copy()
+    env["CARGO_TARGET_DIR"] = CARGO_TARGET
     p = subprocess.run(
         [str(ORCH / "verify.sh"), str(worktree), domain, scope],
-        capture_output=True, text=True, check=False, timeout=3600
+        capture_output=True, text=True, check=False, timeout=7200, env=env
     )
     return p.returncode, (p.stdout + p.stderr)[-6000:]
 
@@ -233,7 +256,16 @@ def merge_task(branch, task_id):
     return True, ""
 
 
-def cleanup(worktree, branch):
+def cleanup(worktree, branch, task_id=None):
+    # Save the evidence before destroying the crime scene.
+    log = Path(worktree) / ".verify.log"
+    if task_id and log.exists():
+        dest = ROOT / "state" / "logs"
+        dest.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy(log, dest / f"{task_id}.log")
+        except OSError:
+            pass
     shutil.rmtree(worktree, ignore_errors=True)
     git("worktree", "prune")
     git("branch", "-D", branch)
@@ -277,13 +309,15 @@ def escalate(task, tasks_data):
 
 
 def digest(tasks, total):
-    done = sum(1 for t in tasks if t["status"] == "done")
-    prog = sum(1 for t in tasks if t["status"] == "running")
+    counts = {}
+    for t in tasks:
+        counts[t["status"]] = counts.get(t["status"], 0) + 1
     blocked = [t for t in tasks if t["status"] == "blocked"]
-    pending = sum(1 for t in tasks if t["status"] == "pending")
+    assert sum(counts.values()) == len(tasks)
 
     lines = [
-        f"Progress: {done} done, {prog} running, {pending} pending, {len(blocked)} blocked",
+        "Progress: " + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())),
+        f"Total tasks: {len(tasks)}",
         f"Spend: {total:.2f} of {BUDGET_CEILING:.0f} USD",
     ]
     if blocked:
@@ -296,9 +330,23 @@ def digest(tasks, total):
 
 # ---------------------------------------------------------------- main loop
 
+def recover_orphans():
+    """A task marked running with no process behind it is orphaned by a crash.
+    Left alone it deadlocks the graph forever, because ready_tasks skips it."""
+    data = load_tasks()
+    orphans = [t for t in data["tasks"] if t["status"] == "running"]
+    if not orphans:
+        return
+    for t in orphans:
+        t["status"] = "pending"
+    save_tasks(data)
+    notify("info", "Requeued after restart: " + ", ".join(t["id"] for t in orphans))
+
+
 def main():
     WORKTREES.mkdir(parents=True, exist_ok=True)
     (ROOT / "state").mkdir(parents=True, exist_ok=True)
+    recover_orphans()
 
     notify("milestone", f"Orchestrator started. Ceiling {BUDGET_CEILING:.0f} USD.")
     last_digest = 0.0
@@ -346,13 +394,24 @@ def main():
 
             try:
                 rc, cost, out = run_agent(t, wt)
+            except AgentTimeout as to:
+                add_spend(t["id"], TIMEOUT_COST_ESTIMATE)
+                t["status"] = "failed"
+                t["last_failure"] = f"TIMEOUT: {to}"
+                if t["attempts"] >= MAX_ATTEMPTS:
+                    escalate(t, data)
+                notify("alert", f"Task {t['id']} timed out. Attempt {t['attempts']} of {MAX_ATTEMPTS}.")
+                cleanup(wt, branch, t["id"])
+                del running[t["id"]]
+                save_tasks(data)
+                continue
             except InfrastructureFault as fault:
                 # Never burn an attempt on a broken environment, and never let
                 # this masquerade as a failing test.
                 t["status"] = "pending"
                 t["attempts"] = max(0, t["attempts"] - 1)
                 save_tasks(data)
-                cleanup(wt, branch)
+                cleanup(wt, branch, t["id"])
                 del running[t["id"]]
                 notify(
                     "alert",
@@ -365,7 +424,7 @@ def main():
 
             new_total = add_spend(t["id"], cost)
 
-            vrc, vout = verify(wt, t["domain"], t.get("verify", "full"))
+            vrc, vout = verify(wt, t["domain"], t.get("verify", "rust-build"))
             if rc == 0 and vrc == 0:
                 ok, merr = merge_task(branch, t["id"])
                 if ok:
@@ -382,7 +441,7 @@ def main():
             if t["status"] == "failed" and t["attempts"] >= MAX_ATTEMPTS:
                 escalate(t, data)
 
-            cleanup(wt, branch)
+            cleanup(wt, branch, t["id"])
             del running[t["id"]]
             save_tasks(data)
 

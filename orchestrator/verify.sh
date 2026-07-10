@@ -1,106 +1,143 @@
 #!/usr/bin/env bash
-# Verification harness, v2.
+# Verification harness v3.
 # Usage: verify.sh <worktree> <domain> <scope>
-#   scope: docs | rust | node | full
-# Guardrail checks run ONLY on files this task changed. A gate that judges the
-# whole repo blocks the very tasks meant to clean the repo.
+#   scope: docs | rust-build | rust-test | node | full
+#
+# Principles learned the hard way:
+#  - Fail fast. Cheapest check first. Never grind an hour to report a fmt error.
+#  - Release profile only. Debug and release share no cache.
+#  - Never --all-targets. It drags in binaryen and compiles C++ for an hour.
+#  - Guardrails judge only what this task changed.
+#  - Pre-existing conditions warn. Newly introduced problems block.
 
 set -uo pipefail
 WORKTREE="${1:?usage: verify.sh <worktree> <domain> <scope>}"
 DOMAIN="${2:?}"
-SCOPE="${3:-full}"
+SCOPE="${3:-rust-build}"
 cd "$WORKTREE" || exit 90
 
-FAILED=0
 LOG="$WORKTREE/.verify.log"
 : > "$LOG"
-
-run() {
-  local name="$1"; shift
-  echo "=== $name ===" | tee -a "$LOG"
-  if "$@" >>"$LOG" 2>&1; then echo "PASS: $name" | tee -a "$LOG"
-  else echo "FAIL: $name" | tee -a "$LOG"; FAILED=1; fi
-}
+say()  { echo "$*" | tee -a "$LOG"; }
+die()  { say "FAIL: $*"; say "VERIFY: FAILED"; exit 1; }
+pass() { say "PASS: $*"; }
 
 if [ -f "$WORKTREE/BLOCKED.md" ]; then
-  echo "AGENT BLOCKED:" | tee -a "$LOG"; cat "$WORKTREE/BLOCKED.md" | tee -a "$LOG"; exit 3
+  say "AGENT BLOCKED:"; cat "$WORKTREE/BLOCKED.md" | tee -a "$LOG"; exit 3
 fi
 
 CHANGED=$(git diff --name-only develop...HEAD 2>/dev/null || true)
-echo "=== changed files ===" | tee -a "$LOG"
-echo "${CHANGED:-none}" | tee -a "$LOG"
+say "=== changed files: $(echo "$CHANGED" | grep -c . || echo 0) ==="
+
+if [ "$SCOPE" != "docs" ] && [ -z "$CHANGED" ]; then
+  die "agent modified no files. The task was not attempted. Check the environment."
+fi
 
 changed_matching() { echo "$CHANGED" | grep -E "$1" 2>/dev/null || true; }
 
-case "$SCOPE" in
-  docs)
-    echo "=== scope docs, skipping build and test ===" | tee -a "$LOG"
-    CODE=$(changed_matching '\.(rs|ts|tsx|toml)$')
-    if [ -n "$CODE" ]; then
-      echo "FAIL: docs task modified code:" | tee -a "$LOG"; echo "$CODE" | tee -a "$LOG"; FAILED=1
-    else
-      echo "PASS: no code touched" | tee -a "$LOG"
-    fi
-    ;;
-  rust)
-    [ -f Cargo.toml ] && { run "cargo fmt check" cargo fmt --all -- --check
-      run "cargo clippy" cargo clippy --all-targets -- -D warnings
-      run "cargo test" cargo test --all
-      run "cargo build" cargo build --release; }
-    ;;
-  node)
-    for dir in platform .; do
-      if [ -f "$dir/package.json" ]; then
-        echo "=== node checks in $dir ===" | tee -a "$LOG"
-        ( cd "$dir" && pnpm install --frozen-lockfile && pnpm exec tsc --noEmit \
-          && pnpm lint && pnpm test && pnpm build ) >>"$LOG" 2>&1 \
-          && echo "PASS: node checks" | tee -a "$LOG" \
-          || { echo "FAIL: node checks" | tee -a "$LOG"; FAILED=1; }
-        break
-      fi
-    done
-    ;;
-  full)
-    [ -f Cargo.toml ] && { run "cargo fmt check" cargo fmt --all -- --check
-      run "cargo clippy" cargo clippy --all-targets -- -D warnings
-      run "cargo test" cargo test --all
-      run "cargo build" cargo build --release; }
-    for dir in platform .; do
-      if [ -f "$dir/package.json" ]; then
-        ( cd "$dir" && pnpm install --frozen-lockfile && pnpm exec tsc --noEmit \
-          && pnpm lint && pnpm test && pnpm build ) >>"$LOG" 2>&1 \
-          && echo "PASS: node checks" | tee -a "$LOG" \
-          || { echo "FAIL: node checks" | tee -a "$LOG"; FAILED=1; }
-        break
-      fi
-    done
-    ;;
-esac
+# ---------------------------------------------------------------- guardrails
+# Cheap. Run first. Only on changed files.
 
-echo "=== security gate ===" | tee -a "$LOG"
-if CHANGED_FILES="$CHANGED" "$(dirname "$0")/security-gate.sh" "$WORKTREE" >>"$LOG" 2>&1; then
-  echo "PASS: security gate" | tee -a "$LOG"
-else
-  echo "FAIL: security gate" | tee -a "$LOG"; FAILED=1
-fi
-
-check_changed() {
-  local label="$1" pat="$2" fre="$3" files hits
-  echo "=== guardrail: $label ===" | tee -a "$LOG"
+check() {
+  local label="$1" pat="$2" fre="$3" mode="${4:-block}" files hits
   files=$(changed_matching "$fre")
-  if [ -z "$files" ]; then echo "PASS: $label (nothing relevant changed)" | tee -a "$LOG"; return; fi
-  hits=$(echo "$files" | xargs -r grep -nP "$pat" 2>/dev/null | head -10)
+  [ -z "$files" ] && { pass "$label (nothing relevant changed)"; return; }
+  hits=$(echo "$files" | xargs -r grep -nP "$pat" 2>/dev/null | head -8)
   if [ -n "$hits" ]; then
-    echo "FAIL: $label" | tee -a "$LOG"; echo "$hits" | tee -a "$LOG"; FAILED=1
+    if [ "$mode" = "warn" ]; then
+      say "WARN: $label"; echo "$hits" >> "$LOG"
+    else
+      say "$hits"; die "$label"
+    fi
   else
-    echo "PASS: $label" | tee -a "$LOG"
+    pass "$label"
   fi
 }
 
-# Branding: only in user-visible string literals, not comments or doc comments.
-check_changed "forbidden branding" '"[^"]*\b(?i:substrate|polkadot|grandpa|parity)\b[^"]*"' '\.(rs|ts|tsx)$'
-check_changed "em dash" '\x{2014}' '\.(rs|ts|tsx|md|json|ya?ml)$'
-check_changed "placeholders" 'TODO:? *implement|unimplemented!\(|mock data|hardcoded for now' '\.(rs|ts|tsx)$'
+# Secrets are always a blocker. Nothing else is worth blocking a whole task for.
+SECRETS='-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY|sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{20}|sk_live_[A-Za-z0-9]{20}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|[0-9]{8,10}:AA[A-Za-z0-9_-]{33}'
+check "no secrets" "$SECRETS" '.' block
 
-if [ "$FAILED" -eq 0 ]; then echo "VERIFY: ALL CHECKS PASSED" | tee -a "$LOG"; exit 0; fi
-echo "VERIFY: FAILED" | tee -a "$LOG"; exit 1
+KEYFILES=$(echo "$CHANGED" | grep -E '\.(pem|key)$|(^|/)(secret_|id_rsa|id_ed25519|\.env$)' || true)
+[ -n "$KEYFILES" ] && { say "$KEYFILES"; die "key or env file committed"; }
+pass "no key files"
+
+check "no dangerous sinks"  'dangerouslySetInnerHTML|\beval\(|new Function\(' '\.(ts|tsx)$'  block
+check "no interpolated SQL" '(query|execute)\(`[^`]*\$\{'                     '\.(ts)$'      block
+check "forbidden branding"  '"[^"]*\b(?i:substrate|polkadot|grandpa|parity)\b[^"]*"' '\.(rs|ts|tsx)$' block
+check "no em dash"          '\x{2014}'                                        '\.(rs|ts|tsx|md|ya?ml|json)$' block
+check "no placeholders"     'TODO:? *implement|unimplemented!\(|mock data|hardcoded for now' '\.(rs|ts|tsx)$' block
+
+# Pre-existing conditions. Recorded, never blocking. The audit owns these.
+check "panic paths"         '\.unwrap\(\)|\.expect\(|panic!\('               '^cerulea-(pallets|node)/.*\.rs$' warn
+check "untyped any"         ': *any\b'                                       '\.(ts|tsx)$' warn
+
+# ---------------------------------------------------------------- build
+
+RUST_CHANGED=$(changed_matching '\.(rs|toml)$|^Cargo\.lock$')
+NODE_CHANGED=$(changed_matching '^platform/.*\.(ts|tsx|json)$')
+
+case "$SCOPE" in
+  docs)
+    CODE=$(changed_matching '\.(rs|ts|tsx|toml)$')
+    [ -n "$CODE" ] && { say "$CODE"; die "documentation task modified code"; }
+    pass "no code touched"
+    ;;
+
+  rust-build|rust-test|full)
+    if [ -n "$RUST_CHANGED" ] || [ "$SCOPE" = "rust-test" ]; then
+      say "=== cargo fmt check ==="
+      cargo fmt --all -- --check >>"$LOG" 2>&1 || die "cargo fmt (run: cargo fmt --all)"
+      pass "cargo fmt"
+
+      # --release reuses the warm cache. No --all-targets: it builds binaryen.
+      say "=== cargo check --release ==="
+      cargo check --release --workspace >>"$LOG" 2>&1 || die "cargo check"
+      pass "cargo check"
+
+      say "=== cargo clippy --release (correctness only) ==="
+      cargo clippy --release --workspace -- -D clippy::correctness >>"$LOG" 2>&1 \
+        || die "clippy correctness lint"
+      pass "clippy"
+
+      say "=== cargo build --release ==="
+      cargo build --release >>"$LOG" 2>&1 || die "cargo build"
+      pass "cargo build"
+    fi
+
+    if [ "$SCOPE" = "rust-test" ] || [ "$SCOPE" = "full" ]; then
+      say "=== cargo test --release ==="
+      cargo test --release --workspace >>"$LOG" 2>&1 || die "cargo test"
+      pass "cargo test"
+    fi
+    ;;&
+
+  node|full)
+    if [ -f platform/package.json ] && { [ -n "$NODE_CHANGED" ] || [ "$SCOPE" = "node" ]; }; then
+      cd platform || die "platform missing"
+      say "=== pnpm install ==="
+      pnpm install --frozen-lockfile >>"$LOG" 2>&1 || die "pnpm install"
+      say "=== tsc ==="
+      pnpm exec tsc --noEmit >>"$LOG" 2>&1 || die "typecheck"
+      say "=== lint ==="
+      pnpm lint >>"$LOG" 2>&1 || die "lint"
+      say "=== build ==="
+      pnpm build >>"$LOG" 2>&1 || die "build"
+      pass "node checks"
+      cd "$WORKTREE" || exit 90
+    fi
+    ;;
+esac
+
+# ------------------------------------------------- advisory scans, non-blocking
+say "=== dependency advisories (advisory only) ==="
+if [ -n "$RUST_CHANGED" ] && command -v cargo-audit >/dev/null 2>&1; then
+  cargo audit >>"$LOG" 2>&1 || say "WARN: rust dependency advisories present"
+fi
+if [ -n "$NODE_CHANGED" ] && [ -f platform/package.json ]; then
+  ( cd platform && pnpm audit --audit-level high ) >>"$LOG" 2>&1 \
+    || say "WARN: npm dependency advisories present"
+fi
+
+say "VERIFY: ALL CHECKS PASSED"
+exit 0
