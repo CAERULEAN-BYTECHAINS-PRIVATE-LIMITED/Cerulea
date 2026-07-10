@@ -11,8 +11,8 @@ tasks:
   domain: chain
   model: sonnet
   priority: 0
-  status: failed
-  attempts: 1
+  status: running
+  attempts: 2
   verify: rust
   depends_on: []
   timeout_seconds: 7200
