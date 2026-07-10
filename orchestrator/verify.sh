@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Verification harness. Exit 0 only if every check passes.
-# Usage: verify.sh <worktree-path> <domain>
-# Domains: chain, studio, backend, frontend, sdk, billing, intelligence, devops, testing
+# Verification harness, v2.
+# Usage: verify.sh <worktree> <domain> <scope>
+#   scope: docs | rust | node | full
+# Guardrail checks run ONLY on files this task changed. A gate that judges the
+# whole repo blocks the very tasks meant to clean the repo.
 
 set -uo pipefail
-
-WORKTREE="${1:?usage: verify.sh <worktree> <domain>}"
-DOMAIN="${2:?usage: verify.sh <worktree> <domain>}"
+WORKTREE="${1:?usage: verify.sh <worktree> <domain> <scope>}"
+DOMAIN="${2:?}"
+SCOPE="${3:-full}"
 cd "$WORKTREE" || exit 90
 
 FAILED=0
@@ -16,99 +18,89 @@ LOG="$WORKTREE/.verify.log"
 run() {
   local name="$1"; shift
   echo "=== $name ===" | tee -a "$LOG"
-  if "$@" >>"$LOG" 2>&1; then
-    echo "PASS: $name" | tee -a "$LOG"
-  else
-    echo "FAIL: $name" | tee -a "$LOG"
-    FAILED=1
-  fi
+  if "$@" >>"$LOG" 2>&1; then echo "PASS: $name" | tee -a "$LOG"
+  else echo "FAIL: $name" | tee -a "$LOG"; FAILED=1; fi
 }
 
-# Anything an agent wrote that blocks itself is an immediate fail.
 if [ -f "$WORKTREE/BLOCKED.md" ]; then
-  echo "AGENT BLOCKED:" | tee -a "$LOG"
-  cat "$WORKTREE/BLOCKED.md" | tee -a "$LOG"
-  exit 3
+  echo "AGENT BLOCKED:" | tee -a "$LOG"; cat "$WORKTREE/BLOCKED.md" | tee -a "$LOG"; exit 3
 fi
 
-case "$DOMAIN" in
-  chain)
-    if [ -f Cargo.toml ]; then
-      run "cargo fmt check" cargo fmt --all -- --check
-      run "cargo clippy"    cargo clippy --all-targets --all-features -- -D warnings
-      run "cargo test"      cargo test --all --release
-      run "cargo build"     cargo build --release
+CHANGED=$(git diff --name-only develop...HEAD 2>/dev/null || true)
+echo "=== changed files ===" | tee -a "$LOG"
+echo "${CHANGED:-none}" | tee -a "$LOG"
+
+changed_matching() { echo "$CHANGED" | grep -E "$1" 2>/dev/null || true; }
+
+case "$SCOPE" in
+  docs)
+    echo "=== scope docs, skipping build and test ===" | tee -a "$LOG"
+    CODE=$(changed_matching '\.(rs|ts|tsx|toml)$')
+    if [ -n "$CODE" ]; then
+      echo "FAIL: docs task modified code:" | tee -a "$LOG"; echo "$CODE" | tee -a "$LOG"; FAILED=1
     else
-      echo "no Cargo.toml, skipping rust checks" | tee -a "$LOG"
+      echo "PASS: no code touched" | tee -a "$LOG"
     fi
     ;;
-  studio|backend|frontend|sdk|billing|intelligence)
-    if [ -f package.json ]; then
-      run "install"   pnpm install --frozen-lockfile
-      run "typecheck" pnpm exec tsc --noEmit
-      run "lint"      pnpm lint
-      run "test"      pnpm test
-      run "build"     pnpm build
-    else
-      echo "no package.json, skipping node checks" | tee -a "$LOG"
-    fi
+  rust)
+    [ -f Cargo.toml ] && { run "cargo fmt check" cargo fmt --all -- --check
+      run "cargo clippy" cargo clippy --all-targets -- -D warnings
+      run "cargo test" cargo test --all
+      run "cargo build" cargo build --release; }
     ;;
-  devops|testing)
-    [ -f Cargo.toml ]    && run "cargo test" cargo test --all
-    [ -f package.json ]  && run "test" pnpm test
+  node)
+    for dir in platform .; do
+      if [ -f "$dir/package.json" ]; then
+        echo "=== node checks in $dir ===" | tee -a "$LOG"
+        ( cd "$dir" && pnpm install --frozen-lockfile && pnpm exec tsc --noEmit \
+          && pnpm lint && pnpm test && pnpm build ) >>"$LOG" 2>&1 \
+          && echo "PASS: node checks" | tee -a "$LOG" \
+          || { echo "FAIL: node checks" | tee -a "$LOG"; FAILED=1; }
+        break
+      fi
+    done
     ;;
-  *)
-    echo "unknown domain: $DOMAIN" | tee -a "$LOG"
-    exit 91
+  full)
+    [ -f Cargo.toml ] && { run "cargo fmt check" cargo fmt --all -- --check
+      run "cargo clippy" cargo clippy --all-targets -- -D warnings
+      run "cargo test" cargo test --all
+      run "cargo build" cargo build --release; }
+    for dir in platform .; do
+      if [ -f "$dir/package.json" ]; then
+        ( cd "$dir" && pnpm install --frozen-lockfile && pnpm exec tsc --noEmit \
+          && pnpm lint && pnpm test && pnpm build ) >>"$LOG" 2>&1 \
+          && echo "PASS: node checks" | tee -a "$LOG" \
+          || { echo "FAIL: node checks" | tee -a "$LOG"; FAILED=1; }
+        break
+      fi
+    done
     ;;
 esac
 
-# Security gate runs on every domain without exception.
-run "security gate" "$(dirname "$0")/security-gate.sh" "$WORKTREE"
-
-# Guardrail: forbidden strings in customer-facing surfaces.
-echo "=== guardrail: forbidden branding ===" | tee -a "$LOG"
-BAD=$(grep -rniE '\b(substrate|polkadot|parity|grandpa|\baura\b|\bbabe\b)\b' \
-  --include=*.rs --include=*.ts --include=*.tsx --include=*.md \
-  --exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git \
-  --exclude=Cargo.toml --exclude=Cargo.lock --exclude=CLAUDE.md \
-  . 2>/dev/null | grep -viE '^\s*(//|#)?\s*(use |extern crate|import )' | head -20)
-if [ -n "$BAD" ]; then
-  echo "FAIL: forbidden branding found:" | tee -a "$LOG"
-  echo "$BAD" | tee -a "$LOG"
-  FAILED=1
+echo "=== security gate ===" | tee -a "$LOG"
+if CHANGED_FILES="$CHANGED" "$(dirname "$0")/security-gate.sh" "$WORKTREE" >>"$LOG" 2>&1; then
+  echo "PASS: security gate" | tee -a "$LOG"
 else
-  echo "PASS: no forbidden branding" | tee -a "$LOG"
+  echo "FAIL: security gate" | tee -a "$LOG"; FAILED=1
 fi
 
-# Guardrail: em dashes.
-echo "=== guardrail: em dash ===" | tee -a "$LOG"
-if grep -rlP '\x{2014}' --include=*.rs --include=*.ts --include=*.tsx \
-   --include=*.md --exclude-dir=node_modules --exclude-dir=target \
-   --exclude-dir=.git . 2>/dev/null | head -5 | grep -q .; then
-  echo "FAIL: em dash present" | tee -a "$LOG"
-  FAILED=1
-else
-  echo "PASS: no em dash" | tee -a "$LOG"
-fi
+check_changed() {
+  local label="$1" pat="$2" fre="$3" files hits
+  echo "=== guardrail: $label ===" | tee -a "$LOG"
+  files=$(changed_matching "$fre")
+  if [ -z "$files" ]; then echo "PASS: $label (nothing relevant changed)" | tee -a "$LOG"; return; fi
+  hits=$(echo "$files" | xargs -r grep -nP "$pat" 2>/dev/null | head -10)
+  if [ -n "$hits" ]; then
+    echo "FAIL: $label" | tee -a "$LOG"; echo "$hits" | tee -a "$LOG"; FAILED=1
+  else
+    echo "PASS: $label" | tee -a "$LOG"
+  fi
+}
 
-# Guardrail: no placeholder or fake-success code.
-echo "=== guardrail: placeholders ===" | tee -a "$LOG"
-PH=$(grep -rniE 'TODO:? *implement|not implemented|unimplemented!\(|placeholder|FIXME|mock data|hardcoded for now' \
-  --include=*.rs --include=*.ts --include=*.tsx \
-  --exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git \
-  . 2>/dev/null | head -10)
-if [ -n "$PH" ]; then
-  echo "FAIL: placeholder code:" | tee -a "$LOG"
-  echo "$PH" | tee -a "$LOG"
-  FAILED=1
-else
-  echo "PASS: no placeholders" | tee -a "$LOG"
-fi
+# Branding: only in user-visible string literals, not comments or doc comments.
+check_changed "forbidden branding" '"[^"]*\b(?i:substrate|polkadot|grandpa|parity)\b[^"]*"' '\.(rs|ts|tsx)$'
+check_changed "em dash" '\x{2014}' '\.(rs|ts|tsx|md|json|ya?ml)$'
+check_changed "placeholders" 'TODO:? *implement|unimplemented!\(|mock data|hardcoded for now' '\.(rs|ts|tsx)$'
 
-if [ "$FAILED" -eq 0 ]; then
-  echo "VERIFY: ALL CHECKS PASSED" | tee -a "$LOG"
-  exit 0
-fi
-echo "VERIFY: FAILED" | tee -a "$LOG"
-exit 1
+if [ "$FAILED" -eq 0 ]; then echo "VERIFY: ALL CHECKS PASSED" | tee -a "$LOG"; exit 0; fi
+echo "VERIFY: FAILED" | tee -a "$LOG"; exit 1

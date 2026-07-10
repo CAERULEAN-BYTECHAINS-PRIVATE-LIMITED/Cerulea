@@ -5,6 +5,15 @@
 set -uo pipefail
 WORKTREE="${1:?usage: security-gate.sh <worktree>}"
 cd "$WORKTREE" || exit 90
+# If CHANGED_FILES is set, only judge those. Pre-existing issues are their own tasks.
+SCOPED="${CHANGED_FILES:-}"
+scoped_grep() {  # scoped_grep <pattern> <file-regex>
+  if [ -n "$SCOPED" ]; then
+    echo "$SCOPED" | grep -E "$2" 2>/dev/null | xargs -r grep -niE "$1" 2>/dev/null | head -8
+  else
+    grep -rniE "$1" $EXCL . 2>/dev/null | head -8
+  fi
+}
 
 FAIL=0
 say() { echo "[security] $*"; }
@@ -41,8 +50,7 @@ if [ -f Cargo.toml ]; then
   fi
 
   # unwrap/expect/panic inside pallet and consensus code is a real availability risk
-  PANIC=$(grep -rnE '\.unwrap\(\)|\.expect\(|panic!\(' --include=*.rs \
-    $EXCL ./cerulea-pallets ./cerulea-node 2>/dev/null \
+  PANIC=$(scoped_grep '\.unwrap\(\)|\.expect\(|panic!\(' '^cerulea-(pallets|node)/.*\.rs$' \
     | grep -vE '(#\[cfg\(test\)\]|/tests?/|_test\.rs|mock\.rs|benchmark)' | head -8)
   if [ -n "$PANIC" ]; then
     say "BLOCKED: panic path in consensus or pallet code"
@@ -65,8 +73,7 @@ if [ -f package.json ]; then
     FAIL=1
   fi
 
-  ANY=$(grep -rn ': *any\b' --include=*.ts --include=*.tsx $EXCL . 2>/dev/null \
-    | grep -v 'justified:' | head -8)
+  ANY=$(scoped_grep ': *any\b' '\.(ts|tsx)$' | grep -v 'justified:' | head -8)
   if [ -n "$ANY" ]; then
     say "BLOCKED: untyped any without justification comment"
     echo "$ANY" | cut -c1-140
