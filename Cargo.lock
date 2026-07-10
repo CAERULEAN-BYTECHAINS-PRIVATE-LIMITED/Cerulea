@@ -1254,11 +1254,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "cbc-consensus"
+name = "cc"
+version = "1.2.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
+dependencies = [
+ "jobserver",
+ "libc",
+ "shlex",
+]
+
+[[package]]
+name = "cerulea-consensus"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "cbc-runtime",
+ "cerulea-runtime",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -1266,10 +1277,10 @@ dependencies = [
  "log",
  "once_cell",
  "pallet-balances",
- "pallet-cbc-dcf",
- "pallet-cbc-dvf",
- "pallet-cbc-poi",
- "pallet-cbc-pos",
+ "pallet-cerulea-dcf",
+ "pallet-cerulea-dvf",
+ "pallet-cerulea-poi",
+ "pallet-cerulea-pos",
  "pallet-timestamp",
  "parity-scale-codec",
  "parking_lot 0.12.4",
@@ -1303,13 +1314,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "cbc-node"
+name = "cerulea-node"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "atty",
- "cbc-consensus",
- "cbc-runtime",
+ "cerulea-consensus",
+ "cerulea-runtime",
  "clap",
  "directories",
  "env_logger",
@@ -1324,9 +1335,9 @@ dependencies = [
  "jsonrpsee-http-server",
  "log",
  "once_cell",
- "pallet-cbc-dcf",
- "pallet-cbc-dvf",
- "pallet-cbc-pos",
+ "pallet-cerulea-dcf",
+ "pallet-cerulea-dvf",
+ "pallet-cerulea-pos",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "proptest",
@@ -1369,7 +1380,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cbc-runtime"
+name = "cerulea-runtime"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
@@ -1382,10 +1393,10 @@ dependencies = [
  "frame-try-runtime",
  "log",
  "pallet-balances",
- "pallet-cbc-dcf",
- "pallet-cbc-dvf",
- "pallet-cbc-poi",
- "pallet-cbc-pos",
+ "pallet-cerulea-dcf",
+ "pallet-cerulea-dvf",
+ "pallet-cerulea-poi",
+ "pallet-cerulea-pos",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-todo",
@@ -1412,7 +1423,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cbc-tools"
+name = "cerulea-tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1424,17 +1435,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "cc"
-version = "1.2.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
-dependencies = [
- "jobserver",
- "libc",
- "shlex",
 ]
 
 [[package]]
@@ -6380,7 +6380,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-cbc-dcf"
+name = "pallet-cerulea-dcf"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
@@ -6388,8 +6388,8 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
- "pallet-cbc-poi",
- "pallet-cbc-pos",
+ "pallet-cerulea-poi",
+ "pallet-cerulea-pos",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
@@ -6402,15 +6402,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-cbc-dvf"
+name = "pallet-cerulea-dvf"
 version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
  "log",
  "pallet-balances",
- "pallet-cbc-dcf",
- "pallet-cbc-pos",
+ "pallet-cerulea-dcf",
+ "pallet-cerulea-pos",
  "parity-scale-codec",
  "scale-info",
  "sp-api",
@@ -6421,7 +6421,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-cbc-poi"
+name = "pallet-cerulea-poi"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
@@ -6438,7 +6438,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-cbc-pos"
+name = "pallet-cerulea-pos"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",

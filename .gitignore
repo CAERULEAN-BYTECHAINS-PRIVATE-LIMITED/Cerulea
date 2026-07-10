@@ -25,3 +25,4 @@ keys/
 *.key
 secret_*
 .env
+tasks.yaml
