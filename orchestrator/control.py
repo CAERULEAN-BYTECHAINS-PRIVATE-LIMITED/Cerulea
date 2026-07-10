@@ -17,7 +17,7 @@ import requests
 import yaml
 
 ROOT = Path(os.environ.get("CERULEA_ROOT", "/opt/cerulea")).resolve()
-TASKS_FILE = ROOT / "repo" / "tasks.yaml"
+TASKS_FILE = ROOT / "state" / "tasks.yaml"
 SPEND_FILE = ROOT / "state" / "spend.json"
 CONTROL_FILE = ROOT / "state" / "control"
 OFFSET_FILE = ROOT / "state" / "tg_offset"
