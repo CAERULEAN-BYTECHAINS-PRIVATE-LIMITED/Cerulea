@@ -22,7 +22,9 @@ import yaml
 
 ROOT = Path(os.environ.get("CERULEA_ROOT", "/opt/cerulea")).resolve()
 REPO = ROOT / "repo"
-TASKS_FILE = REPO / "tasks.yaml"
+TASKS_FILE = ROOT / "state" / "tasks.yaml"
+PLANS_DIR = REPO / "plans"
+FAILED_DIR = ROOT / "failed"
 SPEND_FILE = ROOT / "state" / "spend.json"
 CONTROL_FILE = ROOT / "state" / "control"
 WORKTREES = ROOT / "worktrees"
@@ -69,10 +71,41 @@ def load_tasks():
 
 
 def save_tasks(data):
-    with open(TASKS_FILE, "w") as f:
+    tmp = TASKS_FILE.with_suffix(".tmp")
+    with open(tmp, "w") as f:
         yaml.safe_dump(data, f, sort_keys=False, width=100)
-    git("add", "tasks.yaml")
-    git("commit", "-m", f"orchestrator: task state {now()}")
+    tmp.replace(TASKS_FILE)   # atomic, survives a crash mid-write
+
+
+def ingest_plans(data):
+    """Planning agents write plans/<id>.yaml inside their worktree, which merges
+    into develop like any other file. The head folds them into the task graph.
+    This keeps state out of the branches agents work on."""
+    if not PLANS_DIR.exists():
+        return False
+    known = {t["id"] for t in data["tasks"]}
+    added = 0
+    for f in sorted(PLANS_DIR.glob("*.yaml")):
+        try:
+            new = yaml.safe_load(f.read_text()) or []
+        except yaml.YAMLError as e:
+            notify("alert", f"Plan file {f.name} is invalid YAML: {e}")
+            continue
+        for t in (new.get("tasks", new) if isinstance(new, dict) else new):
+            if t.get("id") and t["id"] not in known:
+                t.setdefault("status", "pending")
+                t.setdefault("attempts", 0)
+                t.setdefault("depends_on", [])
+                t.setdefault("priority", 50)
+                t.setdefault("verify", "rust-build")
+                t.setdefault("model", "sonnet")
+                data["tasks"].append(t)
+                known.add(t["id"])
+                added += 1
+    if added:
+        save_tasks(data)
+        notify("milestone", f"Task graph expanded by {added} tasks. Total {len(data['tasks'])}.")
+    return added > 0
 
 
 # ---------------------------------------------------------------- budget
@@ -256,8 +289,7 @@ def merge_task(branch, task_id):
     return True, ""
 
 
-def cleanup(worktree, branch, task_id=None):
-    # Save the evidence before destroying the crime scene.
+def cleanup(worktree, branch, task_id=None, failed=False):
     log = Path(worktree) / ".verify.log"
     if task_id and log.exists():
         dest = ROOT / "state" / "logs"
@@ -266,9 +298,20 @@ def cleanup(worktree, branch, task_id=None):
             shutil.copy(log, dest / f"{task_id}.log")
         except OSError:
             pass
+
+    if failed:
+        # Keep the work. A failed task has real code in it that a later attempt,
+        # or a human, can salvage. Destroying it throws the money away.
+        FAILED_DIR.mkdir(parents=True, exist_ok=True)
+        keep = FAILED_DIR / f"{task_id}-{int(time.time())}"
+        try:
+            shutil.copytree(worktree, keep, symlinks=True)
+        except OSError:
+            pass
+
     shutil.rmtree(worktree, ignore_errors=True)
     git("worktree", "prune")
-    git("branch", "-D", branch)
+    git("branch", "-D", branch)   # branch content is preserved in FAILED_DIR
 
 
 # ---------------------------------------------------------------- judgment hooks
@@ -298,11 +341,13 @@ def escalate(task, tasks_data):
             "Determine whether the specification is wrong, a dependency is "
             "missing, or the work is genuinely hard. Then either rewrite the "
             "task spec in tasks.yaml, insert the missing prerequisite task, or "
-            "mark it blocked with a written explanation for the founder. "
-            "Do not attempt the original task yourself."
+            "Write the corrected task or the missing prerequisite to "
+            "plans/repair.yaml. If it cannot be fixed, write the reason to "
+            "BLOCKED.md. Do not attempt the original task yourself."
         ),
-        "done_when": ["tasks.yaml updated with a corrected plan or a written block reason"],
-        "owns": ["tasks.yaml"],
+        "verify": "docs",
+        "done_when": ["plans/repair.yaml written with a corrected plan, or BLOCKED.md explains why not"],
+        "owns": ["plans/repair.yaml", "BLOCKED.md"],
     }
     tasks_data["tasks"].append(diag)
     task["status"] = "blocked"
@@ -370,6 +415,7 @@ def main():
             notify("alert", f"Spend at {total:.2f} of {BUDGET_CEILING:.0f} USD.")
 
         data = load_tasks()
+        ingest_plans(data)
         tasks = data["tasks"]
 
         if all(t["status"] in ("done", "blocked") for t in tasks):
@@ -424,7 +470,17 @@ def main():
 
             new_total = add_spend(t["id"], cost)
 
-            vrc, vout = verify(wt, t["domain"], t.get("verify", "rust-build"))
+                    # Agents are told to commit and frequently do not. Without a commit
+            # the diff against develop is empty and every check is meaningless.
+            dirty = subprocess.run(["git", "status", "--porcelain"], cwd=wt,
+                                   capture_output=True, text=True).stdout.strip()
+            if dirty:
+                subprocess.run(["git", "add", "-A"], cwd=wt, check=False)
+                subprocess.run(
+                    ["git", "-c", "user.email=build@cbytechains.com",
+                     "-c", "user.name=Orchestrator", "commit", "-m",
+                     f"{t['id']}: {t['title']}"], cwd=wt, check=False)
+
             if rc == 0 and vrc == 0:
                 ok, merr = merge_task(branch, t["id"])
                 if ok:
@@ -441,7 +497,7 @@ def main():
             if t["status"] == "failed" and t["attempts"] >= MAX_ATTEMPTS:
                 escalate(t, data)
 
-            cleanup(wt, branch, t["id"])
+            cleanup(wt, branch, t["id"], failed=(t["status"] != "done"))
             del running[t["id"]]
             save_tasks(data)
 

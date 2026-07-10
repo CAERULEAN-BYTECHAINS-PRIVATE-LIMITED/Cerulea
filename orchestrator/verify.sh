@@ -79,6 +79,7 @@ NODE_CHANGED=$(changed_matching '^platform/.*\.(ts|tsx|json)$')
 
 case "$SCOPE" in
   docs)
+    # Planning and audit tasks may write markdown and plan files, never code.
     CODE=$(changed_matching '\.(rs|ts|tsx|toml)$')
     [ -n "$CODE" ] && { say "$CODE"; die "documentation task modified code"; }
     pass "no code touched"
