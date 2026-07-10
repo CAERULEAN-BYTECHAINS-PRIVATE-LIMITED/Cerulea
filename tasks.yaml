@@ -11,7 +11,7 @@ tasks:
   domain: chain
   model: sonnet
   priority: 0
-  status: running
+  status: failed
   attempts: 2
   verify: rust
   depends_on: []
@@ -39,6 +39,49 @@ tasks:
   - cargo clippy --all-targets -- -D warnings exits zero
   - cargo test --all exits zero, or a real bug is written to BLOCKED.md
   - no user-visible string literal names Substrate, Polkadot, GRANDPA, or Parity
+  last_failure: '=== changed files ===
+
+    none
+
+    === cargo fmt check ===
+
+    FAIL: cargo fmt check
+
+    === cargo clippy ===
+
+    FAIL: cargo clippy
+
+    === cargo test ===
+
+    FAIL: cargo test
+
+    === cargo build ===
+
+    FAIL: cargo build
+
+    === security gate ===
+
+    FAIL: security gate
+
+    === guardrail: forbidden branding ===
+
+    PASS: forbidden branding (nothing relevant changed)
+
+    === guardrail: em dash ===
+
+    PASS: em dash (nothing relevant changed)
+
+    === guardrail: placeholders ===
+
+    PASS: placeholders (nothing relevant changed)
+
+    VERIFY: FAILED
+
+    Terminated
+
+    Terminated
+
+    '
 - id: audit-chain
   title: Deep audit of the chain codebase
   domain: chain
