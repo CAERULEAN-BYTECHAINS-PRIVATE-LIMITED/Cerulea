@@ -6,14 +6,48 @@ notes: 'Phase 0 is concrete and hand written. Phase 1 planning tasks run on Opus
 
   '
 tasks:
+- id: fix-baseline
+  title: Make the tree compile and satisfy the guardrails
+  domain: chain
+  model: sonnet
+  priority: 0
+  status: running
+  attempts: 1
+  verify: rust
+  depends_on: []
+  timeout_seconds: 7200
+  owns:
+  - cerulea-node/**
+  - cerulea-runtime/**
+  - cerulea-pallets/**
+  spec: "The CBC to Cerulea rename left the tree in a state that does not build and\ndoes not satisfy\
+    \ the project guardrails. Fix it. Nothing else can run until\nthis passes.\n\n1. Run `cargo fmt --all`.\
+    \ The rename rewrote identifiers and broke formatting.\n2. Run `cargo build --release`. Fix every\
+    \ compilation error the rename caused,\n   for example a renamed crate that a Cargo.toml or a `use`\
+    \ statement still\n   refers to by its old name.\n3. Run `cargo clippy --all-targets -- -D warnings`\
+    \ and fix what it reports.\n4. In cerulea-node/src/command.rs and anywhere else, rewrite user-visible\n\
+    \   string literals that name Substrate, Polkadot, GRANDPA, or Parity. For\n   example the node description\
+    \ string must not say `built with Substrate`.\n   Say `Cerulea node running the Dynamic Consensus\
+    \ Framework`.\n   Code comments and doc comments explaining internal dependencies may keep\n   those\
+    \ words. Only strings a customer or operator could see must change.\n5. Run `cargo test --all` and\
+    \ fix tests broken by the rename. Do not delete a\n   failing test to make it pass. If a test reveals\
+    \ a real bug, leave the test\n   failing and write the bug to BLOCKED.md.\n\nDo not change behaviour.\
+    \ This is a mechanical repair task."
+  done_when:
+  - cargo fmt --all -- --check exits zero
+  - cargo build --release exits zero
+  - cargo clippy --all-targets -- -D warnings exits zero
+  - cargo test --all exits zero, or a real bug is written to BLOCKED.md
+  - no user-visible string literal names Substrate, Polkadot, GRANDPA, or Parity
 - id: audit-chain
   title: Deep audit of the chain codebase
   domain: chain
   model: opus
   priority: 1
-  status: blocked
-  attempts: 3
-  depends_on: []
+  status: pending
+  attempts: 0
+  depends_on:
+  - fix-baseline
   owns:
   - docs/AUDIT_CHAIN.md
   timeout_seconds: 7200
@@ -33,49 +67,14 @@ tasks:
   - docs/AUDIT_CHAIN.md exists and covers all six sections
   - every bug in CONSENSUS_BUGS.md is addressed with file and line evidence
   - no code files are modified
-  last_failure: "=== cargo fmt check ===\nFAIL: cargo fmt check\n=== cargo clippy ===\nFAIL: cargo clippy\n\
-    === cargo test ===\nFAIL: cargo test\n=== cargo build ===\nFAIL: cargo build\n=== security gate ===\n\
-    FAIL: security gate\n=== guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
+  verify: docs
 - id: audit-studio
   title: Deep audit of the Studio monorepo
   domain: studio
   model: opus
   priority: 1
-  status: blocked
-  attempts: 3
+  status: pending
+  attempts: 0
   depends_on: []
   owns:
   - docs/AUDIT_STUDIO.md
@@ -93,49 +92,16 @@ tasks:
   - docs/AUDIT_STUDIO.md exists and covers all six sections
   - the builder gap analysis names specific missing capabilities
   - no code files are modified
-  last_failure: "no package.json, skipping node checks\n=== security gate ===\nFAIL: security gate\n===\
-    \ guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
+  verify: docs
 - id: ci-pipeline
   title: CI pipeline with the security gate on every pull request
   domain: devops
   model: sonnet
   priority: 2
-  status: blocked
-  attempts: 3
-  depends_on: []
+  status: pending
+  attempts: 0
+  depends_on:
+  - fix-baseline
   owns:
   - .github/workflows/ci.yml
   - .github/workflows/security.yml
@@ -163,41 +129,7 @@ tasks:
   - both workflow files exist and are valid YAML
   - the workflows run every check listed above
   - no path exists to bypass the security workflow
-  last_failure: "=== cargo test ===\nFAIL: cargo test\n=== security gate ===\nFAIL: security gate\n===\
-    \ guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
+  verify: docs
 - id: baseline-tests
   title: Establish the chain test baseline and coverage reporting
   domain: testing
@@ -207,6 +139,7 @@ tasks:
   attempts: 0
   depends_on:
   - audit-chain
+  - fix-baseline
   owns:
   - cerulea-pallets/**/tests/
   - docs/TEST_BASELINE.md
@@ -236,6 +169,7 @@ tasks:
   - docs/TEST_BASELINE.md records current coverage and every failing test
   - new tests exist for vote aggregation and justification building
   - all added tests pass
+  verify: rust
 - id: plan-chain
   title: Expand the chain domain into a task graph
   domain: chain
@@ -288,6 +222,7 @@ tasks:
   - tasks.yaml contains the expanded chain tasks and remains valid YAML
   - every new task has objectively checkable done_when criteria
   - consensus reasoning tasks are assigned model opus, mechanical work haiku
+  verify: docs
 - id: plan-studio
   title: Expand the Studio no code builder into a task graph
   domain: studio
@@ -335,6 +270,7 @@ tasks:
   - tasks.yaml contains the expanded studio tasks and remains valid YAML
   - the primitive library, template set, and compiler each have their own tasks
   - every new task has objectively checkable done_when criteria
+  verify: docs
 - id: plan-platform
   title: Expand backend, frontend, SDK, billing, intelligence into task graphs
   domain: backend
@@ -386,6 +322,7 @@ tasks:
   - tasks.yaml contains tasks for all five domains and remains valid YAML
   - billing tasks reference the exact tier and add on prices from CLAUDE.md
   - every new task has objectively checkable done_when criteria
+  verify: docs
 - id: coherence-sweep
   title: Daily coherence sweep across merged work
   domain: devops
@@ -424,288 +361,4 @@ tasks:
   - docs/COHERENCE.md updated with dated findings
   - corrective tasks appended for every material finding
   - a fresh coherence sweep task appended for the next day
-- id: audit-chain-diagnose
-  title: Diagnose repeated failure of audit-chain
-  domain: chain
-  model: opus
-  priority: 1
-  status: failed
-  attempts: 2
-  depends_on: []
-  spec: "Task audit-chain failed 3 times.\n\nOriginal spec:\nRead the chain codebase in full. It is roughly\
-    \ 60000 lines of Rust across\ncerulea-node, cerulea-runtime, and four pallets (dcf, poi, pos, dvf),\
-    \ with\na custom consensus engine under cerulea-node/src/cerulea-consensus.\n\nProduce docs/AUDIT_CHAIN.md\
-    \ covering:\n1. Module map. What each crate and pallet actually does.\n2. The DCF consensus path end\
-    \ to end: block authoring, the PoS weighted 65\n   and Proof of Inference weighted 35 selection, vote\
-    \ aggregation, and\n   justification building for finality.\n3. Every issue listed in docs/CONSENSUS_BUGS.md,\
-    \ cross referenced against\n   the current code. State for each whether it is still present, fixed,\
-    \ or\n   unclear, with file and line evidence.\n4. Safety analysis of the finality gadget. Specifically:\
-    \ can a validator\n   equivocate, can the chain fork under a network partition, what happens\n   if\
-    \ more than one third of validators are offline, and is there any\n   unbounded loop or panic reachable\
-    \ from a network message.\n5. Test coverage gaps, ranked by risk.\n6. A prioritized remediation list.\n\
-    \nDo not change code. This task produces one document.\n\n\nLast failure output:\n=== cargo fmt check\
-    \ ===\nFAIL: cargo fmt check\n=== cargo clippy ===\nFAIL: cargo clippy\n=== cargo test ===\nFAIL:\
-    \ cargo test\n=== cargo build ===\nFAIL: cargo build\n=== security gate ===\nFAIL: security gate\n\
-    === guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n\
-    \n\nDetermine whether the specification is wrong, a dependency is missing, or the work is genuinely\
-    \ hard. Then either rewrite the task spec in tasks.yaml, insert the missing prerequisite task, or\
-    \ mark it blocked with a written explanation for the founder. Do not attempt the original task yourself."
-  done_when:
-  - tasks.yaml updated with a corrected plan or a written block reason
-  owns:
-  - tasks.yaml
-  last_failure: "=== cargo fmt check ===\nFAIL: cargo fmt check\n=== cargo clippy ===\nFAIL: cargo clippy\n\
-    === cargo test ===\nFAIL: cargo test\n=== cargo build ===\nFAIL: cargo build\n=== security gate ===\n\
-    FAIL: security gate\n=== guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
-- id: audit-studio-diagnose
-  title: Diagnose repeated failure of audit-studio
-  domain: studio
-  model: opus
-  priority: 1
-  status: failed
-  attempts: 2
-  depends_on: []
-  spec: "Task audit-studio failed 3 times.\n\nOriginal spec:\nRead the Studio monorepo in full. Roughly\
-    \ 29000 lines of TypeScript and\nReact across a pnpm and Turbo workspace, currently a single frontend\
-    \ app.\nIt has auth, a pricing surface, a dashboard, a step based builder with\ndraft persistence,\
-    \ and an AI assistant.\n\nProduce docs/AUDIT_STUDIO.md covering:\n1. Route and component map.\n2.\
-    \ What the step based builder can actually produce today, precisely.\n3. The gap between that and\
-    \ the target: a no code builder where a\n   developer, an enterprise, or a government can construct\
-    \ a private chain\n   and a dapp without writing code, with a code editor only as a rare\n   escape\
-    \ hatch.\n4. Data model and persistence. Auth and session security review.\n5. Where the assistant\
-    \ is wired and what it can do.\n6. A prioritized build list to close the gap, ordered by user value.\n\
-    \nDo not change code. This task produces one document.\n\n\nLast failure output:\nno package.json,\
-    \ skipping node checks\n=== security gate ===\nFAIL: security gate\n=== guardrail: forbidden branding\
-    \ ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:        \"A Cerulea runtime\
-    \ node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:            // Substrate's\
-    \ CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n\
-    \n\nDetermine whether the specification is wrong, a dependency is missing, or the work is genuinely\
-    \ hard. Then either rewrite the task spec in tasks.yaml, insert the missing prerequisite task, or\
-    \ mark it blocked with a written explanation for the founder. Do not attempt the original task yourself."
-  done_when:
-  - tasks.yaml updated with a corrected plan or a written block reason
-  owns:
-  - tasks.yaml
-  last_failure: "no package.json, skipping node checks\n=== security gate ===\nFAIL: security gate\n===\
-    \ guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
-- id: ci-pipeline-diagnose
-  title: Diagnose repeated failure of ci-pipeline
-  domain: devops
-  model: opus
-  priority: 1
-  status: failed
-  attempts: 2
-  depends_on: []
-  spec: "Task ci-pipeline failed 3 times.\n\nOriginal spec:\nCreate GitHub Actions workflows that run\
-    \ on every pull request to develop\nand to main.\n\nci.yml: rust fmt check, clippy with warnings denied,\
-    \ cargo test, cargo\nbuild release, pnpm install, tsc noEmit, lint, test, build. All must pass.\n\n\
-    security.yml: run orchestrator/security-gate.sh, cargo audit, pnpm audit\nat high severity, and a\
-    \ secret scan. Any finding fails the job.\n\nBoth workflows must be required checks. Nothing merges\
-    \ without them green.\nDo not add a workflow that can be skipped with a label or a commit message.\n\
-    \n\nLast failure output:\n=== cargo test ===\nFAIL: cargo test\n=== security gate ===\nFAIL: security\
-    \ gate\n=== guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n\
-    \n\nDetermine whether the specification is wrong, a dependency is missing, or the work is genuinely\
-    \ hard. Then either rewrite the task spec in tasks.yaml, insert the missing prerequisite task, or\
-    \ mark it blocked with a written explanation for the founder. Do not attempt the original task yourself."
-  done_when:
-  - tasks.yaml updated with a corrected plan or a written block reason
-  owns:
-  - tasks.yaml
-  last_failure: "=== cargo test ===\nFAIL: cargo test\n=== security gate ===\nFAIL: security gate\n===\
-    \ guardrail: forbidden branding ===\nFAIL: forbidden branding found:\n./cerulea-node/src/command.rs:27:\
-    \        \"A Cerulea runtime node built with Substrate.\".into()\n./cerulea-node/src/command.rs:200:\
-    \            // Substrate's CLI checks for the key file during create_runner and throws\n./cerulea-node/src/command.rs:645:///\
-    \ Ensures the P2P network key exists before Substrate's CLI runner checks for it.\n./cerulea-node/src/command.rs:647:///\
-    \ Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes\n./cerulea-node/src/command.rs:649:///\
-    \ base path the same way Substrate does (explicit `--base-path` or the platform default\n./cerulea-node/src/command.rs:655:\
-    \    // Skip dev \u2014 Substrate handles ephemeral keys internally.\n./cerulea-node/src/command.rs:667:\
-    \            // Mirror Substrate's BasePath::from_project(\"\", \"\", executable_name)\n./cerulea-node/src/cli.rs:9:\
-    \    about = \"Cerulea Node - A Substrate-based blockchain node.\",\n./cerulea-node/src/service.rs:429:\t\
-    \t// This mirrors how Substrate handles GRANDPA keys: the node generates its own\n./cerulea-node/src/service.rs:438:\t\
-    \t\t// so it survives restarts, exactly like GRANDPA keys.\n./cerulea-node/src/service.rs:480:\t\t\
-    \t\t\t// so the key survives restarts. This is the same mechanism Substrate\n./cerulea-node/src/service.rs:481:\t\
-    \t\t\t\t// uses for GRANDPA keys when you run `key generate` and insert them.\n./cerulea-node/src/service.rs:505:\t\
-    \t\t// In Substrate, AccountId32 is typically derived from the public key\n./cerulea-node/src/service.rs:672:\
-    \    // Use the client directly for block import - Substrate handles this internally\n./cerulea-node/src/service.rs:797:\
-    \    // This syncs DCF's internal finality state to Substrate's client finalized head\n./cerulea-node/src/service.rs:1016:\
-    \    log::info!(\"DCF: Consensus monitoring active. Block production handled by Substrate's default\
-    \ mechanisms.\");\n./cerulea-node/src/cerulea-consensus/src/lib.rs:27:/// This is analogous to Substrate's\
-    \ `GRANDPA` key type (`b\"gran\"`).\n./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:266: \
-    \       // For Ed25519 standard Substrate:\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:80:\
-    \    /// This method implements the full Substrate block building pipeline\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:230:\
-    \        // STEP 49: Substrate build_block executing\n=== guardrail: em dash ===\nFAIL: em dash present\n\
-    === guardrail: placeholders ===\nFAIL: placeholder code:\n./cerulea-node/src/command.rs:579:     \
-    \               // If parsing failed, use a placeholder\n./cerulea-node/src/command.rs:580:      \
-    \              let placeholder = AccountId32::from([0u8; 32]);\n./cerulea-node/src/command.rs:581:\
-    \                    authors.push((block_number, placeholder));\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:93:///\
-    \ Metrics output implementation (placeholder for Prometheus integration)\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:98:\
-    \        // TODO: Implement Prometheus metrics integration\n./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/output.rs:99:\
-    \        // For now, this is a no-op placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:551:\
-    \        warn!(\"ProposerFactory: Using legacy create_block method - this method creates headers with\
-    \ placeholder state roots\");\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:564: \
-    \       // Create basic block header with placeholder values\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:571:\
-    \            Default::default(), // extrinsics_root - placeholder\n./cerulea-node/src/cerulea-consensus/src/proposer_factory.rs:572:\
-    \            Default::default(), // state_root - placeholder (THIS IS THE PROBLEM!)\nVERIFY: FAILED\n"
+  verify: docs
