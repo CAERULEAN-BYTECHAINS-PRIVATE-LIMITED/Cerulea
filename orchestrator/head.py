@@ -2,11 +2,9 @@
 """
 Cerulea build orchestrator.
 
-The head is deterministic code, not a language model. It resolves dependencies,
-dispatches work, enforces the budget, and escalates. Judgment is sampled by
-invoking planning, integration, escalation, and coherence tasks as needed.
-
-State lives in git. The process can die at any moment and resume cleanly.
+Deterministic. No language model in the control loop. State lives on disk outside
+the git tree so it can never cause a merge conflict. Every failure mode has an
+explicit branch. The process may be killed at any instant and resume correctly.
 """
 
 import json
@@ -22,130 +20,114 @@ import yaml
 
 ROOT = Path(os.environ.get("CERULEA_ROOT", "/opt/cerulea")).resolve()
 REPO = ROOT / "repo"
-TASKS_FILE = ROOT / "state" / "tasks.yaml"
-PLANS_DIR = REPO / "plans"
-FAILED_DIR = ROOT / "failed"
-SPEND_FILE = ROOT / "state" / "spend.json"
-CONTROL_FILE = ROOT / "state" / "control"
+STATE = ROOT / "state"
+TASKS_FILE = STATE / "tasks.yaml"
+SPEND_FILE = STATE / "spend.json"
+CONTROL_FILE = STATE / "control"
+LOGS_DIR = STATE / "logs"
 WORKTREES = ROOT / "worktrees"
+FAILED_DIR = ROOT / "failed"
+PLANS_DIR = REPO / "plans"
 ORCH = Path(__file__).resolve().parent
 
 BUDGET_CEILING = float(os.environ.get("CERULEA_BUDGET_CEILING", "1200"))
 BUDGET_WARN = float(os.environ.get("CERULEA_BUDGET_WARN", "900"))
-MAX_PARALLEL = int(os.environ.get("CERULEA_MAX_PARALLEL", "4"))
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = int(os.environ.get("CERULEA_MAX_ATTEMPTS", "3"))
+POLL_SECONDS = int(os.environ.get("CERULEA_POLL_SECONDS", "20"))
+DIGEST_SECONDS = int(os.environ.get("CERULEA_DIGEST_SECONDS", "10800"))
 TIMEOUT_COST_ESTIMATE = 5.0
-# One shared, persistent build cache. Without this every task recompiles the
-# entire dependency tree from scratch inside its throwaway worktree.
-CARGO_TARGET = os.environ.get("CARGO_TARGET_DIR", str(ROOT / "cargo-target"))  # conservative, so the ceiling is never undercounted
-POLL_SECONDS = 20
+CARGO_TARGET = os.environ.get("CARGO_TARGET_DIR", str(ROOT / "cargo-target"))
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
+INTEGRATION_BRANCH = "develop"
 
 MODEL_MAP = {
     "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-5",
     "opus": "claude-opus-4-8",
 }
-
 TURN_CAP = {"haiku": 25, "sonnet": 40, "opus": 60}
 
 
-# ---------------------------------------------------------------- utilities
+class InfrastructureFault(Exception):
+    """The agent never ran. Not a code failure. Halt, do not retry."""
 
-def now():
+
+class AgentTimeout(Exception):
+    """The agent exhausted its wall clock. Real work may exist in the worktree."""
+
+
+# --------------------------------------------------------------------- helpers
+
+def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def notify(level, msg):
-    subprocess.run([str(ORCH / "notify.sh"), level, msg], check=False)
+def notify(level: str, msg: str) -> None:
+    script = ORCH / "notify.sh"
+    if not script.exists():
+        print(f"[{level}] {msg}", flush=True)
+        return
+    subprocess.run([str(script), level, msg], check=False)
 
 
-def git(*args, cwd=REPO):
+def log(msg: str) -> None:
+    print(f"{now()} {msg}", flush=True)
+
+
+def git(*args, cwd=None):
     return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False
+        ["git", *args], cwd=str(cwd or REPO),
+        capture_output=True, text=True, check=False,
     )
 
 
-def load_tasks():
+def build_env() -> dict:
+    env = os.environ.copy()
+    env["CARGO_TARGET_DIR"] = CARGO_TARGET
+    return env
+
+
+# ----------------------------------------------------------------------- state
+
+def load_tasks() -> dict:
     with open(TASKS_FILE) as f:
         return yaml.safe_load(f)
 
 
-def save_tasks(data):
+def save_tasks(data: dict) -> None:
     tmp = TASKS_FILE.with_suffix(".tmp")
     with open(tmp, "w") as f:
         yaml.safe_dump(data, f, sort_keys=False, width=100)
-    tmp.replace(TASKS_FILE)   # atomic, survives a crash mid-write
+    tmp.replace(TASKS_FILE)
 
 
-def ingest_plans(data):
-    """Planning agents write plans/<id>.yaml inside their worktree, which merges
-    into develop like any other file. The head folds them into the task graph.
-    This keeps state out of the branches agents work on."""
-    if not PLANS_DIR.exists():
-        return False
-    known = {t["id"] for t in data["tasks"]}
-    added = 0
-    for f in sorted(PLANS_DIR.glob("*.yaml")):
-        try:
-            new = yaml.safe_load(f.read_text()) or []
-        except yaml.YAMLError as e:
-            notify("alert", f"Plan file {f.name} is invalid YAML: {e}")
-            continue
-        for t in (new.get("tasks", new) if isinstance(new, dict) else new):
-            if t.get("id") and t["id"] not in known:
-                t.setdefault("status", "pending")
-                t.setdefault("attempts", 0)
-                t.setdefault("depends_on", [])
-                t.setdefault("priority", 50)
-                t.setdefault("verify", "rust-build")
-                t.setdefault("model", "sonnet")
-                data["tasks"].append(t)
-                known.add(t["id"])
-                added += 1
-    if added:
-        save_tasks(data)
-        notify("milestone", f"Task graph expanded by {added} tasks. Total {len(data['tasks'])}.")
-    return added > 0
-
-
-# ---------------------------------------------------------------- budget
-
-def read_spend():
+def read_spend() -> dict:
     if not SPEND_FILE.exists():
         return {"total": 0.0, "by_task": {}}
-    with open(SPEND_FILE) as f:
-        return json.load(f)
+    try:
+        return json.loads(SPEND_FILE.read_text())
+    except json.JSONDecodeError:
+        return {"total": 0.0, "by_task": {}}
 
 
-def add_spend(task_id, usd):
+def add_spend(task_id: str, usd: float) -> float:
     s = read_spend()
     s["total"] = round(s["total"] + usd, 4)
     s["by_task"][task_id] = round(s["by_task"].get(task_id, 0.0) + usd, 4)
     SPEND_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(SPEND_FILE, "w") as f:
-        json.dump(s, f, indent=2)
+    tmp = SPEND_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(s, indent=2))
+    tmp.replace(SPEND_FILE)
     return s["total"]
 
 
-def budget_check():
-    """Returns (allowed, total). Hard stop at ceiling."""
-    total = read_spend()["total"]
-    if total >= BUDGET_CEILING:
-        return False, total
-    return True, total
+def paused() -> bool:
+    return CONTROL_FILE.exists() and CONTROL_FILE.read_text().strip() == "pause"
 
 
-# ---------------------------------------------------------------- control
+# ------------------------------------------------------------------- scheduling
 
-def paused():
-    if not CONTROL_FILE.exists():
-        return False
-    return CONTROL_FILE.read_text().strip() == "pause"
-
-
-# ---------------------------------------------------------------- dispatch
-
-def ready_tasks(tasks):
+def ready_tasks(tasks: list) -> list:
     done = {t["id"] for t in tasks if t["status"] == "done"}
     out = []
     for t in tasks:
@@ -159,18 +141,21 @@ def ready_tasks(tasks):
     return out
 
 
-def make_worktree(task_id):
+def make_worktree(task_id: str):
     wt = WORKTREES / task_id
-    if wt.exists():
-        shutil.rmtree(wt, ignore_errors=True)
-        git("worktree", "prune")
     branch = f"task/{task_id}"
+    if wt.exists():
+        git("worktree", "remove", "--force", str(wt))
+        shutil.rmtree(wt, ignore_errors=True)
+    git("worktree", "prune")
     git("branch", "-D", branch)
-    git("worktree", "add", "-b", branch, str(wt), "develop")
+    r = git("worktree", "add", "-b", branch, str(wt), INTEGRATION_BRANCH)
+    if r.returncode != 0:
+        raise InfrastructureFault(f"cannot create worktree: {r.stderr.strip()}")
     return wt, branch
 
 
-def build_prompt(task):
+def build_prompt(task: dict) -> str:
     parts = [
         f"# Task {task['id']}: {task['title']}",
         "",
@@ -178,193 +163,246 @@ def build_prompt(task):
         "",
         "## Definition of done",
     ]
-    for c in task["done_when"]:
-        parts.append(f"- {c}")
+    parts += [f"- {c}" for c in task["done_when"]]
     parts += [
         "",
         "## Files you own",
-        ", ".join(task.get("owns", ["(scoped by spec)"])),
+        ", ".join(task.get("owns", ["scoped by the spec"])),
         "",
         "Read CLAUDE.md at the repository root first. Its rules are absolute.",
-        "If you cannot complete this as specified, write your blocker to",
-        "BLOCKED.md and exit rather than producing partial or fake work.",
-        "Commit your work. Do not merge. Do not push to main.",
+        "If you cannot complete this as specified, write the reason to BLOCKED.md",
+        "and exit. Never produce partial work and call it done.",
     ]
     if task.get("last_failure"):
         parts += [
             "",
-            "## Previous attempt failed with",
+            "## The previous attempt failed",
             "```",
-            task["last_failure"][-3000:],
+            str(task["last_failure"])[-3000:],
             "```",
-            "Fix the underlying cause. Do not suppress the check.",
+            "Fix the underlying cause. Do not suppress or delete the check.",
         ]
     return "\n".join(parts)
 
 
-class AgentTimeout(Exception):
-    """The agent ran out of wall clock. Real work may have happened."""
-
-
-class InfrastructureFault(Exception):
-    """The agent could not run at all. Not a code failure. Do not retry blindly."""
-
-
-def run_agent(task, worktree):
-    """Invoke Claude Code headless. Returns (exit_code, cost_usd, output).
-
-    Raises InfrastructureFault when the agent never actually ran. Claude Code can
-    exit 0 while refusing to start, for example when invoked as root with
-    --dangerously-skip-permissions. Treating that as a code failure sends the
-    orchestrator chasing phantom test errors.
-    """
+def run_agent(task: dict, worktree: Path):
+    """Returns (returncode, cost_usd, output). Raises on fault or timeout."""
     tier = task.get("model", "sonnet")
-    model = MODEL_MAP[tier]
-    tools = task.get("allowed_tools", "Read,Write,Edit,Bash,Glob,Grep")
-
     cmd = [
-        "claude", "-p", build_prompt(task),
-        "--model", model,
+        CLAUDE_BIN, "-p", build_prompt(task),
+        "--model", MODEL_MAP[tier],
         "--max-turns", str(task.get("max_turns", TURN_CAP[tier])),
-        "--allowedTools", tools,
+        "--allowedTools", task.get("allowed_tools", "Read,Write,Edit,Bash,Glob,Grep"),
         "--output-format", "json",
         "--dangerously-skip-permissions",
     ]
     try:
-        env = os.environ.copy()
-        env["CARGO_TARGET_DIR"] = CARGO_TARGET
         proc = subprocess.run(
-            cmd, cwd=worktree, capture_output=True, text=True, env=env,
-            timeout=task.get("timeout_seconds", 5400), check=False
+            cmd, cwd=str(worktree), capture_output=True, text=True,
+            env=build_env(), timeout=task.get("timeout_seconds", 5400), check=False,
         )
+    except FileNotFoundError:
+        raise InfrastructureFault(f"{CLAUDE_BIN} not found on PATH")
     except subprocess.TimeoutExpired as exc:
-        partial = ""
+        tail = ""
         for stream in (exc.stdout, exc.stderr):
             if stream:
-                partial += stream if isinstance(stream, str) else stream.decode("utf8", "replace")
-        # The agent ran and spent money. We cannot read the cost, so estimate high
-        # rather than silently undercount against the ceiling.
-        raise AgentTimeout(
-            f"exceeded {task.get('timeout_seconds', 5400)}s. Tail:\n{partial[-1500:]}"
-        )
+                tail += stream if isinstance(stream, str) else stream.decode("utf8", "replace")
+        raise AgentTimeout(f"exceeded {task.get('timeout_seconds', 5400)}s\n{tail[-1500:]}")
 
     combined = (proc.stdout + proc.stderr)[-6000:]
 
-    # A real run always emits JSON containing total_cost_usd on the last line.
+    # A real run always emits a JSON object carrying total_cost_usd. Claude Code
+    # can exit zero while refusing to start, so the return code proves nothing.
     payload = None
     for line in reversed(proc.stdout.strip().splitlines()):
         try:
             candidate = json.loads(line)
-            if "total_cost_usd" in candidate:
-                payload = candidate
-                break
         except json.JSONDecodeError:
             continue
+        if isinstance(candidate, dict) and "total_cost_usd" in candidate:
+            payload = candidate
+            break
 
     if payload is None:
         raise InfrastructureFault(
-            f"agent produced no result JSON (exit {proc.returncode}). "
-            f"Output: {combined[:800]}"
+            f"agent emitted no result JSON (exit {proc.returncode}).\n{combined[:800]}"
         )
-
     return proc.returncode, float(payload["total_cost_usd"]), combined
 
 
-def verify(worktree, domain, scope="full"):
-    env = os.environ.copy()
-    env["CARGO_TARGET_DIR"] = CARGO_TARGET
-    p = subprocess.run(
-        [str(ORCH / "verify.sh"), str(worktree), domain, scope],
-        capture_output=True, text=True, check=False, timeout=7200, env=env
+def commit_agent_work(worktree: Path, task: dict) -> bool:
+    """Agents are told to commit and frequently do not. Without a commit the diff
+    against the integration branch is empty and every check is meaningless."""
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=str(worktree),
+        capture_output=True, text=True, check=False,
+    ).stdout.strip()
+    if not status:
+        return False
+    subprocess.run(["git", "add", "-A"], cwd=str(worktree), check=False)
+    subprocess.run(
+        ["git", "-c", "user.email=build@cbytechains.com",
+         "-c", "user.name=Orchestrator", "commit", "-m",
+         f"{task['id']}: {task['title']}"],
+        cwd=str(worktree), capture_output=True, check=False,
     )
-    return p.returncode, (p.stdout + p.stderr)[-6000:]
+    return True
 
 
-def merge_task(branch, task_id):
-    git("checkout", "develop")
+def verify(worktree: Path, domain: str, scope: str):
+    script = ORCH / "verify.sh"
+    p = subprocess.run(
+        [str(script), str(worktree), domain, scope],
+        capture_output=True, text=True, check=False,
+        timeout=int(os.environ.get("CERULEA_VERIFY_TIMEOUT", "7200")),
+        env=build_env(),
+    )
+    out = (p.stdout + p.stderr).strip()
+    # The harness may log to file rather than stdout. A retry prompt with no
+    # failure text tells the next agent nothing.
+    logfile = worktree / ".verify.log"
+    if len(out) < 200 and logfile.exists():
+        try:
+            out = (out + "\n" + logfile.read_text()).strip()
+        except OSError:
+            pass
+    return p.returncode, out[-6000:]
+
+
+def merge_task(branch: str, task_id: str):
+    git("checkout", INTEGRATION_BRANCH)
     r = git("merge", "--no-ff", branch, "-m", f"merge {task_id}")
     if r.returncode != 0:
         git("merge", "--abort")
-        return False, r.stdout + r.stderr
+        return False, (r.stdout + r.stderr)[-2000:]
     return True, ""
 
 
-def cleanup(worktree, branch, task_id=None, failed=False):
-    log = Path(worktree) / ".verify.log"
-    if task_id and log.exists():
-        dest = ROOT / "state" / "logs"
-        dest.mkdir(parents=True, exist_ok=True)
+def cleanup(worktree: Path, branch: str, task_id: str, failed: bool) -> None:
+    src_log = worktree / ".verify.log"
+    if src_log.exists():
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
         try:
-            shutil.copy(log, dest / f"{task_id}.log")
+            shutil.copy(src_log, LOGS_DIR / f"{task_id}.log")
         except OSError:
             pass
-
-    if failed:
-        # Keep the work. A failed task has real code in it that a later attempt,
-        # or a human, can salvage. Destroying it throws the money away.
+    if failed and worktree.exists():
+        # Keep the work. A failed task contains real code that a later attempt or
+        # a human can salvage. Deleting it throws away everything it cost.
         FAILED_DIR.mkdir(parents=True, exist_ok=True)
         keep = FAILED_DIR / f"{task_id}-{int(time.time())}"
         try:
             shutil.copytree(worktree, keep, symlinks=True)
         except OSError:
             pass
-
+    git("worktree", "remove", "--force", str(worktree))
     shutil.rmtree(worktree, ignore_errors=True)
     git("worktree", "prune")
-    git("branch", "-D", branch)   # branch content is preserved in FAILED_DIR
+    git("branch", "-D", branch)
 
 
-# ---------------------------------------------------------------- judgment hooks
+# -------------------------------------------------------------------- judgement
 
-def escalate(task, tasks_data):
-    """Task failed MAX_ATTEMPTS times. Spawn an Opus diagnosis task."""
-    notify(
-        "alert",
-        f"Task {task['id']} ({task['title']}) failed {MAX_ATTEMPTS} times.\n"
-        f"Domain: {task['domain']}\n"
-        f"Last failure head:\n{(task.get('last_failure') or '')[:600]}\n\n"
-        "Escalating to diagnosis. Reply /status for full state."
-    )
-    diag = {
-        "id": f"{task['id']}-diagnose",
+def escalate(task: dict, data: dict) -> None:
+    task["status"] = "blocked"
+
+    # A diagnosis that fails must not spawn its own diagnosis. That recursion
+    # generates an unbounded chain of Opus calls until the budget stops it.
+    if task["id"].endswith("-diagnose"):
+        notify("alert",
+               f"Diagnosis task {task['id']} failed {MAX_ATTEMPTS} times.\n"
+               f"Original task cannot proceed without you.\n"
+               f"Worktree preserved under {FAILED_DIR}")
+        return
+
+    diag_id = f"{task['id']}-diagnose"
+    if any(t["id"] == diag_id for t in data["tasks"]):
+        return
+    data["tasks"].append({
+        "id": diag_id,
         "title": f"Diagnose repeated failure of {task['id']}",
         "domain": task["domain"],
         "model": "opus",
         "priority": 1,
         "status": "pending",
         "attempts": 0,
+        "verify": "docs",
         "depends_on": [],
+        "timeout_seconds": 3600,
+        "max_turns": 40,
+        "owns": ["plans/repair.yaml", "BLOCKED.md"],
         "spec": (
             f"Task {task['id']} failed {MAX_ATTEMPTS} times.\n\n"
             f"Original spec:\n{task['spec']}\n\n"
-            f"Last failure output:\n{(task.get('last_failure') or '')[:4000]}\n\n"
-            "Determine whether the specification is wrong, a dependency is "
-            "missing, or the work is genuinely hard. Then either rewrite the "
-            "task spec in tasks.yaml, insert the missing prerequisite task, or "
-            "Write the corrected task or the missing prerequisite to "
-            "plans/repair.yaml. If it cannot be fixed, write the reason to "
-            "BLOCKED.md. Do not attempt the original task yourself."
+            f"Last failure:\n{str(task.get('last_failure'))[:4000]}\n\n"
+            "Decide whether the specification is wrong, a prerequisite is missing, "
+            "or the work is genuinely hard. Write a corrected task or the missing "
+            "prerequisite to plans/repair.yaml. If it cannot be fixed, write the "
+            "reason to BLOCKED.md. Do not attempt the original task yourself."
         ),
-        "verify": "docs",
-        "done_when": ["plans/repair.yaml written with a corrected plan, or BLOCKED.md explains why not"],
-        "owns": ["plans/repair.yaml", "BLOCKED.md"],
-    }
-    tasks_data["tasks"].append(diag)
-    task["status"] = "blocked"
+        "done_when": [
+            "plans/repair.yaml contains a corrected plan, or BLOCKED.md explains why not",
+        ],
+    })
+    notify("alert",
+           f"Task {task['id']} failed {MAX_ATTEMPTS} times and is blocked.\n"
+           f"Worktree preserved under {FAILED_DIR}\n"
+           f"Diagnosis task queued. Reply /blocked for detail.")
 
 
-def digest(tasks, total):
+def ingest_plans(data: dict) -> int:
+    """Planning agents write plans/<id>.yaml, which merges into the integration
+    branch like any other file. The head folds them into the graph."""
+    if not PLANS_DIR.exists():
+        return 0
+    known = {t["id"] for t in data["tasks"]}
+    added = 0
+    for f in sorted(PLANS_DIR.glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(f.read_text())
+        except yaml.YAMLError as e:
+            notify("alert", f"Plan file {f.name} is invalid YAML: {e}")
+            continue
+        if not doc:
+            continue
+        items = doc.get("tasks", []) if isinstance(doc, dict) else doc
+        if not isinstance(items, list):
+            continue
+        for t in items:
+            if not isinstance(t, dict) or not t.get("id") or t["id"] in known:
+                continue
+            if not t.get("spec") or not t.get("done_when"):
+                continue
+            t.setdefault("status", "pending")
+            t.setdefault("attempts", 0)
+            t.setdefault("depends_on", [])
+            t.setdefault("priority", 50)
+            t.setdefault("verify", "rust-build")
+            t.setdefault("model", "sonnet")
+            t.setdefault("domain", "backend")
+            data["tasks"].append(t)
+            known.add(t["id"])
+            added += 1
+    if added:
+        save_tasks(data)
+        notify("milestone",
+               f"Task graph expanded by {added}. Total {len(data['tasks'])}.")
+    return added
+
+
+def digest(tasks: list, total: float) -> None:
     counts = {}
     for t in tasks:
         counts[t["status"]] = counts.get(t["status"], 0) + 1
     blocked = [t for t in tasks if t["status"] == "blocked"]
-    assert sum(counts.values()) == len(tasks)
-
     lines = [
         "Progress: " + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())),
         f"Total tasks: {len(tasks)}",
         f"Spend: {total:.2f} of {BUDGET_CEILING:.0f} USD",
     ]
+    if paused():
+        lines.append("State: PAUSED. Send /resume to continue.")
     if blocked:
         lines.append("Blocked: " + ", ".join(t["id"] for t in blocked[:6]))
         lines.append("ACTION NEEDED: review blocked tasks")
@@ -373,11 +411,9 @@ def digest(tasks, total):
     notify("info", "\n".join(lines))
 
 
-# ---------------------------------------------------------------- main loop
-
-def recover_orphans():
-    """A task marked running with no process behind it is orphaned by a crash.
-    Left alone it deadlocks the graph forever, because ready_tasks skips it."""
+def recover_orphans() -> None:
+    """A task marked running with no process behind it was orphaned by a crash.
+    Left alone it deadlocks the graph, because ready_tasks skips it forever."""
     data = load_tasks()
     orphans = [t for t in data["tasks"] if t["status"] == "running"]
     if not orphans:
@@ -388,31 +424,88 @@ def recover_orphans():
     notify("info", "Requeued after restart: " + ", ".join(t["id"] for t in orphans))
 
 
-def main():
-    WORKTREES.mkdir(parents=True, exist_ok=True)
-    (ROOT / "state").mkdir(parents=True, exist_ok=True)
-    recover_orphans()
+# ---------------------------------------------------------------------- the loop
 
+def run_one(task: dict, data: dict) -> None:
+    """Execute a single task to completion. Every exit path updates state."""
+    task["status"] = "running"
+    task["attempts"] = task.get("attempts", 0) + 1
+    save_tasks(data)
+
+    wt, branch = make_worktree(task["id"])
+    notify("info", f"Started {task['id']} ({task.get('model','sonnet')}): {task['title']}")
+    log(f"start {task['id']} attempt {task['attempts']}")
+
+    failed = True
+    try:
+        try:
+            rc, cost, out = run_agent(task, wt)
+        except AgentTimeout as exc:
+            add_spend(task["id"], TIMEOUT_COST_ESTIMATE)
+            task["status"] = "failed"
+            task["last_failure"] = f"TIMEOUT: {exc}"
+            notify("alert", f"Task {task['id']} timed out on attempt {task['attempts']}.")
+            if task["attempts"] >= MAX_ATTEMPTS:
+                escalate(task, data)
+            return
+
+        total = add_spend(task["id"], cost)
+        commit_agent_work(wt, task)
+        vrc, vout = verify(wt, task["domain"], task.get("verify", "rust-build"))
+
+        if rc != 0:
+            task["status"] = "failed"
+            task["last_failure"] = f"agent exited {rc}\n{out}"
+        elif vrc != 0:
+            task["status"] = "failed"
+            task["last_failure"] = vout
+        else:
+            merged, err = merge_task(branch, task["id"])
+            if merged:
+                task["status"] = "done"
+                task["last_failure"] = None
+                failed = False
+                notify("info", f"Done {task['id']} (cost {cost:.2f}, total {total:.2f})")
+                log(f"done {task['id']} cost {cost:.2f}")
+            else:
+                task["status"] = "failed"
+                task["last_failure"] = f"merge conflict:\n{err}"
+
+        if task["status"] == "failed" and task["attempts"] >= MAX_ATTEMPTS:
+            escalate(task, data)
+
+    finally:
+        cleanup(wt, branch, task["id"], failed=failed)
+        save_tasks(data)
+
+
+def main() -> int:
+    for d in (WORKTREES, STATE, FAILED_DIR, LOGS_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+
+    if not TASKS_FILE.exists():
+        notify("alert", f"No task graph at {TASKS_FILE}. Nothing to do.")
+        return 1
+
+    recover_orphans()
     notify("milestone", f"Orchestrator started. Ceiling {BUDGET_CEILING:.0f} USD.")
-    last_digest = 0.0
-    running = {}
+    last_digest = time.time()
+    warned = False
 
     while True:
         if paused():
             time.sleep(POLL_SECONDS)
             continue
 
-        allowed, total = budget_check()
-        if not allowed:
-            notify(
-                "alert",
-                f"HARD STOP. Spend reached {total:.2f} USD of {BUDGET_CEILING:.0f}.\n"
-                "All work halted. Reply to release reserve or raise the ceiling."
-            )
+        total = read_spend()["total"]
+        if total >= BUDGET_CEILING:
+            notify("alert",
+                   f"HARD STOP. Spend {total:.2f} reached the {BUDGET_CEILING:.0f} USD "
+                   "ceiling. All work halted.")
             return 2
-
-        if total >= BUDGET_WARN and time.time() - last_digest > 3600:
+        if total >= BUDGET_WARN and not warned:
             notify("alert", f"Spend at {total:.2f} of {BUDGET_CEILING:.0f} USD.")
+            warned = True
 
         data = load_tasks()
         ingest_plans(data)
@@ -423,89 +516,28 @@ def main():
             digest(tasks, total)
             return 0
 
-        for t in ready_tasks(tasks):
-            if len(running) >= MAX_PARALLEL:
-                break
-            # One agent per domain at a time. File ownership is per domain.
-            if any(r["domain"] == t["domain"] for r in running.values()):
-                continue
-
-            t["status"] = "running"
-            t["attempts"] = t.get("attempts", 0) + 1
-            save_tasks(data)
-
-            wt, branch = make_worktree(t["id"])
-            running[t["id"]] = {"task": t, "wt": wt, "branch": branch, "domain": t["domain"]}
-            notify("info", f"Started {t['id']} ({t['model']}): {t['title']}")
-
+        ready = ready_tasks(tasks)
+        if ready:
             try:
-                rc, cost, out = run_agent(t, wt)
-            except AgentTimeout as to:
-                add_spend(t["id"], TIMEOUT_COST_ESTIMATE)
-                t["status"] = "failed"
-                t["last_failure"] = f"TIMEOUT: {to}"
-                if t["attempts"] >= MAX_ATTEMPTS:
-                    escalate(t, data)
-                notify("alert", f"Task {t['id']} timed out. Attempt {t['attempts']} of {MAX_ATTEMPTS}.")
-                cleanup(wt, branch, t["id"])
-                del running[t["id"]]
-                save_tasks(data)
-                continue
+                run_one(ready[0], data)
             except InfrastructureFault as fault:
-                # Never burn an attempt on a broken environment, and never let
-                # this masquerade as a failing test.
+                # Never burn attempts on a broken environment, and never let this
+                # be reported as a code failure.
+                t = ready[0]
                 t["status"] = "pending"
-                t["attempts"] = max(0, t["attempts"] - 1)
+                t["attempts"] = max(0, t.get("attempts", 1) - 1)
                 save_tasks(data)
-                cleanup(wt, branch, t["id"])
-                del running[t["id"]]
-                notify(
-                    "alert",
-                    "INFRASTRUCTURE FAULT. The agent did not run.\n"
-                    f"Task: {t['id']}\n{fault}\n\n"
-                    "Build halted. No money spent. This is a setup problem, "
-                    "not a code problem."
-                )
+                notify("alert",
+                       "INFRASTRUCTURE FAULT. The agent did not run.\n"
+                       f"Task: {t['id']}\n{fault}\n\n"
+                       "Build halted. This is a setup problem, not a code problem.")
                 return 3
+        else:
+            time.sleep(POLL_SECONDS)
 
-            new_total = add_spend(t["id"], cost)
-
-                    # Agents are told to commit and frequently do not. Without a commit
-            # the diff against develop is empty and every check is meaningless.
-            dirty = subprocess.run(["git", "status", "--porcelain"], cwd=wt,
-                                   capture_output=True, text=True).stdout.strip()
-            if dirty:
-                subprocess.run(["git", "add", "-A"], cwd=wt, check=False)
-                subprocess.run(
-                    ["git", "-c", "user.email=build@cbytechains.com",
-                     "-c", "user.name=Orchestrator", "commit", "-m",
-                     f"{t['id']}: {t['title']}"], cwd=wt, check=False)
-
-            if rc == 0 and vrc == 0:
-                ok, merr = merge_task(branch, t["id"])
-                if ok:
-                    t["status"] = "done"
-                    t["last_failure"] = None
-                    notify("info", f"Done {t['id']} (cost {cost:.2f}, total {new_total:.2f})")
-                else:
-                    t["status"] = "failed"
-                    t["last_failure"] = f"merge conflict:\n{merr}"
-            else:
-                t["status"] = "failed"
-                t["last_failure"] = vout if vrc != 0 else out
-
-            if t["status"] == "failed" and t["attempts"] >= MAX_ATTEMPTS:
-                escalate(t, data)
-
-            cleanup(wt, branch, t["id"], failed=(t["status"] != "done"))
-            del running[t["id"]]
-            save_tasks(data)
-
-        if time.time() - last_digest > 10800:  # every three hours
-            digest(tasks, read_spend()["total"])
+        if time.time() - last_digest > DIGEST_SECONDS:
+            digest(load_tasks()["tasks"], read_spend()["total"])
             last_digest = time.time()
-
-        time.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":
@@ -513,6 +545,6 @@ if __name__ == "__main__":
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(130)
-    except Exception as e:  # never die silently on an unattended box
-        notify("alert", f"Orchestrator crashed: {type(e).__name__}: {e}")
+    except Exception as exc:  # never die silently on an unattended box
+        notify("alert", f"Orchestrator crashed: {type(exc).__name__}: {exc}")
         raise

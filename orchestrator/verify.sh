@@ -11,6 +11,7 @@
 #  - Pre-existing conditions warn. Newly introduced problems block.
 
 set -uo pipefail
+export LC_ALL=C
 WORKTREE="${1:?usage: verify.sh <worktree> <domain> <scope>}"
 DOMAIN="${2:?}"
 SCOPE="${3:-rust-build}"
@@ -42,7 +43,7 @@ check() {
   local label="$1" pat="$2" fre="$3" mode="${4:-block}" files hits
   files=$(changed_matching "$fre")
   [ -z "$files" ] && { pass "$label (nothing relevant changed)"; return; }
-  hits=$(echo "$files" | xargs -r grep -nP "$pat" 2>/dev/null | head -8)
+  hits=$(echo "$files" | xargs -r grep -nP -e "$pat" 2>/dev/null | head -8)
   if [ -n "$hits" ]; then
     if [ "$mode" = "warn" ]; then
       say "WARN: $label"; echo "$hits" >> "$LOG"
@@ -65,7 +66,8 @@ pass "no key files"
 check "no dangerous sinks"  'dangerouslySetInnerHTML|\beval\(|new Function\(' '\.(ts|tsx)$'  block
 check "no interpolated SQL" '(query|execute)\(`[^`]*\$\{'                     '\.(ts)$'      block
 check "forbidden branding"  '"[^"]*\b(?i:substrate|polkadot|grandpa|parity)\b[^"]*"' '\.(rs|ts|tsx)$' block
-check "no em dash"          '\x{2014}'                                        '\.(rs|ts|tsx|md|ya?ml|json)$' block
+# The em dash is three bytes in UTF-8. Matching bytes works in any locale.
+check "no em dash"          '\xe2\x80\x94'                                    '\.(rs|ts|tsx|md|ya?ml|json)$' block
 check "no placeholders"     'TODO:? *implement|unimplemented!\(|mock data|hardcoded for now' '\.(rs|ts|tsx)$' block
 
 # Pre-existing conditions. Recorded, never blocking. The audit owns these.
