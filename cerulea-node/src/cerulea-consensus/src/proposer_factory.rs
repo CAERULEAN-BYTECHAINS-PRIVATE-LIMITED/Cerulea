@@ -227,14 +227,14 @@ where
         log::trace!("ProposerFactory: Building block with proper state root calculation");
         let extrinsics_count = all_extrinsics.len(); // Store count before move
         
-        // STEP 49: Substrate build_block executing
+        // STEP 49: DCF build_block executing
         let mut metadata = TraceMetadata::new();
         metadata.block_number = Some(block_number);
         metadata.extrinsic_count = Some(extrinsics_count);
         LifecycleTracer::global().trace_step(
             49,
             "proposer_factory.rs::create_complete_block",
-            "Substrate build_block executing",
+            "DCF build_block executing",
             Some(metadata),
         );
         
