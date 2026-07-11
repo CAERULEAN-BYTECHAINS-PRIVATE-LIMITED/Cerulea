@@ -1,0 +1,75 @@
+name: Security Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: pnpm install
+        working-directory: platform
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Compute changed files
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          {
+            echo "CHANGED_FILES<<SECURITY_GATE_EOF"
+            echo "$CHANGED"
+            echo "SECURITY_GATE_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: orchestrator/security-gate.sh (repo root)
+        run: bash orchestrator/security-gate.sh "$GITHUB_WORKSPACE"
+
+      - name: orchestrator/security-gate.sh (platform)
+        run: |
+          export CHANGED_FILES="$(printf '%s\n' "$CHANGED_FILES" | sed -n 's#^platform/##p')"
+          bash orchestrator/security-gate.sh "$GITHUB_WORKSPACE/platform"
+
+      - name: cargo audit
+        run: cargo audit --deny warnings
+
+      - name: pnpm audit (high severity)
+        working-directory: platform
+        run: pnpm audit --audit-level high
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
