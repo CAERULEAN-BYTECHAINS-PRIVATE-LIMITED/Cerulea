@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[derive(Debug, Parser)]
 #[command(
     name = "cerulea-node",
-    about = "Cerulea Node - A Substrate-based blockchain node.",
+    about = "Cerulea Node - a Dynamic Consensus Framework blockchain node.",
     author = "Caerulean ByteChains Private Limited",
     version = env!("CARGO_PKG_VERSION")
 )]
