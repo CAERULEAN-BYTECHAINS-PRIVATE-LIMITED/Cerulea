@@ -213,10 +213,10 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     #[runtime::pallet_index(6)]
-    pub type PalletCeruleaPoi = pallet_cerulea_poi;
+    pub type Poi = pallet_cerulea_poi;
 
     #[runtime::pallet_index(7)]
-    pub type PalletCeruleaPos = pallet_cerulea_pos;
+    pub type Pos = pallet_cerulea_pos;
 
     #[runtime::pallet_index(8)]
     pub type Dcf = pallet_cerulea_dcf::Pallet<Runtime>;
