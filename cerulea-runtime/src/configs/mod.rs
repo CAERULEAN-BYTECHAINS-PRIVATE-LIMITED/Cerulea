@@ -159,36 +159,36 @@ impl pallet_sudo::Config for Runtime {
 
 // === CBC POI Pallet Configuration ===
 pub struct PosInterfaceImpl;
-impl pallet_cbc_poi::PosInterface<AccountId> for PosInterfaceImpl {
+impl pallet_cerulea_poi::PosInterface<AccountId> for PosInterfaceImpl {
     fn boost_score(validator: &AccountId, weight: u32) -> frame_support::dispatch::DispatchResult {
-        pallet_cbc_pos::Pallet::<Runtime>::boost_score(
+        pallet_cerulea_pos::Pallet::<Runtime>::boost_score(
             frame_system::RawOrigin::Root.into(),
             validator.clone(),
             weight,
         )
     }
     fn slash_score(validator: &AccountId, weight: u32) -> frame_support::dispatch::DispatchResult {
-        pallet_cbc_pos::Pallet::<Runtime>::slash_score(
+        pallet_cerulea_pos::Pallet::<Runtime>::slash_score(
             frame_system::RawOrigin::Root.into(),
             validator.clone(),
             weight,
         )
     }
     fn get_active_validators() -> sp_runtime::Vec<AccountId> {
-        pallet_cbc_pos::Pallet::<Runtime>::get_active_validators()
+        pallet_cerulea_pos::Pallet::<Runtime>::get_active_validators()
     }
 }
 
-impl pallet_cbc_poi::Config for Runtime {
+impl pallet_cerulea_poi::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_cbc_poi::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_cerulea_poi::weights::SubstrateWeight<Runtime>;
     type MinInferenceConfidence = MinInferenceConfidence;
     type MaxInferenceAge = MaxInferenceAge;
     type ChallengeWindow = ChallengeWindow;
     type InferenceReward = InferenceReward;
     type ChallengeReward = ChallengeReward;
     type PosInterface = PosInterfaceImpl;
-    type DcfInterface = pallet_cbc_dcf::Pallet<Runtime>;
+    type DcfInterface = pallet_cerulea_dcf::Pallet<Runtime>;
 
     // PoI scoring parameters
     type InferenceBoostLow = ConstU64<2>;
@@ -209,9 +209,9 @@ impl pallet_cbc_poi::Config for Runtime {
     type MaxLoopIterations = ConstU32<1000>;
 }
 
-impl pallet_cbc_pos::Config for Runtime {
+impl pallet_cerulea_pos::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_cbc_pos::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_cerulea_pos::weights::SubstrateWeight<Runtime>;
     type MinValidatorScore = MinValidatorScore;
     type MinActiveValidators = MinActiveValidators;
     type MaxValidators = MaxValidators;
@@ -233,11 +233,11 @@ impl pallet_cbc_pos::Config for Runtime {
     type MaxRewardBoost = ConstU64<20>;
     type HighPerformanceScore = HighPerformanceScore;
     type TopPerformerPercentage = TopPerformerPercentage;
-    type ValidatorHandler = pallet_cbc_dvf::Pallet<Runtime>;
+    type ValidatorHandler = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 
 // === CBC DCF Pallet Configuration ===
-impl pallet_cbc_dcf::Config for Runtime {
+impl pallet_cerulea_dcf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Balance = Balance;
 
@@ -319,7 +319,7 @@ impl pallet_cbc_dcf::Config for Runtime {
     type MaxEvidenceLength = MaxEvidenceLength;
     type MisbehaviorSlashThreshold = MisbehaviorSlashThreshold;
 
-    type WeightInfo = pallet_cbc_dcf::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_cerulea_dcf::weights::SubstrateWeight<Runtime>;
 
     // Constants for hardcoded values
     type MaxValidatorHistorySize = ConstU32<10>;
@@ -342,12 +342,12 @@ impl pallet_cbc_dcf::Config for Runtime {
     type TrustScoreStabilityFactor = ConstU32<8000>; // 80% stability factor
 
     // DVF WeightFreezer Integration
-    type WeightFreezer = pallet_cbc_dvf::Pallet<Runtime>;
+    type WeightFreezer = pallet_cerulea_dvf::Pallet<Runtime>;
     // DVF is the primary finality authority; DCF progressive finality is capped at the DVF-finalized block
-    type DvfFinalizedBlockProvider = pallet_cbc_dvf::Pallet<Runtime>;
+    type DvfFinalizedBlockProvider = pallet_cerulea_dvf::Pallet<Runtime>;
 
     // Validator Registry
-    type ValidatorRegistry = pallet_cbc_dvf::Pallet<Runtime>;
+    type ValidatorRegistry = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 
 

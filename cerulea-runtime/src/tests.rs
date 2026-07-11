@@ -7,9 +7,9 @@ use crate::{
     mock::{*, funded_account_id},
     RuntimeOrigin, System, Balances, Runtime,
 };
-type DcfPallet = pallet_cbc_dcf::Pallet<Runtime>;
-type PalletCbcPos = pallet_cbc_pos::Pallet<Runtime>;
-type PalletCbcPoi = pallet_cbc_poi::Pallet<Runtime>;
+type DcfPallet = pallet_cerulea_dcf::Pallet<Runtime>;
+type PalletCbcPos = pallet_cerulea_pos::Pallet<Runtime>;
+type PalletCbcPoi = pallet_cerulea_poi::Pallet<Runtime>;
 use frame_support::{assert_ok, assert_noop, traits::Get};
 use sp_runtime::traits::Zero;
 use codec::Encode;
@@ -95,7 +95,7 @@ mod runtime_integration_tests {
             ));
             
             // Verify proposal was created
-            assert!(pallet_cbc_dcf::Proposals::<Runtime>::contains_key(0));
+            assert!(pallet_cerulea_dcf::Proposals::<Runtime>::contains_key(0));
             
             // Test voting
             assert_ok!(DcfPallet::vote_proposal(
@@ -111,8 +111,8 @@ mod runtime_integration_tests {
             ));
             
             // Verify proposal was executed
-            let proposal = pallet_cbc_dcf::Proposals::<Runtime>::get(0).unwrap();
-            assert_eq!(proposal.status, pallet_cbc_dcf::ProposalStatus::Executed);
+            let proposal = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
+            assert_eq!(proposal.status, pallet_cerulea_dcf::ProposalStatus::Executed);
         });
     }
 
@@ -251,7 +251,7 @@ mod runtime_integration_tests {
             ));
             
             // Verify proposal was created
-            assert!(pallet_cbc_dcf::Proposals::<Runtime>::contains_key(0));
+            assert!(pallet_cerulea_dcf::Proposals::<Runtime>::contains_key(0));
         });
     }
 
@@ -259,18 +259,18 @@ mod runtime_integration_tests {
     fn test_system_limits() {
         new_test_ext().execute_with(|| {
             // Test maximum validators limit
-            let max_validators = <Runtime as pallet_cbc_dcf::Config>::MaxValidators::get();
+            let max_validators = <Runtime as pallet_cerulea_dcf::Config>::MaxValidators::get();
             let current_validators = DcfPallet::validator_set();
             assert!(current_validators.len() <= max_validators as usize);
             
             // Test minimum active validators
-            let min_active = <Runtime as pallet_cbc_dcf::Config>::MinActiveValidators::get();
+            let min_active = <Runtime as pallet_cerulea_dcf::Config>::MinActiveValidators::get();
             let active_validators = DcfPallet::active_validators();
             assert!(active_validators.len() >= min_active as usize);
             
             // Test epoch history limits
-            let max_history: u32 = <Runtime as pallet_cbc_dcf::Config>::MaxEpochHistory::get();
-            let epoch_histories = pallet_cbc_dcf::EpochHistories::<Runtime>::get();
+            let max_history: u32 = <Runtime as pallet_cerulea_dcf::Config>::MaxEpochHistory::get();
+            let epoch_histories = pallet_cerulea_dcf::EpochHistories::<Runtime>::get();
             assert!(epoch_histories.len() <= max_history as usize);
         });
     }
@@ -283,25 +283,25 @@ mod runtime_integration_tests {
             // Test invalid validator operations
             assert_noop!(
                 DcfPallet::leave_validators(RuntimeOrigin::signed(non_validator.clone())),
-                pallet_cbc_dcf::Error::<Runtime>::ValidatorNotFound
+                pallet_cerulea_dcf::Error::<Runtime>::ValidatorNotFound
             );
             
             // Test invalid governance operations
             assert_noop!(
                 DcfPallet::vote_proposal(RuntimeOrigin::signed(non_validator.clone()), 999, true),
-                pallet_cbc_dcf::Error::<Runtime>::ProposalNotApproved
+                pallet_cerulea_dcf::Error::<Runtime>::ProposalNotApproved
             );
             
             // Test invalid PoS operations
             assert_noop!(
                 PalletCbcPos::submit_score(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 75),
-                pallet_cbc_pos::Error::<Runtime>::ValidatorNotRegistered
+                pallet_cerulea_pos::Error::<Runtime>::ValidatorNotRegistered
             );
             
             // Test invalid PoI operations
             assert_noop!(
                 PalletCbcPoi::challenge_inference(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 42),
-                pallet_cbc_poi::Error::<Runtime>::InferenceNotFound
+                pallet_cerulea_poi::Error::<Runtime>::InferenceNotFound
             );
         });
     }
@@ -359,7 +359,7 @@ mod runtime_integration_tests {
             
             // Test storage consistency
             let _current_epoch = DcfPallet::current_epoch();
-            let epoch_config = pallet_cbc_dcf::EpochConfigStorage::<Runtime>::get();
+            let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
             
             assert!(epoch_config.blocks_per_epoch > 0);
             assert!(epoch_config.min_stake > 0);
@@ -410,7 +410,7 @@ mod runtime_mock_tests {
         
         // Test epoch mock
         new_test_ext_for_epochs().execute_with(|| {
-            let config = pallet_cbc_dcf::EpochConfigStorage::<Runtime>::get();
+            let config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
             assert_eq!(config.blocks_per_epoch, 100);
         });
     }

@@ -98,12 +98,12 @@ fn testnet_genesis_with_stakes_and_names(
 		sudo: SudoConfig { key: Some(root) },
 		system: frame_system::GenesisConfig::default(),
 		transaction_payment: pallet_transaction_payment::GenesisConfig::default(),
-		dcf: pallet_cbc_dcf::GenesisConfig {
+		dcf: pallet_cerulea_dcf::GenesisConfig {
 			validators: initial_validators.clone(),
 			validator_scores: validator_scores.clone(),
 			validator_stakes: stakes.clone(),
 			current_epoch: 0,
-			epoch_config: pallet_cbc_dcf::EpochConfig {
+			epoch_config: pallet_cerulea_dcf::EpochConfig {
 				blocks_per_epoch: 100,     // More realistic epoch length
 				min_stake: 1_000_000,      // 1M minimum stake
 				max_validators: 100,       // Support up to 100 validators
@@ -112,14 +112,14 @@ fn testnet_genesis_with_stakes_and_names(
 			strict_validation: true,    // Enable strict validation
 		},
 		// Configure initial validators
-		pallet_cbc_pos: pallet_cbc_pos::GenesisConfig {
+		pallet_cerulea_pos: pallet_cerulea_pos::GenesisConfig {
 			validators: initial_validators.clone(),
 			validator_scores,
 			current_epoch: 0,
 			slashing_count: vec![],
 		},
 		// Configure initial inference results
-		pallet_cbc_poi: pallet_cbc_poi::GenesisConfig {
+		pallet_cerulea_poi: pallet_cerulea_poi::GenesisConfig {
 			inference_results,
 			challenges: vec![],
 			current_epoch: 0,
@@ -127,7 +127,7 @@ fn testnet_genesis_with_stakes_and_names(
 		// Configure DVF initial validator weights
 		// Synchronized with DCF validators to ensure consistency between
 		// validator set membership and voting weights at genesis
-		dvf: pallet_cbc_dvf::GenesisConfig {
+		dvf: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
 		},
 	})

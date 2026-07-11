@@ -10,7 +10,7 @@ use sp_runtime::traits::{Block as BlockTrait, SaturatedConversion};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use tokio::time::sleep;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use cerulea_runtime::AccountId;
 
 /// Statistics for a single validator's block authoring performance

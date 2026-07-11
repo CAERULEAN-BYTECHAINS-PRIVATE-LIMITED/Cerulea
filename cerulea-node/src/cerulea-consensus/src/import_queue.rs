@@ -12,7 +12,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sc_consensus::{BlockImport, BlockImportParams, BlockCheckParams, ImportResult, Verifier};
 use sp_consensus::Error;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use cerulea_runtime::AccountId;
 use sp_runtime::generic::DigestItem;
 use codec::Decode;

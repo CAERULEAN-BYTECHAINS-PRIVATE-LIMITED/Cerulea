@@ -102,7 +102,7 @@ impl DevModeTestConfig {
             "--rpc-cors=all".to_string(),
             "--unsafe-rpc-external".to_string(),
             "--rpc-methods=unsafe".to_string(),
-            "--log=info,cerulea_node=debug,cerulea_consensus=debug,pallet_cbc_dcf=debug".to_string(),
+            "--log=info,cerulea_node=debug,cerulea_consensus=debug,pallet_cerulea_dcf=debug".to_string(),
         ]);
         
         if self.enable_cbc_extensions {

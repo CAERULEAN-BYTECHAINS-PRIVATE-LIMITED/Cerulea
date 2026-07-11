@@ -14,10 +14,10 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use pallet_cbc_pos::PosApi;
-use cerulea_runtime::pallet_cbc_poi::PoiApi;
-use pallet_cbc_dcf::DcfApi;
-use pallet_cbc_dvf::DvfApi;
+use pallet_cerulea_pos::PosApi;
+use cerulea_runtime::pallet_cerulea_poi::PoiApi;
+use pallet_cerulea_dcf::DcfApi;
+use pallet_cerulea_dvf::DvfApi;
 use crate::fork_detection::ForkReport;
 
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -257,7 +257,7 @@ impl<C> PosRpcApiImpl<C> {
 impl<C> PosRpcApiServer for PosRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-    C::Api: pallet_cbc_pos::PosApi<Block, AccountId, Balance>,
+    C::Api: pallet_cerulea_pos::PosApi<Block, AccountId, Balance>,
 {
     fn get_validator_score(&self, validator: AccountId) -> RpcResult<u32> {
         time_rpc_call!(self.consensus_metrics, "pos_getValidatorScore", {
@@ -365,7 +365,7 @@ impl<C> PoiRpcApiImpl<C> {
 impl<C> PoiRpcApiServer for PoiRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-    C::Api: cerulea_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>,
+    C::Api: cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>,
 {
     fn get_inference_result(&self, validator: AccountId) -> RpcResult<Option<InferenceResult>> {
         let api = self.client.runtime_api();
@@ -487,7 +487,7 @@ impl<C> DcfRpcApiImpl<C> {
 impl<C> DcfRpcApiServer for DcfRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-    C::Api: pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>,
+    C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
 {
     fn get_current_author(&self) -> RpcResult<Option<AccountId>> {
         self.check_cbc_extensions_enabled()?;
@@ -607,9 +607,9 @@ impl<C> CbcRpcApiImpl<C> {
 impl<C> CbcRpcApiServer for CbcRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-    C::Api: pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>,
-    C::Api: pallet_cbc_pos::PosApi<Block, AccountId, Balance>,
-    C::Api: cerulea_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>,
+    C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
+    C::Api: pallet_cerulea_pos::PosApi<Block, AccountId, Balance>,
+    C::Api: cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>,
 {
     fn get_current_epoch(&self) -> RpcResult<u32> {
         self.check_cbc_extensions_enabled()?;
@@ -617,7 +617,7 @@ where
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         
-        <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash)
+        <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Runtime API call failed: {:?}", e),
@@ -632,14 +632,14 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Aggregate data from multiple pallets
-        let stake = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_validator_stake(&api, best_hash, validator.clone())
+        let stake = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_validator_stake(&api, best_hash, validator.clone())
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get validator stake: {:?}", e),
                 None::<()>
             ))?;
         
-        let pos_score = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_validator_score(&api, best_hash, validator.clone())
+        let pos_score = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_validator_score(&api, best_hash, validator.clone())
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get PoS score: {:?}", e),
@@ -647,7 +647,7 @@ where
             ))?;
         
         // Get PoI score from inference result
-        let poi_score = match <C::Api as cerulea_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>>::get_inference_result(&api, best_hash, validator.clone()) {
+        let poi_score = match <C::Api as cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>>::get_inference_result(&api, best_hash, validator.clone()) {
             Ok(Some((_result, confidence))) => confidence as u64,
             Ok(None) => 0,
             Err(e) => {
@@ -657,7 +657,7 @@ where
         };
         
         // Calculate trust score using consensus weights
-        let (pos_weight, poi_weight) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash)
+        let (pos_weight, poi_weight) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get consensus weights: {:?}", e),
@@ -667,14 +667,14 @@ where
         let trust_score = (pos_score as u64 * pos_weight + poi_score * poi_weight) / (pos_weight + poi_weight);
         
         // Get validator status
-        let active_validators = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
+        let active_validators = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get active validators: {:?}", e),
                 None::<()>
             ))?;
         
-        let slashing_count = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_slashing_count(&api, best_hash, validator.clone())
+        let slashing_count = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_slashing_count(&api, best_hash, validator.clone())
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get slashing count: {:?}", e),
@@ -690,7 +690,7 @@ where
         };
         
         // Get authored and missed blocks from validator state
-        let (authored_blocks, missed_blocks) = match <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_participation(&api, best_hash, validator.clone()) {
+        let (authored_blocks, missed_blocks) = match <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_participation(&api, best_hash, validator.clone()) {
             Ok((authored, missed)) => (authored, missed),
             Err(e) => {
                 log::warn!("Failed to get block participation for validator {:?}: {:?}", validator, e);
@@ -717,7 +717,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get PoS component
-        let pos_score = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_validator_score(&api, best_hash, validator.clone())
+        let pos_score = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_validator_score(&api, best_hash, validator.clone())
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get PoS score: {:?}", e),
@@ -725,7 +725,7 @@ where
             ))?;
         
         // Get PoI component
-        let poi_score = match <C::Api as cerulea_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>>::get_inference_result(&api, best_hash, validator) {
+        let poi_score = match <C::Api as cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>>::get_inference_result(&api, best_hash, validator) {
             Ok(Some((_result, confidence))) => confidence as u64,
             Ok(None) => 0,
             Err(e) => {
@@ -735,7 +735,7 @@ where
         };
         
         // Get consensus weights
-        let (pos_weight, poi_weight) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash)
+        let (pos_weight, poi_weight) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get consensus weights: {:?}", e),
@@ -761,7 +761,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get active validators from PoS pallet
-        let active_validators = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
+        let active_validators = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get active validators: {:?}", e),
@@ -778,7 +778,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get current epoch
-        let current_epoch = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash)
+        let current_epoch = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get current epoch: {:?}", e),
@@ -786,7 +786,7 @@ where
             ))?;
         
         // Get validator counts
-        let active_validators = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
+        let active_validators = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get active validators: {:?}", e),
@@ -796,7 +796,7 @@ where
         let active_validators_count = active_validators.len() as u32;
         
         // Get total validators count from runtime
-        let total_validators = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_total_validators_count(&api, best_hash)
+        let total_validators = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_total_validators_count(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get total validators count: {:?}", e),
@@ -1029,13 +1029,13 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Check if we can get current epoch
-        if let Err(e) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash) {
+        if let Err(e) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_current_epoch(&api, best_hash) {
             issues.push(format!("Cannot get current epoch: {:?}", e));
             is_healthy = false;
         }
         
         // Check if we have active validators
-        match <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash) {
+        match <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash) {
             Ok(validators) => {
                 if validators.is_empty() {
                     issues.push("No active validators".to_string());
@@ -1052,7 +1052,7 @@ where
         }
         
         // Check consensus weights
-        if let Err(e) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash) {
+        if let Err(e) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_consensus_weights(&api, best_hash) {
             issues.push(format!("Cannot get consensus weights: {:?}", e));
             is_healthy = false;
         }
@@ -1077,7 +1077,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get validator participation data
-        let (authored_blocks, missed_blocks) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_participation(&api, best_hash, validator.clone())
+        let (authored_blocks, missed_blocks) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_participation(&api, best_hash, validator.clone())
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get validator participation: {:?}", e),
@@ -1092,7 +1092,7 @@ where
         };
         
         // Get validator state for additional info
-        let consecutive_misses = if let Ok(Some(_profile)) = <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_profile(&api, best_hash, validator.clone()) {
+        let consecutive_misses = if let Ok(Some(_profile)) = <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_profile(&api, best_hash, validator.clone()) {
             // Calculate consecutive misses based on recent performance
             // This is a simplified calculation - in practice you'd track this more precisely
             if participation_rate < 90.0 && missed_blocks > 0 {
@@ -1106,7 +1106,7 @@ where
         
         let last_authored_block = if authored_blocks > 0 {
             // Get the last active block from validator state
-            <C::Api as pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_last_active(&api, best_hash, validator.clone())
+            <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_last_active(&api, best_hash, validator.clone())
                 .ok()
                 .filter(|&block| block > 0)
         } else {
@@ -1130,7 +1130,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get all active validators
-        let active_validators = <C::Api as pallet_cbc_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
+        let active_validators = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
                 -32000,
                 format!("Failed to get active validators: {:?}", e),
@@ -1218,7 +1218,7 @@ impl<C> DvfRpcApiImpl<C> {
 impl<C> DvfRpcApiServer for DvfRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-    C::Api: pallet_cbc_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
+    C::Api: pallet_cerulea_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
 {
     fn get_finalized_head(&self) -> RpcResult<u32> {
         self.check_cbc_extensions_enabled()?;
@@ -1507,10 +1507,10 @@ where
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BlockBuilder<Block>,
-    C::Api: pallet_cbc_pos::PosApi<Block, AccountId, Balance>,
-    C::Api: cerulea_runtime::pallet_cbc_poi::PoiApi<Block, AccountId>,
-    C::Api: pallet_cbc_dcf::DcfApi<Block, AccountId, Balance, u32>,
-    C::Api: pallet_cbc_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
+    C::Api: pallet_cerulea_pos::PosApi<Block, AccountId, Balance>,
+    C::Api: cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>,
+    C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
+    C::Api: pallet_cerulea_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
     P: TransactionPool + 'static,
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 {

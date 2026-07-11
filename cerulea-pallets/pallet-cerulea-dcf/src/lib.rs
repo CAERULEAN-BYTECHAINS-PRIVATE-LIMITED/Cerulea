@@ -108,7 +108,7 @@
 //!
 //! **Development Preset:**
 //! ```rust
-//! dcf: pallet_cbc_dcf::GenesisConfig {
+//! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice],
 //!     validator_stakes: vec![10_000_000],
 //!     epoch_config: EpochConfig {
@@ -122,7 +122,7 @@
 //!
 //! **Multi-Validator Preset:**
 //! ```rust
-//! dcf: pallet_cbc_dcf::GenesisConfig {
+//! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice, Bob, Charlie, Dave, Eve],
 //!     validator_stakes: vec![15_000_000, 12_000_000, 8_000_000, 5_000_000, 3_000_000],
 //!     epoch_config: EpochConfig {
@@ -242,8 +242,8 @@ use sp_runtime::{
 use sp_io;
 use sp_std::prelude::*;
 use sp_std::fmt; 
-use pallet_cbc_pos as pos;
-use pallet_cbc_poi as poi;
+use pallet_cerulea_pos as pos;
+use pallet_cerulea_poi as poi;
 use serde::{Serialize, Deserialize};
 
 use scale_info::prelude::format;
@@ -11314,7 +11314,7 @@ pub mod pallet {
                 
                 // Get additional profile information
                 let uptime = Self::validator_uptime(&account_id);
-                let inference_count = pallet_cbc_poi::Pallet::<T>::validator_inference_count(&account_id) as u32;
+                let inference_count = pallet_cerulea_poi::Pallet::<T>::validator_inference_count(&account_id) as u32;
                 
                 (
                     combined_score,      // Fresh calculated combined score
@@ -13628,7 +13628,7 @@ pub mod pallet {
     }
 
     // --- DcfInterface Implementation --- //
-    impl<T: Config> pallet_cbc_poi::DcfInterface<<T as frame_system::Config>::AccountId> for Pallet<T> {
+    impl<T: Config> pallet_cerulea_poi::DcfInterface<<T as frame_system::Config>::AccountId> for Pallet<T> {
         fn record_inference_activity(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
             
@@ -13660,7 +13660,7 @@ pub mod pallet {
     }
 
     // --- ValidatorHandler Implementation --- //
-    impl<T: Config> pallet_cbc_pos::ValidatorHandler<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Balance> for Pallet<T> {
+    impl<T: Config> pallet_cerulea_pos::ValidatorHandler<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Balance> for Pallet<T> {
         fn on_joined(validator: &<T as frame_system::Config>::AccountId, stake: <T as pallet::Config>::Balance) -> DispatchResult {
             let mut validator_set = ValidatorSet::<T>::get();
             if !validator_set.contains(validator) {
@@ -13758,7 +13758,7 @@ pub mod pallet {
             ValidatorBlocksAuthored::<T>::remove(validator);
             ValidatorBlocksMissed::<T>::remove(validator);
             ValidatorUptime::<T>::remove(validator);
-            pallet_cbc_poi::ValidatorInferenceCount::<T>::remove(validator);
+            pallet_cerulea_poi::ValidatorInferenceCount::<T>::remove(validator);
             PendingValidatorActions::<T>::remove(validator);
 
             Ok(())

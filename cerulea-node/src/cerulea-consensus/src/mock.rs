@@ -32,9 +32,9 @@ frame_support::construct_runtime!(
         System: frame_system,
         Balances: pallet_balances,
         Timestamp: pallet_timestamp,
-        DcfPallet: pallet_cbc_dcf,
-        PosPallet: pallet_cbc_pos,
-        PoiPallet: pallet_cbc_poi,
+        DcfPallet: pallet_cerulea_dcf,
+        PosPallet: pallet_cerulea_pos,
+        PoiPallet: pallet_cerulea_poi,
     }
 );
 
@@ -101,7 +101,7 @@ parameter_types! {
     pub const PosMinStake: u128 = 1000;
 }
 
-impl pallet_cbc_pos::Config for Test {
+impl pallet_cerulea_pos::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MaxValidators = PosMaxValidators;
     type MinStake = PosMinStake;
@@ -114,7 +114,7 @@ impl pallet_cbc_pos::Config for Test {
 }
 
 // CBC PoI pallet configuration
-impl pallet_cbc_poi::Config for Test {
+impl pallet_cerulea_poi::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type MinInferenceConfidence = ConstU32<70>;
@@ -149,7 +149,7 @@ parameter_types! {
 
 // Mock weight info for DCF pallet
 pub struct MockWeightInfo;
-impl pallet_cbc_dcf::WeightInfo for MockWeightInfo {
+impl pallet_cerulea_dcf::WeightInfo for MockWeightInfo {
     fn on_initialize() -> Weight { Weight::from_parts(10_000, 0) }
     fn offchain_worker() -> Weight { Weight::from_parts(10_000, 0) }
     fn update_validator_stake_score() -> Weight { Weight::from_parts(10_000, 0) }
@@ -194,7 +194,7 @@ impl pallet_cbc_dcf::WeightInfo for MockWeightInfo {
     fn propose_reward_multiple_validators(_v: u32) -> Weight { Weight::from_parts(10_000, 0) }
 }
 
-impl pallet_cbc_dcf::Config for Test {
+impl pallet_cerulea_dcf::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MaxValidators = DcfMaxValidators;
     type MaxEpochHistory = MaxEpochHistory;
@@ -340,7 +340,7 @@ pub fn create_test_consensus_params() -> ConsensusParams {
 
 // Mock interfaces for CBC pallets
 pub struct MockPosInterface;
-impl pallet_cbc_poi::PosInterface<u64> for MockPosInterface {
+impl pallet_cerulea_poi::PosInterface<u64> for MockPosInterface {
     fn boost_score(_validator: &u64, _weight: u32) -> frame_support::dispatch::DispatchResult {
         Ok(())
     }
@@ -351,7 +351,7 @@ impl pallet_cbc_poi::PosInterface<u64> for MockPosInterface {
 }
 
 pub struct MockDcfInterface;
-impl pallet_cbc_poi::DcfInterface<u64> for MockDcfInterface {
+impl pallet_cerulea_poi::DcfInterface<u64> for MockDcfInterface {
     fn record_inference_activity(_validator: &u64) -> frame_support::dispatch::DispatchResult {
         Ok(())
     }
@@ -391,8 +391,8 @@ pub fn new_test_ext_with_validators(validators: Vec<u64>) -> sp_io::TestExternal
         // Initialize CBC consensus with validators
         let bounded_validators = frame_support::BoundedVec::try_from(validators.clone())
             .expect("Too many validators for test");
-        pallet_cbc_dcf::ValidatorSet::<Test>::put(bounded_validators.clone());
-        pallet_cbc_dcf::ActiveValidators::<Test>::put(bounded_validators);
+        pallet_cerulea_dcf::ValidatorSet::<Test>::put(bounded_validators.clone());
+        pallet_cerulea_dcf::ActiveValidators::<Test>::put(bounded_validators);
     });
     
     ext
@@ -431,13 +431,13 @@ pub fn setup_consensus_test(config: MockConsensusConfig) -> sp_io::TestExternali
     
     ext.execute_with(|| {
         // Setup DCF pallet with test validators
-        let genesis_config = pallet_cbc_dcf::GenesisConfig::<Test> {
+        let genesis_config = pallet_cerulea_dcf::GenesisConfig::<Test> {
             validators: config.validators.clone(),
             validator_scores: vec![6000; config.validators.len()],
             validator_stakes: vec![1000; config.validators.len()],
             validator_names: vec![],
             current_epoch: 0,
-            epoch_config: pallet_cbc_dcf::EpochConfig {
+            epoch_config: pallet_cerulea_dcf::EpochConfig {
                 blocks_per_epoch: config.epoch_length,
                 min_stake: 1000,
                 max_validators: 100,
@@ -447,9 +447,9 @@ pub fn setup_consensus_test(config: MockConsensusConfig) -> sp_io::TestExternali
         
         // Manually initialize DCF storage
         for (i, validator) in config.validators.iter().enumerate() {
-            let validator_state = pallet_cbc_dcf::ValidatorState {
+            let validator_state = pallet_cerulea_dcf::ValidatorState {
                 last_active_epoch: 0,
-                current: pallet_cbc_dcf::EpochStats {
+                current: pallet_cerulea_dcf::EpochStats {
                     epoch: 0,
                     stake_score: 80,
                     inference_score: 70,
@@ -467,25 +467,25 @@ pub fn setup_consensus_test(config: MockConsensusConfig) -> sp_io::TestExternali
                 trust_score: 0,
             };
             
-            pallet_cbc_dcf::ValidatorStates::<Test>::insert(validator, validator_state);
-            pallet_cbc_dcf::ValidatorStake::<Test>::insert(validator, 1000u128);
+            pallet_cerulea_dcf::ValidatorStates::<Test>::insert(validator, validator_state);
+            pallet_cerulea_dcf::ValidatorStake::<Test>::insert(validator, 1000u128);
         }
         
         let bounded_validators = frame_support::BoundedVec::try_from(config.validators.clone())
             .expect("Too many validators for test");
-        pallet_cbc_dcf::ValidatorSet::<Test>::put(bounded_validators.clone());
-        pallet_cbc_dcf::ActiveValidators::<Test>::put(bounded_validators);
+        pallet_cerulea_dcf::ValidatorSet::<Test>::put(bounded_validators.clone());
+        pallet_cerulea_dcf::ActiveValidators::<Test>::put(bounded_validators);
         
-        pallet_cbc_dcf::CurrentEpoch::<Test>::put(0);
-        pallet_cbc_dcf::EpochConfigStorage::<Test>::put(pallet_cbc_dcf::EpochConfig {
+        pallet_cerulea_dcf::CurrentEpoch::<Test>::put(0);
+        pallet_cerulea_dcf::EpochConfigStorage::<Test>::put(pallet_cerulea_dcf::EpochConfig {
             blocks_per_epoch: config.epoch_length,
             min_stake: 1000,
             max_validators: 100,
         });
         
         // Initialize consensus weights
-        pallet_cbc_dcf::PosWeight::<Test>::put(60u64);
-        pallet_cbc_dcf::PoiWeight::<Test>::put(40u64);
+        pallet_cerulea_dcf::PosWeight::<Test>::put(60u64);
+        pallet_cerulea_dcf::PoiWeight::<Test>::put(40u64);
     });
     
     ext

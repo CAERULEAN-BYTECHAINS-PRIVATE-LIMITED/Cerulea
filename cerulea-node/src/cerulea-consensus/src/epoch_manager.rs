@@ -13,7 +13,7 @@ use log::{info, warn, error, debug};
 use sp_runtime::traits::{Block as BlockTrait, SaturatedConversion};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use cerulea_runtime::AccountId;
 
 /// Configuration constants from the runtime

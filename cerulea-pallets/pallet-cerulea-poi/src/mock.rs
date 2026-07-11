@@ -1,5 +1,5 @@
 // Import the pallet as a local crate alias for easier reference in tests.
-use crate as pallet_cbc_poi;
+use crate as pallet_cerulea_poi;
 use frame_support::{
     parameter_types,
     traits::{ConstU128, ConstU32},
@@ -19,7 +19,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 frame_support::construct_runtime!(
     pub enum Test {
         System: frame_system,
-        PalletCbcPoi: pallet_cbc_poi,
+        PalletCbcPoi: pallet_cerulea_poi,
     }
 );
 
@@ -65,12 +65,12 @@ impl system::Config for Test {
 
 // Implement the PoI pallet configuration trait for the mock runtime.
 pub struct DummyPosInterface;
-impl pallet_cbc_poi::PosInterface<u64> for DummyPosInterface {
+impl pallet_cerulea_poi::PosInterface<u64> for DummyPosInterface {
     fn boost_score(_validator: &u64, _weight: u32) -> frame_support::dispatch::DispatchResult { Ok(()) }
     fn slash_score(_validator: &u64, _weight: u32) -> frame_support::dispatch::DispatchResult { Ok(()) }
 }
 
-impl pallet_cbc_poi::Config for Test {
+impl pallet_cerulea_poi::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type MinInferenceConfidence = ConstU32<50>; // Minimum confidence for inference.
@@ -84,7 +84,7 @@ impl pallet_cbc_poi::Config for Test {
 
 // Mock DcfInterface implementation
 pub struct MockDcfInterface;
-impl pallet_cbc_poi::DcfInterface<u64> for MockDcfInterface {
+impl pallet_cerulea_poi::DcfInterface<u64> for MockDcfInterface {
     fn record_inference_activity(_validator: &u64) -> frame_support::dispatch::DispatchResult {
         Ok(())
     }

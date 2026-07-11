@@ -1,6 +1,6 @@
 use frame_support::weights::Weight;
 
-/// Weight functions needed for pallet_cbc_pos.
+/// Weight functions needed for pallet_cerulea_pos.
 pub trait WeightInfo {
     fn register_validator() -> Weight;
     fn submit_score() -> Weight;
@@ -11,7 +11,7 @@ pub trait WeightInfo {
     fn slash_score() -> Weight;
 }
 
-/// Weights for pallet_cbc_pos using the Substrate node and recommended hardware.
+/// Weights for pallet_cerulea_pos using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(core::marker::PhantomData<T>);
 
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {

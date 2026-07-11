@@ -24,7 +24,7 @@ mod runtime_api_tests {
         let _current_epoch: u32 = 0;
         
         // Test 3: get_validator_profile - should return validator profile information
-        let _profile: Option<pallet_cbc_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
+        let _profile: Option<pallet_cerulea_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
         
         // Test 4: get_inference_result - should return inference result for validator
         let _inference_result: Option<u64> = None;
@@ -33,13 +33,13 @@ mod runtime_api_tests {
         let _validator_score: u32 = 0;
         
         // Test 6: get_score_breakdown - should return detailed score breakdown
-        let _score_breakdown: Option<pallet_cbc_dcf::ScoreBreakdown> = None;
+        let _score_breakdown: Option<pallet_cerulea_dcf::ScoreBreakdown> = None;
         
         // Test 7: get_validator_uptime - should return uptime statistics
-        let _uptime_stats: Option<pallet_cbc_dcf::UptimeStats> = None;
+        let _uptime_stats: Option<pallet_cerulea_dcf::UptimeStats> = None;
         
         // Test 8: get_slashing_history - should return slashing records
-        let _slashing_history: Vec<pallet_cbc_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
+        let _slashing_history: Vec<pallet_cerulea_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
         
         // Test 9: get_trust_score - calculated from validator scores
         let pos_score: u64 = 100;
@@ -87,16 +87,16 @@ mod runtime_api_tests {
         let _scores: Vec<(AccountId, u64)> = Vec::new();
         
         // get_validator_profile(validator: AccountId) -> Option<ValidatorProfile>
-        let _profile: Option<pallet_cbc_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
+        let _profile: Option<pallet_cerulea_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
         
         // get_validator_score_breakdown(validator: AccountId) -> Option<ScoreBreakdown>
-        let _breakdown: Option<pallet_cbc_dcf::ScoreBreakdown> = None;
+        let _breakdown: Option<pallet_cerulea_dcf::ScoreBreakdown> = None;
         
         // get_validator_uptime(validator: AccountId) -> Option<UptimeStats>
-        let _uptime: Option<pallet_cbc_dcf::UptimeStats> = None;
+        let _uptime: Option<pallet_cerulea_dcf::UptimeStats> = None;
         
         // get_slashing_history(validator: AccountId) -> Vec<SlashingRecord>
-        let _history: Vec<pallet_cbc_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
+        let _history: Vec<pallet_cerulea_pos::SlashingRecord<Balance, BlockNumber>> = Vec::new();
         
         // get_inference_result(validator: AccountId) -> Option<u64>
         let _inference: Option<u64> = None;
@@ -197,9 +197,9 @@ mod runtime_api_tests {
         assert_eq!(empty_history.len(), 0);
         
         // Test with None values
-        let no_profile: Option<pallet_cbc_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
-        let no_breakdown: Option<pallet_cbc_dcf::ScoreBreakdown> = None;
-        let no_uptime: Option<pallet_cbc_dcf::UptimeStats> = None;
+        let no_profile: Option<pallet_cerulea_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
+        let no_breakdown: Option<pallet_cerulea_dcf::ScoreBreakdown> = None;
+        let no_uptime: Option<pallet_cerulea_dcf::UptimeStats> = None;
         
         assert!(no_profile.is_none());
         assert!(no_breakdown.is_none());
@@ -269,8 +269,8 @@ mod runtime_api_tests {
         let _stake: Balance = 1000;
         let _score: u64 = 85;
         let _is_active: bool = true;
-        let _uptime: Option<pallet_cbc_dcf::UptimeStats> = None;
-        let _profile: Option<pallet_cbc_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
+        let _uptime: Option<pallet_cerulea_dcf::UptimeStats> = None;
+        let _profile: Option<pallet_cerulea_dcf::ValidatorProfile<AccountId, Balance, BlockNumber>> = None;
         
         // Test validator participation
         let _authored_blocks: u32 = 95;

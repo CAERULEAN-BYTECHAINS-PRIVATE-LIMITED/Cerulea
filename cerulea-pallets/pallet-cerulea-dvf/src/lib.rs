@@ -7,7 +7,7 @@ use frame_support::traits::Get;
 use frame_support::{ensure, BoundedVec};
 use alloc::vec::Vec;
 use frame_system::pallet_prelude::BlockNumberFor;
-use pallet_cbc_dcf::EpochStats;
+use pallet_cerulea_dcf::EpochStats;
 
 extern crate alloc;
 
@@ -33,9 +33,9 @@ pub mod pallet {
     use frame_support::BoundedVec;
     use frame_support::traits::{Currency, ReservableCurrency, Get};
 
-    type BalanceOf<T> = <T as pallet_cbc_pos::Config>::Balance;
+    type BalanceOf<T> = <T as pallet_cerulea_pos::Config>::Balance;
 
-    use pallet_cbc_dcf::{ValidatorStatus, EpochStats, EjectionReason};
+    use pallet_cerulea_dcf::{ValidatorStatus, EpochStats, EjectionReason};
 
     /// Local DVF ValidatorState structure to keep registry decoupled from DCF Config
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -116,7 +116,7 @@ sp_api::decl_runtime_apis! {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_cbc_pos::Config {
+	pub trait Config: frame_system::Config + pallet_cerulea_pos::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -254,7 +254,7 @@ sp_api::decl_runtime_apis! {
         _,
         Blake2_128Concat,
         T::AccountId,
-        pallet_cbc_dcf::ValidatorAction,
+        pallet_cerulea_dcf::ValidatorAction,
         OptionQuery,
     >;
 
@@ -324,7 +324,7 @@ sp_api::decl_runtime_apis! {
         _,
         Blake2_128Concat,
         T::AccountId,
-        pallet_cbc_dcf::ValidatorMetadataInfo,
+        pallet_cerulea_dcf::ValidatorMetadataInfo,
         OptionQuery,
     >;
 
@@ -334,7 +334,7 @@ sp_api::decl_runtime_apis! {
         _,
         Blake2_128Concat,
         T::AccountId,
-        BoundedVec<pallet_cbc_dcf::PerformanceRecord, ConstU32<100>>,
+        BoundedVec<pallet_cerulea_dcf::PerformanceRecord, ConstU32<100>>,
         ValueQuery,
     >;
 
@@ -436,11 +436,11 @@ sp_api::decl_runtime_apis! {
 		ValidatorForcedToLeave { validator: T::AccountId },
 		ValidatorStatusChanged {
 			validator: T::AccountId,
-			old_status: pallet_cbc_dcf::ValidatorStatus,
-			new_status: pallet_cbc_dcf::ValidatorStatus,
+			old_status: pallet_cerulea_dcf::ValidatorStatus,
+			new_status: pallet_cerulea_dcf::ValidatorStatus,
 			block_number: u32,
 		},
-		ValidatorEjected { validator: T::AccountId, reason: pallet_cbc_dcf::EjectionReason },
+		ValidatorEjected { validator: T::AccountId, reason: pallet_cerulea_dcf::EjectionReason },
         CooldownExpired { validator: T::AccountId },
 	}
 
@@ -570,12 +570,12 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::NotAllowedInGovernanceMode 
             );
             ensure!(
-                PendingValidatorActions::<T>::get(&who) != Some(pallet_cbc_dcf::ValidatorAction::Join),
+                PendingValidatorActions::<T>::get(&who) != Some(pallet_cerulea_dcf::ValidatorAction::Join),
                 Error::<T>::NotAllowedInGovernanceMode
             );
 
             // Check minimum stake and score now, but actual addition is at epoch
-            let stake = pallet_cbc_pos::Pallet::<T>::stake(&who);
+            let stake = pallet_cerulea_pos::Pallet::<T>::stake(&who);
             ensure!(
                 stake >= T::MinStake::get(),
                 Error::<T>::NotEnoughValidators
@@ -586,7 +586,7 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::NotValidator
             );
 
-            PendingValidatorActions::<T>::insert(&who, pallet_cbc_dcf::ValidatorAction::Join);
+            PendingValidatorActions::<T>::insert(&who, pallet_cerulea_dcf::ValidatorAction::Join);
             Self::deposit_event(Event::ValidatorJoined { 
                 validator: who,
                 stake_amount: T::MinStake::get(),
@@ -606,11 +606,11 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::NotValidator
             );
             ensure!(
-                PendingValidatorActions::<T>::get(&who) != Some(pallet_cbc_dcf::ValidatorAction::Leave),
+                PendingValidatorActions::<T>::get(&who) != Some(pallet_cerulea_dcf::ValidatorAction::Leave),
                 Error::<T>::NotAllowedInGovernanceMode
             );
 
-            PendingValidatorActions::<T>::insert(&who, pallet_cbc_dcf::ValidatorAction::Leave);
+            PendingValidatorActions::<T>::insert(&who, pallet_cerulea_dcf::ValidatorAction::Leave);
             Self::deposit_event(Event::ValidatorLeft { validator: who });
             Ok(())
         }
@@ -627,7 +627,7 @@ sp_api::decl_runtime_apis! {
             let free_balance = <T::Currency as Currency<T::AccountId>>::free_balance(&who);
             ensure!(
                 free_balance >= min_stake,
-                pallet_cbc_pos::Error::<T>::InsufficientStake
+                pallet_cerulea_pos::Error::<T>::InsufficientStake
             );
 
             Self::validate_rejoin_eligibility(&who)?;
@@ -635,29 +635,29 @@ sp_api::decl_runtime_apis! {
             let mut validator_set = ValidatorSet::<T>::get();
             ensure!(
                 !validator_set.contains(&who),
-                pallet_cbc_pos::Error::<T>::ValidatorAlreadyExists
+                pallet_cerulea_pos::Error::<T>::ValidatorAlreadyExists
             );
 
             <T::Currency as ReservableCurrency<T::AccountId>>::reserve(&who, min_stake)
-                .map_err(|_| pallet_cbc_pos::Error::<T>::InsufficientStake)?;
+                .map_err(|_| pallet_cerulea_pos::Error::<T>::InsufficientStake)?;
 
-            pallet_cbc_pos::Stake::<T>::insert(&who, min_stake);
+            pallet_cerulea_pos::Stake::<T>::insert(&who, min_stake);
             ValidatorJoinTime::<T>::insert(&who, frame_system::Pallet::<T>::block_number().saturated_into::<u32>());
 
             ensure!(
                 validator_set.len() < <T as Config>::MaxValidators::get() as usize,
-                pallet_cbc_pos::Error::<T>::TooManyValidators
+                pallet_cerulea_pos::Error::<T>::TooManyValidators
             );
 
             validator_set.try_push(who.clone())
-                .map_err(|_| pallet_cbc_pos::Error::<T>::TooManyValidators)?;
+                .map_err(|_| pallet_cerulea_pos::Error::<T>::TooManyValidators)?;
             ValidatorSet::<T>::put(validator_set);
 
-            pallet_cbc_pos::Validators::<T>::insert(&who, true);
+            pallet_cerulea_pos::Validators::<T>::insert(&who, true);
 
             // Initialize ValidatorStates
             if !ValidatorStates::<T>::contains_key(&who) {
-                let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+                let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
                 let initial_stats = EpochStats {
                     epoch: current_epoch,
                     stake_score: min_stake.saturated_into::<u64>(),
@@ -698,7 +698,7 @@ sp_api::decl_runtime_apis! {
             let validator_set = ValidatorSet::<T>::get();
             ensure!(
                 validator_set.contains(&who),
-                pallet_cbc_pos::Error::<T>::ValidatorNotInSet
+                pallet_cerulea_pos::Error::<T>::ValidatorNotInSet
             );
 
             Self::validate_leave_request_eligibility(&who)?;
@@ -713,7 +713,7 @@ sp_api::decl_runtime_apis! {
                 ActiveValidators::<T>::put(active_validators);
             }
 
-            pallet_cbc_pos::Validators::<T>::insert(&who, false);
+            pallet_cerulea_pos::Validators::<T>::insert(&who, false);
 
             Self::deposit_event(Event::ValidatorLeaveRequested {
                 validator: who.clone(),
@@ -729,14 +729,14 @@ sp_api::decl_runtime_apis! {
             let who = ensure_signed(origin)?;
 
             let leave_request_block = ValidatorLeaveRequests::<T>::get(&who)
-                .ok_or(pallet_cbc_pos::Error::<T>::ValidatorNotInSet)?;
+                .ok_or(pallet_cerulea_pos::Error::<T>::ValidatorNotInSet)?;
 
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let cooldown_period = T::LeaveCooldown::get();
             let blocks_since_request = current_block.saturating_sub(leave_request_block);
 
             if blocks_since_request >= cooldown_period {
-                return Err(pallet_cbc_pos::Error::<T>::LeaveCooldownActive.into());
+                return Err(pallet_cerulea_pos::Error::<T>::LeaveCooldownActive.into());
             }
 
             ValidatorLeaveRequests::<T>::remove(&who);
@@ -750,7 +750,7 @@ sp_api::decl_runtime_apis! {
                         ActiveValidators::<T>::put(active_validators);
                     }
                 }
-                pallet_cbc_pos::Validators::<T>::insert(&who, true);
+                pallet_cerulea_pos::Validators::<T>::insert(&who, true);
             }
 
             Self::deposit_event(Event::ValidatorLeaveCancelled {
@@ -1006,14 +1006,14 @@ sp_api::decl_runtime_apis! {
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
 
                 if blocks_since_left < cooldown_period {
-                    return Err(pallet_cbc_pos::Error::<T>::CooldownActive.into());
+                    return Err(pallet_cerulea_pos::Error::<T>::CooldownActive.into());
                 }
 
                 RecentlyRemovedValidators::<T>::remove(who);
             }
 
             if ValidatorLeaveRequests::<T>::contains_key(who) {
-                return Err(pallet_cbc_pos::Error::<T>::LeaveCooldownActive.into());
+                return Err(pallet_cerulea_pos::Error::<T>::LeaveCooldownActive.into());
             }
 
             Ok(())
@@ -1022,7 +1022,7 @@ sp_api::decl_runtime_apis! {
         fn validate_leave_request_eligibility(who: &T::AccountId) -> DispatchResult {
             ensure!(
                 !ValidatorLeaveRequests::<T>::contains_key(who),
-                pallet_cbc_pos::Error::<T>::LeaveCooldownActive
+                pallet_cerulea_pos::Error::<T>::LeaveCooldownActive
             );
             Ok(())
         }
@@ -1056,7 +1056,7 @@ sp_api::decl_runtime_apis! {
             }
 
             for validator in expired_requests {
-                let stake_amount = pallet_cbc_pos::Stake::<T>::get(&validator);
+                let stake_amount = pallet_cerulea_pos::Stake::<T>::get(&validator);
                 if stake_amount > BalanceOf::<T>::default() {
                     let _ = <T::Currency as ReservableCurrency<T::AccountId>>::unreserve(&validator, stake_amount);
                 }
@@ -1073,9 +1073,9 @@ sp_api::decl_runtime_apis! {
                     ActiveValidators::<T>::put(active_validators);
                 }
 
-                pallet_cbc_pos::Validators::<T>::remove(&validator);
+                pallet_cerulea_pos::Validators::<T>::remove(&validator);
                 ValidatorJoinTime::<T>::remove(&validator);
-                pallet_cbc_pos::Stake::<T>::remove(&validator);
+                pallet_cerulea_pos::Stake::<T>::remove(&validator);
                 ValidatorLeaveRequests::<T>::remove(&validator);
 
                 RecentlyRemovedValidators::<T>::insert(&validator, current_block);
@@ -1086,7 +1086,7 @@ sp_api::decl_runtime_apis! {
 
         fn check_and_handle_underperforming_validators() {
             let min_score = T::MinValidatorScore::get() as u64;
-            let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+            let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
             
             let validators_to_check: Vec<T::AccountId> = ActiveValidators::<T>::get().into_inner();
             
@@ -1178,21 +1178,21 @@ sp_api::decl_runtime_apis! {
     }
 }
 
-impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_pos::Config>::Balance> for Pallet<T> {
-    fn on_joined(validator: &T::AccountId, stake: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+impl<T: Config> pallet_cerulea_pos::ValidatorHandler<T::AccountId, <T as pallet_cerulea_pos::Config>::Balance> for Pallet<T> {
+    fn on_joined(validator: &T::AccountId, stake: <T as pallet_cerulea_pos::Config>::Balance) -> sp_runtime::DispatchResult {
         let mut validator_set = ValidatorSet::<T>::get();
         if !validator_set.contains(validator) {
             ensure!(
                 validator_set.len() < <T as Config>::MaxValidators::get() as usize,
-                pallet_cbc_pos::Error::<T>::TooManyValidators
+                pallet_cerulea_pos::Error::<T>::TooManyValidators
             );
             validator_set.try_push(validator.clone())
-                .map_err(|_| pallet_cbc_pos::Error::<T>::TooManyValidators)?;
+                .map_err(|_| pallet_cerulea_pos::Error::<T>::TooManyValidators)?;
             ValidatorSet::<T>::put(validator_set);
         }
 
         if !ValidatorStates::<T>::contains_key(validator) {
-            let current_epoch = pallet_cbc_pos::Pallet::<T>::current_epoch();
+            let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
             let stake_score = stake.saturated_into::<u64>();
             let inference_score = 0;
             let final_score = 50;
@@ -1259,7 +1259,7 @@ impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_
         Ok(())
     }
 
-    fn on_stake_increased(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+    fn on_stake_increased(validator: &T::AccountId, amount: <T as pallet_cerulea_pos::Config>::Balance) -> sp_runtime::DispatchResult {
         ValidatorStates::<T>::mutate(validator, |state| {
             if let Some(state) = state {
                 state.current.stake_score = state.current.stake_score.saturating_add(amount.saturated_into::<u64>());
@@ -1268,7 +1268,7 @@ impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_
         Ok(())
     }
 
-    fn on_stake_decreased(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance) -> sp_runtime::DispatchResult {
+    fn on_stake_decreased(validator: &T::AccountId, amount: <T as pallet_cerulea_pos::Config>::Balance) -> sp_runtime::DispatchResult {
         ValidatorStates::<T>::mutate(validator, |state| {
             if let Some(state) = state {
                 state.current.stake_score = state.current.stake_score.saturating_sub(amount.saturated_into::<u64>());
@@ -1277,7 +1277,7 @@ impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_
         Ok(())
     }
 
-    fn on_slashed(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance, penalty: u64) -> sp_runtime::DispatchResult {
+    fn on_slashed(validator: &T::AccountId, amount: <T as pallet_cerulea_pos::Config>::Balance, penalty: u64) -> sp_runtime::DispatchResult {
         ValidatorStates::<T>::mutate(validator, |state| {
             if let Some(state) = state {
                 state.current.stake_score = state.current.stake_score.saturating_sub(amount.saturated_into::<u64>());
@@ -1287,7 +1287,7 @@ impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_
         Ok(())
     }
 
-    fn on_rewarded(validator: &T::AccountId, amount: <T as pallet_cbc_pos::Config>::Balance, boost: u64) -> sp_runtime::DispatchResult {
+    fn on_rewarded(validator: &T::AccountId, amount: <T as pallet_cerulea_pos::Config>::Balance, boost: u64) -> sp_runtime::DispatchResult {
         ValidatorStates::<T>::mutate(validator, |state| {
             if let Some(state) = state {
                 state.current.stake_score = state.current.stake_score.saturating_add(amount.saturated_into::<u64>());
@@ -1306,22 +1306,22 @@ impl<T: Config> pallet_cbc_pos::ValidatorHandler<T::AccountId, <T as pallet_cbc_
     }
 }
 
-impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, <T as pallet_cbc_pos::Config>::Balance, BlockNumberFor<T>> for Pallet<T> {
+impl<T: Config> pallet_cerulea_dcf::traits::ValidatorRegistryProvider<T::AccountId, <T as pallet_cerulea_pos::Config>::Balance, BlockNumberFor<T>> for Pallet<T> {
     fn get_active_validators() -> Vec<T::AccountId> {
         ActiveValidators::<T>::get().to_vec()
     }
 
-    fn get_validator_profile(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorProfile<T::AccountId, <T as pallet_cbc_pos::Config>::Balance, BlockNumberFor<T>>> {
+    fn get_validator_profile(validator: &T::AccountId) -> Option<pallet_cerulea_dcf::ValidatorProfile<T::AccountId, <T as pallet_cerulea_pos::Config>::Balance, BlockNumberFor<T>>> {
         let state = ValidatorStates::<T>::get(validator)?;
-        let stake = pallet_cbc_pos::Stake::<T>::get(validator);
+        let stake = pallet_cerulea_pos::Stake::<T>::get(validator);
         let poi_score = state.current.inference_score;
         let status = if ActiveValidators::<T>::get().contains(validator) {
-            pallet_cbc_dcf::ValidatorStatus::Active
+            pallet_cerulea_dcf::ValidatorStatus::Active
         } else {
-            pallet_cbc_dcf::ValidatorStatus::Inactive
+            pallet_cerulea_dcf::ValidatorStatus::Inactive
         };
 
-        Some(pallet_cbc_dcf::ValidatorProfile {
+        Some(pallet_cerulea_dcf::ValidatorProfile {
             stake,
             poi_score: poi_score as u32,
             final_score: state.current.final_score,
@@ -1334,15 +1334,15 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         })
     }
 
-    fn get_validator_status(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorStatus> {
+    fn get_validator_status(validator: &T::AccountId) -> Option<pallet_cerulea_dcf::ValidatorStatus> {
         if ActiveValidators::<T>::get().contains(validator) {
-            Some(pallet_cbc_dcf::ValidatorStatus::Active)
+            Some(pallet_cerulea_dcf::ValidatorStatus::Active)
         } else if ValidatorSet::<T>::get().contains(validator) {
-            Some(pallet_cbc_dcf::ValidatorStatus::Inactive)
+            Some(pallet_cerulea_dcf::ValidatorStatus::Inactive)
         } else if ValidatorLeaveRequests::<T>::contains_key(validator) {
-            Some(pallet_cbc_dcf::ValidatorStatus::Leaving)
+            Some(pallet_cerulea_dcf::ValidatorStatus::Leaving)
         } else if RecentlyRemovedValidators::<T>::contains_key(validator) {
-            Some(pallet_cbc_dcf::ValidatorStatus::Ejected)
+            Some(pallet_cerulea_dcf::ValidatorStatus::Ejected)
         } else {
             None
         }
@@ -1356,13 +1356,13 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         ActiveValidators::<T>::get().contains(validator)
     }
 
-    fn eject_validator(validator: &T::AccountId, reason: pallet_cbc_dcf::EjectionReason) -> sp_runtime::DispatchResult {
+    fn eject_validator(validator: &T::AccountId, reason: pallet_cerulea_dcf::EjectionReason) -> sp_runtime::DispatchResult {
         Self::eject_validator(validator, reason)
     }
 
-    fn get_validator_state(validator: &T::AccountId) -> Option<pallet_cbc_dcf::traits::ValidatorState> {
+    fn get_validator_state(validator: &T::AccountId) -> Option<pallet_cerulea_dcf::traits::ValidatorState> {
         let state = ValidatorStates::<T>::get(validator)?;
-        Some(pallet_cbc_dcf::traits::ValidatorState {
+        Some(pallet_cerulea_dcf::traits::ValidatorState {
             last_active_epoch: state.last_active_epoch,
             current: state.current,
             history: state.history.into_inner(),
@@ -1376,7 +1376,7 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         })
     }
 
-    fn update_validator_state(validator: &T::AccountId, state: pallet_cbc_dcf::traits::ValidatorState) {
+    fn update_validator_state(validator: &T::AccountId, state: pallet_cerulea_dcf::traits::ValidatorState) {
         let name_bounded = state.name.map(|n| BoundedVec::truncate_from(n));
         let history_bounded = BoundedVec::truncate_from(state.history);
         
@@ -1411,11 +1411,11 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         ValidatorNames::<T>::insert(validator, BoundedVec::truncate_from(name));
     }
 
-    fn get_validator_metadata(validator: &T::AccountId) -> Option<pallet_cbc_dcf::ValidatorMetadataInfo> {
+    fn get_validator_metadata(validator: &T::AccountId) -> Option<pallet_cerulea_dcf::ValidatorMetadataInfo> {
         ValidatorMetadata::<T>::get(validator)
     }
 
-    fn set_validator_metadata(validator: &T::AccountId, metadata: pallet_cbc_dcf::ValidatorMetadataInfo) {
+    fn set_validator_metadata(validator: &T::AccountId, metadata: pallet_cerulea_dcf::ValidatorMetadataInfo) {
         ValidatorMetadata::<T>::insert(validator, metadata);
     }
 
@@ -1446,7 +1446,7 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         ValidatorLeaveRequests::<T>::get(validator)
     }
 
-    fn get_pending_actions() -> Vec<(T::AccountId, pallet_cbc_dcf::ValidatorAction)> {
+    fn get_pending_actions() -> Vec<(T::AccountId, pallet_cerulea_dcf::ValidatorAction)> {
         PendingValidatorActions::<T>::iter().collect()
     }
 
@@ -1458,11 +1458,11 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         ActiveValidators::<T>::put(BoundedVec::truncate_from(active));
     }
 
-    fn get_validator_performance_history(validator: &T::AccountId) -> Vec<pallet_cbc_dcf::PerformanceRecord> {
+    fn get_validator_performance_history(validator: &T::AccountId) -> Vec<pallet_cerulea_dcf::PerformanceRecord> {
         ValidatorPerformanceHistory::<T>::get(validator).into_inner()
     }
 
-    fn set_validator_performance_history(validator: &T::AccountId, history: Vec<pallet_cbc_dcf::PerformanceRecord>) {
+    fn set_validator_performance_history(validator: &T::AccountId, history: Vec<pallet_cerulea_dcf::PerformanceRecord>) {
         ValidatorPerformanceHistory::<T>::insert(validator, BoundedVec::truncate_from(history));
     }
 
@@ -1514,7 +1514,7 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
         ValidatorBlocksMissed::<T>::remove(validator);
     }
 
-    fn add_pending_action(validator: &T::AccountId, action: pallet_cbc_dcf::ValidatorAction) {
+    fn add_pending_action(validator: &T::AccountId, action: pallet_cerulea_dcf::ValidatorAction) {
         PendingValidatorActions::<T>::insert(validator, action);
     }
 
@@ -1551,13 +1551,13 @@ impl<T: Config> pallet_cbc_dcf::traits::ValidatorRegistryProvider<T::AccountId, 
     }
 }
 
-impl<T: Config> pallet_cbc_dcf::traits::WeightFreezer<T::AccountId> for Pallet<T> {
+impl<T: Config> pallet_cerulea_dcf::traits::WeightFreezer<T::AccountId> for Pallet<T> {
     fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
         Self::freeze_epoch_weights(epoch, validators);
     }
 }
 
-impl<T: Config> pallet_cbc_dcf::traits::DvfFinalizedBlockProvider for Pallet<T> {
+impl<T: Config> pallet_cerulea_dcf::traits::DvfFinalizedBlockProvider for Pallet<T> {
     fn dvf_finalized_block() -> u32 {
         use sp_runtime::traits::SaturatedConversion;
         FinalizedBlockNumber::<T>::get().saturated_into::<u32>()

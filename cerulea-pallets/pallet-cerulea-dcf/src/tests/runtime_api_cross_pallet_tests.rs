@@ -554,18 +554,18 @@ fn runtime_api_configuration_consistency() {
         assert!(min_active <= max_validators);
         
         // Test PoS configuration
-        let pos_min_score: u32 = <Test as pallet_cbc_pos::Config>::MinValidatorScore::get();
-        let pos_max_validators = <Test as pallet_cbc_pos::Config>::MaxValidators::get();
-        let pos_min_active = <Test as pallet_cbc_pos::Config>::MinActiveValidators::get();
+        let pos_min_score: u32 = <Test as pallet_cerulea_pos::Config>::MinValidatorScore::get();
+        let pos_max_validators = <Test as pallet_cerulea_pos::Config>::MaxValidators::get();
+        let pos_min_active = <Test as pallet_cerulea_pos::Config>::MinActiveValidators::get();
         
         assert!(pos_min_score > 0);
         assert!(pos_max_validators > 0);
         assert!(pos_min_active > 0);
         
         // Test PoI configuration
-        let poi_min_confidence: u32 = <Test as pallet_cbc_poi::Config>::MinInferenceConfidence::get();
-        let poi_challenge_window: u32 = <Test as pallet_cbc_poi::Config>::ChallengeWindow::get();
-        let poi_max_age: u32 = <Test as pallet_cbc_poi::Config>::MaxInferenceAge::get();
+        let poi_min_confidence: u32 = <Test as pallet_cerulea_poi::Config>::MinInferenceConfidence::get();
+        let poi_challenge_window: u32 = <Test as pallet_cerulea_poi::Config>::ChallengeWindow::get();
+        let poi_max_age: u32 = <Test as pallet_cerulea_poi::Config>::MaxInferenceAge::get();
         
         assert!(poi_min_confidence > 0);
         assert!(poi_challenge_window > 0);

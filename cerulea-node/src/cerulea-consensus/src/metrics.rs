@@ -16,7 +16,7 @@ use prometheus::{
     register_counter_with_registry, register_counter_vec_with_registry, register_gauge_with_registry, 
     register_histogram_with_registry, register_gauge_vec_with_registry, register_histogram_vec_with_registry,
 };
-use pallet_cbc_dcf::DcfApi;
+use pallet_cerulea_dcf::DcfApi;
 // Remove unused imports - we'll use the runtime types directly in the trait bound
 
 /// Validator economics metrics for Prometheus

@@ -5,7 +5,7 @@
 use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use core::marker::PhantomData;
 
-/// Weight functions needed for pallet_cbc_poi.
+/// Weight functions needed for pallet_cerulea_poi.
 pub trait WeightInfo {
 	fn store_something() -> Weight;
 	fn submit_inference() -> Weight;
@@ -14,7 +14,7 @@ pub trait WeightInfo {
 	fn epoch_cleanup() -> Weight;
 }
 
-/// Weights for pallet_cbc_poi using the Substrate node and recommended hardware.
+/// Weights for pallet_cerulea_poi using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// Storage: Template Something (r:0 w:1)

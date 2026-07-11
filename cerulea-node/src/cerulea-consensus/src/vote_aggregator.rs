@@ -19,8 +19,8 @@ use crate::{
     justification_builder::JustificationBuilder,
     metrics::DvfMetrics,
 };
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
-use pallet_cbc_dvf::DvfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::DvfApi;
 
 /// Vote Aggregator Service
 ///
@@ -439,8 +439,8 @@ where
                 // DvfJustification<Hash, AccountId, MultiSignature>.
                 let _ = self.client.runtime_api();
                 let best_hash = self.client.info().best_hash;
-                let pallet_votes: Vec<pallet_cbc_dvf::DvfVote<Block::Hash, AccountId, sp_runtime::MultiSignature>> =
-                    justification.votes.iter().map(|v| pallet_cbc_dvf::DvfVote {
+                let pallet_votes: Vec<pallet_cerulea_dvf::DvfVote<Block::Hash, AccountId, sp_runtime::MultiSignature>> =
+                    justification.votes.iter().map(|v| pallet_cerulea_dvf::DvfVote {
                         epoch_id: v.epoch_id,
                         validator_set_id: v.validator_set_id,
                         round_id: v.round_number,
@@ -449,14 +449,14 @@ where
                         validator_account: v.validator_account_id.clone(),
                         signature: sp_runtime::MultiSignature::Ed25519(v.signature),
                     }).collect();
-                let pallet_justification = pallet_cbc_dvf::DvfJustification {
+                let pallet_justification = pallet_cerulea_dvf::DvfJustification {
                     round_number: justification.round_number,
                     block_hash: justification.block_hash.clone(),
                     votes: pallet_votes,
                 };
                 // Convert generic justification to concrete runtime justification via SCALE codec
                 let enc_justification = pallet_justification.encode();
-                let concrete_justification: pallet_cbc_dvf::DvfJustification<
+                let concrete_justification: pallet_cerulea_dvf::DvfJustification<
                     sp_core::H256,
                     cerulea_runtime::AccountId,
                     sp_runtime::MultiSignature
@@ -465,7 +465,7 @@ where
 
                 // Construct the unsigned extrinsic call
                 let encoded_call = cerulea_runtime::RuntimeCall::Dvf(
-                    pallet_cbc_dvf::Call::submit_justification {
+                    pallet_cerulea_dvf::Call::submit_justification {
                         justification: concrete_justification,
                     }
                 );

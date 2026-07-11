@@ -379,7 +379,7 @@ fn cross_pallet_error_propagation() {
                 non_validator,
                 75
             ),
-            pallet_cbc_pos::Error::<Test>::ValidatorNotRegistered
+            pallet_cerulea_pos::Error::<Test>::ValidatorNotRegistered
         );
         
         // DCF should still function normally
@@ -393,7 +393,7 @@ fn cross_pallet_error_propagation() {
                 non_validator,
                 42
             ),
-            pallet_cbc_poi::Error::<Test>::InferenceNotFound
+            pallet_cerulea_poi::Error::<Test>::InferenceNotFound
         );
         
         // Other pallets should still function

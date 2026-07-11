@@ -19,7 +19,7 @@ use sp_core::Pair;
 use tokio::time::sleep;
 use sp_core::ed25519::Public;
 use codec::Encode;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use cerulea_runtime::AccountId;
 use sc_transaction_pool_api::TransactionPool;
 // Import lifecycle tracer
@@ -1213,13 +1213,13 @@ mod tests {
     fn test_validator_selection_basic() {
         setup_consensus_test(MockConsensusConfig::default()).execute_with(|| {
             // Test basic validator selection functionality
-            let validators = pallet_cbc_dcf::ValidatorSet::<Test>::get();
+            let validators = pallet_cerulea_dcf::ValidatorSet::<Test>::get();
             assert!(!validators.is_empty());
             assert_eq!(validators.len(), 4);
             
             // Test that all validators have valid states
             for validator in validators.iter() {
-                let state = pallet_cbc_dcf::ValidatorStates::<Test>::get(validator);
+                let state = pallet_cerulea_dcf::ValidatorStates::<Test>::get(validator);
                 assert!(state.is_some());
                 
                 let state = state.unwrap();
@@ -1235,7 +1235,7 @@ mod tests {
             let validator = 1u64;
             
             // Get initial state
-            let initial_state = pallet_cbc_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
+            let initial_state = pallet_cerulea_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
             let initial_score = initial_state.current.final_score;
             
             // Test score calculation components
@@ -1244,7 +1244,7 @@ mod tests {
             assert!(initial_score > 0);
             
             // Test score bounds
-            let max_score = <Test as pallet_cbc_dcf::Config>::MaxValidatorScore::get();
+            let max_score = <Test as pallet_cerulea_dcf::Config>::MaxValidatorScore::get();
             assert!(initial_score <= max_score);
         });
     }
@@ -1253,18 +1253,18 @@ mod tests {
     fn test_epoch_management() {
         setup_consensus_test(MockConsensusConfig::default()).execute_with(|| {
             // Test initial epoch state
-            let current_epoch = pallet_cbc_dcf::CurrentEpoch::<Test>::get();
+            let current_epoch = pallet_cerulea_dcf::CurrentEpoch::<Test>::get();
             assert_eq!(current_epoch, 0);
             
             // Test epoch configuration
-            let epoch_config = pallet_cbc_dcf::EpochConfigStorage::<Test>::get();
+            let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Test>::get();
             assert!(epoch_config.blocks_per_epoch > 0);
             assert!(epoch_config.min_stake > 0);
             assert!(epoch_config.max_validators > 0);
             
             // Test epoch advancement
-            pallet_cbc_dcf::CurrentEpoch::<Test>::put(1);
-            let new_epoch = pallet_cbc_dcf::CurrentEpoch::<Test>::get();
+            pallet_cerulea_dcf::CurrentEpoch::<Test>::put(1);
+            let new_epoch = pallet_cerulea_dcf::CurrentEpoch::<Test>::get();
             assert_eq!(new_epoch, 1);
         });
     }
@@ -1273,19 +1273,19 @@ mod tests {
     fn test_consensus_weight_system() {
         setup_consensus_test(MockConsensusConfig::default()).execute_with(|| {
             // Test initial weights
-            let pos_weight = pallet_cbc_dcf::PosWeight::<Test>::get();
-            let poi_weight = pallet_cbc_dcf::PoiWeight::<Test>::get();
+            let pos_weight = pallet_cerulea_dcf::PosWeight::<Test>::get();
+            let poi_weight = pallet_cerulea_dcf::PoiWeight::<Test>::get();
             
             assert!(pos_weight > 0);
             assert!(poi_weight > 0);
             assert_eq!(pos_weight + poi_weight, 100);
             
             // Test weight updates
-            pallet_cbc_dcf::PosWeight::<Test>::put(70);
-            pallet_cbc_dcf::PoiWeight::<Test>::put(30);
+            pallet_cerulea_dcf::PosWeight::<Test>::put(70);
+            pallet_cerulea_dcf::PoiWeight::<Test>::put(30);
             
-            let new_pos_weight = pallet_cbc_dcf::PosWeight::<Test>::get();
-            let new_poi_weight = pallet_cbc_dcf::PoiWeight::<Test>::get();
+            let new_pos_weight = pallet_cerulea_dcf::PosWeight::<Test>::get();
+            let new_poi_weight = pallet_cerulea_dcf::PoiWeight::<Test>::get();
             
             assert_eq!(new_pos_weight, 70);
             assert_eq!(new_poi_weight, 30);
@@ -1299,7 +1299,7 @@ mod tests {
             let validator = 1u64;
             
             // Get initial state
-            let mut state = pallet_cbc_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
+            let mut state = pallet_cerulea_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
             
             // Test activity updates
             state.current.authored_blocks = 5;
@@ -1307,10 +1307,10 @@ mod tests {
             state.last_active_block = 100;
             state.participation_rate = 95;
             
-            pallet_cbc_dcf::ValidatorStates::<Test>::insert(&validator, &state);
+            pallet_cerulea_dcf::ValidatorStates::<Test>::insert(&validator, &state);
             
             // Verify updates
-            let updated_state = pallet_cbc_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
+            let updated_state = pallet_cerulea_dcf::ValidatorStates::<Test>::get(&validator).unwrap();
             assert_eq!(updated_state.current.authored_blocks, 5);
             assert_eq!(updated_state.current.missed_blocks, 1);
             assert_eq!(updated_state.last_active_block, 100);
@@ -1325,14 +1325,14 @@ mod tests {
             let initial_stake = 1000u128;
             
             // Test initial stake
-            let stake = pallet_cbc_dcf::ValidatorStake::<Test>::get(&validator);
+            let stake = pallet_cerulea_dcf::ValidatorStake::<Test>::get(&validator);
             assert_eq!(stake, initial_stake);
             
             // Test stake updates
             let new_stake = 1500u128;
-            pallet_cbc_dcf::ValidatorStake::<Test>::insert(&validator, new_stake);
+            pallet_cerulea_dcf::ValidatorStake::<Test>::insert(&validator, new_stake);
             
-            let updated_stake = pallet_cbc_dcf::ValidatorStake::<Test>::get(&validator);
+            let updated_stake = pallet_cerulea_dcf::ValidatorStake::<Test>::get(&validator);
             assert_eq!(updated_stake, new_stake);
         });
     }
@@ -1341,11 +1341,11 @@ mod tests {
     fn test_active_validator_management() {
         setup_consensus_test(MockConsensusConfig::default()).execute_with(|| {
             // Test initial active validators
-            let active_validators = pallet_cbc_dcf::ActiveValidators::<Test>::get();
+            let active_validators = pallet_cerulea_dcf::ActiveValidators::<Test>::get();
             assert!(!active_validators.is_empty());
             
             // Test validator set consistency
-            let validator_set = pallet_cbc_dcf::ValidatorSet::<Test>::get();
+            let validator_set = pallet_cerulea_dcf::ValidatorSet::<Test>::get();
             assert_eq!(active_validators.len(), validator_set.len());
             
             for validator in active_validators.iter() {
@@ -1358,10 +1358,10 @@ mod tests {
     fn test_consensus_metrics_integration() {
         setup_consensus_test(MockConsensusConfig::default()).execute_with(|| {
             // Test that consensus can access validator metrics
-            let validators = pallet_cbc_dcf::ValidatorSet::<Test>::get();
+            let validators = pallet_cerulea_dcf::ValidatorSet::<Test>::get();
             
             for validator in validators.iter() {
-                let state = pallet_cbc_dcf::ValidatorStates::<Test>::get(validator).unwrap();
+                let state = pallet_cerulea_dcf::ValidatorStates::<Test>::get(validator).unwrap();
                 
                 // Verify metrics are accessible
                 assert!(state.current.final_score >= 0);

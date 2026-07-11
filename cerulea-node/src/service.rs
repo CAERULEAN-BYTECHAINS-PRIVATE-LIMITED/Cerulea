@@ -289,7 +289,7 @@ where
     // Validate DVF configuration parameters
     // This ensures all parameters meet requirements for correct operation
     {
-        use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
+        use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
         use sp_api::ProvideRuntimeApi;
         
         log::info!("DVF: Validating configuration parameters...");
@@ -797,7 +797,7 @@ where
     // This syncs DCF's internal finality state to Substrate's client finalized head
     {
         use sp_runtime::traits::SaturatedConversion;
-        use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
+        use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
         let finality_client = client.clone();
 		let finality_gossip_pool = dvf_gossip_pool.clone();
         task_manager.spawn_essential_handle().spawn(
