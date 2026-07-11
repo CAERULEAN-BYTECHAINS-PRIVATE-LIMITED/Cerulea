@@ -1013,7 +1013,7 @@ where
         );
     }
     
-    log::info!("DCF: Consensus monitoring active. Block production handled by Substrate's default mechanisms.");
+    log::info!("DCF: Consensus monitoring active. Block production handled by the Dynamic Consensus Framework.");
 
     let rpc_extensions_builder = {
         let client = client.clone();
