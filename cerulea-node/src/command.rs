@@ -24,7 +24,7 @@ impl SubstrateCli for Cli {
     }
 
     fn description() -> String {
-        "A Cerulea runtime node built with Substrate.".into()
+        "Cerulea node running the Dynamic Consensus Framework.".into()
     }
 
     fn author() -> String {
