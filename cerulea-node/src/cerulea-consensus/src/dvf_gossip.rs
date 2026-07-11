@@ -9,8 +9,8 @@ use sc_network::PeerId;
 use log::{debug, info, warn};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
-use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
 use crate::metrics::DvfMetrics;
 
 /// The protocol ID for DVF Vote Gossiping.

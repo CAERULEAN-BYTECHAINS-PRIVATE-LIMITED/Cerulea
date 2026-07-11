@@ -48,24 +48,24 @@ mod tests {
             assert_eq!(System::block_hash_count(), 2400);
             
             // DCF constants
-            let max_validators = pallet_cbc_dcf::DcfMaxValidators::<Runtime>::get();
+            let max_validators = pallet_cerulea_dcf::DcfMaxValidators::<Runtime>::get();
             assert_eq!(max_validators, 100);
             
-            let min_active = pallet_cbc_dcf::MinActiveValidators::<Runtime>::get();
+            let min_active = pallet_cerulea_dcf::MinActiveValidators::<Runtime>::get();
             assert_eq!(min_active, 3);
             
-            let epoch_length = pallet_cbc_dcf::EpochLength::<Runtime>::get();
+            let epoch_length = pallet_cerulea_dcf::EpochLength::<Runtime>::get();
             assert_eq!(epoch_length, 2400);
             
             // PoS constants
-            let min_validator_score = pallet_cbc_pos::MinValidatorScore::<Runtime>::get();
+            let min_validator_score = pallet_cerulea_pos::MinValidatorScore::<Runtime>::get();
             assert_eq!(min_validator_score, 50);
             
             // PoI constants
-            let min_confidence = pallet_cbc_poi::MinInferenceConfidence::<Runtime>::get();
+            let min_confidence = pallet_cerulea_poi::MinInferenceConfidence::<Runtime>::get();
             assert_eq!(min_confidence, 50);
             
-            let challenge_window = pallet_cbc_poi::ChallengeWindow::<Runtime>::get();
+            let challenge_window = pallet_cerulea_poi::ChallengeWindow::<Runtime>::get();
             assert_eq!(challenge_window, 5);
         });
     }
@@ -186,8 +186,8 @@ mod tests {
             ));
             
             // Verify proposal was executed
-            let proposal = pallet_cbc_dcf::Proposals::<Runtime>::get(proposal_id).unwrap();
-            assert_eq!(proposal.status, pallet_cbc_dcf::ProposalStatus::Executed);
+            let proposal = pallet_cerulea_dcf::Proposals::<Runtime>::get(proposal_id).unwrap();
+            assert_eq!(proposal.status, pallet_cerulea_dcf::ProposalStatus::Executed);
         });
     }
 
@@ -197,7 +197,7 @@ mod tests {
             let initial_epoch = DcfPallet::current_epoch();
             
             // Test epoch configuration
-            let epoch_config = pallet_cbc_dcf::EpochConfigStorage::<Runtime>::get();
+            let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
             assert_eq!(epoch_config.blocks_per_epoch, 100);
             assert_eq!(epoch_config.min_stake, 1000);
             assert_eq!(epoch_config.max_validators, 100);
@@ -256,19 +256,19 @@ mod tests {
             // DCF errors
             assert_noop!(
                 DcfPallet::leave_validators(RuntimeOrigin::signed(invalid_validator)),
-                pallet_cbc_dcf::Error::<Runtime>::ValidatorNotFound
+                pallet_cerulea_dcf::Error::<Runtime>::ValidatorNotFound
             );
             
             // PoS errors
             assert_noop!(
                 PalletCbcPos::submit_score(RuntimeOrigin::signed(1), invalid_validator, 75),
-                pallet_cbc_pos::Error::<Runtime>::ValidatorNotRegistered
+                pallet_cerulea_pos::Error::<Runtime>::ValidatorNotRegistered
             );
             
             // PoI errors
             assert_noop!(
                 PalletCbcPoi::challenge_inference(RuntimeOrigin::signed(1), invalid_validator, 42),
-                pallet_cbc_poi::Error::<Runtime>::InferenceNotFound
+                pallet_cerulea_poi::Error::<Runtime>::InferenceNotFound
             );
             
             // System errors
@@ -334,10 +334,10 @@ mod tests {
                 
                 if let Some((combined_score, pos_score, poi_score, trust_score, uptime, inference_count, participation_rate, missed_blocks)) = profile {
                     // Scores should be reasonable
-                    assert!(combined_score <= pallet_cbc_dcf::MaxValidatorScore::<Runtime>::get());
-                    assert!(pos_score <= pallet_cbc_dcf::MaxValidatorScore::<Runtime>::get());
-                    assert!(poi_score <= pallet_cbc_dcf::MaxValidatorScore::<Runtime>::get());
-                    assert!(trust_score <= pallet_cbc_dcf::MaxTrustScore::<Runtime>::get());
+                    assert!(combined_score <= pallet_cerulea_dcf::MaxValidatorScore::<Runtime>::get());
+                    assert!(pos_score <= pallet_cerulea_dcf::MaxValidatorScore::<Runtime>::get());
+                    assert!(poi_score <= pallet_cerulea_dcf::MaxValidatorScore::<Runtime>::get());
+                    assert!(trust_score <= pallet_cerulea_dcf::MaxTrustScore::<Runtime>::get());
                     
                     // Participation rate should be valid percentage
                     assert!(participation_rate <= 100);
@@ -505,7 +505,7 @@ mod tests {
                     100, // block number
                     0 // missed blocks
                 ),
-                pallet_cbc_dcf::Error::<Runtime>::Unauthorized
+                pallet_cerulea_dcf::Error::<Runtime>::Unauthorized
             );
         });
     }

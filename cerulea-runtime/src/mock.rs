@@ -164,7 +164,7 @@ pub fn new_test_ext_for_governance() -> sp_io::TestExternalities {
     ext.execute_with(|| {
         // Enable governance mode
         // Enable governance mode for testing
-        pallet_cbc_dcf::GovernanceModeEnabled::<Runtime>::put(true);
+        pallet_cerulea_dcf::GovernanceModeEnabled::<Runtime>::put(true);
     });
     
     ext
@@ -176,12 +176,12 @@ pub fn new_test_ext_for_epochs() -> sp_io::TestExternalities {
     
     ext.execute_with(|| {
         // Setup epoch configuration for faster testing
-        let epoch_config = pallet_cbc_dcf::EpochConfig {
+        let epoch_config = pallet_cerulea_dcf::EpochConfig {
             blocks_per_epoch: 100, // Shorter epochs for testing
             min_stake: 1000,
             max_validators: 100,
         };
-        pallet_cbc_dcf::EpochConfigStorage::<Runtime>::put(epoch_config);
+        pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::put(epoch_config);
     });
     
     ext
@@ -196,10 +196,10 @@ pub fn advance_to_block(n: BlockNumber) {
         // Trigger on_initialize for all pallets
         use frame_support::traits::Hooks;
         System::on_initialize(current + 1);
-        pallet_cbc_dcf::Pallet::<Runtime>::on_initialize(current + 1);
+        pallet_cerulea_dcf::Pallet::<Runtime>::on_initialize(current + 1);
         
         // Trigger on_finalize for all pallets
-        pallet_cbc_dcf::Pallet::<Runtime>::on_finalize(current + 1);
+        pallet_cerulea_dcf::Pallet::<Runtime>::on_finalize(current + 1);
         System::on_finalize(current + 1);
     }
 }
@@ -212,8 +212,8 @@ pub fn advance_blocks(n: BlockNumber) {
 
 /// Helper function to advance to the next epoch
 pub fn advance_to_next_epoch() {
-    let epoch_config = pallet_cbc_dcf::EpochConfigStorage::<Runtime>::get();
-    let current_epoch = pallet_cbc_dcf::CurrentEpoch::<Runtime>::get();
+    let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
+    let current_epoch = pallet_cerulea_dcf::CurrentEpoch::<Runtime>::get();
     let next_epoch_block = (current_epoch + 1) * epoch_config.blocks_per_epoch + 1;
     advance_to_block(next_epoch_block as BlockNumber);
 }
@@ -227,7 +227,7 @@ pub fn create_funded_account(account_id: AccountId, balance: Balance) {
 pub fn setup_validator_with_stake(validator: AccountId, stake: Balance) {
     create_funded_account(validator.clone(), stake * 2);
     let _ = Balances::reserve(&validator, stake);
-    pallet_cbc_dcf::ValidatorStake::<Runtime>::insert(&validator, stake);
+    pallet_cerulea_dcf::ValidatorStake::<Runtime>::insert(&validator, stake);
 }
 
 /// Helper function to create multiple test validators
@@ -240,9 +240,9 @@ pub fn create_test_validators(count: u32) -> Vec<AccountId> {
         setup_validator_with_stake(validator.clone(), 10000);
         
         // Create validator state
-        let validator_state = pallet_cbc_dcf::ValidatorState {
+        let validator_state = pallet_cerulea_dcf::ValidatorState {
             last_active_epoch: 0,
-            current: pallet_cbc_dcf::EpochStats {
+            current: pallet_cerulea_dcf::EpochStats {
                 epoch: 0,
                 stake_score: 1000,
                 // PoI=0: AI inference not yet integrated; inference_score stays 0 globally.
@@ -262,7 +262,7 @@ pub fn create_test_validators(count: u32) -> Vec<AccountId> {
             trust_score: 0,
         };
         
-        pallet_cbc_dcf::ValidatorStates::<Runtime>::insert(validator, validator_state);
+        pallet_cerulea_dcf::ValidatorStates::<Runtime>::insert(validator, validator_state);
     }
     
     validators

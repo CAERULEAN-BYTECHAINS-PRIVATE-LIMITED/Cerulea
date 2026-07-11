@@ -254,13 +254,13 @@ impl CeruleaLogFormatter {
 pub fn configure_rust_log(cbc_log_only: bool, quiet: bool) -> String {
     let log_config = if quiet {
         // Minimal logging - only errors and warnings
-        "warn,cerulea_node=info,cerulea_consensus=info,pallet_cbc_dcf=info"
+        "warn,cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info"
     } else if cbc_log_only {
         // Only show CBC-related logs when --cbc-log-only is set
-        "cerulea_node=info,cerulea_consensus=info,pallet_cbc_dcf=info,pallet_cbc_pos=info,pallet_cbc_poi=info"
+        "cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info,pallet_cerulea_pos=info,pallet_cerulea_poi=info"
     } else {
         // Show general info logs plus CBC logs (reduced from debug to info)
-        "info,cerulea_node=info,cerulea_consensus=info,pallet_cbc_dcf=info,pallet_cbc_pos=info,pallet_cbc_poi=info"
+        "info,cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info,pallet_cerulea_pos=info,pallet_cerulea_poi=info"
     };
     
     // Set the environment variable
@@ -410,7 +410,7 @@ mod tests {
         
         let config_cbc_only = configure_rust_log(true, false);
         assert!(config_cbc_only.contains("cerulea_node=info"));
-        assert!(config_cbc_only.contains("pallet_cbc_dcf=info"));
+        assert!(config_cbc_only.contains("pallet_cerulea_dcf=info"));
         assert!(!config_cbc_only.contains("warn,"));
         
         let config_all = configure_rust_log(false, false);

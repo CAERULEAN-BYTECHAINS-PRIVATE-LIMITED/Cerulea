@@ -1,4 +1,4 @@
-use crate as pallet_cbc_pos;
+use crate as pallet_cerulea_pos;
 use frame_support::{
     parameter_types,
     traits::{ConstU32, ConstU64, ConstU128},
@@ -17,7 +17,7 @@ frame_support::construct_runtime!(
     pub enum Test {
         System: frame_system,
         Balances: pallet_balances,
-        PalletCbcPos: pallet_cbc_pos,
+        PalletCbcPos: pallet_cerulea_pos,
     }
 );
 
@@ -76,7 +76,7 @@ impl pallet_balances::Config for Test {
     type DoneSlashHandler = ();
 }
 
-impl pallet_cbc_pos::Config for Test {
+impl pallet_cerulea_pos::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type MinValidatorScore = ConstU32<50>;

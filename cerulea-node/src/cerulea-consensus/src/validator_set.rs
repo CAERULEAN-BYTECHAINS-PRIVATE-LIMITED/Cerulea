@@ -8,7 +8,7 @@ use sp_runtime::traits::{Block as BlockT};
 use codec::{Encode, Decode};
 
 use crate::error::{ConsensusResult, ConsensusError as CeruleaConsensusError};
-use pallet_cbc_dcf::DcfApi;
+use pallet_cerulea_dcf::DcfApi;
 
 /// Validator set manager for CBC consensus
 pub struct ValidatorSetManager<Block: BlockT, Client> {
@@ -63,7 +63,7 @@ impl<Block, Client> ValidatorSetOps<Block> for ValidatorSetManager<Block, Client
 where
     Block: BlockT,
     Client: sp_api::ProvideRuntimeApi<Block> + Send + Sync,
-    Client::Api: pallet_cbc_dcf::DcfApi<Block, u64, u128, u32>,
+    Client::Api: pallet_cerulea_dcf::DcfApi<Block, u64, u128, u32>,
 {
     fn current_validators(&self, at: &Block::Hash) -> ConsensusResult<Vec<u64>> {
         let api = self.client.runtime_api();

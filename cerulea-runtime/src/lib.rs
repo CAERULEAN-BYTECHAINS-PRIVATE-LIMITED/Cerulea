@@ -213,20 +213,20 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     #[runtime::pallet_index(6)]
-    pub type PalletCbcPoi = pallet_cbc_poi;
+    pub type PalletCbcPoi = pallet_cerulea_poi;
 
     #[runtime::pallet_index(7)]
-    pub type PalletCbcPos = pallet_cbc_pos;
+    pub type PalletCbcPos = pallet_cerulea_pos;
 
     #[runtime::pallet_index(8)]
-    pub type Dcf = pallet_cbc_dcf::Pallet<Runtime>;
+    pub type Dcf = pallet_cerulea_dcf::Pallet<Runtime>;
 
     /// Simple on-chain Todo list pallet
     #[runtime::pallet_index(9)]
     pub type Todo = pallet_todo;
 
     #[runtime::pallet_index(10)]
-    pub type Dvf = pallet_cbc_dvf::Pallet<Runtime>;
+    pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 use sp_runtime::traits::parameter_types;
 
@@ -319,8 +319,8 @@ parameter_types! {
     pub const MisbehaviorSlashThreshold: u32 = 3;
 }
 
-pub use pallet_cbc_poi;
-pub use pallet_cbc_pos;
+pub use pallet_cerulea_poi;
+pub use pallet_cerulea_pos;
 pub use pallet_todo;
 
 parameter_types! {
@@ -332,7 +332,7 @@ parameter_types! {
     pub const VoteRetentionRounds: u32 = 20;
 }
 
-impl pallet_cbc_dvf::Config for Runtime {
+impl pallet_cerulea_dvf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Signature = Signature;
     type Signer = <Signature as Verify>::Signer;

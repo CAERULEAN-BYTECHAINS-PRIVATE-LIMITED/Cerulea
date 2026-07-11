@@ -16,8 +16,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::dvf_gossip::{DvfVoteMessage, DvfVotePool};
 use crate::metrics::DvfMetrics;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
-use pallet_cbc_dvf::DvfApi as RuntimeDvfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
 
 /// Vote Creator Service
 ///

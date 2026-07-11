@@ -6,7 +6,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::NumberFor;
 use sp_core::ed25519::Public;
 use cerulea_runtime::AccountId;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use std::sync::Arc;
 
 /// Fetch the expected block author for a given block number/slot using the DCF runtime API.

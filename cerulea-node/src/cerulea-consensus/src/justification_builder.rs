@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use crate::dvf_gossip::{DvfJustification, DvfVoteMessage, DvfVotePool};
 use crate::metrics::DvfMetrics;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
-use pallet_cbc_dvf::DvfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::DvfApi;
 
 /// Maximum encoded size for a justification (1 MB)
 const MAX_JUSTIFICATION_SIZE: usize = 1_048_576;

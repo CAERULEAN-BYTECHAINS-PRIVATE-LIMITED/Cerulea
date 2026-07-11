@@ -1,4 +1,4 @@
-use crate as pallet_cbc_dvf;
+use crate as pallet_cerulea_dvf;
 use frame_support::{
     parameter_types,
     traits::ConstU32,
@@ -20,8 +20,8 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
-        PalletCbcPos: pallet_cbc_pos,
-        Dvf: pallet_cbc_dvf,
+        PalletCbcPos: pallet_cerulea_pos,
+        Dvf: pallet_cerulea_dvf,
     }
 );
 
@@ -101,7 +101,7 @@ parameter_types! {
     pub const TopPerformerPercentage: u32 = 20;
 }
 
-impl pallet_cbc_pos::Config for Test {
+impl pallet_cerulea_pos::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type MinValidatorScore = MinValidatorScore;
@@ -137,7 +137,7 @@ parameter_types! {
     pub const VoteRetentionRounds: u32 = 20;
 }
 
-impl pallet_cbc_dvf::Config for Test {
+impl pallet_cerulea_dvf::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Signer = AccountPublic;
     type Signature = Signature;

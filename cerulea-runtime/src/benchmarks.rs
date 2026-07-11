@@ -27,18 +27,18 @@ frame_benchmarking::define_benchmarks!(
     // These tests measure overhead and weight of administrative operations through sudo.
     [pallet_sudo, Sudo]
 
-    // Benchmarks for the `pallet_cbc_dcf`, the main Dynamic Consensus Framework pallet.
+    // Benchmarks for the `pallet_cerulea_dcf`, the main Dynamic Consensus Framework pallet.
     // It includes performance tests for validator management, consensus operations, governance,
     // epoch transitions, and all core DCF functionality.
-    [pallet_cbc_dcf, DcfPallet]
+    [pallet_cerulea_dcf, DcfPallet]
 
-    // Benchmarks for the `pallet_cbc_poi`, which handles Proof-of-Inference functionality.
+    // Benchmarks for the `pallet_cerulea_poi`, which handles Proof-of-Inference functionality.
     // It includes performance tests for inference submission, challenge mechanisms,
     // and inference validation operations.
-    [pallet_cbc_poi, PalletCbcPoi]
+    [pallet_cerulea_poi, PalletCbcPoi]
 
-    // Benchmarks for the `pallet_cbc_pos`, which handles Proof-of-Stake functionality.
+    // Benchmarks for the `pallet_cerulea_pos`, which handles Proof-of-Stake functionality.
     // It includes performance tests for validator registration, score submission,
     // slashing operations, and stake management.
-    [pallet_cbc_pos, PalletCbcPos]
+    [pallet_cerulea_pos, PalletCbcPos]
 );

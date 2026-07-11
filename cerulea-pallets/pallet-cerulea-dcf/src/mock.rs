@@ -21,8 +21,8 @@ frame_support::construct_runtime!(
         Balances: pallet_balances,
         Timestamp: pallet_timestamp,
         DcfPallet: crate,
-        PalletCbcPos: pallet_cbc_pos,
-        PalletCbcPoi: pallet_cbc_poi,
+        PalletCbcPos: pallet_cerulea_pos,
+        PalletCbcPoi: pallet_cerulea_poi,
     }
 );
 
@@ -96,7 +96,7 @@ parameter_types! {
     pub const ChallengeReward: u128 = 500;
 }
 
-impl pallet_cbc_pos::Config for Test {
+impl pallet_cerulea_pos::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Balance = u128;
     type MinStake = MinStake;
@@ -108,7 +108,7 @@ impl pallet_cbc_pos::Config for Test {
     type WeightInfo = ();
 }
 
-impl pallet_cbc_poi::Config for Test {
+impl pallet_cerulea_poi::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MinInferenceConfidence = MinInferenceConfidence;
     type MaxInferenceAge = MaxInferenceAge;
@@ -142,7 +142,7 @@ parameter_types! {
 
 // Mock PosInterface implementation
 pub struct MockPosInterface;
-impl pallet_cbc_poi::PosInterface<u64> for MockPosInterface {
+impl pallet_cerulea_poi::PosInterface<u64> for MockPosInterface {
     fn boost_score(_validator: &u64, _weight: u32) -> DispatchResult {
         Ok(())
     }
@@ -153,7 +153,7 @@ impl pallet_cbc_poi::PosInterface<u64> for MockPosInterface {
 
 // Mock DcfInterface implementation for PoI pallet
 pub struct MockDcfInterface;
-impl pallet_cbc_poi::DcfInterface<u64> for MockDcfInterface {
+impl pallet_cerulea_poi::DcfInterface<u64> for MockDcfInterface {
     fn record_inference_activity(_validator: &u64) -> DispatchResult {
         Ok(())
     }

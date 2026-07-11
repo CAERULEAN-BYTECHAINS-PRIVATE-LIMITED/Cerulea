@@ -9,7 +9,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::NumberFor;
 use sp_core::ed25519::Public;
 use cerulea_runtime::AccountId;
-use pallet_cbc_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use std::sync::Arc;
 use sp_runtime::traits::{Block as BlockTrait, Header as HeaderTrait, Zero, SaturatedConversion};
 use std::time::{Duration, Instant};
