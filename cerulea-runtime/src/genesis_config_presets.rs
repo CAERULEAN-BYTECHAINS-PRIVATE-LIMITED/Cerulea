@@ -112,14 +112,14 @@ fn testnet_genesis_with_stakes_and_names(
 			strict_validation: true,    // Enable strict validation
 		},
 		// Configure initial validators
-		pallet_cerulea_pos: pallet_cerulea_pos::GenesisConfig {
+		PalletCeruleaPos: pallet_cerulea_pos::GenesisConfig {
 			validators: initial_validators.clone(),
 			validator_scores,
 			current_epoch: 0,
 			slashing_count: vec![],
 		},
 		// Configure initial inference results
-		pallet_cerulea_poi: pallet_cerulea_poi::GenesisConfig {
+		PalletCeruleaPoi: pallet_cerulea_poi::GenesisConfig {
 			inference_results,
 			challenges: vec![],
 			current_epoch: 0,
