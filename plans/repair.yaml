@@ -1,0 +1,146 @@
+# Repair plan for the repeatedly failing task: baseline-tests
+#
+# DIAGNOSIS (why baseline-tests failed 3 times with "agent modified no files")
+#
+# The environment is healthy. cargo 1.85.1 and cargo-llvm-cov 0.6.21 are both
+# installed, the host has 12 cores and 47 GB RAM, and a warm shared build cache
+# lives at CARGO_TARGET_DIR=/opt/cerulea/cargo-target (about 12 GB, all heavy
+# dependencies already compiled). A from-scratch `cargo test --release
+# --workspace` was started during diagnosis and compiled the runtime and every
+# workspace crate with no errors, so the code builds and the task is doable.
+#
+# The failure is not a code fault. It is a time-budget and task-shape fault:
+#
+#   1. Single core builds. .cargo/config.toml pins [build] jobs = 1. Every
+#      compile is single threaded. docs/BUILDING.md documents a clean build at
+#      about 55 minutes. Compiling the WASM runtime, the node, the consensus
+#      crate, and the roughly 68 test-bearing files single threaded, then
+#      linking every test binary, is close to or beyond the agent wall clock.
+#
+#   2. The task produced no deliverable until the very end. It had to run the
+#      whole suite before it could record anything, so when the build ran long
+#      the agent was killed with an empty worktree. The Bash tool also caps a
+#      single foreground call at 10 minutes, so a naive `cargo test --release
+#      --workspace` in one shell call is killed long before it finishes, which
+#      matches "the task was not attempted" repeating across all 3 attempts.
+#
+#   3. Ownership vs spec mismatch. baseline-tests owns only
+#      cerulea-pallets/**/tests/ and docs/TEST_BASELINE.md, but the spec also
+#      asks to "add cargo llvm-cov to CI". It owns no .github/ path, so it could
+#      never deliver the CI half. It also owns the tests directory yet is told
+#      not to touch tests.
+#
+#   4. verify: rust-test is self-defeating for a documentation deliverable. It
+#      makes the verifier re-run the entire ~55 minute suite after the agent,
+#      and the empty-diff hard-fail turns "ran out of time" into a hard failure
+#      instead of surfacing partial progress.
+#
+# FIX: split the original spec into its two natural halves, each with correct
+# ownership, a docs verify scope (the deliverables are markdown and a CI yaml,
+# no Rust source changes), a generous timeout, and an explicit build strategy
+# that overrides the single-core pin, builds in the background, and writes the
+# deliverable incrementally so a timeout still leaves useful output.
+#
+# Note on formatting: verify.sh blocks the em dash byte sequence in .md and
+# .yaml files under every scope. Deliverables and this file use plain ASCII
+# hyphens only.
+
+tasks:
+  - id: baseline-tests-record
+    title: Record the honest chain test baseline
+    domain: testing
+    model: sonnet
+    priority: 2
+    status: pending
+    attempts: 0
+    depends_on: []
+    verify: docs
+    timeout_seconds: 5400
+    max_turns: 60
+    owns:
+      - docs/TEST_BASELINE.md
+    spec: |
+      Establish and record the honest test baseline for the Rust workspace. Do
+      not fix failing tests and do not delete them. A failing test is
+      information; record it verbatim.
+
+      Read this before you start, it is why the previous attempts wrote nothing:
+      the repo pins single core builds in .cargo/config.toml ([build] jobs = 1),
+      so a clean `cargo test --release --workspace` compile takes roughly 55
+      minutes. The earlier task ran the full build in one foreground shell call,
+      hit the 10 minute tool limit before any results existed, wrote nothing,
+      and verification saw an empty diff and failed. Avoid that trap:
+
+      1. Raise build parallelism to fit the time budget. Set CARGO_BUILD_JOBS=8
+         to override the pinned jobs=1. The host has 12 cores and 47 GB RAM, so
+         this is safe. Always pass --release. Never pass --all-targets.
+      2. Compile test binaries first and in the background. Run
+         `cargo test --release --workspace --no-run --no-fail-fast` as a
+         background process that writes to a log file, and poll the log instead
+         of blocking one foreground shell call.
+      3. Write docs/TEST_BASELINE.md early. Create it with a header, the exact
+         commands you will run, and the toolchain version (rustc --version)
+         before results exist. Append results per package as each run finishes.
+         Never leave the deliverable unwritten until the end.
+      4. Run the suite with `cargo test --release --workspace --no-fail-fast`,
+         or per package with `-p <name>` to bound each run, so every failure is
+         recorded and not just the first.
+      5. For each workspace package record: number of tests passed, number
+         failed, and the full names (with module path) of every failing test.
+         If a package fails to compile, record that as a compile failure with a
+         short error summary. That is still a valid baseline entry.
+
+      Constraints: always pass --release, never pass --all-targets, do not
+      modify any .rs or Cargo.toml file, and write only docs/TEST_BASELINE.md.
+      Do not use the em dash character anywhere in the file; use plain ASCII
+      hyphens.
+    done_when:
+      - docs/TEST_BASELINE.md records, per workspace package, the count of passing and failing tests and the exact name of every failing test
+      - docs/TEST_BASELINE.md records the exact commands used and the rustc toolchain version
+
+  - id: coverage-ci
+    title: Add cargo llvm-cov coverage to CI and record the number
+    domain: testing
+    model: sonnet
+    priority: 3
+    status: pending
+    attempts: 0
+    depends_on:
+      - baseline-tests-record
+    verify: docs
+    timeout_seconds: 5400
+    max_turns: 60
+    owns:
+      - .github/workflows/coverage.yml
+      - docs/COVERAGE.md
+    spec: |
+      Add code coverage reporting with cargo llvm-cov (already installed,
+      version 0.6.21) and record the coverage number.
+
+      Feasibility notes: cargo llvm-cov performs its own instrumented compile,
+      which is a second full single core build. Set CARGO_BUILD_JOBS=8 to
+      override the pinned jobs=1 in .cargo/config.toml. The host has 12 cores
+      and 47 GB RAM, so this is safe. Always pass --release. Never pass
+      --all-targets. Run the measurement as a background process and poll its
+      log rather than blocking one foreground shell call, which is capped at 10
+      minutes.
+
+      1. Measure coverage locally with
+         `cargo llvm-cov --release --workspace --no-fail-fast --summary-only`.
+         With --no-fail-fast a coverage number is still produced even if some
+         tests fail; record it as measured and note that failing tests were
+         present.
+      2. Record the measured workspace line coverage percentage, the exact
+         command, the rustc toolchain version, and the date in docs/COVERAGE.md.
+      3. Add a new CI workflow at .github/workflows/coverage.yml that installs
+         the pinned toolchain and cargo-llvm-cov and runs
+         `cargo llvm-cov --release --workspace --no-fail-fast --summary-only`
+         on pull requests. Use --release, never --all-targets. Do not edit the
+         existing ci.yml; it is owned by another task. Create a new file only.
+
+      Constraints: write only .github/workflows/coverage.yml and
+      docs/COVERAGE.md. Do not modify any .rs or Cargo.toml file. Do not use the
+      em dash character anywhere; use plain ASCII hyphens.
+    done_when:
+      - .github/workflows/coverage.yml runs cargo llvm-cov with --release and without --all-targets on pull requests
+      - docs/COVERAGE.md records the measured workspace line coverage percentage and the exact command used
