@@ -42,6 +42,9 @@ where
     metrics: ValidatorMetrics,
     consensus_metrics: Option<ConsensusMetrics>,
     last_block_time: Duration,
+    /// When this node started. Authoring is held off briefly after startup; see
+    /// `should_produce_block`.
+    started_at: std::time::Instant,
     current_slot: u64,
     last_metrics_update_slot: u64,
     last_score_refresh_slot: u64,
@@ -81,6 +84,7 @@ where
             metrics: ValidatorMetrics::default(),
             consensus_metrics: None,
             last_block_time,
+            started_at: std::time::Instant::now(),
             current_slot: 0,
             last_metrics_update_slot: 0,
             last_score_refresh_slot: 0,
@@ -114,6 +118,7 @@ where
             metrics: ValidatorMetrics::default(),
             consensus_metrics: Some(consensus_metrics),
             last_block_time,
+            started_at: std::time::Instant::now(),
             current_slot: 0,
             last_metrics_update_slot: 0,
             last_score_refresh_slot: 0,
@@ -282,6 +287,25 @@ where
                 Duration::ZERO
             });
         
+        // Hold off authoring briefly after startup, until peers have connected.
+        //
+        // Finality here is immediate, and a validator that authors before it has peered
+        // finalizes its own block #1 -- which can never be reorged away. Three nodes
+        // starting together then each finalize a DIFFERENT block #1 and the network is
+        // permanently split before it has produced anything, each node rejecting the
+        // others as a "long-range attack". Observed exactly that, intermittently: the
+        // same three-node start succeeded twice and split once, because it is a race
+        // between block production and peer discovery.
+        //
+        // Peer discovery over a bootnode completes in a couple of seconds, so waiting
+        // out a grace period before the first block removes the race entirely rather
+        // than making it less likely. It costs one startup delay and nothing at all
+        // thereafter, and it is the same "do not author until you know the network"
+        // property Substrate's own authorship gets from waiting for major sync.
+        if self.started_at.elapsed() < Duration::from_millis(self.params.startup_grace_ms) {
+            return false;
+        }
+
         // Cadence is driven by `min_block_time` (milliseconds), not `block_time`
         // (whole seconds). CBC-PRAMAAN returns a procurement decision only once it is
         // finalized, against a sub-second target, which requires sub-second blocks --

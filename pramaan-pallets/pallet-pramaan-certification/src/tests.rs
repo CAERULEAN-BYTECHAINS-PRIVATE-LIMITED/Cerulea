@@ -15,6 +15,86 @@ mod tests {
 		BoundedVec::try_from(bytes.to_vec()).unwrap()
 	}
 
+	/// The empanelment register is real state, changed by transaction, and it gates
+	/// certification. Before this existed the role check accepted every account, so a
+	/// vendor could name themselves as the auditor on a statutory certificate.
+	#[test]
+	fn empanelment_is_maintained_on_chain_and_gates_certification() {
+		new_test_ext().execute_with(|| {
+			let firm: frame_support::BoundedVec<u8, pramaan_primitives::IdBound> =
+				frame_support::BoundedVec::try_from(b"Narmada & Co.".to_vec()).unwrap();
+			let newcomer = 42u64;
+
+			// Not empanelled, so a statutory certificate naming them is refused.
+			assert!(!crate::Auditors::<Test>::contains_key(&newcomer));
+			assert_noop!(
+				PalletPramaanCertification::certify(
+					RuntimeOrigin::signed(1),
+					cert_id(b"CERT-REG-1"),
+					meity_ministry(),
+					2,
+					tender(b"TENDER-REG-1"),
+					THRESHOLD,
+					Some(newcomer),
+				),
+				Error::<Test>::AuditorRoleMissing
+			);
+
+			// An unprivileged account cannot empanel anyone.
+			assert_noop!(
+				PalletPramaanCertification::empanel_auditor(
+					RuntimeOrigin::signed(9),
+					newcomer,
+					firm.clone()
+				),
+				Error::<Test>::NotAuthorised
+			);
+
+			// DPIIT/Root empanels them -- a transaction, not a redeploy.
+			assert_ok!(PalletPramaanCertification::empanel_auditor(
+				RuntimeOrigin::root(),
+				newcomer,
+				firm.clone()
+			));
+			assert_eq!(crate::Auditors::<Test>::get(&newcomer), Some(firm.clone()));
+
+			// The same certificate now succeeds.
+			assert_ok!(PalletPramaanCertification::certify(
+				RuntimeOrigin::signed(1),
+				cert_id(b"CERT-REG-2"),
+				meity_ministry(),
+				2,
+				tender(b"TENDER-REG-2"),
+				THRESHOLD,
+				Some(newcomer),
+			));
+
+			// Removing them closes the door again, but does NOT erase what they signed.
+			assert_ok!(PalletPramaanCertification::remove_auditor(
+				RuntimeOrigin::root(),
+				newcomer
+			));
+			assert!(!crate::Auditors::<Test>::contains_key(&newcomer));
+			assert_eq!(
+				PalletPramaanCertification::certificates_for_auditor(&newcomer),
+				vec![cert_id(b"CERT-REG-2")],
+				"an accountability ledger that forgets on de-empanelment is not one"
+			);
+			assert_noop!(
+				PalletPramaanCertification::certify(
+					RuntimeOrigin::signed(1),
+					cert_id(b"CERT-REG-3"),
+					meity_ministry(),
+					2,
+					tender(b"TENDER-REG-3"),
+					THRESHOLD,
+					Some(newcomer),
+				),
+				Error::<Test>::AuditorRoleMissing
+			);
+		});
+	}
+
 	#[test]
 	fn below_threshold_no_auditor_succeeds() {
 		new_test_ext().execute_with(|| {

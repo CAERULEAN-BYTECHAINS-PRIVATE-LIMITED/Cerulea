@@ -160,6 +160,24 @@ fn testnet_genesis_with_stakes_and_names(
 		pramaan_rule_registry: pallet_pramaan_rule_registry::GenesisConfig {
 			default_rule: Some(pramaan_dpiit_default_rule()),
 		},
+		// Two firms empanelled at genesis so a fresh chain can certify an
+		// above-threshold contract immediately. This is a STARTING register, not a
+		// fixed one: DPIIT adds or removes firms afterwards with empanel_auditor /
+		// remove_auditor, which are ordinary finalized transactions.
+		pramaan_certification: pallet_pramaan_certification::GenesisConfig {
+			auditors: vec![
+				(
+					Ed25519Keyring::Eve.to_account_id(),
+					BoundedVec::try_from(b"S. Raghavan & Associates, Cost Accountants".to_vec())
+						.expect("fits IdBound"),
+				),
+				(
+					Ed25519Keyring::Ferdie.to_account_id(),
+					BoundedVec::try_from(b"Narmada & Co., Chartered Accountants".to_vec())
+						.expect("fits IdBound"),
+				),
+			],
+		},
 	})
 }
 
