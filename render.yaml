@@ -110,3 +110,34 @@ services:
       name: charlie-chain-data
       mountPath: /data
       sizeGB: 10
+
+  # ── CBC-PRAMAAN web application (Next.js) ─────────────────────────────────
+  # The frontend and its six trigger-point API routes (Technical Implementation
+  # Specification Parts 8.2 and 9). The API routes run server-side on this
+  # service and talk to the chain over Render's internal network, so a
+  # compliance decision never depends on the public internet round-tripping.
+  #
+  # CHAIN_WS_ENDPOINT uses the INTERNAL address ws://cbc-alice:9944 rather than
+  # the public wss://cbc-alice.onrender.com. Bob and Charlie already prove this
+  # internal DNS name resolves (they use ALICE_HOST: cbc-alice for P2P above),
+  # and staying internal avoids both TLS overhead and Render's public-proxy idle
+  # timeout on the long-lived finalized-heads subscription that Part 8.3's
+  # finality wait depends on.
+  - type: web
+    name: cbc-pramaan-web
+    runtime: node
+    rootDir: apps/web
+    region: oregon
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: CHAIN_WS_ENDPOINT
+        value: ws://cbc-alice:9944
+      # Render injects PORT; `next start` reads it automatically.
+      - key: NODE_ENV
+        value: production
