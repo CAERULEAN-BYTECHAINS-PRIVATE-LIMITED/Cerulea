@@ -41,7 +41,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use pramaan_primitives::{BasisPoints, BPS_DENOMINATOR};
+	use pramaan_primitives::{BasisPoints, BPS_DENOMINATOR, DebarmentCheck, RuleLookup};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -77,7 +77,7 @@ pub mod pallet {
 	/// variant for PathwayId::P3's "no automatable formula" case. Variant names match the
 	/// tech spec's unit-test table exactly: "Class = ClassOne", "Class = ClassTwo, not
 	/// NonLocal", "Class = NonLocal".
-	#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 	pub enum ClassResult {
 		ClassOne,
 		ClassTwo,
@@ -90,7 +90,7 @@ pub mod pallet {
 	/// One component's declared local-content share and its weight within the product,
 	/// for PathwayId::P2 (ComponentLevel / WeightedModule). Weights across all
 	/// components in one declaration must sum to `BPS_DENOMINATOR` (10_000 = 100%).
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 	pub struct ComponentDeclaration {
 		pub name: BoundedVec<u8, IdBound>,
 		pub declared_bps: BasisPoints,

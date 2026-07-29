@@ -2,7 +2,7 @@
 mod tests {
 	use crate::mock::*;
 	use crate::{Error, Event, Reason};
-	use frame_support::{assert_noop, assert_ok, traits::Get, BoundedVec};
+	use frame_support::{assert_noop, assert_ok, BoundedVec};
 	use pramaan_primitives::{DebarmentCheck, MinistryId};
 
 	fn mod_ministry() -> MinistryId {

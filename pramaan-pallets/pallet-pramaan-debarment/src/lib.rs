@@ -90,7 +90,7 @@ pub mod pallet {
 	/// One debarment record. `effective_to: None` means the debarment has no fixed end
 	/// (indefinite, until lifted). "Active" means `effective_from <= current_block &&
 	/// (effective_to.is_none() || effective_to > current_block)`.
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 	pub struct DebarmentRecord<BlockNumber> {
 		pub ministry: MinistryId,
 		pub effective_from: BlockNumber,
