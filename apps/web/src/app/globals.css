@@ -39,44 +39,57 @@
 }
 
 /**
- * This is a government procurement console shown on a projector. It commits to a single
- * light appearance so the reserved status colours render identically on every screen the
- * demo lands on, rather than shifting with the viewer's OS theme.
+ * Everything below is base styling and MUST stay inside `@layer base`.
+ *
+ * Tailwind v4 puts its utilities in `@layer utilities`. CSS gives unlayered rules
+ * precedence over every layered rule, regardless of specificity — so an unlayered
+ * `* { padding: 0; margin: 0 }` silently defeats every `p-*` and `m-*` utility in the
+ * application, and an unlayered `a { color: inherit }` defeats every text colour on a
+ * link. Both were doing exactly that. Declaring them in `@layer base` keeps their intent
+ * (a reset, and links that inherit unless told otherwise) while letting a utility win,
+ * which is the order Tailwind is designed around.
  */
-:root {
-  color-scheme: light;
-}
+@layer base {
+  /**
+   * This is a government procurement console shown on a projector. It commits to a single
+   * light appearance so the reserved status colours render identically on every screen the
+   * demo lands on, rather than shifting with the viewer's OS theme.
+   */
+  :root {
+    color-scheme: light;
+  }
 
-html {
-  height: 100%;
-}
+  html {
+    height: 100%;
+  }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
 
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface-sunken);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  body {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface-sunken);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 /* Respect users who ask for less motion; Part 9.1 wants polish, not imposition. */

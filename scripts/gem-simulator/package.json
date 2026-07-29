@@ -1,0 +1,17 @@
+{
+  "name": "cbc-pramaan-gem-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates realistic Government e-Marketplace procurement records and drives the six CBC-PRAMAAN trigger-point API routes across all twelve decision pathways.",
+  "main": "simulate.ts",
+  "scripts": {
+    "simulate": "tsx simulate.ts",
+    "all": "tsx simulate.ts --all",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
