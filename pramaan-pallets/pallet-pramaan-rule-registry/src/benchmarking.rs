@@ -23,6 +23,7 @@ fn sample_rule<T: Config>() -> RuleOf<T> {
 		exemption_floor: T::Balance::default(),
 		divisibility: Divisibility::Divisible,
 		effective_from: BlockNumberFor::<T>::default(),
+		needs_reverification: false,
 	}
 }
 

@@ -89,6 +89,7 @@ impl RuleLookup<u64, u64> for MockRuleSource {
 				exemption_floor: 500_000,
 				divisibility: Divisibility::Divisible,
 				effective_from: 0,
+				needs_reverification: false,
 			})
 		} else {
 			None

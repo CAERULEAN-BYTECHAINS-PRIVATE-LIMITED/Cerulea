@@ -102,6 +102,7 @@ impl pramaan_primitives::RuleLookup<u64, u64> for MockRuleSource {
 			exemption_floor: 500_000u64,
 			divisibility: Divisibility::Divisible,
 			effective_from: 0u64,
+			needs_reverification: false,
 		};
 
 		if raw == b"CUSTOM".to_vec() {

@@ -39,7 +39,10 @@ mod tests;
 mod benchmarking;
 
 use codec::{Decode, Encode, MaxEncodedLen};
-use pramaan_primitives::{BasisPoints, Divisibility, MinistryId, PathwayId, RuleLookup, TenderId, BPS_DENOMINATOR};
+use pramaan_primitives::{
+	BasisPoints, CalculationMethod, Divisibility, MinistryId, PathwayId, Rule, RuleLookup, TenderId,
+	BPS_DENOMINATOR,
+};
 use scale_info::TypeInfo;
 use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, SaturatedConversion};
 use sp_runtime::RuntimeDebug;
@@ -167,6 +170,21 @@ pub struct PreferenceOutcome<Balance> {
 	pub matched_price: Option<Balance>,
 	pub awarded_percent_bps: u16,
 	pub decision_path: PathwayId,
+}
+
+/// Is sourcing restricted to Class-I suppliers for this ministry?
+///
+/// Two independent grounds, both of which bar a non-Class-I supplier outright rather
+/// than merely deprioritising them:
+///   - `para_3a_applicable`: Para 3A of the Order, for the enumerated categories.
+///   - `CalculationMethod::NegativeList`: Railways, where everything NOT on a published
+///     negative list is Class-I-only irrespective of purchase value.
+fn class_one_only<Balance, BlockNumber>(rule: &Rule<Balance, BlockNumber>) -> bool
+where
+	Balance: codec::Encode + codec::Decode + Clone + PartialEq + Eq + codec::MaxEncodedLen + scale_info::TypeInfo + 'static,
+	BlockNumber: codec::Encode + codec::Decode + Clone + PartialEq + Eq + codec::MaxEncodedLen + scale_info::TypeInfo + 'static,
+{
+	rule.para_3a_applicable || rule.calculation_method == CalculationMethod::NegativeList
 }
 
 #[frame_support::pallet]
@@ -306,7 +324,7 @@ pub mod pallet {
 			let mut eligible: Vec<(usize, &BidItemOf<T>)> = Vec::new();
 			let mut excluded: Vec<(usize, PathwayId)> = Vec::new();
 			for (i, bid) in bids.iter().enumerate() {
-				if rule.para_3a_applicable && bid.class != ClassResultLike::ClassOne {
+				if class_one_only(&rule) && bid.class != ClassResultLike::ClassOne {
 					// P7: "restricting sourcing to Class-I suppliers for items a nodal
 					// ministry has notified as having sufficient local capacity."
 					excluded.push((i, PathwayId::P7));
@@ -323,7 +341,7 @@ pub mod pallet {
 				// P7 is a ministry-wide setting, so if it's active it is the
 				// systemic reason nothing survived filtering (any Non-local bid
 				// would also have failed P7 first, since Non-local != Class-I).
-				if rule.para_3a_applicable {
+				if class_one_only(&rule) {
 					return Err(Error::<T>::Para3ARequiresClassOne.into());
 				}
 				return Err(Error::<T>::NonLocalNotPermittedOnDomesticTender.into());
