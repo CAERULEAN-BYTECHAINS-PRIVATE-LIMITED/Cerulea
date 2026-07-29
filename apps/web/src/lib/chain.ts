@@ -182,12 +182,32 @@ export async function submitAndFinalize(
         );
         return;
       }
-      if (result.status.isInBlock) {
+      // Terminal non-inclusion states, otherwise a dropped transaction would sit here
+      // until the timeout with no explanation.
+      if (result.status.isInvalid || result.status.isDropped || result.status.isUsurped) {
+        clearTimeout(timer);
+        unsub?.();
+        reject(
+          new Error(
+            `Transaction was ${result.status.type.toLowerCase()} by the node and never included.`,
+          ),
+        );
+        return;
+      }
+      // Both InBlock and Finalized must be accepted. This chain finalizes a block as
+      // soon as it is authored, and in that regime polkadot-js frequently reports
+      // `Finalized` WITHOUT ever emitting `InBlock` for the extrinsic. Waiting only on
+      // InBlock therefore times out after 10s on a transaction that was in fact
+      // finalized in ~180ms -- a failure mode a slow-finality chain never exhibits.
+      if (result.status.isInBlock || result.status.isFinalized) {
         clearTimeout(timer);
         unsub?.();
         resolve({
           txRef: result.txHash.toHex(),
-          blockHash: result.status.asInBlock.toHex(),
+          blockHash: (result.status.isInBlock
+            ? result.status.asInBlock
+            : result.status.asFinalized
+          ).toHex(),
           events: result.events,
         });
       }
