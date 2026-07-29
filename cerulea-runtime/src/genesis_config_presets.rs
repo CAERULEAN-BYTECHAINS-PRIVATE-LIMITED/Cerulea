@@ -33,6 +33,7 @@ fn pramaan_dpiit_default_rule() -> Rule<crate::Balance, crate::BlockNumber> {
 		exemption_floor: 500_000_00,             // Rs 5 lakh in paise
 		divisibility: Divisibility::Divisible,
 		effective_from: 0,
+		needs_reverification: false,
 	}
 }
 

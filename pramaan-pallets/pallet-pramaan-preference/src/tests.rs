@@ -30,6 +30,7 @@ mod tests {
 			exemption_floor: 500_000,
 			divisibility,
 			effective_from: 0,
+			needs_reverification: false,
 		}
 	}
 

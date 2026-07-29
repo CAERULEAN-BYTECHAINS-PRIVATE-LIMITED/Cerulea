@@ -25,7 +25,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use pramaan_primitives::{MinistryId, Rule};
+use pramaan_primitives::{HsnCode, MinistryId, Rule};
 use sp_std::prelude::*;
 
 #[frame_support::pallet]
@@ -75,6 +75,22 @@ pub mod pallet {
 	#[pallet::getter(fn default_rule)]
 	pub type DefaultRule<T: Config> = StorageValue<_, RuleOf<T>>;
 
+	/// Which nodal ministry an HSN code falls under.
+	///
+	/// The PPP-MII Order assigns product categories to nodal ministries, and a procuring
+	/// entity holds an HSN code long before it holds a ministry id -- an HSN is on the
+	/// catalogue line, the ministry is an administrative fact about it. Without this map
+	/// the caller has to already know the answer to the question they are asking, which
+	/// in practice means hardcoding it in the frontend and letting it drift.
+	///
+	/// Populated from the real notifications (Telecom, Heavy Industries' boilers, and
+	/// Chemicals carry explicit HSN codes). A code with no entry is not an error: it
+	/// means no ministry has notified that category, and the DPIIT default governs --
+	/// the same fallback `get_effective_rule` already applies.
+	#[pallet::storage]
+	#[pallet::getter(fn hsn_ministry)]
+	pub type HsnMinistryMap<T: Config> = StorageMap<_, Blake2_128Concat, HsnCode, MinistryId>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn rule_version)]
 	pub type RuleVersion<T: Config> = StorageMap<_, Blake2_128Concat, MinistryId, u32, ValueQuery>;
@@ -83,6 +99,8 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		RuleUpdated { ministry: MinistryId, new_version: u32, block_number: BlockNumberFor<T> },
+		/// An HSN code was mapped to (or remapped to) a nodal ministry.
+		HsnMapped { hsn_code: HsnCode, ministry: MinistryId, block_number: BlockNumberFor<T> },
 		DefaultRuleUpdated { new_version: u32, block_number: BlockNumberFor<T> },
 	}
 
@@ -116,6 +134,26 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Map an HSN code to its nodal ministry. DPIIT or Root.
+		///
+		/// Idempotent by design: remapping an HSN overwrites the previous owner rather
+		/// than failing, because nodal responsibility genuinely does move between
+		/// ministries and the registry has to be able to follow that.
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::set_rule())]
+		pub fn map_hsn_to_ministry(
+			origin: OriginFor<T>,
+			hsn_code: HsnCode,
+			ministry: MinistryId,
+		) -> DispatchResult {
+			T::DpiitOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+
+			HsnMinistryMap::<T>::insert(&hsn_code, &ministry);
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::HsnMapped { hsn_code, ministry, block_number });
+			Ok(())
+		}
+
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::set_default_rule())]
 		pub fn set_default_rule(origin: OriginFor<T>, rule: RuleOf<T>) -> DispatchResult {
@@ -146,6 +184,19 @@ pub mod pallet {
 			}
 			let _ = BasisPoints::default(); // keep import live if hsn_thresholds is ever empty
 			Ok(())
+		}
+
+		/// The rule governing an HSN code: resolve the code to its nodal ministry, then
+		/// read that ministry's effective rule. An unmapped code falls through to the
+		/// DPIIT default, which is the correct answer rather than a failure.
+		pub fn rule_for_hsn(hsn_code: &HsnCode) -> Option<RuleOf<T>> {
+			match HsnMinistryMap::<T>::get(hsn_code) {
+				Some(ministry) => Self::get_effective_rule(&ministry),
+				None => {
+					let now = frame_system::Pallet::<T>::block_number();
+					DefaultRule::<T>::get().filter(|r| r.effective_from <= now)
+				}
+			}
 		}
 
 		/// Rules[ministry] if set AND already in force, else DefaultRule. Used by

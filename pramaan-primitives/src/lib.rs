@@ -60,6 +60,21 @@ pub enum CalculationMethod {
 	ComponentLevel,
 	WeightedModule,
 	Custom,
+	/// Railways. Unlike every other ministry, Railways publishes no positive list of
+	/// items requiring Class-I content. It publishes a NEGATIVE list of exempted items,
+	/// and everything not on it must be procured from Class-I suppliers only,
+	/// irrespective of purchase value, with self-certification a mandatory tender
+	/// condition. A supplier who cannot certify as Class-I is barred from quoting at
+	/// all, not merely deprioritised.
+	///
+	/// Source: Railway Board letter 2015/RS(G)/779/5(Vol.III) dated 12.07.2020,
+	/// referencing the base negative-list notification of 22.06.2020.
+	///
+	/// The local-content arithmetic is unchanged (the 50/20 boundaries still decide the
+	/// class); what differs is ELIGIBILITY, which is restricted to Class-I exactly as
+	/// `para_3a_applicable` does, but by default for the whole category rather than for
+	/// an enumerated list.
+	NegativeList,
 }
 
 /// Rule parameter 9 (Divisibility), PoC document Table 10: "Determined by the procuring
@@ -103,6 +118,18 @@ where
 	pub exemption_floor: Balance,
 	pub divisibility: Divisibility,
 	pub effective_from: BlockNumber,
+	/// This rule was transcribed from a source with a known, specific quality caveat and
+	/// has NOT been confirmed against a clean copy of the notification.
+	///
+	/// Set for the ministries whose source research flagged them: Chemicals &
+	/// Petrochemicals (HSN digits uncertain under OCR), Civil Aviation (whole item list
+	/// uncertain under OCR), and Textiles (notification numbers and dates confirmed, item
+	/// list not recovered). It exists so the distinction between "this is the notified
+	/// rule" and "this is our best current reading of the notified rule" survives into
+	/// the chain and onto the screen, instead of being lost the moment the data is
+	/// seeded. A rule carrying this flag still applies -- it is a provenance marker, not
+	/// a switch.
+	pub needs_reverification: bool,
 }
 
 /// DPIIT default rule set, PoC document Table 10, transcribed exactly: Class-I 50%,

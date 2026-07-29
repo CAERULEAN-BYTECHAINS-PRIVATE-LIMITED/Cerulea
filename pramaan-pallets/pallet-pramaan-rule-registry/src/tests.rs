@@ -31,6 +31,7 @@ mod tests {
 			exemption_floor: 500_000_00,
 			divisibility: Divisibility::Divisible,
 			effective_from: 0,
+			needs_reverification: false,
 		}
 	}
 
