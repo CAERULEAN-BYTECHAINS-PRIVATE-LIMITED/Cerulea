@@ -17,9 +17,9 @@ export default function ProcuringEntityPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow={`Procuring entity console · ${PERSONA.actingAs}`}
+      breadcrumb="Role portals"
       title="Bid evaluation and purchase preference"
-      subtitle="Every bid is checked against the shared national debarment ledger before it is classified, and the preference calculation records an award split and the pathway it took — which is what tells a divisible award from a non-divisible one."
+      actingAs={PERSONA.actingAs}
     >
       <EvaluationConsole />
     </AppShell>

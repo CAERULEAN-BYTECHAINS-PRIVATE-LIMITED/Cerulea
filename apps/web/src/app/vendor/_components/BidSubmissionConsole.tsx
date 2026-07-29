@@ -1,20 +1,24 @@
 'use client';
 
-import { ArrowLeft, BadgeCheck, KeyRound, ScrollText, Send } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  ComplianceResult,
+  Check,
+  Chip,
+  DataList,
   DataRow,
-  ErrorState,
   Field,
-  FinalityPending,
   Input,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelFoot,
+  PanelHead,
+  PanelNote,
   Select,
+  Verdict,
   type ComplianceBlocker,
 } from '@/components';
 import {
@@ -41,7 +45,7 @@ import { formatBps, formatPaise, percentToBps } from '@/lib/units';
  * field vocabulary, and the only thing the vendor does differently is read a verdict that
  * arrives before the bid closes. There is no key, no wallet, no gas and no mention of a
  * chain anywhere on the input side — the transaction reference appears only afterwards,
- * folded away behind "See the on-chain record".
+ * folded away behind "On-chain record".
  */
 
 type Stage = 'form' | 'pending' | 'result' | 'failed';
@@ -151,12 +155,8 @@ export function BidSubmissionConsole() {
   // ---- Pending -------------------------------------------------------------------
   if (stage === 'pending') {
     return (
-      <div className="mx-auto max-w-2xl py-6">
-        <FinalityPending label={`Submitting bid ${tender.id}`} />
-        <p className="mt-4 text-center text-sm text-ink-muted">
-          The bid is being classified against {ministryName(ministryId)}&apos;s rule set. The
-          verdict appears once the block carrying it is finalized.
-        </p>
+      <div className="mx-auto max-w-2xl py-4">
+        <Awaiting label={`Submitting bid ${tender.id}`} />
       </div>
     );
   }
@@ -164,20 +164,18 @@ export function BidSubmissionConsole() {
   // ---- Operational failure (never a RED) -----------------------------------------
   if (stage === 'failed' && failure) {
     return (
-      <div className="mx-auto max-w-3xl py-2">
-        <ErrorState
+      <div className="mx-auto max-w-3xl space-y-4 py-1">
+        <Notice
           kind={failure.kind}
           detail={failure.message}
           technicalDetail={failure.technicalDetail}
           onRetry={onSubmit}
           retryLabel="Resubmit the bid"
           action={
-            <Button variant="secondary" size="sm" onClick={backToForm}>
-              Change the declaration
-            </Button>
+            <Button onClick={backToForm}>Change the declaration</Button>
           }
         />
-        <BidSummary tender={tender} ministryId={ministryId} className="mt-6" />
+        <BidSummary tender={tender} ministryId={ministryId} />
       </div>
     );
   }
@@ -185,11 +183,11 @@ export function BidSubmissionConsole() {
   // ---- Verdict --------------------------------------------------------------------
   if (stage === 'result' && verdict) {
     return (
-      <div className="space-y-6">
-        <ComplianceResult
+      <div className="space-y-4">
+        <Verdict
           status={verdict.result}
           reason={verdict.reason}
-          trigger={`Bid submission — ${tender.id}`}
+          trigger={`Bid submission · ${tender.id}`}
           txRef={verdict.txRef ?? undefined}
           blockNumber={verdict.blockNumber ?? undefined}
           latencyMs={verdict.latencyMs}
@@ -212,16 +210,16 @@ export function BidSubmissionConsole() {
         />
 
         {verdict.consistencyFlagged && (
-          <Card className="border-status-yellow/30">
-            <CardHeader
-              title="Flagged as inconsistent with this vendor's own history"
-              description="The cross-tender consistency check runs across all twelve pathways, because a declaration is checked against the vendor's history regardless of which route it takes."
+          <Panel>
+            <PanelHead
+              title="Inconsistent with this vendor's own history"
+              meta={<Chip tone="yellow">Flagged</Chip>}
             />
-            <CardBody>
-              <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+            <PanelBody>
+              <DataList columns={2}>
                 <DataRow label="Declared on this bid" value={formatBps(submittedBps)} />
                 <DataRow
-                  label="Declared earlier for the same product"
+                  label="Declared earlier, same product"
                   value={
                     verdict.priorDeclaredBps === null || verdict.priorDeclaredBps === undefined
                       ? 'A materially different figure'
@@ -234,50 +232,41 @@ export function BidSubmissionConsole() {
                   value={verdict.priorTender ?? 'Recorded on chain'}
                   mono
                 />
-              </dl>
-              <p className="mt-4 text-sm text-ink-muted">
-                The flag does not change this bid&apos;s classification. It is evidence recorded
-                alongside it, and it is what the CVC console reads across tenders.
-              </p>
-            </CardBody>
-          </Card>
+              </DataList>
+            </PanelBody>
+            <PanelNote>
+              The flag does not change this classification. It is evidence recorded alongside
+              it, and it is what the vigilance console reads across tenders.
+            </PanelNote>
+          </Panel>
         )}
 
         {verdict.consistencyError && (
-          <Card>
-            <CardBody>
+          <Panel>
+            <PanelBody>
               <p className="text-sm text-ink">
                 The classification reached finality, but the declaration could not be added to
                 the consistency history: {verdict.consistencyError}. The verdict above stands.
               </p>
-            </CardBody>
-          </Card>
+            </PanelBody>
+          </Panel>
         )}
 
         <BidSummary tender={tender} ministryId={ministryId} />
 
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="secondary"
-            onClick={backToForm}
-            leadingIcon={<ArrowLeft className="size-4" aria-hidden="true" />}
-          >
-            Submit another bid
-          </Button>
-        </div>
+        <Button onClick={backToForm} icon={<ArrowLeft className="size-3.5" aria-hidden="true" />}>
+          Submit another bid
+        </Button>
       </div>
     );
   }
 
   // ---- The bid form ----------------------------------------------------------------
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-2">
-        <CardHeader
-          title="Bid participation form"
-          description="The same fields a seller fills on GeM today. Nothing extra is asked of the vendor."
-        />
-        <CardBody className="space-y-5">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <Panel className="lg:col-span-2">
+        <PanelHead title="Bid participation form" />
+        <PanelBody className="space-y-4">
           <Field
             label="Bid number"
             required
@@ -326,7 +315,7 @@ export function BidSubmissionConsole() {
             label="Local content percentage"
             required
             error={touched ? localContentError : undefined}
-            hint={`Class-I at ${formatBps(thresholds.classOneBps)} and above; Class-II at ${formatBps(thresholds.classTwoBps)} and above, for HSN ${tender.hsnCode} under this ministry's rule.`}
+            hint={`Class-I at ${formatBps(thresholds.classOneBps)} and above; Class-II at ${formatBps(thresholds.classTwoBps)} and above, HSN ${tender.hsnCode}.`}
           >
             {(props) => (
               <div className="relative">
@@ -340,10 +329,10 @@ export function BidSubmissionConsole() {
                   value={localContent}
                   onBlur={() => setTouched(true)}
                   onChange={(event) => setLocalContent(event.target.value)}
-                  className="pr-9"
+                  className="pr-8"
                 />
                 <span
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-ink-muted"
+                  className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-ink-muted"
                   aria-hidden="true"
                 >
                   %
@@ -354,7 +343,7 @@ export function BidSubmissionConsole() {
 
           <Field
             label="Product identifier (optional)"
-            hint="Supplying it records this declaration against the vendor's history for the product, so a contradiction across tenders is caught."
+            hint="Records this declaration against the vendor's history for the product, so a contradiction across tenders is caught."
           >
             {(props) => (
               <Input
@@ -366,65 +355,48 @@ export function BidSubmissionConsole() {
             )}
           </Field>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface-sunken px-4 py-3">
-            <input
-              type="checkbox"
-              checked={pliClaimed}
-              onChange={(event) => setPliClaimed(event.target.checked)}
-              className="mt-0.5 size-4 accent-cerulea"
-            />
-            <span className="text-sm text-ink">
-              I have received a Production Linked Incentive for this category
-              <span className="mt-0.5 block text-xs text-ink-muted">
-                Recognised only where the nodal ministry&apos;s rule is PLI-linked. It deems the
-                manufacturer Class-II for the notified period.
-                {rule && !rule.pliLinked && ' This ministry’s rule is not PLI-linked.'}
-              </span>
-            </span>
-          </label>
-        </CardBody>
+          <Check
+            checked={pliClaimed}
+            onChange={setPliClaimed}
+            label="Production Linked Incentive received for this category"
+            hint={`Recognised only where the ministry's rule is PLI-linked; it deems the manufacturer Class-II for the notified period.${
+              rule && !rule.pliLinked ? ' This ministry’s rule is not PLI-linked.' : ''
+            }`}
+          />
+        </PanelBody>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <p className="text-xs text-ink-muted">
+        <PanelFoot>
+          <p className="text-2xs text-ink-muted">
             The verdict is returned only after the block carrying it is finalized.
           </p>
           <Button
+            variant="primary"
             onClick={onSubmit}
             disabled={touched && !canSubmit}
-            leadingIcon={<Send className="size-4" aria-hidden="true" />}
+            icon={<Send className="size-3.5" aria-hidden="true" />}
           >
             Submit bid
           </Button>
-        </div>
-      </Card>
+        </PanelFoot>
+      </Panel>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <BidSummary tender={tender} ministryId={ministryId} />
 
-        <Card>
-          <CardHeader title="What the vendor never sees" />
-          <CardBody className="space-y-3">
-            {[
-              {
-                Icon: KeyRound,
-                text: 'No key, no wallet, no seed phrase. The bid is signed by the procuring entity that records the classification.',
-              },
-              {
-                Icon: BadgeCheck,
-                text: 'No gas, no token, no network fee. The vendor pays nothing to be classified.',
-              },
-              {
-                Icon: ScrollText,
-                text: 'No new portal. This is the GeM bid form, with a verdict added before the bid closes instead of a dispute after it.',
-              },
-            ].map(({ Icon, text }) => (
-              <div key={text} className="flex gap-3">
-                <Icon className="mt-0.5 size-4 shrink-0 text-cerulea" aria-hidden="true" />
-                <p className="text-sm leading-relaxed text-ink-muted">{text}</p>
-              </div>
-            ))}
-          </CardBody>
-        </Card>
+        <Panel>
+          <PanelHead title="What the vendor never sees" />
+          <PanelBody>
+            <DataList>
+              <DataRow label="Key, wallet or seed phrase" value="None" />
+              <DataRow label="Gas, token or network fee" value="None" />
+              <DataRow label="New portal to learn" value="None" />
+            </DataList>
+          </PanelBody>
+          <PanelNote>
+            The bid is signed by the procuring entity that records the classification. This is
+            the GeM bid form, with a verdict added before the bid closes.
+          </PanelNote>
+        </Panel>
       </div>
     </div>
   );
@@ -442,13 +414,12 @@ function BidSummary({
   className?: string;
 }) {
   return (
-    <Card className={className}>
-      <CardHeader title="Bid details" description={tender.buyerOrganisation}>
-        <Badge tone="brand">{tender.bidType}</Badge>
-      </CardHeader>
-      <CardBody>
-        <dl>
+    <Panel className={className}>
+      <PanelHead title="Bid details" meta={<Chip tone="accent">{tender.bidType}</Chip>} />
+      <PanelBody>
+        <DataList>
           <DataRow label="Bid number" value={tender.id} mono />
+          <DataRow label="Buyer organisation" value={tender.buyerOrganisation} />
           <DataRow label="Bid end date" value={tender.bidEndDate} />
           <DataRow label="Item category" value={tender.itemCategory} />
           <DataRow label="HSN code" value={tender.hsnCode} mono />
@@ -463,9 +434,9 @@ function BidSummary({
           <DataRow label="MSE purchase preference" value="Applicable" />
           <DataRow label="Make in India (MII)" value={ministryName(ministryId)} />
           <DataRow label="Bidding as" value={vendorName('vendor')} />
-        </dl>
-      </CardBody>
-    </Card>
+        </DataList>
+      </PanelBody>
+    </Panel>
   );
 }
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { Timer } from 'lucide-react';
 import { useMemo } from 'react';
 import {
   CartesianGrid,
@@ -12,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { EmptyState } from '@/components';
+import { Empty } from '@/components';
 import { ACCENT, AXIS_TICK, CHROME, MARKS } from './chart-theme';
 import { ChartFrame, TooltipShell } from './ChartFrame';
 import type { TriggerLatencySummary } from './types';
@@ -50,10 +49,9 @@ export function LatencyChart({ byTrigger }: { byTrigger: TriggerLatencySummary[]
         title="Measured latency per trigger point"
         description="Submission to confirmed finality, in milliseconds, for each of the six trigger points."
       >
-        <EmptyState
-          icon={<Timer className="size-5" aria-hidden="true" />}
+        <Empty
           title="No latency measured in this session yet"
-          description="This chart plots only figures this console has actually measured — the submission-to-finality time each trigger-point route returns. Run the guided walkthrough and all six points are measured in order; the first bar of the chart appears after the first step."
+          source="This chart plots only figures this console has actually measured — the submission-to-finality time each trigger-point route returns."
         />
       </ChartFrame>
     );
@@ -70,7 +68,7 @@ export function LatencyChart({ byTrigger }: { byTrigger: TriggerLatencySummary[]
       title="Measured latency per trigger point"
       description={`Submission to confirmed DCF finality, averaged over ${totalSamples.toLocaleString('en-IN')} measurement${totalSamples === 1 ? '' : 's'} taken in this session.`}
       actions={
-        <span className="font-mono text-sm font-semibold text-ink tabular-nums">
+        <span className="font-mono text-2xs font-semibold text-ink tabular-nums">
           {fastest} – {slowest} ms
         </span>
       }

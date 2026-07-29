@@ -1,17 +1,27 @@
 'use client';
 
-import { Activity, AlertTriangle, Radar, ScanSearch, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
-  Badge,
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
+  Chip,
+  DataList,
   DataRow,
-  EmptyState,
-  Stat,
-  TxRef,
+  Empty,
+  Figure,
+  FigureRow,
+  Hash,
+  Nil,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  SectionHead,
+  SkeletonRows,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
 } from '@/components';
 import { vendorName } from '@/lib/api-client';
 
@@ -22,14 +32,14 @@ import { vendorName } from '@/lib/api-client';
  * storage. Nothing on this panel is read from localStorage, and there is no sample data
  * path: a signal with no hits renders an empty state naming what would fill it.
  *
- * The one thing this component must get right, and the reason the copy below is as long as
- * it is, is the distinction between the signal the network's own consensus rules raise and
- * the four review heuristics computed after the fact. The API carries that on every finding
- * as `origin`; the UI restates it on every row rather than only in the introduction.
+ * The one thing this component must get right is the distinction between the signal the
+ * network's own consensus rules raise and the four review heuristics computed after the
+ * fact. The API carries that on every finding as `origin`; the UI restates it on every row
+ * rather than only in the introduction.
  *
- * Severity uses `brand` / `teal` / `neutral` tones deliberately. `green` / `yellow` / `red`
- * are reserved by the build contract for compliance verdicts under the PPP-MII Order, and
- * an anomaly is a prompt to look, never a verdict.
+ * Severity uses `strong` / `accent` / `neutral` tones deliberately. `green` / `yellow` /
+ * `red` are reserved for compliance verdicts under the PPP-MII Order, and an anomaly is a
+ * prompt to look, never a verdict.
  */
 
 interface Fact {
@@ -88,11 +98,19 @@ const SEVERITY_LABEL: Record<Severity, string> = {
 };
 
 /** Reserved verdict colours are not available here; see the note at the top of the file. */
-const SEVERITY_TONE: Record<Severity, 'brand' | 'teal' | 'neutral'> = {
-  critical: 'brand',
-  elevated: 'teal',
+const SEVERITY_TONE: Record<Severity, 'strong' | 'accent' | 'neutral'> = {
+  critical: 'strong',
+  elevated: 'accent',
   watch: 'neutral',
 };
+
+function OriginChip({ origin }: { origin: Origin }) {
+  return (
+    <Chip tone={origin === 'on-chain' ? 'accent' : 'neutral'}>
+      {origin === 'on-chain' ? 'Consensus finding' : 'Review heuristic'}
+    </Chip>
+  );
+}
 
 export function AnomalyPanel() {
   const [report, setReport] = useState<AnomalyReport | null>(null);
@@ -128,128 +146,111 @@ export function AnomalyPanel() {
   }, []);
 
   return (
-    <section aria-labelledby="anomaly-heading" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 id="anomaly-heading" className="text-xl font-semibold tracking-tight text-ink">
-            Anomaly detection
-          </h2>
-          <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-muted">
-            Two different things are shown below and the difference matters. A{' '}
-            <strong className="font-semibold text-ink">consensus finding</strong> is one the
-            network itself raised: every validator ran the same rule over the same declaration
-            and agreed, which is why a contradicted declaration cannot be quietly withdrawn. A{' '}
-            <strong className="font-semibold text-ink">review heuristic</strong> is computed
-            here, in this console, over records the chain has already finalized — a pattern
-            worth a reviewer&apos;s attention, not a ruling, and not something the chain
-            endorses. Everything on this panel is read from chain storage each time the page
-            loads; nothing is scored, trained or estimated.
-          </p>
-        </div>
-        <Badge tone="brand" icon={<Radar className="size-3.5" aria-hidden="true" />}>
-          Rule-based, computed live
-        </Badge>
-      </div>
+    <section aria-labelledby="anomaly-heading" className="space-y-3">
+      <SectionHead
+        id="anomaly-heading"
+        title="Anomaly detection"
+        meta={<Chip tone="accent">Rule-based, computed live</Chip>}
+      />
 
       {loading && !report && !error && (
-        <Card>
-          <CardBody>
-            <p className="text-sm text-ink-muted">Reading declarations, classifications, debarments and certificates from the chain…</p>
-          </CardBody>
-        </Card>
+        <Panel>
+          <SkeletonRows rows={4} label="Reading declarations, classifications, debarments and certificates from the chain" />
+        </Panel>
       )}
 
       {error && (
-        <EmptyState
-          icon={<AlertTriangle className="size-5" aria-hidden="true" />}
+        <Empty
           title="The anomaly surface could not read the chain"
-          description={`No findings are shown rather than stale ones. The node reported: ${error}`}
+          source={`No findings are shown rather than stale ones. The node reported: ${error}`}
         />
       )}
 
       {report && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat
+          <FigureRow>
+            <Figure
               label="Findings"
-              value={String(report.counters.total)}
-              hint={`${report.counters.vendorsFlagged} distinct ${report.counters.vendorsFlagged === 1 ? 'vendor' : 'vendors'} named.`}
-              icon={<ScanSearch className="size-3.5" aria-hidden="true" />}
+              value={report.counters.total}
+              note={`${report.counters.vendorsFlagged} distinct ${report.counters.vendorsFlagged === 1 ? 'vendor' : 'vendors'} named.`}
             />
-            <Stat
+            <Figure
               label="Raised by consensus"
-              value={String(report.counters.onChain)}
-              hint="Flagged by the runtime's own rules, not by this console."
-              icon={<ShieldCheck className="size-3.5" aria-hidden="true" />}
+              value={report.counters.onChain}
+              note="Flagged by the runtime's own rules, not by this console."
             />
-            <Stat
+            <Figure
               label="Review heuristics"
-              value={String(report.counters.heuristic)}
-              hint="Patterns computed here over finalized records. Not verdicts."
+              value={report.counters.heuristic}
+              note="Patterns computed here over finalized records. Not verdicts."
             />
-            <Stat
+            <Figure
               label="Records scanned"
               value={report.counters.recordsScanned.toLocaleString('en-IN')}
-              hint={`Chain head #${report.chain.currentBlock.toLocaleString('en-IN')}, finalized #${report.chain.finalizedBlock.toLocaleString('en-IN')}.`}
-              icon={<Activity className="size-3.5" aria-hidden="true" />}
+              note={`Chain head #${report.chain.currentBlock.toLocaleString('en-IN')}, finalized #${report.chain.finalizedBlock.toLocaleString('en-IN')}.`}
             />
-          </div>
+          </FigureRow>
 
           {/* ---- What each signal is, and how it is computed --------------------- */}
-          <Card>
-            <CardHeader
-              title="The five signals"
-              description="Each one names the storage it reads and the rule it applies, so a finding can be checked rather than believed."
-            />
-            <CardBody className="space-y-3">
-              {report.signals.map((signal) => (
-                <div
-                  key={signal.id}
-                  className="rounded-lg border border-border bg-surface-sunken px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-ink">{signal.label}</span>
-                    <Badge tone={signal.origin === 'on-chain' ? 'brand' : 'neutral'} size="sm">
-                      {signal.origin === 'on-chain' ? 'Consensus finding' : 'Review heuristic'}
-                    </Badge>
-                    <span className="ml-auto text-sm font-semibold text-ink tabular-nums">
-                      {signal.count} {signal.count === 1 ? 'finding' : 'findings'}
+          <Panel>
+            <PanelHead title="The five signals" />
+            <Table>
+              <THead>
+                <TR>
+                  <TH className="w-64">Signal</TH>
+                  <TH className="w-44">Origin</TH>
+                  <TH numeric className="w-24">Findings</TH>
+                  <TH>Rule applied, and the storage it reads</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {report.signals.map((signal) => (
+                  <TR key={signal.id}>
+                    <TD className="font-medium text-ink">{signal.label}</TD>
+                    <TD>
+                      <OriginChip origin={signal.origin} />
+                    </TD>
+                    <TD numeric>
+                      {signal.count}
                       {signal.truncated > 0 && (
-                        <span className="ml-1 text-xs font-normal text-ink-muted">
-                          ({signal.truncated} not shown)
+                        <span className="block font-sans text-2xs text-ink-muted">
+                          {signal.truncated} not shown
                         </span>
                       )}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{signal.method}</p>
-                  {report.sources[signal.id] && (
-                    <p className="mt-1 font-mono text-[0.75rem] text-ink-muted">
-                      {report.sources[signal.id]}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </CardBody>
-            <CardFooter>
-              <p className="text-xs leading-relaxed text-ink-muted">
-                <strong className="font-semibold text-ink">{report.model.name}</strong> —{' '}
-                {report.model.status}. {report.model.note}
-              </p>
-            </CardFooter>
-          </Card>
+                    </TD>
+                    <TD className="text-ink-muted">
+                      {signal.method}
+                      {report.sources[signal.id] && (
+                        <span className="mt-0.5 block font-mono text-2xs">
+                          {report.sources[signal.id]}
+                        </span>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+            <PanelNote>
+              A <span className="font-medium text-ink">consensus finding</span> is one the network
+              itself raised: every validator ran the same rule over the same declaration and
+              agreed. A <span className="font-medium text-ink">review heuristic</span> is computed
+              in this console over records the chain has already finalized — a pattern worth a
+              reviewer&apos;s attention, not a ruling. {report.model.name} — {report.model.status}.{' '}
+              {report.model.note}
+            </PanelNote>
+          </Panel>
 
           {/* ---- The findings ---------------------------------------------------- */}
           {report.findings.length === 0 ? (
-            <EmptyState
-              icon={<ScanSearch className="size-5" aria-hidden="true" />}
+            <Empty
               title="No anomaly raised across the records currently on chain"
-              description="All five signals ran and none matched. A finding appears when a vendor contradicts its own declaration for a product, sits repeatedly on a classification boundary, collects several Non-local outcomes, transacts inside an active debarment window, or certifies contracts just below a ministry's certification threshold."
+              source="All five signals ran and none matched. A finding appears when a vendor contradicts its own declaration for a product, sits repeatedly on a classification boundary, collects several Non-local outcomes, transacts inside an active debarment window, or certifies contracts just below a ministry's certification threshold."
             />
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {report.findings.map((finding) => (
                 <li key={finding.id}>
-                  <FindingCard finding={finding} />
+                  <FindingPanel finding={finding} />
                 </li>
               ))}
             </ul>
@@ -265,7 +266,7 @@ export function AnomalyPanel() {
 /**
  * A readable name where the demo roster knows the account, and a shortened address where
  * it does not — the chain holds accounts, not names, and most of the vendors on a seeded
- * chain were never in the roster. The full address is printed unaltered in the card body,
+ * chain were never in the roster. The full address is printed unaltered in the panel body,
  * so nothing is hidden; this only stops a 48-character key from becoming the headline.
  */
 function vendorLabel(account: string): string {
@@ -274,35 +275,30 @@ function vendorLabel(account: string): string {
   return `${account.slice(0, 6)}…${account.slice(-5)}`;
 }
 
-function FindingCard({ finding }: { finding: Finding }) {
+function FindingPanel({ finding }: { finding: Finding }) {
   return (
-    <Card>
-      <CardHeader
+    <Panel>
+      <PanelHead
         title={`${vendorLabel(finding.vendor)} — ${finding.headline}`}
-        description={finding.signalLabel}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={finding.origin === 'on-chain' ? 'brand' : 'neutral'} size="sm">
-              {finding.origin === 'on-chain' ? 'Consensus finding' : 'Review heuristic'}
-            </Badge>
-            <Badge tone={SEVERITY_TONE[finding.severity]}>
-              {SEVERITY_LABEL[finding.severity]}
-            </Badge>
-          </div>
+        meta={
+          <>
+            <OriginChip origin={finding.origin} />
+            <Chip tone={SEVERITY_TONE[finding.severity]}>{SEVERITY_LABEL[finding.severity]}</Chip>
+          </>
         }
       />
-      <CardBody>
-        <p className="text-sm leading-relaxed text-ink">{finding.evidence}</p>
-        <dl className="mt-4">
+      <PanelBody>
+        <p className="max-w-[75ch] text-sm text-ink">{finding.evidence}</p>
+        <DataList className="mt-3" columns={2}>
           {finding.facts.map((fact) => (
-            <DataRow key={fact.label} label={fact.label} value={fact.value || '—'} />
+            <DataRow key={fact.label} label={fact.label} value={fact.value || <Nil />} />
           ))}
           <DataRow
             label="Verifiable at"
             value={
               finding.blockNumber === null
-                ? 'Chain storage — this record carries no block number'
-                : `Block #${finding.blockNumber.toLocaleString('en-IN')}`
+                ? 'Chain storage — no block number'
+                : `#${finding.blockNumber.toLocaleString('en-IN')}`
             }
             mono={finding.blockNumber !== null}
           />
@@ -310,15 +306,17 @@ function FindingCard({ finding }: { finding: Finding }) {
             label="Transaction"
             value={
               finding.txRef ? (
-                <TxRef value={finding.txRef} head={8} tail={6} />
+                <Hash value={finding.txRef} />
               ) : (
-                'Outside the explorer’s indexed window — trace by block'
+                <Nil label="Outside the indexed window — trace by block" />
               )
             }
           />
-          <DataRow label="Vendor account" value={finding.vendor} mono />
-        </dl>
-      </CardBody>
-    </Card>
+        </DataList>
+      </PanelBody>
+      <PanelNote>
+        {finding.signalLabel} · vendor account <span className="font-mono">{finding.vendor}</span>
+      </PanelNote>
+    </Panel>
   );
 }

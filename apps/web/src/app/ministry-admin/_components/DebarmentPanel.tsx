@@ -1,22 +1,25 @@
 'use client';
 
-import { Ban, CalendarRange, RotateCcw, Search } from 'lucide-react';
+import { Ban, RotateCcw, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  ComplianceResult,
+  Chip,
+  DataList,
   DataRow,
-  EmptyState,
-  ErrorState,
+  Empty,
   Field,
-  FinalityPending,
   Input,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelFoot,
+  PanelHead,
+  PanelNote,
   Select,
   Textarea,
+  Verdict,
 } from '@/components';
 import {
   MINISTRIES,
@@ -169,13 +172,10 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-      <Card className="xl:col-span-2">
-        <CardHeader
-          title="Debarment register"
-          description="A debarment recorded here blocks the vendor under every ministry, not only this one."
-        />
-        <CardBody className="space-y-5">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <Panel className="xl:col-span-2">
+        <PanelHead title="Debarment register" />
+        <PanelBody className="space-y-4">
           <Field label="Find a vendor" hint="Search by name, city, state or Udyam registration.">
             {(props) => (
               <div className="relative">
@@ -188,20 +188,19 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Chambal, Bhiwadi, UDYAM-RJ…"
-                  className="pl-9"
+                  className="pl-8"
                 />
               </div>
             )}
           </Field>
 
           {matches.length === 0 ? (
-            <EmptyState
-              icon={<Search className="size-5" aria-hidden="true" />}
+            <Empty
               title="No vendor matches that search"
-              description="Search the registered supplier list by company name, city, state or Udyam number."
+              source="Search the registered supplier list by company name, city, state or Udyam number."
             />
           ) : (
-            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
               {matches.map((vendor) => {
                 const selected = vendor.account === vendorAccount;
                 return (
@@ -210,19 +209,17 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
                       type="button"
                       onClick={() => setVendorAccount(vendor.account)}
                       aria-pressed={selected}
-                      className={`flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-150 ${
-                        selected ? 'bg-cerulea-light' : 'bg-surface hover:bg-surface-sunken'
+                      className={`flex w-full flex-wrap items-center justify-between gap-3 px-3 py-2 text-left transition-colors duration-150 ${
+                        selected ? 'bg-accent-tint' : 'bg-paper hover:bg-shell'
                       }`}
                     >
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-ink">{vendor.name}</span>
-                        <span className="mt-0.5 block text-xs text-ink-muted">
+                        <span className="mt-0.5 block text-2xs text-ink-muted">
                           {vendor.city}, {vendor.state} · {vendor.udyam}
                         </span>
                       </span>
-                      <Badge tone={selected ? 'brand' : 'neutral'} size="sm">
-                        {vendor.msme}
-                      </Badge>
+                      <Chip tone={selected ? 'accent' : 'neutral'}>{vendor.msme}</Chip>
                     </button>
                   </li>
                 );
@@ -230,7 +227,7 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
             </ul>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Recording ministry" required>
               {(props) => (
                 <Select
@@ -263,7 +260,7 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
 
           {action === 'debar' && (
             <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field
                   label="Effective from block"
                   hint={
@@ -307,21 +304,18 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-ink-muted">Set a period:</span>
+                <span className="text-2xs font-medium tracking-wide text-ink-muted uppercase">
+                  Set a period
+                </span>
                 {DURATIONS.map((duration) => (
-                  <Button
-                    key={duration.label}
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => applyDuration(duration.days)}
-                  >
+                  <Button key={duration.label} size="xs" onClick={() => applyDuration(duration.days)}>
                     {duration.label}
                   </Button>
                 ))}
                 {(effectiveFrom || effectiveTo) && (
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="quiet"
+                    size="xs"
                     onClick={() => {
                       setEffectiveFrom('');
                       setEffectiveTo('');
@@ -348,36 +342,36 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
               </Field>
             </>
           )}
-        </CardBody>
+        </PanelBody>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <p className="text-xs text-ink-muted">
-            Enforcement is cross-ministry: one shared ledger, checked before bidding.
+        <PanelFoot>
+          <p className="text-2xs text-ink-muted">
+            A debarment recorded here blocks the vendor under every ministry, not only this one.
           </p>
           <Button
-            variant="secondary"
+            variant="primary"
             onClick={submit}
             loading={pending}
             loadingLabel={action === 'debar' ? 'Recording the debarment' : 'Lifting the debarment'}
             disabled={Boolean(windowError || reasonError)}
-            leadingIcon={
+            icon={
               action === 'debar' ? (
-                <Ban className="size-4" aria-hidden="true" />
+                <Ban className="size-3.5" aria-hidden="true" />
               ) : (
-                <RotateCcw className="size-4" aria-hidden="true" />
+                <RotateCcw className="size-3.5" aria-hidden="true" />
               )
             }
           >
             {action === 'debar' ? 'Record debarment order' : 'Lift debarment'}
           </Button>
-        </div>
-      </Card>
+        </PanelFoot>
+      </Panel>
 
-      <div className="space-y-6">
-        {pending && <FinalityPending label="Recording the order" showSteps={false} />}
+      <div className="space-y-4">
+        {pending && <Awaiting label="Recording the order" steps={false} />}
 
         {failure && (
-          <ErrorState
+          <Notice
             kind={failure.kind}
             detail={failure.message}
             technicalDetail={failure.technicalDetail}
@@ -386,10 +380,10 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
         )}
 
         {verdict && (
-          <ComplianceResult
+          <Verdict
             status={verdict.result}
             reason={verdict.reason}
-            trigger={`Debarment — ${vendorName(vendorAccount)}`}
+            trigger={`Debarment · ${vendorName(vendorAccount)}`}
             txRef={verdict.txRef ?? undefined}
             blockNumber={verdict.blockNumber ?? undefined}
             latencyMs={verdict.latencyMs}
@@ -412,13 +406,10 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
           />
         )}
 
-        <Card>
-          <CardHeader
-            title="Effective window"
-            description="Stated in blocks, because this runtime keeps time as block height."
-          />
-          <CardBody>
-            <dl>
+        <Panel>
+          <PanelHead title="Effective window" />
+          <PanelBody>
+            <DataList>
               <DataRow label="Vendor" value={selectedVendor?.name ?? vendorAccount} />
               <DataRow
                 label="From block"
@@ -438,15 +429,14 @@ export function DebarmentPanel({ defaultMinistryId }: { defaultMinistryId: strin
                     : approximateDuration(toBlock - fromBlock)
                 }
               />
-            </dl>
-            <p className="mt-4 flex items-start gap-2 text-xs text-ink-muted">
-              <CalendarRange className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              Cerulea produces a block every 200 ms, so a day is{' '}
-              {BLOCKS_PER_DAY.toLocaleString('en-IN')} blocks. The duration above is that
-              arithmetic, not a separate record.
-            </p>
-          </CardBody>
-        </Card>
+            </DataList>
+          </PanelBody>
+          <PanelNote>
+            Stated in blocks, because this runtime keeps time as block height. Cerulea produces a
+            block every 200 ms, so a day is {BLOCKS_PER_DAY.toLocaleString('en-IN')} blocks. The
+            duration above is that arithmetic, not a separate record.
+          </PanelNote>
+        </Panel>
       </div>
     </div>
   );

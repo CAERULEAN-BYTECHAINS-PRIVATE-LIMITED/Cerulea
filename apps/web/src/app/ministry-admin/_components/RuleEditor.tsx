@@ -3,18 +3,22 @@
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  ComplianceResult,
+  Check,
+  Chip,
+  DataList,
   DataRow,
-  ErrorState,
   Field,
-  FinalityPending,
   Input,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelFoot,
+  PanelHead,
+  PanelNote,
   Select,
+  Verdict,
 } from '@/components';
 import {
   CALCULATION_METHODS,
@@ -232,14 +236,13 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-      <Card className="xl:col-span-2">
-        <CardHeader
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <Panel className="xl:col-span-2">
+        <PanelHead
           title="Rule set"
-          description="Nine parameters. Changing one is a configuration change recorded on chain, not a software release."
-          actions={<Badge tone="brand">{ministry?.calculationMethod ?? 'Standard'}</Badge>}
+          meta={<Chip tone="accent">{ministry?.calculationMethod ?? 'Standard'}</Chip>}
         />
-        <CardBody className="space-y-6">
+        <PanelBody className="space-y-5">
           <Field label="Ministry" required hint="The rule set applies to every tender this ministry buys under.">
             {(props) => (
               <Select
@@ -257,11 +260,11 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
           </Field>
 
           {/* ---- 1. HSN thresholds ------------------------------------------- */}
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium text-ink">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold tracking-wide text-ink-2 uppercase">
               Local content thresholds, by HSN code
             </legend>
-            <p className="text-xs text-ink-muted">
+            <p className="text-2xs text-ink-muted">
               The first row is what the classification pallet applies. Use{' '}
               <span className="font-mono">*</span> to cover every code the ministry buys.
             </p>
@@ -269,7 +272,7 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
             {form.hsn.map((row, index) => (
               <div
                 key={index}
-                className="rounded-lg border border-border bg-surface-sunken px-4 py-3"
+                className="rounded-md border border-line bg-shell px-3 py-2.5"
               >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
                   <Field label="HSN code">
@@ -313,14 +316,11 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
                     )}
                   </Field>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="quiet"
                     aria-label={`Remove the row for HSN ${row.hsnCode || index + 1}`}
                     disabled={form.hsn.length === 1}
-                    onClick={() =>
-                      patch({ hsn: form.hsn.filter((_, i) => i !== index) })
-                    }
-                    leadingIcon={<Trash2 className="size-4" aria-hidden="true" />}
+                    onClick={() => patch({ hsn: form.hsn.filter((_, i) => i !== index) })}
+                    icon={<Trash2 className="size-3.5" aria-hidden="true" />}
                   >
                     Remove
                   </Button>
@@ -328,7 +328,7 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
                 {/* `form-error`, not `status-red`: a malformed threshold row is a typo, not
                     a compliance verdict. See the token note in globals.css. */}
                 {touched && errors.hsn[index] && (
-                  <p className="mt-2 text-xs font-medium text-form-error">
+                  <p className="mt-2 text-2xs font-medium text-form-error">
                     <span className="sr-only">Error: </span>
                     {errors.hsn[index]}
                   </p>
@@ -337,8 +337,6 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
             ))}
 
             <Button
-              variant="secondary"
-              size="sm"
               disabled={form.hsn.length >= 64}
               onClick={() =>
                 patch({
@@ -348,48 +346,29 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
                   ],
                 })
               }
-              leadingIcon={<Plus className="size-4" aria-hidden="true" />}
+              icon={<Plus className="size-3.5" aria-hidden="true" />}
             >
               Add an HSN row
             </Button>
           </fieldset>
 
           {/* ---- 2-4. Flags and method ---------------------------------------- */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-4 py-3">
-              <input
-                type="checkbox"
-                checked={form.para3aApplicable}
-                onChange={(event) => patch({ para3aApplicable: event.target.checked })}
-                className="mt-0.5 size-4 accent-cerulea"
-              />
-              <span className="text-sm text-ink">
-                Para 3A applies
-                <span className="mt-0.5 block text-xs text-ink-muted">
-                  Restricts sourcing to Class-I suppliers for items this ministry has notified as
-                  having sufficient local capacity.
-                </span>
-              </span>
-            </label>
-
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-4 py-3">
-              <input
-                type="checkbox"
-                checked={form.pliLinked}
-                onChange={(event) => patch({ pliLinked: event.target.checked })}
-                className="mt-0.5 size-4 accent-cerulea"
-              />
-              <span className="text-sm text-ink">
-                PLI-linked
-                <span className="mt-0.5 block text-xs text-ink-muted">
-                  Enables the deeming rule that treats a PLI beneficiary as Class-II for the
-                  notified period.
-                </span>
-              </span>
-            </label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Check
+              checked={form.para3aApplicable}
+              onChange={(checked) => patch({ para3aApplicable: checked })}
+              label="Para 3A applies"
+              hint="Restricts sourcing to Class-I suppliers for items this ministry has notified as having sufficient local capacity."
+            />
+            <Check
+              checked={form.pliLinked}
+              onChange={(checked) => patch({ pliLinked: checked })}
+              label="PLI-linked"
+              hint="Enables the deeming rule that treats a PLI beneficiary as Class-II for the notified period."
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Calculation method" required>
               {(props) => (
                 <Select
@@ -504,31 +483,32 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
               )}
             </Field>
           </div>
-        </CardBody>
+        </PanelBody>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <p className="text-xs text-ink-muted">
+        <PanelFoot>
+          <p className="text-2xs text-ink-muted">
             {invalid && touched
               ? 'The registry would reject this rule set. Fix the errors above.'
               : 'The amended rule is written to the registry and carries a new version number.'}
           </p>
           <Button
+            variant="primary"
             onClick={onSubmit}
             loading={pending}
             loadingLabel="Recording the rule change"
             disabled={touched && invalid}
-            leadingIcon={<Save className="size-4" aria-hidden="true" />}
+            icon={<Save className="size-3.5" aria-hidden="true" />}
           >
             Record rule change
           </Button>
-        </div>
-      </Card>
+        </PanelFoot>
+      </Panel>
 
-      <div className="space-y-6">
-        {pending && <FinalityPending label="Recording the rule change" showSteps={false} />}
+      <div className="space-y-4">
+        {pending && <Awaiting label="Recording the rule change" steps={false} />}
 
         {failure && (
-          <ErrorState
+          <Notice
             kind={failure.kind}
             detail={failure.message}
             technicalDetail={failure.technicalDetail}
@@ -537,10 +517,10 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
         )}
 
         {verdict && (
-          <ComplianceResult
+          <Verdict
             status={verdict.result}
             reason={verdict.reason}
-            trigger={`Rule update — ${ministryName(ministryId)}`}
+            trigger={`Rule update · ${ministryName(ministryId)}`}
             txRef={verdict.txRef ?? undefined}
             blockNumber={verdict.blockNumber ?? undefined}
             latencyMs={verdict.latencyMs}
@@ -553,14 +533,11 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
           />
         )}
 
-        <Card>
-          <CardHeader
-            title="In force now"
-            description="The rule set seeded on chain for this ministry."
-          />
-          <CardBody>
+        <Panel>
+          <PanelHead title="In force now" />
+          <PanelBody>
             {ministry ? (
-              <dl>
+              <DataList>
                 <DataRow label="Ministry id" value={ministry.id} mono />
                 <DataRow
                   label="Class-I / Class-II"
@@ -583,10 +560,11 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
                 <DataRow label="Divisibility" value={ministry.divisibility} />
                 <DataRow label="Para 3A" value={ministry.para3aApplicable ? 'Applies' : 'Does not apply'} />
                 <DataRow label="PLI-linked" value={ministry.pliLinked ? 'Yes' : 'No'} />
-              </dl>
+              </DataList>
             ) : null}
-          </CardBody>
-        </Card>
+          </PanelBody>
+          <PanelNote>The rule set seeded on chain for this ministry.</PanelNote>
+        </Panel>
       </div>
     </div>
   );

@@ -1,20 +1,22 @@
 'use client';
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, CircleCheckBig, Play, RotateCw } from 'lucide-react';
+import { ArrowRight, Check, Play, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
-  ComplianceResult,
-  ErrorState,
-  FinalityPending,
+  Chip,
+  FactGrid,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelFoot,
+  PanelHead,
+  Verdict,
   buttonClasses,
+  cn,
   type ComplianceStatus,
 } from '@/components';
 import { formatPaise } from '@/lib/units';
@@ -232,28 +234,27 @@ export function WalkthroughClient() {
 
   if (!scenario) {
     return (
-      <Card>
-        <CardBody className="py-12 text-center text-sm text-ink-muted" role="status">
+      <Panel>
+        <PanelBody className="py-8 text-center text-sm text-ink-muted" role="status">
           Preparing the walkthrough scenario.
-        </CardBody>
-      </Card>
+        </PanelBody>
+      </Panel>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {resetNote && (
-        <div className="rounded-lg border border-border bg-surface px-4 py-3" role="alert">
-          <p className="text-xs font-semibold tracking-wide text-ink uppercase">
-            The chain was not fully restored
-          </p>
-          <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-muted">{resetNote}</p>
-        </div>
+        <Notice
+          kind="unknown"
+          title="The chain was not fully restored"
+          detail={resetNote}
+        />
       )}
 
       <ProgressRail current={current} runs={runs} onSelect={setCurrent} />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {WALKTHROUGH.map((step, index) => {
           const state = runs[index] ?? { status: 'idle' };
           const isCurrent = index === current;
@@ -263,51 +264,37 @@ export function WalkthroughClient() {
           const followUpState = followUps[index] ?? { status: 'idle' };
 
           return (
-            <Card key={step.id} className={isCurrent ? 'ring-1 ring-cerulea/30' : undefined}>
-              <CardHeader
+            <Panel key={step.id} className={isCurrent ? 'border-accent-line ring-1 ring-accent-line' : undefined}>
+              <PanelHead
                 title={
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-cerulea text-xs font-bold text-white">
+                    <span className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-accent font-mono text-2xs font-bold text-white">
                       {step.point}
                     </span>
                     {step.title}
                   </span>
                 }
-                description={step.intent}
-                actions={
+                meta={
                   isDone ? (
-                    <Badge
-                      tone="teal"
-                      icon={<CircleCheckBig className="size-3" aria-hidden="true" />}
-                    >
-                      Run
-                    </Badge>
+                    <Chip tone="accent">Run</Chip>
                   ) : (
-                    <Badge tone="neutral">Trigger point {step.point} of 6</Badge>
+                    <Chip>Trigger point {step.point} of 6</Chip>
                   )
                 }
               />
 
-              <CardBody className="space-y-5">
-                <dl className="grid gap-x-6 gap-y-3 rounded-lg bg-surface-sunken px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {step.facts(scenario).map((fact) => (
-                    <div key={fact.label} className="min-w-0">
-                      <dt className="text-xs tracking-wide text-ink-subtle uppercase">
-                        {fact.label}
-                      </dt>
-                      <dd className="mt-0.5 text-sm font-medium break-words text-ink">
-                        {fact.value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              <PanelBody className="space-y-4">
+                <FactGrid
+                  className="rounded-md bg-shell px-3 py-2.5"
+                  facts={step.facts(scenario)}
+                />
 
                 {state.status === 'running' && (
-                  <FinalityPending label={`Running trigger point ${step.point}`} />
+                  <Awaiting label={`Running trigger point ${step.point}`} />
                 )}
 
                 {state.status === 'failed' && (
-                  <ErrorState
+                  <Notice
                     kind="unknown"
                     title="This step did not produce a verdict"
                     detail="The trigger point returned an error rather than a compliance decision. Nothing has been recorded on chain for this step, so it can be run again safely."
@@ -323,7 +310,7 @@ export function WalkthroughClient() {
                       initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="space-y-5"
+                      className="space-y-4"
                     >
                       <VerdictBlock step={step.title} outcome={state.outcome} />
                       <Caption
@@ -333,42 +320,40 @@ export function WalkthroughClient() {
                       />
 
                       {step.followUp && (
-                        <div className="rounded-lg border border-cerulea/25 bg-cerulea-light/40 px-4 py-4">
-                          <p className="text-xs font-semibold tracking-wide text-cerulea-dark uppercase">
+                        <div className="rounded-md border border-accent-line bg-accent-tint px-3 py-3">
+                          <p className="text-2xs font-semibold tracking-wide text-accent-dark uppercase">
                             Then what
                           </p>
-                          <p className="mt-1.5 text-sm leading-relaxed text-ink">
+                          <p className="mt-1 max-w-[75ch] text-sm text-ink">
                             {step.followUp.premise}
                           </p>
 
                           {followUpState.status === 'idle' && (
                             <Button
-                              className="mt-3"
-                              size="sm"
-                              variant="secondary"
+                              className="mt-2.5"
                               onClick={() => void runFollowUp(index)}
-                              leadingIcon={<Play className="size-4" aria-hidden="true" />}
+                              icon={<Play className="size-3.5" aria-hidden="true" />}
                             >
                               {step.followUp.action}
                             </Button>
                           )}
                           {followUpState.status === 'running' && (
-                            <FinalityPending
-                              className="mt-3"
-                              showSteps={false}
+                            <Awaiting
+                              className="mt-2.5"
+                              steps={false}
                               label={step.followUp.action}
                             />
                           )}
                           {followUpState.status === 'failed' && (
-                            <ErrorState
-                              className="mt-3"
+                            <Notice
+                              className="mt-2.5"
                               kind="unknown"
                               technicalDetail={followUpState.message}
                               onRetry={() => void runFollowUp(index)}
                             />
                           )}
                           {followUpState.status === 'done' && (
-                            <div className="mt-4 space-y-4">
+                            <div className="mt-3 space-y-3">
                               <VerdictBlock
                                 step={step.followUp.action}
                                 outcome={followUpState.outcome}
@@ -381,10 +366,10 @@ export function WalkthroughClient() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </CardBody>
+              </PanelBody>
 
-              <CardFooter>
-                <p className="text-xs text-ink-muted">
+              <PanelFoot>
+                <p className="font-mono text-2xs text-ink-muted">
                   {isDone
                     ? `Trigger point ${step.point} complete.`
                     : `POST ${step.endpoint} — a real extrinsic, signed and finalized.`}
@@ -392,56 +377,55 @@ export function WalkthroughClient() {
                 <div className="flex flex-wrap items-center gap-2">
                   {state.status === 'idle' && (
                     <Button
+                      variant="primary"
                       onClick={() => void runStep(index)}
-                      leadingIcon={<Play className="size-4" aria-hidden="true" />}
+                      icon={<Play className="size-3.5" aria-hidden="true" />}
                     >
                       Run step {step.point}
                     </Button>
                   )}
-                  {/* Only the card the presenter is on offers the advance. Completed cards
+                  {/* Only the panel the presenter is on offers the advance. Completed panels
                       stay on screen as the record of what was shown, but a second live
                       "Next step" further up the page is an invitation to lose your place. */}
                   {isDone && isCurrent && index < WALKTHROUGH.length - 1 && (
                     <Button
+                      variant="primary"
                       onClick={() => setCurrent(index + 1)}
-                      trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
+                      iconAfter={<ArrowRight className="size-3.5" aria-hidden="true" />}
                     >
                       Next step — {WALKTHROUGH[index + 1].title.toLowerCase()}
                     </Button>
                   )}
                 </div>
-              </CardFooter>
-            </Card>
+              </PanelFoot>
+            </Panel>
           );
         })}
       </div>
 
       {finished && (
-        <Card>
-          <CardHeader
-            title="All six trigger points have run on the live chain"
-            description="Every verdict above came back only after its block was finalized, and every one of them is now a permanent, queryable record. Two places to check that claim rather than take it on trust. Starting again also lifts the debarment step 5 recorded, so the walkthrough can be rehearsed as often as you like without the count of active debarments creeping upward."
-          />
-          <CardBody className="flex flex-wrap gap-3">
+        <Panel>
+          <PanelHead title="All six trigger points have run on the live chain" />
+          <PanelBody className="flex flex-wrap gap-2">
             <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
               See the measured latency for these six calls
             </Link>
-            <Link href="/explorer" className={buttonClasses({ variant: 'secondary' })}>
+            <Link href="/explorer" className={buttonClasses({ variant: 'default' })}>
               Find any of these decisions in the explorer
             </Link>
             <Button
-              variant="ghost"
+              variant="quiet"
               onClick={() => void restart()}
               loading={resetting}
               loadingLabel="Lifting the debarment this walkthrough recorded"
-              leadingIcon={<RotateCw className="size-4" aria-hidden="true" />}
+              icon={<RotateCw className="size-3.5" aria-hidden="true" />}
             >
               {resetting
                 ? 'Lifting the debarment and starting again'
                 : 'Start again — lifts the debarment first'}
             </Button>
-          </CardBody>
-        </Card>
+          </PanelBody>
+        </Panel>
       )}
     </div>
   );
@@ -493,7 +477,7 @@ function VerdictBlock({ step, outcome }: { step: string; outcome: RunOutcome }) 
   records.push({ label: 'Browser round trip', value: `${roundTripMs} ms`, mono: true });
 
   return (
-    <ComplianceResult
+    <Verdict
       status={status}
       trigger={step}
       reason={response.reason ?? 'The chain returned a verdict without a stated reason.'}
@@ -515,11 +499,11 @@ function Caption({
   claim?: string;
 }) {
   return (
-    <div className="border-l-2 border-cerulea pl-4">
-      <p className="text-xs font-semibold tracking-wide text-cerulea uppercase">{heading}</p>
-      <p className="mt-1.5 max-w-3xl text-[0.9375rem] leading-relaxed text-ink">{body}</p>
+    <div className="border-l-2 border-accent pl-3">
+      <p className="text-2xs font-semibold tracking-wide text-accent uppercase">{heading}</p>
+      <p className="mt-1 max-w-[75ch] text-sm text-ink">{body}</p>
       {claim && (
-        <p className="mt-2.5 max-w-3xl text-sm text-ink-muted">
+        <p className="mt-1.5 max-w-[75ch] text-2xs text-ink-muted">
           <span className="font-medium text-ink">Demonstrates: </span>
           {claim}
         </p>
@@ -540,7 +524,7 @@ function ProgressRail({
 }) {
   return (
     <nav aria-label="Walkthrough steps">
-      <ol className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <ol className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
         {WALKTHROUGH.map((step, index) => {
           const state = runs[index]?.status ?? 'idle';
           const done = state === 'done';
@@ -554,31 +538,27 @@ function ProgressRail({
                 onClick={() => reachable && onSelect(index)}
                 disabled={!reachable}
                 aria-current={isCurrent ? 'step' : undefined}
-                className={
-                  'w-full rounded-lg border px-3 py-2.5 text-left transition-colors duration-150 ease-out ' +
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea ' +
-                  'disabled:cursor-not-allowed disabled:opacity-55 ' +
-                  (isCurrent
-                    ? 'border-cerulea bg-cerulea-light'
+                className={cn(
+                  'w-full rounded-md border px-2.5 py-2 text-left transition-colors duration-150',
+                  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                  'disabled:cursor-not-allowed disabled:opacity-55',
+                  isCurrent
+                    ? 'border-accent bg-accent-tint'
                     : done
-                      ? 'border-border bg-surface hover:border-cerulea/40'
-                      : 'border-dashed border-border bg-surface')
-                }
+                      ? 'border-line bg-paper hover:bg-shell'
+                      : 'border-dashed border-line bg-paper',
+                )}
               >
                 <span className="flex items-center gap-2">
                   <span
-                    className={
-                      'inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold ' +
-                      (done
-                        ? 'bg-teal text-white'
-                        : isCurrent
-                          ? 'bg-cerulea text-white'
-                          : 'bg-surface-sunken text-ink-subtle')
-                    }
+                    className={cn(
+                      'inline-flex size-4 shrink-0 items-center justify-center rounded-sm font-mono text-2xs font-bold',
+                      done || isCurrent ? 'bg-accent text-white' : 'bg-shell-2 text-ink-subtle',
+                    )}
                   >
-                    {done ? <CircleCheckBig className="size-3" aria-hidden="true" /> : step.point}
+                    {done ? <Check className="size-2.5" aria-hidden="true" /> : step.point}
                   </span>
-                  <span className="truncate text-xs font-medium text-ink">
+                  <span className="truncate text-2xs font-medium text-ink">
                     {STEP_SHORT_LABELS[step.id]}
                   </span>
                 </span>

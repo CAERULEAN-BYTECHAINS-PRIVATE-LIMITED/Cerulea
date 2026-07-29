@@ -17,9 +17,9 @@ export default function DpiitPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow={`National console · ${PERSONA.actingAs}`}
-      title="Make in India compliance, nationally"
-      subtitle="DPIIT owns the default rule every ministry inherits and sees the outcome of every ministry that has departed from it. Onboarding the next ministry is a row of configuration, not a release."
+      breadcrumb="Role portals"
+      title="National compliance rollup"
+      actingAs={PERSONA.actingAs}
     >
       <NationalRollup />
     </AppShell>

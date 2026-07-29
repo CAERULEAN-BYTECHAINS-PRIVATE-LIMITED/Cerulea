@@ -38,9 +38,8 @@ export default async function ExplorerPage({
   return (
     <AppShell
       width="wide"
-      eyebrow="Cerulea network"
+      breadcrumb="Network"
       title="Block explorer"
-      subtitle="Every compliance decision in this console is a finalized transaction on a live three-validator DCF network. This is where you check that claim: the blocks as they are produced, the validators producing them, the events the six PRAMAAN pallets emit, and a lookup that takes any decision back to the block it was sealed in."
     >
       <ExplorerClient initialTx={initialTx} initialBlock={initialBlock} />
     </AppShell>

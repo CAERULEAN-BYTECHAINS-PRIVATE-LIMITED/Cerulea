@@ -1,29 +1,33 @@
 'use client';
 
-import { Calculator, ClipboardCheck, Gavel, Inbox, ListChecks } from 'lucide-react';
+import { Calculator, ClipboardCheck, ListChecks } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  ComplianceResult,
+  Chip,
+  DataList,
   DataRow,
-  EmptyState,
-  ErrorState,
-  FinalityPending,
-  PathwayBadge,
+  Empty,
+  Hash,
+  Nil,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  PathwayChip,
+  SectionHead,
+  StatusToken,
   Table,
   TBody,
-  TCaption,
   TD,
   TH,
   THead,
   TR,
   Tooltip,
-  TxRef,
-  type PathwayId,
+  Verdict,
+  asPathwayId,
 } from '@/components';
 import {
   TENDERS,
@@ -182,43 +186,42 @@ export function EvaluationConsole() {
   const rule = getMinistry(tender.ministryId);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* ---- Tender list ------------------------------------------------------- */}
-      <Card>
-        <CardHeader
+      <Panel>
+        <PanelHead
           title="Tenders open for evaluation"
-          description="Sample tenders and sample bids, bundled with this console as the inputs an evaluation is run against — they are not read from the chain and no bid below has been received from anyone. What IS real is the verdict: evaluating one submits a signed extrinsic, and a status appears against a tender only once its bids have been decided on chain."
+          meta={<Chip tone="neutral">Sample tenders — not chain records</Chip>}
         />
-        <Table containerClassName="rounded-b-card">
+        <Table>
           <THead>
             <TR>
-              <TH>Bid number</TH>
+              <TH className="w-48">Bid number</TH>
               <TH>Item category</TH>
-              <TH>Nodal ministry</TH>
-              <TH className="text-right">Estimated value</TH>
-              <TH className="text-right">Bids</TH>
-              <TH>Status</TH>
-              <TH><span className="sr-only">Open</span></TH>
+              <TH className="w-40">Nodal ministry</TH>
+              <TH numeric className="w-36">Estimated value</TH>
+              <TH numeric className="w-16">Bids</TH>
+              <TH className="w-56">Status</TH>
+              <TH className="w-24">
+                <span className="sr-only">Open</span>
+              </TH>
             </TR>
           </THead>
           <TBody>
             {TENDERS.map((row) => {
               const selected = row.id === tender.id;
               return (
-                <TR
-                  key={row.id}
-                  className={selected ? 'bg-cerulea-light/50' : 'hover:bg-surface-sunken'}
-                >
+                <TR key={row.id} className={selected ? 'bg-accent-tint' : 'hover:bg-shell'}>
                   <TD mono>{row.id}</TD>
                   <TD>
                     <span className="font-medium text-ink">{row.itemCategory}</span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">
+                    <span className="mt-0.5 block text-2xs text-ink-muted">
                       HSN {row.hsnCode} · {row.bidType}
                     </span>
                   </TD>
                   <TD>{ministryShort(row.ministryId)}</TD>
-                  <TD className="text-right tabular-nums">{formatPaise(row.valuePaise)}</TD>
-                  <TD className="text-right tabular-nums">{row.bids.length}</TD>
+                  <TD numeric>{formatPaise(row.valuePaise)}</TD>
+                  <TD numeric>{row.bids.length}</TD>
                   <TD>
                     <StatusCell
                       bids={row.bids}
@@ -228,8 +231,8 @@ export function EvaluationConsole() {
                   </TD>
                   <TD className="text-right">
                     <Button
-                      size="sm"
-                      variant={selected ? 'subtle' : 'secondary'}
+                      size="xs"
+                      variant={selected ? 'quiet' : 'default'}
                       onClick={() => setTenderId(row.id)}
                     >
                       {selected ? 'Open' : 'Evaluate'}
@@ -239,48 +242,45 @@ export function EvaluationConsole() {
               );
             })}
           </TBody>
-          <TCaption>
-            Six live tenders across six nodal ministries. The status column carries a compliance
-            verdict and nothing else.
-          </TCaption>
         </Table>
-      </Card>
+        <PanelNote>
+          Sample tenders and sample bids bundled with this console as the inputs an evaluation
+          runs against. The verdicts are real: evaluating submits a signed extrinsic.
+        </PanelNote>
+      </Panel>
 
       {/* ---- Tender detail ----------------------------------------------------- */}
-      <section aria-labelledby="detail-heading" className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="detail-heading" className="text-xl font-semibold tracking-tight text-ink">
-              {tender.itemCategory}
-            </h2>
-            <p className="mt-1 text-sm text-ink-muted">
-              {tender.id} · {tender.buyerOrganisation}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={runEvaluation}
-              loading={evaluating !== null}
-              loadingLabel="Evaluating bids"
-              leadingIcon={<ListChecks className="size-4" aria-hidden="true" />}
-            >
-              {allEvaluated ? 'Re-run bid evaluation' : 'Evaluate all bids'}
-            </Button>
-            <Button
-              onClick={runPreference}
-              disabled={rankable.length === 0 || evaluating !== null}
-              loading={preferenceRunning}
-              loadingLabel="Calculating preference"
-              leadingIcon={<Calculator className="size-4" aria-hidden="true" />}
-            >
-              Calculate purchase preference
-            </Button>
-          </div>
-        </div>
+      <section aria-labelledby="detail-heading" className="space-y-4">
+        <SectionHead
+          id="detail-heading"
+          title={tender.itemCategory}
+          meta={
+            <>
+              <span className="font-mono text-2xs text-ink-muted">{tender.id}</span>
+              <Button
+                onClick={runEvaluation}
+                loading={evaluating !== null}
+                loadingLabel="Evaluating bids"
+                icon={<ListChecks className="size-3.5" aria-hidden="true" />}
+              >
+                {allEvaluated ? 'Re-run bid evaluation' : 'Evaluate all bids'}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={runPreference}
+                disabled={rankable.length === 0 || evaluating !== null}
+                loading={preferenceRunning}
+                loadingLabel="Calculating preference"
+                icon={<Calculator className="size-3.5" aria-hidden="true" />}
+              >
+                Calculate purchase preference
+              </Button>
+            </>
+          }
+        />
 
         {failure && (
-          <ErrorState
+          <Notice
             kind={failure.kind}
             detail={failure.message}
             technicalDetail={failure.technicalDetail}
@@ -290,28 +290,28 @@ export function EvaluationConsole() {
         )}
 
         {evaluating && (
-          <FinalityPending
+          <Awaiting
             label={`Evaluating ${vendorName(evaluating)}`}
-            showSteps={false}
+            steps={false}
             className="mx-auto max-w-xl"
           />
         )}
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
-            <CardHeader
-              title="Sample bids on this tender"
-              description="Bundled sample inputs, not bids received from suppliers. Each one is nonetheless evaluated for real: every bid is checked against the shared national debarment ledger on chain before it is classified."
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <Panel className="xl:col-span-2">
+            <PanelHead
+              title="Bids on this tender"
+              meta={<Chip tone="neutral">Sample bids</Chip>}
             />
-            <Table containerClassName="rounded-b-card">
+            <Table>
               <THead>
                 <TR>
                   <TH>Bidder</TH>
-                  <TH className="text-right">Declared LC</TH>
-                  <TH className="text-right">Bid price</TH>
-                  <TH>Classification</TH>
-                  <TH>Verdict</TH>
-                  <TH>Record</TH>
+                  <TH numeric className="w-28">Declared LC</TH>
+                  <TH numeric className="w-36">Bid price</TH>
+                  <TH className="w-28">Class</TH>
+                  <TH className="w-24">Verdict</TH>
+                  <TH className="w-40">Record</TH>
                 </TR>
               </THead>
               <TBody>
@@ -323,79 +323,66 @@ export function EvaluationConsole() {
                     <TR key={bid.vendor}>
                       <TD>
                         <span className="font-medium text-ink">{vendorName(bid.vendor)}</span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-                          {vendor && (
-                            <>
-                              <span>
-                                {vendor.city}, {vendor.state}
-                              </span>
-                              {vendor.isMse && (
-                                <Badge tone="neutral" size="sm">
-                                  MSE · {vendor.msme}
-                                </Badge>
-                              )}
-                            </>
-                          )}
-                        </span>
+                        {vendor && (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs text-ink-muted">
+                            <span>
+                              {vendor.city}, {vendor.state}
+                            </span>
+                            {vendor.isMse && <Chip>MSE · {vendor.msme}</Chip>}
+                          </span>
+                        )}
                       </TD>
-                      <TD className="text-right tabular-nums">
-                        {formatBps(bid.declaredLocalContentBps)}
-                      </TD>
-                      <TD className="text-right tabular-nums">
+                      <TD numeric>{formatBps(bid.declaredLocalContentBps)}</TD>
+                      <TD numeric>
                         {formatPaise(bid.pricePaise)}
                         {isL1 && (
-                          <span className="mt-0.5 block text-xs font-medium text-cerulea">
-                            Lowest bid
-                          </span>
+                          <span className="mt-0.5 block text-2xs font-medium text-accent">L1</span>
                         )}
                       </TD>
                       <TD>
                         {evaluation ? (
-                          <span className="text-sm text-ink">
-                            {evaluation.response.class ?? 'Not classified'}
-                          </span>
+                          (evaluation.response.class ?? <Nil label="Not classified" />)
                         ) : (
-                          <span className="text-sm text-ink-subtle">Not evaluated</span>
+                          <Nil label="Not evaluated" />
                         )}
                       </TD>
                       <TD>
                         {evaluation ? (
                           <Tooltip content={evaluation.response.reason}>
-                            <span tabIndex={0} className="inline-flex rounded-full">
-                              <VerdictBadge status={evaluation.response.result} />
+                            <span tabIndex={0} className="inline-flex rounded-sm">
+                              <StatusToken status={evaluation.response.result} />
                             </span>
                           </Tooltip>
                         ) : (
-                          <Badge tone="neutral">Awaiting evaluation</Badge>
+                          <Nil label="Awaiting evaluation" />
                         )}
                       </TD>
                       <TD>
                         {evaluation?.response.txRef ? (
-                          <TxRef value={evaluation.response.txRef} head={8} tail={6} />
+                          <Hash value={evaluation.response.txRef} />
                         ) : evaluation ? (
-                          <span className="text-xs text-ink-muted">
-                            Ledger read — no transaction
-                          </span>
+                          <span className="text-2xs text-ink-muted">Ledger read</span>
                         ) : (
-                          <span className="text-xs text-ink-subtle">—</span>
+                          <Nil />
                         )}
                       </TD>
                     </TR>
                   );
                 })}
               </TBody>
-              <TCaption>
-                Class-I at {formatBps(thresholds.classOneBps)} and above, Class-II at{' '}
-                {formatBps(thresholds.classTwoBps)} and above, under{' '}
-                {ministryShort(tender.ministryId)}&apos;s rule for HSN {tender.hsnCode}.
-              </TCaption>
             </Table>
-          </Card>
+            <PanelNote>
+              Class-I at {formatBps(thresholds.classOneBps)} and above, Class-II at{' '}
+              {formatBps(thresholds.classTwoBps)} and above, under{' '}
+              {ministryShort(tender.ministryId)}&apos;s rule for HSN {tender.hsnCode}. Every bid is
+              checked against the shared national debarment ledger before it is classified.
+            </PanelNote>
+          </Panel>
 
-          <Card>
-            <CardHeader title="Tender file" />
-            <CardBody>
-              <dl>
+          <Panel>
+            <PanelHead title="Tender file" />
+            <PanelBody>
+              <DataList>
                 <DataRow label="Bid number" value={tender.id} mono />
                 <DataRow label="Bid end date" value={tender.bidEndDate} />
                 <DataRow label="Bid type" value={tender.bidType} />
@@ -407,13 +394,10 @@ export function EvaluationConsole() {
                 <DataRow label="Estimated value" value={formatPaise(tender.valuePaise)} />
                 <DataRow
                   label="Preference margin"
-                  value={rule ? formatBps(rule.preferenceMarginBps) : '—'}
+                  value={rule ? formatBps(rule.preferenceMarginBps) : <Nil />}
                 />
-                <DataRow label="Divisibility" value={rule?.divisibility ?? '—'} />
-                <DataRow
-                  label="Para 3A applicable"
-                  value={rule?.para3aApplicable ? 'Yes' : 'No'}
-                />
+                <DataRow label="Divisibility" value={rule?.divisibility ?? <Nil />} />
+                <DataRow label="Para 3A applicable" value={rule?.para3aApplicable ? 'Yes' : 'No'} />
                 <DataRow
                   label="Global tender enquiry"
                   value={tender.isTenderGte ? 'Approved under GFR Rule 161(iv)' : 'Not approved'}
@@ -422,18 +406,18 @@ export function EvaluationConsole() {
                   label="Lowest classified bid"
                   value={l1Paise === null ? 'Pending evaluation' : formatPaise(l1Paise)}
                 />
-              </dl>
-            </CardBody>
-          </Card>
+              </DataList>
+            </PanelBody>
+          </Panel>
         </div>
 
         {/* ---- Preference outcome --------------------------------------------- */}
         {tenderPreference ? (
           <div className="space-y-4">
-            <ComplianceResult
+            <Verdict
               status={tenderPreference.result}
               reason={tenderPreference.reason}
-              trigger={`Purchase preference — ${tender.id}`}
+              trigger={`Purchase preference · ${tender.id}`}
               txRef={tenderPreference.txRef ?? undefined}
               blockNumber={tenderPreference.blockNumber ?? undefined}
               latencyMs={tenderPreference.latencyMs}
@@ -461,28 +445,22 @@ export function EvaluationConsole() {
                     ? formatPaise(tenderPreference.matchedPricePaise)
                     : 'None — the lowest eligible bid stands',
                 },
-                {
-                  label: 'Tender divisibility',
-                  value: rule?.divisibility ?? '—',
-                },
+                { label: 'Tender divisibility', value: rule?.divisibility ?? '—' },
               ]}
             />
 
-            <Card>
-              <CardHeader
-                title="Award split, per vendor"
-                description="Read from pramaanPreference.preferenceResults at the finalized block. The pathway is what distinguishes a divisible award from a non-divisible one."
-              />
+            <Panel>
+              <PanelHead title="Award split, per vendor" />
               <Table>
                 <THead>
                   <TR>
                     <TH>Vendor</TH>
-                    <TH>Class</TH>
-                    <TH className="text-right">Bid price</TH>
-                    <TH className="text-right">Matched price</TH>
-                    <TH className="text-right">Award share</TH>
-                    <TH>Qualifies</TH>
-                    <TH>Pathway</TH>
+                    <TH className="w-24">Class</TH>
+                    <TH numeric className="w-36">Bid price</TH>
+                    <TH numeric className="w-36">Matched price</TH>
+                    <TH numeric className="w-28">Award share</TH>
+                    <TH className="w-32">Qualifies</TH>
+                    <TH className="w-56">Pathway</TH>
                   </TR>
                 </THead>
                 <TBody>
@@ -495,78 +473,66 @@ export function EvaluationConsole() {
                           <span className="font-medium text-ink">
                             {vendorName(bid?.vendor ?? outcome.vendor)}
                           </span>
-                          <span className="mt-0.5 block font-mono text-[0.6875rem] text-ink-subtle">
-                            {outcome.vendor.slice(0, 10)}…{outcome.vendor.slice(-6)}
+                          <span className="mt-0.5 block">
+                            <Hash value={outcome.vendor} label="Account" copyable={false} />
                           </span>
                         </TD>
                         <TD>
-                          {bid
-                            ? (tenderEvaluations[bid.vendor]?.response.class ?? '—')
-                            : '—'}
+                          {bid ? (tenderEvaluations[bid.vendor]?.response.class ?? <Nil />) : <Nil />}
                         </TD>
-                        <TD className="text-right tabular-nums">
-                          {bid ? formatPaise(bid.pricePaise) : '—'}
+                        <TD numeric>{bid ? formatPaise(bid.pricePaise) : <Nil />}</TD>
+                        <TD numeric>
+                          {outcome.matchedPricePaise ? formatPaise(outcome.matchedPricePaise) : <Nil />}
                         </TD>
-                        <TD className="text-right tabular-nums">
-                          {outcome.matchedPricePaise
-                            ? formatPaise(outcome.matchedPricePaise)
-                            : '—'}
-                        </TD>
-                        <TD className="text-right tabular-nums">
-                          {formatBps(outcome.awardedPercentBps)}
-                        </TD>
+                        <TD numeric>{formatBps(outcome.awardedPercentBps)}</TD>
                         <TD>
-                          <Badge tone={outcome.qualifies ? 'green' : 'neutral'}>
+                          <Chip tone={outcome.qualifies ? 'green' : 'neutral'}>
                             {outcome.qualifies ? 'Qualifies' : 'Does not qualify'}
-                          </Badge>
+                          </Chip>
                         </TD>
                         <TD>
-                          {pathway ? (
-                            <PathwayBadge pathway={pathway} />
-                          ) : (
-                            <span className="text-xs text-ink-subtle">Not recorded</span>
-                          )}
+                          {pathway ? <PathwayChip pathway={pathway} /> : <Nil />}
                         </TD>
                       </TR>
                     );
                   })}
                 </TBody>
-                <TCaption>
-                  A {formatBps(rule?.preferenceMarginBps ?? 2_000)} margin over L1 defines the
-                  band within which a Class-I supplier may be offered the chance to match L1&apos;s
-                  price. On a {rule?.divisibility === 'Divisible' ? 'divisible' : 'non-divisible'}{' '}
-                  tender the award{' '}
-                  {rule?.divisibility === 'Divisible'
-                    ? 'is split between the matching supplier and L1'
-                    : 'goes to the matching supplier in full'}
-                  .
-                </TCaption>
               </Table>
-            </Card>
+              <PanelNote>
+                Read from <span className="font-mono">pramaanPreference.preferenceResults</span> at
+                the finalized block. A {formatBps(rule?.preferenceMarginBps ?? 2_000)} margin over
+                L1 defines the band within which a Class-I supplier may match L1&apos;s price; on a{' '}
+                {rule?.divisibility === 'Divisible' ? 'divisible' : 'non-divisible'} tender the
+                award{' '}
+                {rule?.divisibility === 'Divisible'
+                  ? 'is split between the matching supplier and L1'
+                  : 'goes to the matching supplier in full'}
+                .
+              </PanelNote>
+            </Panel>
           </div>
         ) : (
-          <EmptyState
-            icon={<Gavel className="size-5" aria-hidden="true" />}
+          <Empty
             title="No preference calculation on this tender yet"
-            description={
+            source={
               rankable.length === 0
-                ? 'Evaluate the bids first. Preference can only rank bids that carry a classification recorded on chain.'
-                : `${rankable.length} bid${rankable.length === 1 ? '' : 's'} carry a classification and can be ranked. Run the calculation to see the award split and the pathway it took.`
+                ? 'Preference can only rank bids that carry a classification recorded on chain.'
+                : `${rankable.length} bid${rankable.length === 1 ? '' : 's'} carry a classification and can be ranked.`
             }
             action={
               rankable.length === 0 ? (
                 <Button
-                  variant="secondary"
                   onClick={runEvaluation}
-                  leadingIcon={<ClipboardCheck className="size-4" aria-hidden="true" />}
+                  icon={<ClipboardCheck className="size-3.5" aria-hidden="true" />}
                 >
                   Evaluate all bids
                 </Button>
               ) : (
                 <Button
+                  variant="primary"
                   onClick={runPreference}
                   loading={preferenceRunning}
-                  leadingIcon={<Calculator className="size-4" aria-hidden="true" />}
+                  icon={<Calculator className="size-3.5" aria-hidden="true" />}
                 >
                   Calculate purchase preference
                 </Button>
@@ -581,12 +547,6 @@ export function EvaluationConsole() {
 
 // -------------------------------------------------------------------------------------
 
-function VerdictBadge({ status }: { status: TriState }) {
-  if (status === 'GREEN') return <Badge tone="green">Compliant</Badge>;
-  if (status === 'YELLOW') return <Badge tone="yellow">Review required</Badge>;
-  return <Badge tone="red">Blocked</Badge>;
-}
-
 function StatusCell({
   bids,
   evaluations,
@@ -600,14 +560,7 @@ function StatusCell({
     .map((bid) => evaluations[bid.vendor]?.response.result)
     .filter((value): value is TriState => value !== undefined);
 
-  if (results.length === 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-ink-subtle">
-        <Inbox className="size-3.5" aria-hidden="true" />
-        Not evaluated
-      </span>
-    );
-  }
+  if (results.length === 0) return <Nil label="Not evaluated" />;
 
   const counts = {
     GREEN: results.filter((r) => r === 'GREEN').length,
@@ -617,10 +570,10 @@ function StatusCell({
 
   return (
     <span className="flex flex-wrap items-center gap-1">
-      {counts.GREEN > 0 && <Badge tone="green" size="sm">{counts.GREEN} compliant</Badge>}
-      {counts.YELLOW > 0 && <Badge tone="yellow" size="sm">{counts.YELLOW} review</Badge>}
-      {counts.RED > 0 && <Badge tone="red" size="sm">{counts.RED} blocked</Badge>}
-      {awarded && <Badge tone="brand" size="sm">Preference calculated</Badge>}
+      {counts.GREEN > 0 && <Chip tone="green">{counts.GREEN} compliant</Chip>}
+      {counts.YELLOW > 0 && <Chip tone="yellow">{counts.YELLOW} review</Chip>}
+      {counts.RED > 0 && <Chip tone="red">{counts.RED} blocked</Chip>}
+      {awarded && <Chip tone="accent">Preference calculated</Chip>}
     </span>
   );
 }
@@ -635,15 +588,4 @@ function lowestPrice(bids: TenderBid[]): bigint | null {
     const price = BigInt(bid.pricePaise);
     return price < lowest ? price : lowest;
   }, BigInt(bids[0].pricePaise));
-}
-
-const PATHWAY_IDS = new Set([
-  'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11', 'P12',
-]);
-
-/** Only render a pathway the chain actually recorded. */
-function asPathwayId(value: string | null | undefined): PathwayId | undefined {
-  if (!value) return undefined;
-  const upper = value.toUpperCase();
-  return PATHWAY_IDS.has(upper) ? (upper as PathwayId) : undefined;
 }

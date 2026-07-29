@@ -5,18 +5,19 @@ import { useEffect, useState } from 'react';
 import { cn } from './ui/cn';
 
 /**
- * A transaction hash or block hash, rendered the way a hash should be: monospace, middle-
- * truncated so both ends stay readable from the back of a room, and copyable in full.
+ * A transaction hash, block hash or account address, rendered the way an identifier
+ * should be: monospace, middle-truncated so both ends stay readable from the back of a
+ * room, and copyable in full.
  *
- * The full value is always in the DOM (`title` plus a screen-reader-only span), so what a
- * judge copies and what an auditor's screen reader reads is the complete reference, not
- * the abbreviation.
+ * The complete value is always in the DOM — as `title` and in a screen-reader-only span —
+ * so what a judge copies and what an auditor's screen reader reads is the whole
+ * reference, not the abbreviation.
  */
-export function TxRef({
+export function Hash({
   value,
   label = 'Transaction reference',
-  head = 10,
-  tail = 8,
+  head = 8,
+  tail = 6,
   copyable = true,
   className,
 }: {
@@ -48,8 +49,8 @@ export function TxRef({
   }
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5', className)}>
-      <span className="font-mono text-[0.8125rem] tracking-tight" title={value}>
+    <span className={cn('inline-flex items-center gap-1', className)}>
+      <span className="font-mono text-2xs" title={value}>
         <span aria-hidden="true">{shortened}</span>
         <span className="sr-only">
           {label}: {value}
@@ -60,18 +61,27 @@ export function TxRef({
           type="button"
           onClick={copy}
           aria-label={copied ? `${label} copied` : `Copy ${label.toLowerCase()}`}
-          className="rounded p-1 text-current opacity-60 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+          className="rounded-sm p-0.5 text-ink-subtle transition-colors duration-150 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         >
           {copied ? (
-            <Check className="size-3.5" aria-hidden="true" />
+            <Check className="size-3" aria-hidden="true" />
           ) : (
-            <Copy className="size-3.5" aria-hidden="true" />
+            <Copy className="size-3" aria-hidden="true" />
           )}
         </button>
       )}
       <span aria-live="polite" className="sr-only">
         {copied ? 'Copied to clipboard' : ''}
       </span>
+    </span>
+  );
+}
+
+/** A block height, always with the same `#1,234` shape and Indian digit grouping. */
+export function BlockRef({ value, className }: { value: number; className?: string }) {
+  return (
+    <span className={cn('font-mono text-2xs tabular-nums', className)}>
+      #{value.toLocaleString('en-IN')}
     </span>
   );
 }

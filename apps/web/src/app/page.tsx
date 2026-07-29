@@ -1,192 +1,188 @@
-import { CircleCheckBig, CircleX, LayoutDashboard, PlayCircle, TriangleAlert } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { AppShell, PersonaCard, buttonClasses } from '@/components';
-import { PERSONAS } from '@/lib/personas';
+import {
+  AppShell,
+  Figure,
+  FigureRow,
+  Panel,
+  PanelHead,
+  PanelNote,
+  StatusToken,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  Table,
+} from '@/components';
+import { MINISTRY_COUNT } from '@/lib/api-client';
+import { NETWORK_ROUTES, PERSONAS } from '@/lib/personas';
 
 /**
- * The landing page: a role chooser, presented as a real product front door.
+ * The front door: a directory, not a landing page.
  *
- * Everything on it is a fact about this build — the twelve pathways come from
- * `pramaan-primitives`, the twenty-one ministries from `scripts/seed-ministries`, and the
- * finality claim from the Part 8.3 wait every trigger-point route performs.
+ * Six role portals and two network views, listed the way a government portal lists its
+ * services — one row each, one line of remit, one destination. There is no hero, no
+ * proposition and no call to action, because this is signed-in software and the reader
+ * already knows why they are here.
+ *
+ * `/demo` is deliberately not on this page and is not linked from anywhere else.
  */
 
-const FACTS = [
-  {
-    figure: '12',
-    label: 'Decision pathways',
-    detail: 'P1 to P12 of the Order, each implemented in a pallet and each named on the result.',
-  },
-  {
-    figure: '21',
-    label: 'Nodal ministries',
-    detail: 'Every ministry carries its own thresholds, Para 3A list and calculation method.',
-  },
-  {
-    figure: '6',
-    label: 'Trigger points',
-    detail: 'Bid submission, evaluation, preference, certification, debarment and rule update.',
-  },
-  {
-    figure: 'Finality',
-    label: 'Before any answer',
-    detail: 'No verdict is returned until the block carrying it is finalized by the network.',
-  },
-];
+const NETWORK_REMIT: Record<string, string> = {
+  '/dashboard': 'Live compliance outcomes, debarments in force, and measured decision latency.',
+  '/explorer': 'Blocks, validators, runtime events, and lookup by transaction or block.',
+};
 
 const LEGEND = [
   {
-    Icon: CircleCheckBig,
+    token: 'GREEN' as const,
     word: 'Compliant',
-    token: 'GREEN',
-    meaning: 'Compliant and proceeds — a Class I classification or a qualifying preference outcome.',
-    dot: 'text-status-green',
-    chip: 'bg-status-green text-white',
+    meaning: 'Proceeds. A Class-I classification, or a qualifying preference outcome.',
   },
   {
-    Icon: TriangleAlert,
+    token: 'YELLOW' as const,
     word: 'Review required',
-    token: 'YELLOW',
-    meaning:
-      'Proceeds with a caveat or needs a human — Class II, manual review, or certification still awaiting its auditor.',
-    dot: 'text-[#8a6100]',
-    chip: 'bg-status-yellow text-ink',
+    meaning: 'Proceeds with a caveat, or needs a human. Class-II, manual review, certificate pending.',
   },
   {
-    Icon: CircleX,
+    token: 'RED' as const,
     word: 'Blocked',
-    token: 'RED',
-    meaning:
-      'Blocked — Non-local, an active debarment, or a failed eligibility gate. The result names the rule that caused it.',
-    dot: 'text-status-red',
-    chip: 'bg-status-red text-white',
+    meaning: 'Non-local, an active debarment, or a failed eligibility gate. The rule is named.',
   },
 ];
 
 export default function Home() {
   return (
-    <AppShell>
-      {/* ---- Hero -------------------------------------------------------------- */}
-      <section className="pt-4 pb-12 sm:pt-10">
-        <p className="text-xs font-semibold tracking-wide text-cerulea uppercase">
-          Proof of concept · Public Procurement (Preference to Make in India) Order, 2017 as
-          amended
-        </p>
+    <AppShell breadcrumb="CBC-PRAMAAN" title="Compliance verification portal">
+      <div className="space-y-4">
+        <FigureRow>
+          <Figure
+            label="Nodal ministries"
+            value={MINISTRY_COUNT}
+            note="Each with its own thresholds, Para 3A position and calculation method."
+          />
+          <Figure
+            label="Decision pathways"
+            value="12"
+            note="P1 to P12 of the Order, each implemented in a pallet and named on the result."
+          />
+          <Figure
+            label="Trigger points"
+            value="6"
+            note="Submission, evaluation, preference, certification, debarment, rule update."
+          />
+          <Figure
+            label="Validators"
+            value="3"
+            note="No verdict is returned until its block is finalized by the network."
+          />
+        </FigureRow>
 
-        <h1 className="mt-3 max-w-4xl text-3xl leading-[1.15] font-semibold tracking-tight text-balance text-ink sm:text-[2.75rem]">
-          Make in India compliance, decided on chain and provable long after the tender closes.
-        </h1>
+        <Panel>
+          <PanelHead title="Role portals" meta={<span className="text-2xs text-ink-muted">Demo mode — role selection, not sign-in</span>} />
+          <Table>
+            <THead>
+              <TR>
+                <TH className="w-52">Portal</TH>
+                <TH>Remit</TH>
+                <TH className="w-72">Signed in as</TH>
+                <TH className="w-24">
+                  <span className="sr-only">Open</span>
+                </TH>
+              </TR>
+            </THead>
+            <TBody>
+              {PERSONAS.map((persona) => (
+                <TR key={persona.id} className="hover:bg-shell">
+                  <TD>
+                    <Link
+                      href={persona.route}
+                      className="rounded-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                    >
+                      {persona.label}
+                    </Link>
+                  </TD>
+                  <TD className="text-ink-muted">{persona.remit}</TD>
+                  <TD className="text-ink-muted">{persona.actingAs}</TD>
+                  <TD className="text-right">
+                    <Link
+                      href={persona.route}
+                      aria-label={`Open the ${persona.label} portal`}
+                      className="inline-flex items-center gap-1 rounded-sm text-2xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                    >
+                      Open
+                      <ArrowRight className="size-3" aria-hidden="true" />
+                    </Link>
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+          <PanelNote>
+            Each of the six roles sees only what its role permits. Selecting a portal does not
+            authenticate anyone — this proof of concept has no sign-in.
+          </PanelNote>
+        </Panel>
 
-        <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-muted">
-          CBC-PRAMAAN turns the local content rules into something a procuring entity can act on
-          in the moment and an auditor can verify years later. Each classification, preference
-          calculation, certification and debarment is a finalized transaction on the Cerulea
-          network, carrying the rule version that was in force when it was made.
-        </p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel>
+            <PanelHead title="Network views" />
+            <Table>
+              <THead>
+                <TR>
+                  <TH className="w-32">View</TH>
+                  <TH>Contents</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {NETWORK_ROUTES.map((route) => (
+                  <TR key={route.href} className="hover:bg-shell">
+                    <TD>
+                      <Link
+                        href={route.href}
+                        className="rounded-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                      >
+                        {route.label}
+                      </Link>
+                    </TD>
+                    <TD className="text-ink-muted">{NETWORK_REMIT[route.href]}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </Panel>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link
-            href="/demo"
-            className={buttonClasses({ variant: 'primary', size: 'lg' })}
-          >
-            <PlayCircle className="size-5" aria-hidden="true" />
-            Start the guided walkthrough
-          </Link>
-          <Link
-            href="/dashboard"
-            className={buttonClasses({ variant: 'secondary', size: 'lg' })}
-          >
-            <LayoutDashboard className="size-5" aria-hidden="true" />
-            Open the dashboard
-          </Link>
+          <Panel>
+            <PanelHead title="What a result means" />
+            <Table>
+              <THead>
+                <TR>
+                  <TH className="w-20">Token</TH>
+                  <TH className="w-36">Verdict</TH>
+                  <TH>Applies when</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {LEGEND.map((entry) => (
+                  <TR key={entry.token}>
+                    <TD>
+                      <StatusToken status={entry.token} />
+                    </TD>
+                    <TD className="font-medium">{entry.word}</TD>
+                    <TD className="text-ink-muted">{entry.meaning}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+            <PanelNote>
+              A verdict is never carried by colour alone: each pairs a distinct icon, the status
+              word and the reserved colour, so it survives a washed-out projector, a colour-blind
+              reader and a screen reader equally. These three colours are used for nothing else.
+            </PanelNote>
+          </Panel>
         </div>
-
-        <dl className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-card border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-          {FACTS.map((fact) => (
-            <div key={fact.label} className="bg-surface px-5 py-5">
-              <dt className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                {fact.label}
-              </dt>
-              <dd>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-ink">
-                  {fact.figure}
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{fact.detail}</p>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      {/* ---- Role chooser ------------------------------------------------------ */}
-      <section aria-labelledby="roles-heading" className="border-t border-border py-12">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2
-              id="roles-heading"
-              className="text-xl font-semibold tracking-tight text-ink sm:text-2xl"
-            >
-              Choose a role
-            </h2>
-            <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">
-              Each of the six roles sees only what its role permits. Pick one to open its
-              console.
-            </p>
-          </div>
-          <p className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-ink-muted">
-            Demo mode — role selection, not sign-in
-          </p>
-        </div>
-
-        <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {PERSONAS.map((persona) => (
-            <li key={persona.id} className="flex">
-              <PersonaCard persona={persona} className="w-full" />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* ---- Verdict legend ---------------------------------------------------- */}
-      <section aria-labelledby="legend-heading" className="border-t border-border py-12">
-        <h2
-          id="legend-heading"
-          className="text-xl font-semibold tracking-tight text-ink sm:text-2xl"
-        >
-          What a result means
-        </h2>
-        <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">
-          Every trigger point returns one of three verdicts, with one plain sentence of reason
-          and the transaction it was recorded in. The three colours are reserved for exactly
-          this and are never used for anything else in the product.
-        </p>
-
-        <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {LEGEND.map((entry) => (
-            <li
-              key={entry.token}
-              className="rounded-card border border-border bg-surface px-5 py-4"
-            >
-              <div className="flex items-center gap-2.5">
-                <entry.Icon className={`size-5 ${entry.dot}`} aria-hidden="true" />
-                <span className={`font-semibold ${entry.dot}`}>{entry.word}</span>
-                <span
-                  className={`rounded px-1.5 py-0.5 font-mono text-[0.6875rem] font-bold tracking-widest ${entry.chip}`}
-                >
-                  {entry.token}
-                </span>
-              </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-ink-muted">{entry.meaning}</p>
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-6 max-w-3xl text-sm text-ink-muted">
-          A verdict is never carried by colour alone: each one pairs a distinct icon, the status
-          word and the reserved colour, so it survives a washed-out projector, a colour-blind
-          reader and a screen reader equally.
-        </p>
-      </section>
+      </div>
     </AppShell>
   );
 }

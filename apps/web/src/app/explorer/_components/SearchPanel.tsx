@@ -1,25 +1,30 @@
 'use client';
 
-import { CircleCheckBig, CircleDashed, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Badge,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
+  Chip,
+  DataList,
   DataRow,
-  EmptyState,
-  ErrorState,
+  Empty,
+  FactGrid,
   Field,
+  Hash,
   Input,
+  Nil,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
   Table,
   TBody,
   TD,
   TH,
   THead,
   TR,
-  TxRef,
+  cn,
 } from '@/components';
 import { eventFields, formatBlockNumber, formatClock } from './format';
 import type { ExplorerEvent, SearchResponse } from './types';
@@ -101,10 +106,10 @@ export function SearchPanel({
     [execute],
   );
 
-  // A `?tx=` in the URL is a jump target: `ComplianceResult` links straight here after a
-  // trigger point returns, so the search must run without the judge pressing anything.
-  // The effect only performs the request — no state is set synchronously here, because the
-  // searching state was already the component's initial state.
+  // A `?tx=` in the URL is a jump target: `Verdict` links straight here after a trigger
+  // point returns, so the search must run without the judge pressing anything. The effect
+  // only performs the request — no state is set synchronously here, because the searching
+  // state was already the component's initial state.
   useEffect(() => {
     if (!jumpTarget) return;
     // `execute` writes state only after awaiting the fetch, which is the pattern the rule's
@@ -115,13 +120,10 @@ export function SearchPanel({
   }, [jumpTarget, execute]);
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader
-          title="Find a decision"
-          description="Paste the transaction reference from any compliance result, or a block number, to see the block it was sealed in and the events it emitted."
-        />
-        <CardBody>
+    <div className="space-y-4">
+      <Panel>
+        <PanelHead title="Find a decision" />
+        <PanelBody>
           <form
             className="flex flex-wrap items-end gap-3"
             onSubmit={(event) => {
@@ -146,27 +148,31 @@ export function SearchPanel({
               )}
             </Field>
             <Button
+              variant="primary"
               type="submit"
               loading={state.status === 'searching'}
               loadingLabel="Searching the chain"
-              leadingIcon={<Search className="size-4" aria-hidden="true" />}
+              icon={<Search className="size-3.5" aria-hidden="true" />}
             >
               Search
             </Button>
           </form>
-        </CardBody>
-      </Card>
+        </PanelBody>
+        <PanelNote>
+          Every compliance result carries a transaction reference. Paste one here to see the block
+          it was sealed in and the events it emitted.
+        </PanelNote>
+      </Panel>
 
       {state.status === 'idle' && (
-        <EmptyState
-          icon={<Search className="size-5" aria-hidden="true" />}
+        <Empty
           title="Nothing searched yet"
-          description="Every compliance result in this console carries a transaction reference. Open the on-chain record on any verdict and follow the explorer link, or paste a reference above."
+          source="Open the on-chain record on any verdict and follow the explorer link, or paste a reference above."
         />
       )}
 
       {state.status === 'error' && (
-        <ErrorState
+        <Notice
           kind="chain-unreachable"
           title="The search could not be completed"
           detail="The explorer could not reach the node to resolve that reference. Nothing about the transaction has changed."
@@ -176,15 +182,10 @@ export function SearchPanel({
       )}
 
       {state.status === 'missing' && (
-        <EmptyState
-          icon={<Search className="size-5" aria-hidden="true" />}
+        <Empty
           title="No match in the explorer's search window"
-          description={state.message}
-          action={
-            <Button size="sm" variant="secondary" onClick={() => run(state.term)}>
-              Search again
-            </Button>
-          }
+          source={state.message}
+          action={<Button onClick={() => run(state.term)}>Search again</Button>}
         />
       )}
 
@@ -198,35 +199,26 @@ function SearchResult({ result }: { result: SearchResponse }) {
   const pramaanEvents = events.filter((event) => event.section.startsWith('pramaan'));
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader
+    <div className="space-y-4">
+      <Panel>
+        <PanelHead
           title={
             result.kind === 'transaction'
               ? 'Transaction found'
               : `Block ${formatBlockNumber(block.number)}`
           }
-          description={
-            result.kind === 'transaction'
-              ? `Included in block ${formatBlockNumber(block.number)} and ${block.finalized ? 'finalized' : 'not yet finalized'}.`
-              : 'The block, its author, and everything it emitted.'
-          }
-          actions={
+          meta={
             block.finalized ? (
-              <Badge tone="teal" icon={<CircleCheckBig className="size-3" aria-hidden="true" />}>
-                Finalized
-              </Badge>
+              <Chip tone="accent">Finalized</Chip>
             ) : (
-              <Badge tone="neutral" icon={<CircleDashed className="size-3" aria-hidden="true" />}>
-                Included, awaiting finality
-              </Badge>
+              <Chip>Included, awaiting finality</Chip>
             )
           }
         />
-        <CardBody>
-          <dl>
+        <PanelBody>
+          <DataList columns={2}>
             {result.txRef && (
-              <DataRow label="Transaction reference" value={<TxRef value={result.txRef} />} />
+              <DataRow label="Transaction reference" value={<Hash value={result.txRef} />} />
             )}
             {result.extrinsic && (
               <DataRow
@@ -236,15 +228,15 @@ function SearchResult({ result }: { result: SearchResponse }) {
               />
             )}
             <DataRow label="Block number" value={formatBlockNumber(block.number)} mono />
-            <DataRow label="Block hash" value={<TxRef value={block.hash} label="Block hash" />} />
+            <DataRow label="Block hash" value={<Hash value={block.hash} label="Block hash" />} />
             <DataRow label="Sealed at" value={formatClock(block.timestamp)} mono />
             <DataRow
               label="Authored by"
               value={
                 block.author ? (
-                  <TxRef value={block.author} label="Validator address" />
+                  <Hash value={block.author} label="Validator address" />
                 ) : (
-                  'Not recorded in the digest'
+                  <Nil label="Not recorded in the digest" />
                 )
               }
             />
@@ -253,50 +245,51 @@ function SearchResult({ result }: { result: SearchResponse }) {
               value={formatBlockNumber(result.finalizedBlock)}
               mono
             />
-          </dl>
-        </CardBody>
-      </Card>
+          </DataList>
+        </PanelBody>
+      </Panel>
 
-      <Card>
-        <CardHeader
+      <Panel>
+        <PanelHead
           title={
             result.kind === 'transaction'
               ? 'Events emitted by this transaction'
               : 'Events emitted in this block'
           }
-          description={
-            pramaanEvents.length > 0
-              ? 'The compliance events are listed first; the consensus events beneath them are what makes the record final.'
-              : 'No compliance event was emitted here — this block carried consensus traffic only.'
-          }
+          meta={<Chip>{events.length}</Chip>}
         />
         {events.length === 0 ? (
-          <CardBody>
-            <EmptyState
+          <PanelBody>
+            <Empty
               title="No events recorded against this reference"
-              description="The extrinsic was included but emitted no runtime events. That normally means it was an inherent, such as the block timestamp."
+              source="The extrinsic was included but emitted no runtime events. That normally means it was an inherent, such as the block timestamp."
             />
-          </CardBody>
+          </PanelBody>
         ) : (
-          <CardBody className="space-y-4">
+          <PanelBody className="space-y-2">
             {[...pramaanEvents, ...events.filter((event) => !event.section.startsWith('pramaan'))].map(
               (event) => (
                 <EventDetail key={event.id} event={event} />
               ),
             )}
-          </CardBody>
+          </PanelBody>
         )}
-      </Card>
+        <PanelNote>
+          {pramaanEvents.length > 0
+            ? 'The compliance events are listed first; the consensus events beneath them are what makes the record final.'
+            : 'No compliance event was emitted here — this block carried consensus traffic only.'}
+        </PanelNote>
+      </Panel>
 
       {result.kind === 'block' && block.extrinsics.length > 0 && (
-        <Card>
-          <CardHeader title="Extrinsics in this block" />
-          <Table containerClassName="rounded-b-card">
+        <Panel>
+          <PanelHead title="Extrinsics in this block" />
+          <Table>
             <THead>
               <TR>
                 <TH className="w-16">Index</TH>
                 <TH>Call</TH>
-                <TH>Transaction reference</TH>
+                <TH className="w-44">Transaction reference</TH>
               </TR>
             </THead>
             <TBody>
@@ -307,13 +300,13 @@ function SearchResult({ result }: { result: SearchResponse }) {
                     {extrinsic.section}.{extrinsic.method}
                   </TD>
                   <TD>
-                    <TxRef value={extrinsic.hash} />
+                    <Hash value={extrinsic.hash} />
                   </TD>
                 </TR>
               ))}
             </TBody>
           </Table>
-        </Card>
+        </Panel>
       )}
     </div>
   );
@@ -325,29 +318,16 @@ function EventDetail({ event }: { event: ExplorerEvent }) {
 
   return (
     <div
-      className={
-        'rounded-lg border px-4 py-3 ' +
-        (isPramaan ? 'border-cerulea/20 bg-cerulea-light/40' : 'border-border bg-surface-sunken')
-      }
+      className={cn(
+        'rounded-md border px-3 py-2.5',
+        isPramaan ? 'border-accent-line bg-accent-tint' : 'border-line bg-shell',
+      )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={isPramaan ? 'brand' : 'neutral'} size="sm">
-          {event.section}
-        </Badge>
-        <span className="font-mono text-sm font-semibold text-ink">{event.method}</span>
+        <Chip tone={isPramaan ? 'accent' : 'neutral'}>{event.section}</Chip>
+        <span className="font-mono text-2xs font-semibold text-ink">{event.method}</span>
       </div>
-      {fields.length > 0 && (
-        <dl className="mt-2.5 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          {fields.map((field) => (
-            <div key={field.label} className="min-w-0">
-              <dt className="text-xs tracking-wide text-ink-subtle uppercase">{field.label}</dt>
-              <dd className="truncate font-mono text-[0.8125rem] text-ink" title={field.value}>
-                {field.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      {fields.length > 0 && <FactGrid className="mt-2" facts={fields.map((f) => ({ ...f, mono: true }))} />}
     </div>
   );
 }

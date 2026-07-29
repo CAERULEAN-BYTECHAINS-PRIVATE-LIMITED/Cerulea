@@ -1,6 +1,5 @@
 'use client';
 
-import { Gavel } from 'lucide-react';
 import { useMemo } from 'react';
 import {
   Bar,
@@ -11,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { EmptyState } from '@/components';
+import { Empty } from '@/components';
 import { AXIS_TICK, CHROME, MARKS, STATUS_COLORS, STATUS_LABELS, TRI_STATES } from './chart-theme';
 import { ChartFrame, ChartLegend, TooltipShell } from './ChartFrame';
 import type { VerdictEntry } from './types';
@@ -105,10 +104,9 @@ export function VerdictChart({
         title="Compliance verdicts this session"
         description="Every classification the chain has returned since this console connected, split by outcome."
       >
-        <EmptyState
-          icon={<Gavel className="size-5" aria-hidden="true" />}
+        <Empty
           title="No verdicts recorded yet in this session"
-          description="This chart counts pramaanClassification events as they are finalized. Run the guided walkthrough, or submit a bid from the vendor console, and the first bar appears within a second."
+          source="This chart counts pramaanClassification events as they are finalized. Submit a bid from the vendor console and the first bar appears within a second."
         />
       </ChartFrame>
     );

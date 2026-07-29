@@ -1,9 +1,8 @@
 'use client';
 
-import { Ban } from 'lucide-react';
 import { useMemo } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { EmptyState } from '@/components';
+import { Empty } from '@/components';
 import { CATEGORICAL, CHROME, MARKS, OTHER_COLOR } from './chart-theme';
 import { ChartFrame, ChartLegend, TooltipShell } from './ChartFrame';
 import type { MinistryDebarments } from './types';
@@ -50,10 +49,9 @@ export function DebarmentChart({ byMinistry }: { byMinistry: MinistryDebarments[
         title="Active debarments by ministry"
         description="Vendors currently barred from bidding, grouped by the ministry that issued the debarment."
       >
-        <EmptyState
-          icon={<Ban className="size-5" aria-hidden="true" />}
+        <Empty
           title="No debarments recorded on this chain"
-          description="pramaanDebarment.debarments is empty, so there is nothing to break down. A debarment issued from the ministry administrator console — or by the debarment step of the guided walkthrough — appears here as soon as its block is finalized, and disappears again when the debarment is lifted or lapses."
+          source="pramaanDebarment.debarments is empty. A debarment issued from the ministry administrator console appears here as soon as its block is finalized, and disappears again when it is lifted or lapses."
         />
       </ChartFrame>
     );

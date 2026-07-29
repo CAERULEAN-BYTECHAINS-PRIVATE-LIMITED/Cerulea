@@ -29,7 +29,18 @@ import type { ErrorKind } from '@/components';
 export type TriState = 'GREEN' | 'YELLOW' | 'RED';
 export type ClassResult = 'ClassOne' | 'ClassTwo' | 'NonLocal' | 'ManualReviewRequired';
 export type BidClass = 'ClassOne' | 'ClassTwo' | 'NonLocal';
-export type CalculationMethod = 'Standard' | 'ComponentLevel' | 'WeightedModule' | 'Custom';
+export type CalculationMethod =
+  | 'Standard'
+  | 'ComponentLevel'
+  | 'WeightedModule'
+  | 'Custom'
+  /**
+   * Railways only. Unlike every other ministry, Railways publishes no positive list of
+   * items requiring Class-I content; it publishes a NEGATIVE list of exempted items, and
+   * everything not on it must be procured from Class-I suppliers, irrespective of value.
+   * See `CalculationMethod::NegativeList` in `pramaan-primitives/src/lib.rs`.
+   */
+  | 'NegativeList';
 export type Divisibility = 'Divisible' | 'NonDivisible';
 
 export const CALCULATION_METHODS: readonly CalculationMethod[] = [
@@ -37,7 +48,17 @@ export const CALCULATION_METHODS: readonly CalculationMethod[] = [
   'ComponentLevel',
   'WeightedModule',
   'Custom',
+  'NegativeList',
 ];
+
+/** How a calculation method reads to someone who has not read the pallet. */
+export const CALCULATION_METHOD_LABELS: Record<CalculationMethod, string> = {
+  Standard: 'Standard formula',
+  ComponentLevel: 'Component level',
+  WeightedModule: 'Weighted module',
+  Custom: 'Custom',
+  NegativeList: 'Negative list',
+};
 export const DIVISIBILITIES: readonly Divisibility[] = ['Divisible', 'NonDivisible'];
 
 /** Every trigger-point route returns at least this much. */
@@ -295,6 +316,41 @@ export function updateRule(body: RuleUpdateRequest) {
 // The 21 nodal ministries — scripts/seed-ministries/ministries.json
 // =====================================================================================
 
+/**
+ * How much of a ministry's row could be verified against the notification itself.
+ * Transcribed from the `confidence` column of `scripts/seed-ministries/ministries.json`.
+ */
+export type SourceConfidence =
+  /** Notification located, fetched and transcribed. */
+  | 'FULL'
+  /** Notification located; some field could not be extracted from the source. */
+  | 'PARTIAL'
+  /** Only DPIIT's master index was reachable — dates and item counts, no item table. */
+  | 'INDEX_ONLY'
+  /** The DPIIT default IS this ministry's rule. Not missing data. */
+  | 'DEFAULT_APPLIES'
+  /** The ministry runs its own policy outside the PPP-MII notification framework. */
+  | 'EXTERNAL_POLICY';
+
+/**
+ * The provenance of a ministry's rule row: which instrument it came from, when, and where
+ * it can be read. Nothing in here is invented — where a notification number was never
+ * recovered the field is `null` and the interface says so rather than filling the column.
+ */
+export interface MinistryNotification {
+  /** The notification or order number, where the research recovered one. */
+  number: string | null;
+  /** The date of the instrument in force, `DD.MM.YYYY` as the notification writes it. */
+  dated: string | null;
+  /** Items notified, per DPIIT's master index. */
+  items: number | null;
+  /** Where the instrument can be read. */
+  sourceUrl: string | null;
+  confidence: SourceConfidence;
+  /** One clause naming the caveat, where there is one. */
+  caveat?: string;
+}
+
 export interface MinistryRef {
   /** The `ministry_id` the chain knows. Never invent one. */
   id: string;
@@ -310,6 +366,14 @@ export interface MinistryRef {
   exemptionFloorPaise: string;
   divisibility: Divisibility;
   effectiveFrom: number;
+  /**
+   * The rule was transcribed from a source with a known quality caveat and has NOT been
+   * confirmed against a clean copy of the notification. This is the same flag the chain
+   * carries as `Rule::needs_reverification`; it is a provenance marker, not a switch, and
+   * a rule carrying it still applies in full.
+   */
+  needsReverification: boolean;
+  notification: MinistryNotification;
 }
 
 /** Every seeded ministry carries the DPIIT figures unless its own notification differs. */
@@ -322,7 +386,8 @@ function ministry(
   id: string,
   name: string,
   short: string,
-  overrides: Partial<Omit<MinistryRef, 'id' | 'name' | 'short'>> = {},
+  notification: MinistryNotification,
+  overrides: Partial<Omit<MinistryRef, 'id' | 'name' | 'short' | 'notification'>> = {},
 ): MinistryRef {
   return {
     id,
@@ -337,67 +402,369 @@ function ministry(
     exemptionFloorPaise: DEFAULT_EXEMPTION_FLOOR_PAISE,
     divisibility: 'Divisible',
     effectiveFrom: 0,
+    needsReverification: false,
+    notification,
     ...overrides,
   };
 }
 
+/**
+ * The 21 nodal ministries, transcribed row for row from
+ * `scripts/seed-ministries/ministries.json` — the same file `seed.ts` seeds the chain
+ * from, so what a console submits against and what the registry holds are the same
+ * parameters.
+ *
+ * This list is REFERENCE METADATA. Every screen that states a rule in force reads it from
+ * `GET /api/chain/rules`; the values here supply the human-readable names, the short
+ * forms that fit a table cell, and the notification provenance, which is not on chain.
+ */
 export const MINISTRIES: readonly MinistryRef[] = [
-  ministry('DPIIT', 'Department for Promotion of Industry and Internal Trade (default)', 'DPIIT', {
-    para3aApplicable: true,
-  }),
-  ministry('MEITY', 'Ministry of Electronics and Information Technology', 'MeitY', {
-    hsnThresholds: [{ hsnCode: '8471', classOneBps: 5_000, classTwoBps: 2_000 }],
-    para3aApplicable: true,
-    pliLinked: true,
-    calculationMethod: 'ComponentLevel',
-  }),
-  ministry('DOT', 'Department of Telecommunications', 'DoT', {
-    hsnThresholds: [{ hsnCode: '8517', classOneBps: 6_000, classTwoBps: 2_000 }],
-    para3aApplicable: true,
-    pliLinked: true,
-  }),
-  ministry('DHI', 'Department of Heavy Industries', 'DHI', {
-    para3aApplicable: true,
-    pliLinked: true,
-  }),
-  ministry('MOPNG', 'Ministry of Petroleum and Natural Gas', 'MoPNG'),
-  ministry('DCPC', 'Department of Chemicals and Petrochemicals', 'DCPC'),
-  ministry('MOHUA', 'Ministry of Housing and Urban Affairs', 'MoHUA', {
-    divisibility: 'NonDivisible',
-  }),
-  ministry('MOT', 'Ministry of Textiles', 'MoT'),
-  ministry('MOS', 'Ministry of Shipping', 'MoS'),
-  ministry('MOR', 'Ministry of Railways', 'MoR', {
-    para3aApplicable: true,
-    pliLinked: true,
-    divisibility: 'NonDivisible',
-  }),
-  ministry('MOD-DEFENCE', 'Department of Defence, Ministry of Defence', 'MoD (Defence)', {
-    para3aApplicable: true,
-    pliLinked: true,
-    divisibility: 'NonDivisible',
-  }),
-  ministry('DDP', 'Department of Defence Production', 'DDP', {
-    para3aApplicable: true,
-    pliLinked: true,
-    divisibility: 'NonDivisible',
-  }),
-  ministry('MOP', 'Ministry of Power', 'MoP', { para3aApplicable: true, pliLinked: true }),
-  ministry('MNRE', 'Ministry of New and Renewable Energy', 'MNRE'),
-  ministry('MOCA', 'Ministry of Civil Aviation', 'MoCA'),
-  ministry('MOSTEEL', 'Ministry of Steel', 'MoSteel', { para3aApplicable: true, pliLinked: true }),
-  ministry('MOM', 'Ministry of Mines', 'MoM'),
-  ministry('DOF', 'Department of Fertilizers', 'DoF'),
-  ministry('DST', 'Department of Science and Technology', 'DST'),
-  ministry('DAE', 'Department of Atomic Energy', 'DAE', { divisibility: 'NonDivisible' }),
-  ministry('DOP', 'Department of Pharmaceuticals', 'DoP', {
-    para3aApplicable: true,
-    pliLinked: true,
-  }),
+  ministry(
+    'DPIIT',
+    'Department for Promotion of Industry and Internal Trade',
+    'DPIIT',
+    {
+      number: 'P-45021/2/2017-PP(BE-II)',
+      dated: '19.07.2024',
+      items: 12,
+      sourceUrl: 'https://dpiit.gov.in/department-promotion-industry-and-internal-trade-0',
+      confidence: 'FULL',
+      caveat: 'The general order. Every other ministry inherits these figures unless it notified its own.',
+    },
+    { para3aApplicable: true },
+  ),
+  ministry(
+    'MEITY',
+    'Ministry of Electronics and Information Technology',
+    'MeitY',
+    {
+      number: 'W-43/4/2019-IPHW',
+      dated: '07.09.2020',
+      items: null,
+      sourceUrl:
+        'https://www.cmai.asia/pdf/19.3.21%20Meityh%20PPP%20apply%20on%20Mobile%20irrespective%20of%20order%20value.pdf',
+      confidence: 'PARTIAL',
+      caveat:
+        'Amended 19.10.2023. The per-product mechanism table was not fetched, so only the HSN 8471 row is seeded.',
+    },
+    {
+      hsnThresholds: [{ hsnCode: '8471', classOneBps: 5_000, classTwoBps: 2_000 }],
+      para3aApplicable: true,
+      pliLinked: true,
+      calculationMethod: 'ComponentLevel',
+    },
+  ),
+  ministry(
+    'DOT',
+    'Department of Telecommunications',
+    'DoT',
+    {
+      number: '18-10/2017-IP',
+      dated: '21.10.2024',
+      items: 36,
+      sourceUrl:
+        'https://www.dot.gov.in/static/uploads/2025/07/d9dc8635bad67a0fbb6e534a98a9eab8.pdf',
+      confidence: 'FULL',
+      caveat:
+        'The notification sets minimum local content per product, not per HSN. Each row carries the lowest figure on its code.',
+    },
+    {
+      // Eight HSN rows, transcribed from the 36-product notification.
+      hsnThresholds: [
+        { hsnCode: '85176290', classOneBps: 5_000, classTwoBps: 2_000 },
+        { hsnCode: '85176990', classOneBps: 5_000, classTwoBps: 2_000 },
+        { hsnCode: '85172990', classOneBps: 6_000, classTwoBps: 2_000 },
+        { hsnCode: '85176270', classOneBps: 6_000, classTwoBps: 2_000 },
+        { hsnCode: '85177100', classOneBps: 6_000, classTwoBps: 2_000 },
+        { hsnCode: '85256091', classOneBps: 5_000, classTwoBps: 2_000 },
+        { hsnCode: '85447090', classOneBps: 5_500, classTwoBps: 2_000 },
+        { hsnCode: '9001000', classOneBps: 5_000, classTwoBps: 2_000 },
+      ],
+      para3aApplicable: true,
+      pliLinked: true,
+    },
+  ),
+  ministry(
+    'DHI',
+    'Ministry of Heavy Industries',
+    'MHI',
+    {
+      number: null,
+      dated: '29.04.2025',
+      items: null,
+      sourceUrl:
+        'https://www.dpiit.gov.in/static/uploads/2025/07/74633e5056ad0a88a3daf0c59970a26b.pdf',
+      confidence: 'FULL',
+      caveat:
+        'One of the few ministries notifying its own numeric thresholds: 65% for automobiles, 60% for automotive components.',
+    },
+    {
+      hsnThresholds: [{ hsnCode: '*', classOneBps: 6_500, classTwoBps: 6_000 }],
+      para3aApplicable: true,
+      pliLinked: true,
+    },
+  ),
+  ministry(
+    'MOPNG',
+    'Ministry of Petroleum and Natural Gas',
+    'MoPNG',
+    {
+      number: 'O-27011/44/2015-ONG-II/FP',
+      dated: '26.04.2022',
+      items: null,
+      sourceUrl: null,
+      confidence: 'EXTERNAL_POLICY',
+      caveat:
+        'Runs its own Purchase Preference linked with Local Content policy, outside DPIIT’s list of notified ministries.',
+    },
+    { exemptionFloorPaise: '1000000000' },
+  ),
+  ministry(
+    'DCPC',
+    'Department of Chemicals and Petrochemicals',
+    'DCPC',
+    {
+      number: 'C.I.43012/52/2017-Chem-I(B)',
+      dated: '13.08.2024',
+      items: 28,
+      sourceUrl:
+        'https://www.dpiit.gov.in/static/uploads/2025/07/eeabb9b009e06d2d2bfb17bdaa9cea4c.pdf',
+      confidence: 'PARTIAL',
+      caveat: 'Six HSN codes could not be resolved under OCR. The item names and threshold are confirmed.',
+    },
+    { para3aApplicable: true, needsReverification: true },
+  ),
+  ministry(
+    'MOHUA',
+    'Ministry of Housing and Urban Affairs',
+    'MoHUA',
+    {
+      number: 'K-14011/10/2019-UT-V',
+      dated: '01.01.2021',
+      items: 64,
+      sourceUrl: 'https://www.cmai.asia/pdf/1.1.21%20Metro%20Local%20Manufacturing%20List.pdf',
+      confidence: 'FULL',
+    },
+    {
+      hsnThresholds: [{ hsnCode: '*', classOneBps: 6_000, classTwoBps: 2_000 }],
+      para3aApplicable: true,
+      divisibility: 'NonDivisible',
+    },
+  ),
+  ministry(
+    'MOT',
+    'Ministry of Textiles',
+    'MoT',
+    {
+      number: null,
+      dated: '23.10.2019',
+      items: 17,
+      sourceUrl: 'https://dpiit.gov.in/ministry-textiles',
+      confidence: 'INDEX_ONLY',
+      caveat:
+        'Two notifications and their dates are confirmed from DPIIT’s index; the numbers and the 17-item list were never recovered.',
+    },
+    { needsReverification: true },
+  ),
+  ministry(
+    'MOS',
+    'Ministry of Ports, Shipping and Waterways',
+    'MoPSW',
+    {
+      number: 'SY-13017/4/2017-SBR',
+      dated: '17.09.2021',
+      items: 6,
+      sourceUrl: 'https://shipmin.gov.in/sites/default/files/MII%20Clause%203%20notification.pdf',
+      confidence: 'FULL',
+    },
+    { para3aApplicable: true },
+  ),
+  ministry(
+    'MOR',
+    'Ministry of Railways',
+    'MoR',
+    {
+      number: '2015/RS(G)/779/5(Vol.III)',
+      dated: '12.07.2020',
+      items: null,
+      sourceUrl:
+        'https://www.cmai.asia/pdf/12.7.20%20Railway%20relaxations%20some%20wagons%20mfg.pdf',
+      confidence: 'FULL',
+      caveat:
+        'The only ministry publishing a negative list: everything not exempted must come from a Class-I supplier, at any value.',
+    },
+    {
+      para3aApplicable: true,
+      pliLinked: true,
+      calculationMethod: 'NegativeList',
+      divisibility: 'NonDivisible',
+    },
+  ),
+  ministry(
+    'MOD-DEFENCE',
+    'Department of Defence, Ministry of Defence',
+    'MoD (Defence)',
+    {
+      number: 'P-45021/2/2017-PP(BE-II)',
+      dated: '19.07.2024',
+      items: null,
+      sourceUrl: 'https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=1563772',
+      confidence: 'DEFAULT_APPLIES',
+      caveat: 'No ministry-specific notification exists. The DPIIT general order governs.',
+    },
+    { divisibility: 'NonDivisible' },
+  ),
+  ministry(
+    'DDP',
+    'Department of Defence Production',
+    'DDP',
+    {
+      number: '18(2)/19/PPO-Notification/DP(Plg-MS)',
+      dated: '25.08.2020',
+      items: 46,
+      sourceUrl:
+        'https://www.dpiit.gov.in/static/uploads/2025/07/05301814eb95c7912a20d7ca9a8a918a.pdf',
+      confidence: 'FULL',
+    },
+    { para3aApplicable: true, pliLinked: true, divisibility: 'NonDivisible' },
+  ),
+  ministry(
+    'MOP',
+    'Ministry of Power',
+    'MoP',
+    {
+      number: '11/05/2018-Coord.',
+      dated: '16.11.2021',
+      items: 210,
+      sourceUrl: 'https://dpiit.gov.in/ministry-power',
+      confidence: 'PARTIAL',
+      caveat:
+        'The 2021 revision exists but is a scanned image with no text layer; the transcribed predecessor is the 28.07.2020 order.',
+    },
+    { para3aApplicable: true, pliLinked: true },
+  ),
+  ministry(
+    'MNRE',
+    'Ministry of New and Renewable Energy',
+    'MNRE',
+    {
+      number: '283/22/2019-GRID',
+      dated: '09.02.2021',
+      items: 78,
+      sourceUrl:
+        'https://www.eqmagpro.com/wp-content/uploads/2021/02/file_f-1612877902917.pdf',
+      confidence: 'FULL',
+    },
+    { para3aApplicable: true },
+  ),
+  ministry(
+    'MOCA',
+    'Ministry of Civil Aviation',
+    'MoCA',
+    {
+      number: 'AV-29013/12/2018-AAI-MOCA',
+      dated: '26.05.2020',
+      items: 41,
+      sourceUrl: 'https://civilaviation.gov.in/sites/default/files/Notification%20_001.pdf',
+      confidence: 'PARTIAL',
+      caveat:
+        'The item table is heavily OCR-degraded and partly mirror-reversed. The number, date and rule structure are confirmed.',
+    },
+    { para3aApplicable: true, needsReverification: true },
+  ),
+  ministry(
+    'MOSTEEL',
+    'Ministry of Steel',
+    'MoSteel',
+    {
+      number: 'G.S.R. 451(E)',
+      dated: '25.07.2025',
+      items: null,
+      sourceUrl: 'https://steel.gov.in/policy-providing-preference-domestically',
+      confidence: 'PARTIAL',
+      caveat:
+        'DPIIT’s index still cites the 31.12.2020 version; the policy was revised 26.05.2025 and amended 25.07.2025.',
+    },
+    { para3aApplicable: true, pliLinked: true },
+  ),
+  ministry(
+    'MOM',
+    'Ministry of Mines',
+    'MoM',
+    {
+      number: null,
+      dated: '06.12.2021',
+      items: 1,
+      sourceUrl: 'https://dpiit.gov.in/ministry-mines',
+      confidence: 'FULL',
+      caveat: 'Reaches one product, Aluminium Metal. The DPIIT default is the complete rule for everything else.',
+    },
+  ),
+  ministry(
+    'DOF',
+    'Department of Fertilizers',
+    'DoF',
+    {
+      number: null,
+      dated: '20.08.2020',
+      items: 1,
+      sourceUrl: 'https://dpiit.gov.in/department-fertilizers',
+      confidence: 'FULL',
+      caveat: 'Reaches one product, Single Super Phosphate.',
+    },
+  ),
+  ministry(
+    'DST',
+    'Department of Science and Technology',
+    'DST',
+    {
+      number: 'Misc.1/03/2021-CDN',
+      dated: '29.11.2022',
+      items: 26,
+      sourceUrl:
+        'https://www.dpiit.gov.in/static/uploads/2025/07/2172ce6992b0054d722411621e774ab1.pdf',
+      confidence: 'FULL',
+    },
+    { para3aApplicable: true },
+  ),
+  ministry(
+    'DAE',
+    'Department of Atomic Energy',
+    'DAE',
+    {
+      number: 'P-45021/2/2017-PP(BE-II)',
+      dated: '19.07.2024',
+      items: null,
+      sourceUrl: null,
+      confidence: 'DEFAULT_APPLIES',
+      caveat: 'No PPP-MII notification exists for this department. The DPIIT general order governs.',
+    },
+    { divisibility: 'NonDivisible' },
+  ),
+  ministry(
+    'DOP',
+    'Department of Pharmaceuticals',
+    'DoP',
+    {
+      number: null,
+      dated: '25.03.2021',
+      items: 154,
+      sourceUrl: 'https://dpiit.gov.in/department-pharmaceuticals',
+      confidence: 'PARTIAL',
+      caveat:
+        'Two notifications, 135 items plus 19. The device names were not transcribed; every numeric parameter is the DPIIT default.',
+    },
+    { para3aApplicable: true, pliLinked: true },
+  ),
 ];
 
 /** 21 — the figure the DPIIT console reports as "ministries onboarded". */
 export const MINISTRY_COUNT = MINISTRIES.length;
+
+/** The three ministries whose rows carry a known, specific transcription caveat. */
+export const MINISTRIES_NEEDING_REVERIFICATION: readonly MinistryRef[] = MINISTRIES.filter(
+  (row) => row.needsReverification,
+);
 
 const MINISTRY_BY_ID = new Map(MINISTRIES.map((row) => [row.id, row]));
 

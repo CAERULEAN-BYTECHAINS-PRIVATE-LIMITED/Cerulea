@@ -17,9 +17,9 @@ export default function AuditorPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow={`Certification console · ${PERSONA.actingAs}`}
+      breadcrumb="Role portals"
       title="Local content certification"
-      subtitle="Below ₹10 crore a vendor self-certifies. At or above it a cost or chartered accountant's certificate is mandatory — and every certificate stays bound to the account that signed it, which is what makes the accountability ledger below possible."
+      actingAs={PERSONA.actingAs}
     >
       <AuditorConsole />
     </AppShell>

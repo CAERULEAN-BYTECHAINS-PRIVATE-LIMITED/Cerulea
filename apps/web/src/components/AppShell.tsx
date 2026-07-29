@@ -1,121 +1,132 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ChainStatus } from './ChainStatus';
-import { MainNav } from './MainNav';
-import { PersonaSwitcher } from './PersonaSwitcher';
+import { SiteNav } from './SiteNav';
 import { cn } from './ui/cn';
 import { Wordmark } from './Wordmark';
 
 /**
- * The frame every console sits in.
+ * The one frame every route sits in. There are no variants and no per-page chrome.
  *
- * A Server Component on purpose — only the three genuinely interactive pieces (nav
- * highlighting, the role switcher, the connection poller) cross the client boundary, so a
- * persona page's own server-rendered content streams without waiting on them.
+ * Four bands, top to bottom:
+ *
+ *   1. MASTHEAD — dark, 40px. Identity on the left, network state on the right. This is
+ *      the only large dark area in the product and it is what makes the page read as a
+ *      government portal rather than an application dashboard.
+ *   2. NAVIGATION — white, 40px. Every destination, always visible.
+ *   3. PAGE HEAD — white. Breadcrumb, title, and the identity this console is acting as.
+ *      One line of `note` is permitted and is usually not used.
+ *   4. CONTENT — on the shell tint, so every panel inside reads as a sheet on a desk.
+ *
+ * A Server Component: only the three genuinely interactive pieces (nav highlighting, the
+ * connection poller) cross the client boundary, so a page's own content streams without
+ * waiting on them.
  */
 export function AppShell({
+  breadcrumb,
   title,
-  subtitle,
-  eyebrow,
+  actingAs,
+  note,
   actions,
   children,
   width = 'default',
 }: {
-  title?: ReactNode;
-  subtitle?: ReactNode;
-  /** Small label above the title, e.g. the persona's institution. */
-  eyebrow?: ReactNode;
+  /** Where this page sits. Two levels at most: "Role portals", "Network". */
+  breadcrumb?: string;
+  title: string;
+  /** The organisation the console is signed in as. Right-aligned beside the title. */
+  actingAs?: string;
+  /** One clause, only where the title alone would mislead. Not a description. */
+  note?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
-  /** `wide` for tables and the explorer; `default` for forms and detail views. */
+  /** `wide` for tables and the explorer; `default` for forms and record views. */
   width?: 'default' | 'wide';
 }) {
   const container = cn(
-    'mx-auto w-full px-4 sm:px-6 lg:px-8',
-    width === 'wide' ? 'max-w-[1600px]' : 'max-w-7xl',
+    'mx-auto w-full px-4 lg:px-6',
+    width === 'wide' ? 'max-w-[1680px]' : 'max-w-[1280px]',
   );
 
   return (
     <div className="flex min-h-screen flex-col">
       <a
         href="#main"
-        className="sr-only rounded-md bg-cerulea px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"
+        className="sr-only rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-40"
       >
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur-sm">
-        <div className={cn(container, 'flex h-16 items-center justify-between gap-4')}>
-          <div className="flex min-w-0 items-center gap-6">
+      {/* 1 — Masthead */}
+      <div className="bg-masthead">
+        <div className={cn(container, 'flex h-10 items-center justify-between gap-4')}>
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/"
-              className="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea"
+              className="rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               <Wordmark />
             </Link>
-            <MainNav className="hidden md:flex" />
+            <span aria-hidden="true" className="hidden h-4 w-px bg-white/20 sm:block" />
+            <p className="hidden truncate text-2xs text-white/60 sm:block">
+              Make in India compliance verification · Proof of concept
+            </p>
           </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <ChainStatus className="hidden lg:inline-flex" />
-            <PersonaSwitcher />
-          </div>
+          <ChainStatus className="shrink-0" />
         </div>
+      </div>
 
-        {/* Below `lg` the brand row runs out of room, so the connection indicator moves to
-            a second row — and below `md` the nav joins it rather than collapsing into a
-            hamburger, since three destinations do not warrant hiding them behind a tap. */}
-        <div className={cn(container, 'flex items-center gap-4 pb-2 lg:hidden')}>
-          <MainNav className="md:hidden" />
-          <ChainStatus className="ml-auto" />
+      {/* 2 — Navigation */}
+      <div className="sticky top-0 z-20 border-b border-line bg-paper">
+        <div className={cn(container, 'flex h-10 items-stretch')}>
+          <SiteNav />
+        </div>
+      </div>
+
+      {/* 3 — Page head */}
+      <header className="border-b border-line bg-paper">
+        <div className={cn(container, 'flex flex-wrap items-end justify-between gap-x-6 gap-y-2 py-3')}>
+          <div className="min-w-0">
+            {breadcrumb && (
+              <p className="text-2xs font-medium tracking-wide text-ink-muted uppercase">
+                {breadcrumb}
+              </p>
+            )}
+            <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-ink">{title}</h1>
+            {note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{note}</p>}
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+            {actingAs && (
+              <p className="text-2xs text-ink-muted">
+                <span className="tracking-wide uppercase">Acting as</span>{' '}
+                <span className="font-medium text-ink">{actingAs}</span>
+              </p>
+            )}
+            {actions}
+          </div>
         </div>
       </header>
 
-      {(title || eyebrow || actions) && (
-        <div className="border-b border-border bg-surface">
-          <div className={cn(container, 'flex flex-wrap items-end justify-between gap-4 py-6')}>
-            <div className="min-w-0">
-              {eyebrow && (
-                <p className="text-xs font-semibold tracking-wide text-cerulea uppercase">
-                  {eyebrow}
-                </p>
-              )}
-              {title && (
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">{title}</h1>
-              )}
-              {subtitle && <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">{subtitle}</p>}
-            </div>
-            {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
-          </div>
-        </div>
-      )}
-
-      <main id="main" className="flex-1 py-8">
+      {/* 4 — Content */}
+      <main id="main" className="flex-1 py-5">
         <div className={container}>{children}</div>
       </main>
 
-      <SiteFooter className={container} />
+      <footer className="border-t border-line bg-paper">
+        <div
+          className={cn(
+            container,
+            'flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-3 text-2xs text-ink-muted',
+          )}
+        >
+          <p>
+            Public Procurement (Preference to Make in India) Order, 2017 —
+            P-45021/2/2017-PP(BE-II), as amended 19.07.2024.
+          </p>
+          <p className="font-mono">Cerulea · three-validator DCF network</p>
+        </div>
+      </footer>
     </div>
-  );
-}
-
-export function SiteFooter({ className }: { className?: string }) {
-  return (
-    <footer className="border-t border-border bg-surface">
-      <div
-        className={cn(
-          className,
-          'flex flex-wrap items-center justify-between gap-x-8 gap-y-2 py-6 text-xs text-ink-muted',
-        )}
-      >
-        <p>
-          CBC-PRAMAAN — proof-of-concept compliance infrastructure for the Public Procurement
-          (Preference to Make in India) Order.
-        </p>
-        <p className="font-mono">
-          Cerulea Chain · three-validator DCF network · decisions returned only after finality
-        </p>
-      </div>
-    </footer>
   );
 }

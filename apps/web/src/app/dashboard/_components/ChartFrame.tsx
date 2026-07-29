@@ -1,7 +1,18 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import { Card, CardBody, CardHeader, Table, TBody, TD, TH, THead, TR } from '@/components';
+import {
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from '@/components';
 import { CHROME } from './chart-theme';
 
 /**
@@ -35,30 +46,29 @@ export function ChartFrame({
   const tableId = useId();
 
   return (
-    <Card>
-      <CardHeader title={title} description={description} actions={actions} />
-      <CardBody className="space-y-4">
+    <Panel>
+      <PanelHead title={title} meta={actions} />
+      <PanelBody className="space-y-3">
         {legend}
         {children}
-        {footnote && <p className="text-xs leading-relaxed text-ink-muted">{footnote}</p>}
         {table && (
-          <div className="border-t border-border pt-3">
+          <div className="border-t border-line pt-2.5">
             <button
               type="button"
               onClick={() => setShowTable((value) => !value)}
               aria-expanded={showTable}
               aria-controls={tableId}
-              className="rounded text-sm font-medium text-cerulea transition-colors duration-150 hover:text-cerulea-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea"
+              className="rounded-sm text-2xs font-semibold tracking-wide text-accent uppercase transition-colors duration-150 hover:text-accent-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
               {showTable ? 'Hide the numbers' : 'Show the numbers'}
             </button>
             {showTable && (
-              <div id={tableId} className="mt-3">
+              <div id={tableId} className="mt-2">
                 <Table>
                   <THead>
                     <TR>
                       {table.columns.map((column, index) => (
-                        <TH key={column} className={index === 0 ? undefined : 'text-right'}>
+                        <TH key={column} numeric={index !== 0}>
                           {column}
                         </TH>
                       ))}
@@ -68,11 +78,7 @@ export function ChartFrame({
                     {table.rows.map((row) => (
                       <TR key={String(row[0])}>
                         {row.map((cell, index) => (
-                          <TD
-                            key={index}
-                            className={index === 0 ? undefined : 'text-right tabular-nums'}
-                            mono={index !== 0}
-                          >
+                          <TD key={index} numeric={index !== 0}>
                             {cell}
                           </TD>
                         ))}
@@ -84,8 +90,9 @@ export function ChartFrame({
             )}
           </div>
         )}
-      </CardBody>
-    </Card>
+      </PanelBody>
+      <PanelNote>{footnote ?? description}</PanelNote>
+    </Panel>
   );
 }
 
@@ -96,17 +103,17 @@ export function ChartLegend({
   items: { color: string; label: string; value?: string }[];
 }) {
   return (
-    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
       {items.map((item) => (
-        <li key={item.label} className="flex items-center gap-2 text-sm text-ink-muted">
+        <li key={item.label} className="flex items-center gap-1.5 text-2xs text-ink-muted">
           <span
             aria-hidden="true"
-            className="size-2.5 shrink-0 rounded-[2px]"
+            className="size-2 shrink-0 rounded-[2px]"
             style={{ backgroundColor: item.color }}
           />
           <span>{item.label}</span>
           {item.value !== undefined && (
-            <span className="font-mono text-[0.8125rem] text-ink tabular-nums">{item.value}</span>
+            <span className="font-mono text-2xs text-ink tabular-nums">{item.value}</span>
           )}
         </li>
       ))}
@@ -124,13 +131,13 @@ export function TooltipShell({
 }) {
   return (
     <div
-      className="rounded-lg border border-border px-3 py-2 shadow-[0_2px_8px_rgba(26,26,26,0.10)]"
+      className="rounded-md border border-line-strong px-2.5 py-1.5 shadow-pop"
       style={{ backgroundColor: CHROME.surface }}
     >
-      <p className="text-xs font-semibold text-ink">{title}</p>
-      <ul className="mt-1.5 space-y-1">
+      <p className="text-2xs font-semibold text-ink">{title}</p>
+      <ul className="mt-1 space-y-0.5">
         {rows.map((row) => (
-          <li key={row.label} className="flex items-center gap-2 text-xs text-ink-muted">
+          <li key={row.label} className="flex items-center gap-2 text-2xs text-ink-muted">
             {row.color && (
               <span
                 aria-hidden="true"

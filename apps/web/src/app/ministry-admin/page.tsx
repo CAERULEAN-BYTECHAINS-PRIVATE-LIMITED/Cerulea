@@ -20,9 +20,9 @@ export default function MinistryAdminPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow={`Nodal ministry console · ${PERSONA.actingAs}`}
+      breadcrumb="Role portals"
       title="Rule set and debarment"
-      subtitle="Adding a ministry or amending a threshold is a configuration change, not an engineering one: the amended rule is a storage write carrying a version number and an effective block, and every bid evaluated after that block is judged against it without anything being redeployed."
+      actingAs={PERSONA.actingAs}
     >
       <MinistryAdminConsole defaultMinistryId={DEFAULT_MINISTRY_ID} />
     </AppShell>

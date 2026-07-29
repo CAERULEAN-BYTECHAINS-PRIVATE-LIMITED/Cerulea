@@ -1,33 +1,37 @@
 'use client';
 
-import { FileCheck2, FileSignature, Scale, TriangleAlert } from 'lucide-react';
+import { FileSignature } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Badge,
+  Awaiting,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  ComplianceResult,
+  Check,
+  Chip,
+  DataList,
   DataRow,
   Dialog,
-  EmptyState,
-  ErrorState,
+  Empty,
   Field,
-  FinalityPending,
+  Figure,
+  FigureRow,
+  Hash,
   Input,
-  PathwayBadge,
+  Nil,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  PathwayChip,
   Select,
-  Stat,
   Table,
   TBody,
-  TCaption,
   TD,
   TH,
   THead,
   TR,
   Tooltip,
-  TxRef,
+  Verdict,
 } from '@/components';
 import {
   MINISTRIES,
@@ -60,6 +64,24 @@ import { formatPaise, paiseToRupees, rupeesToPaise } from '@/lib/units';
  */
 
 const AUDITOR_ACCOUNT = 'auditor';
+
+const OBLIGATION_RULE = [
+  {
+    band: 'Below ₹10 crore',
+    obligation: 'Vendor may self-certify',
+    effect: 'The declaration is recorded on chain in the vendor’s own name and the contract proceeds.',
+  },
+  {
+    band: 'At or above ₹10 crore',
+    obligation: 'Accountant’s certificate mandatory',
+    effect: 'The runtime refuses a certification submitted without one.',
+  },
+  {
+    band: 'When it falls due',
+    obligation: 'At execution, not at bidding',
+    effect: 'An above-threshold contract with no certificate yet is a pending obligation — review required, never a violation.',
+  },
+];
 
 interface QueueRow {
   tender: TenderRef;
@@ -120,107 +142,102 @@ export function AuditorConsole() {
   const mandatoryCount = queue.filter((row) => row.mandatory).length;
 
   return (
-    <div className="space-y-8">
-      {/* ---- The threshold rule, stated plainly ------------------------------- */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
+    <div className="space-y-4">
+      <FigureRow>
+        <Figure
           label="Certification threshold"
-          value="₹10 crore"
-          hint="DPIIT default; each ministry may notify its own."
-          icon={<Scale className="size-3.5" aria-hidden="true" />}
+          value="₹10 cr"
+          note="DPIIT default; each ministry may notify its own."
         />
-        <Stat
+        <Figure
           label="Awaiting a statutory certificate"
-          value={String(mandatoryCount)}
-          hint="Contracts at or above their ministry's threshold."
+          value={mandatoryCount}
+          note="Contracts at or above their ministry's threshold."
         />
-        <Stat
+        <Figure
           label="Certificates signed here"
-          value={String(certificates.length)}
-          hint="Every one bound to this auditor's account on chain."
+          value={certificates.length}
+          note="Every one bound to this auditor's account on chain."
         />
-        <Stat
+        <Figure
           label="Certificates now flagged"
-          value={String(flaggedCount)}
-          hint="A certified vendor later contradicted or debarred."
+          value={flaggedCount}
+          note="A certified vendor later contradicted or debarred."
         />
-      </section>
+      </FigureRow>
 
-      <Card>
-        <CardHeader
+      <Panel>
+        <PanelHead
           title="When an accountant's certificate is mandatory"
-          actions={<PathwayBadge pathway="P11" />}
+          meta={<PathwayChip pathway="P11" />}
         />
-        <CardBody className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div>
-            <p className="text-sm font-semibold text-ink">Below ₹10 crore</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-              The vendor self-certifies its local content. The declaration is recorded on chain
-              in the vendor&apos;s own name and is enough for the contract to proceed.
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink">At or above ₹10 crore</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-              A cost or chartered accountant&apos;s certificate is mandatory. The runtime refuses a
-              certification submitted without one.
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink">When it falls due</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-              The 19.07.2024 amendment places the obligation at execution, not at bidding — so an
-              above-threshold contract with no certificate yet is a pending obligation, shown as
-              review required, never as a violation.
-            </p>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* ---- The queue --------------------------------------------------------- */}
-      <Card>
-        <CardHeader
-          title="Certifications pending"
-          description="Contracts in this accountant's book of work, ranked with the statutory ones first."
-        />
-        <Table containerClassName="rounded-b-card">
+        <Table>
           <THead>
             <TR>
-              <TH>Contract</TH>
+              <TH className="w-48">Contract value</TH>
+              <TH className="w-64">Obligation</TH>
+              <TH>Effect</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {OBLIGATION_RULE.map((rule) => (
+              <TR key={rule.band}>
+                <TD className="font-medium text-ink">{rule.band}</TD>
+                <TD>{rule.obligation}</TD>
+                <TD className="text-ink-muted">{rule.effect}</TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+        <PanelNote>
+          The 19.07.2024 amendment places the certification obligation at execution rather than
+          at bidding.
+        </PanelNote>
+      </Panel>
+
+      {/* ---- The queue --------------------------------------------------------- */}
+      <Panel>
+        <PanelHead title="Certifications pending" meta={<Chip>{queue.length} contracts</Chip>} />
+        <Table>
+          <THead>
+            <TR>
+              <TH className="w-52">Contract</TH>
               <TH>Supplier</TH>
-              <TH>Nodal ministry</TH>
-              <TH className="text-right">Contract value</TH>
-              <TH className="text-right">Threshold</TH>
-              <TH>Obligation</TH>
-              <TH><span className="sr-only">Certify</span></TH>
+              <TH className="w-40">Nodal ministry</TH>
+              <TH numeric className="w-36">Contract value</TH>
+              <TH numeric className="w-32">Threshold</TH>
+              <TH className="w-56">Obligation</TH>
+              <TH className="w-24">
+                <span className="sr-only">Certify</span>
+              </TH>
             </TR>
           </THead>
           <TBody>
             {queue.map((row) => (
-              <TR key={row.tender.id} className="hover:bg-surface-sunken">
+              <TR key={row.tender.id} className="hover:bg-shell">
                 <TD>
-                  <span className="font-mono text-[0.8125rem] text-ink">{row.tender.id}</span>
-                  <span className="mt-0.5 block text-xs text-ink-muted">
+                  <span className="font-mono text-2xs text-ink">{row.tender.id}</span>
+                  <span className="mt-0.5 block text-2xs text-ink-muted">
                     {row.tender.itemCategory}
                   </span>
                 </TD>
                 <TD>{vendorName(row.vendor)}</TD>
                 <TD>{ministryShort(row.tender.ministryId)}</TD>
-                <TD className="text-right tabular-nums">{formatPaise(row.tender.valuePaise)}</TD>
-                <TD className="text-right tabular-nums">{formatPaise(row.thresholdPaise)}</TD>
+                <TD numeric>{formatPaise(row.tender.valuePaise)}</TD>
+                <TD numeric>{formatPaise(row.thresholdPaise)}</TD>
                 <TD>
                   {row.mandatory ? (
-                    <Badge tone="yellow">Auditor certificate mandatory</Badge>
+                    <Chip tone="yellow">Auditor certificate mandatory</Chip>
                   ) : (
-                    <Badge tone="neutral">Vendor may self-certify</Badge>
+                    <Chip>Vendor may self-certify</Chip>
                   )}
                 </TD>
                 <TD className="text-right">
                   <Button
-                    size="sm"
-                    variant={row.mandatory ? 'primary' : 'secondary'}
+                    size="xs"
+                    variant={row.mandatory ? 'primary' : 'default'}
                     onClick={() => setActive(row)}
-                    leadingIcon={<FileSignature className="size-4" aria-hidden="true" />}
+                    icon={<FileSignature className="size-3.5" aria-hidden="true" />}
                   >
                     Certify
                   </Button>
@@ -228,37 +245,36 @@ export function AuditorConsole() {
               </TR>
             ))}
           </TBody>
-          <TCaption>
-            The obligation column is read from each ministry&apos;s own certification threshold in
-            the rule registry, not from a fixed figure in this page.
-          </TCaption>
         </Table>
-      </Card>
+        <PanelNote>
+          The obligation column is read from each ministry&apos;s own certification threshold in the
+          rule registry, not from a fixed figure in this page.
+        </PanelNote>
+      </Panel>
 
       {/* ---- Accountability ledger --------------------------------------------- */}
-      <Card>
-        <CardHeader
-          title="Auditor Accountability Ledger"
-          description="Every certificate this auditor has signed, with the transaction it was recorded in. A flag appears when a certified vendor is later contradicted or debarred."
+      <Panel>
+        <PanelHead
+          title="Auditor accountability ledger"
+          meta={<Chip>{certificates.length} certificates</Chip>}
         />
         {certificates.length === 0 ? (
-          <CardBody>
-            <EmptyState
-              icon={<FileCheck2 className="size-5" aria-hidden="true" />}
+          <PanelBody>
+            <Empty
               title="No certificates signed from this console yet"
-              description="Issue a certificate from the queue above. Each one is bound to this auditor's account on chain and appears here with its transaction reference and finalized block."
+              source="Issue one from the queue above. Each is bound to this auditor's account on chain and appears here with its transaction reference."
             />
-          </CardBody>
+          </PanelBody>
         ) : (
           <Table>
             <THead>
               <TR>
-                <TH>Certificate</TH>
+                <TH className="w-56">Certificate</TH>
                 <TH>Supplier</TH>
-                <TH>Contract</TH>
-                <TH>Verdict</TH>
-                <TH>Flag</TH>
-                <TH>Record</TH>
+                <TH className="w-52">Contract</TH>
+                <TH className="w-44">Verdict</TH>
+                <TH className="w-48">Flag</TH>
+                <TH className="w-40">Record</TH>
               </TR>
             </THead>
             <TBody>
@@ -267,53 +283,50 @@ export function AuditorConsole() {
                 const debarred = Boolean(entry.vendor && debarredVendors.has(entry.vendor));
                 return (
                   <TR key={entry.id}>
-                    <TD mono>{entry.facts?.['Certificate id'] ?? '—'}</TD>
-                    <TD>{entry.vendor ? vendorName(entry.vendor) : '—'}</TD>
+                    <TD mono>{entry.facts?.['Certificate id'] ?? <Nil />}</TD>
+                    <TD>{entry.vendor ? vendorName(entry.vendor) : <Nil />}</TD>
                     <TD>
-                      <span className="font-mono text-[0.8125rem]">{entry.tender ?? '—'}</span>
-                      <span className="mt-0.5 block text-xs text-ink-muted">
+                      <span className="font-mono text-2xs">{entry.tender ?? '—'}</span>
+                      <span className="mt-0.5 block text-2xs text-ink-muted">
                         {entry.facts?.['Certified value'] ?? ''}
                       </span>
                     </TD>
                     <TD>
                       <Tooltip content={entry.reason}>
-                        <span tabIndex={0} className="inline-flex rounded-full">
-                          <Badge tone={entry.result === 'GREEN' ? 'green' : 'yellow'}>
+                        <span tabIndex={0} className="inline-flex rounded-sm">
+                          <Chip tone={entry.result === 'GREEN' ? 'green' : 'yellow'}>
                             {entry.result === 'GREEN' ? 'Certified' : 'Awaiting certificate'}
-                          </Badge>
+                          </Chip>
                         </span>
                       </Tooltip>
                     </TD>
                     <TD>
-                      {contradicted || debarred ? (
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-status-red">
-                          <TriangleAlert className="size-4" aria-hidden="true" />
-                          {debarred ? 'Vendor debarred' : 'Declaration contradicted'}
-                        </span>
+                      {debarred ? (
+                        <Chip tone="red">Vendor debarred</Chip>
+                      ) : contradicted ? (
+                        <Chip tone="yellow">Declaration contradicted</Chip>
                       ) : (
-                        <span className="text-sm text-ink-muted">None recorded</span>
+                        <Nil label="None recorded" />
                       )}
                     </TD>
                     <TD>
                       {entry.txRef ? (
-                        <TxRef value={entry.txRef} head={8} tail={6} />
+                        <Hash value={entry.txRef} />
                       ) : (
-                        <span className="text-xs text-ink-muted">
-                          No transaction — obligation pending
-                        </span>
+                        <span className="text-2xs text-ink-muted">Obligation pending</span>
                       )}
                     </TD>
                   </TR>
                 );
               })}
             </TBody>
-            <TCaption>
-              Rows are written from trigger-point responses this console received. The chain, read
-              through the explorer, is the audit source.
-            </TCaption>
           </Table>
         )}
-      </Card>
+        <PanelNote>
+          Rows are written from trigger-point responses this console received. The chain, read
+          through the explorer, is the audit source.
+        </PanelNote>
+      </Panel>
 
       {active && (
         <CertifyDialog
@@ -422,36 +435,35 @@ function CertifyDialog({
       onClose={onClose}
       size="lg"
       title="Issue a local content certificate"
-      description={`${row.tender.id} — ${row.tender.itemCategory}`}
+      subtitle={`${row.tender.id} — ${row.tender.itemCategory}`}
       footer={
-        <div className="flex w-full flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-ink-muted">
+        <>
+          <p className="text-2xs text-ink-muted">
             {aboveThreshold
               ? "At or above this ministry's threshold, an accountant's certificate is mandatory."
               : 'Below the threshold, the vendor may self-certify.'}
           </p>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={onClose}>
-              {verdict ? 'Close' : 'Cancel'}
-            </Button>
+            <Button onClick={onClose}>{verdict ? 'Close' : 'Cancel'}</Button>
             <Button
+              variant="primary"
               onClick={submit}
               loading={pending}
               loadingLabel="Recording the certificate"
               disabled={valuePaise === null}
-              leadingIcon={<FileSignature className="size-4" aria-hidden="true" />}
+              icon={<FileSignature className="size-3.5" aria-hidden="true" />}
             >
               {verdict ? 'Issue another' : 'Issue certificate'}
             </Button>
           </div>
-        </div>
+        </>
       }
     >
-      <div className="space-y-5">
-        {pending && <FinalityPending label="Recording the certificate" showSteps={false} />}
+      <div className="space-y-4">
+        {pending && <Awaiting label="Recording the certificate" steps={false} />}
 
         {failure && (
-          <ErrorState
+          <Notice
             kind={failure.kind}
             detail={failure.message}
             technicalDetail={failure.technicalDetail}
@@ -460,10 +472,10 @@ function CertifyDialog({
         )}
 
         {verdict && (
-          <ComplianceResult
+          <Verdict
             status={verdict.result}
             reason={verdict.reason}
-            trigger={`Certification — ${certificateId}`}
+            trigger={`Certification · ${certificateId}`}
             txRef={verdict.txRef ?? undefined}
             blockNumber={verdict.blockNumber ?? undefined}
             latencyMs={verdict.latencyMs}
@@ -528,28 +540,19 @@ function CertifyDialog({
               )}
             </Field>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface-sunken px-4 py-3">
-              <input
-                type="checkbox"
-                checked={signAsAuditor}
-                onChange={(event) => setSignAsAuditor(event.target.checked)}
-                className="mt-0.5 size-4 accent-cerulea"
-              />
-              <span className="text-sm text-ink">
-                Sign as the statutory auditor
-                <span className="mt-0.5 block text-xs text-ink-muted">
-                  Unticked, this is submitted as the vendor&apos;s own self-certification. Above the
-                  threshold that leaves the obligation pending rather than satisfied.
-                </span>
-              </span>
-            </label>
+            <Check
+              checked={signAsAuditor}
+              onChange={setSignAsAuditor}
+              label="Sign as the statutory auditor"
+              hint="Unticked, this is submitted as the vendor's own self-certification — above the threshold that leaves the obligation pending rather than satisfied."
+            />
 
-            <dl className="rounded-lg border border-border px-4">
+            <DataList>
               <DataRow label="Certificate id" value={certificateId} mono />
               <DataRow label="Contract" value={row.tender.id} mono />
               <DataRow label="Item category" value={row.tender.itemCategory} />
               <DataRow label="Signing accountant" value="S. Raghavan & Associates, Cost Accountants" />
-            </dl>
+            </DataList>
           </>
         )}
       </div>
