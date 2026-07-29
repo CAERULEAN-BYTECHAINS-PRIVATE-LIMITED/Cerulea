@@ -1,18 +1,28 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { IBM_Plex_Mono, Inter } from 'next/font/google';
 import './globals.css';
 
 /**
- * Inter is self-hosted by `next/font` rather than linked from a CDN.
+ * Both faces are self-hosted by `next/font` rather than linked from a CDN. The demo may
+ * be given on a lectern machine with no reliable network, and a font that fails to load
+ * would take the typographic hierarchy with it.
  *
- * The demo may be given on a lectern machine with no reliable network, and a font that
- * fails to load would take the typographic hierarchy with it. Binding it to `--font-sans`
- * means the token declared in `globals.css` resolves to the real Inter without that file
- * needing to change.
+ * Two families on a contrast axis, not two lookalike sans faces: Inter carries every
+ * label, heading and control, and IBM Plex Mono carries the machine-readable half of the
+ * record — hashes, block numbers, ministry ids, HSN codes, figures in a column. A judge
+ * should be able to tell at a glance which values are transcribed identifiers and which
+ * are prose, without reading either.
  */
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
   display: 'swap',
 });
 
@@ -29,7 +39,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#004aad',
+  themeColor: '#0d1521',
   width: 'device-width',
   initialScale: 1,
 };
@@ -40,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${plexMono.variable}`}>
       <body>{children}</body>
     </html>
   );
