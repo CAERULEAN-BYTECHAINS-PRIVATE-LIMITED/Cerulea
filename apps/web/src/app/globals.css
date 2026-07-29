@@ -22,6 +22,17 @@
   --color-status-red: #d93025;
   --color-status-red-bg: #fce9e7;
 
+  /**
+   * Form validation — deliberately NOT one of the three reserved colours above.
+   *
+   * A mistyped bid number is a typo, not a compliance verdict, and #D93025 in this
+   * application legally means "blocked under the PPP-MII Order". This deep plum is the
+   * tone every invalid control and every field-level error message uses instead: clearly
+   * an error at a glance, unmistakably not a status. Contrast on --color-surface is
+   * 9.4:1, so it also carries at projector distance.
+   */
+  --color-form-error: #6e2639;
+
   /* Ink */
   --color-ink: #1a1a1a;
   --color-ink-muted: #5f6368;

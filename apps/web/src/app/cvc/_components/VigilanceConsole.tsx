@@ -51,10 +51,29 @@ import { AnomalyPanel } from './AnomalyPanel';
 
 const TOLERANCE_BPS = 1_000;
 
+/**
+ * The four figures at the top of this console, read from `GET /api/chain/metrics`.
+ *
+ * They used to be counted out of localStorage, which meant a reviewer opening `/cvc` in a
+ * fresh browser was shown four zeroes while `/dashboard` — reading the same chain — showed
+ * a hundred and twenty declarations and four contradictions. Worse, one of the hints
+ * claimed national scope ("across every tender and ministry") for a number that only ever
+ * counted what that one tab had watched happen. Everything in this block is now a chain
+ * read, and the register further down, which is still session-scoped, says so on its face.
+ */
+interface ChainCounters {
+  totalDeclarations: number;
+  inconsistenciesFlagged: number;
+  vendorProductPairsFlagged: number;
+  toleranceBps: number;
+}
+
 export function VigilanceConsole() {
   const [flags, setFlags] = useState<InconsistencyEntry[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [vendorFilter, setVendorFilter] = useState<string>('all');
+  const [counters, setCounters] = useState<ChainCounters | null>(null);
+  const [countersError, setCountersError] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -65,7 +84,45 @@ export function VigilanceConsole() {
     return subscribeConsoleRecord(sync);
   }, []);
 
-  const affectedVendors = new Set(flags.map((flag) => flag.vendor));
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      try {
+        const response = await fetch('/api/chain/metrics', { cache: 'no-store' });
+        const body = (await response.json()) as {
+          counters?: ChainCounters;
+          error?: string;
+        };
+        if (!live) return;
+        if (!response.ok || body.error || !body.counters) {
+          setCountersError(body.error ?? `The metrics route answered ${response.status}.`);
+          setCounters(null);
+          return;
+        }
+        setCounters(body.counters);
+        setCountersError(null);
+      } catch (cause) {
+        if (live) {
+          setCountersError(cause instanceof Error ? cause.message : 'Unable to reach the node.');
+          setCounters(null);
+        }
+      }
+    };
+    void load();
+    const timer = setInterval(load, 15_000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  /** Never a zero standing in for "not read yet" — an em dash says the read has not landed. */
+  const chainValue = (pick: (counters: ChainCounters) => number): string =>
+    counters ? pick(counters).toLocaleString('en-IN') : '—';
+  const readNote = countersError
+    ? ` The chain could not be read: ${countersError}`
+    : '';
+
   const declarations = ledger.filter(
     (entry) => entry.kind === 'classification' || entry.kind === 'evaluation',
   );
@@ -82,31 +139,34 @@ export function VigilanceConsole() {
 
   return (
     <div className="space-y-8">
-      {/* Reads the chain on every load. Deliberately placed above the session-scoped
-          figures below it, which count only what this browser has watched happen. */}
+      {/* Reads the chain on every load, as do the four figures directly below it. */}
       <AnomalyPanel />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Inconsistency flags"
-          value={String(flags.length)}
-          hint="Seen live by this browser since the console was opened."
+          value={chainValue((c) => c.inconsistenciesFlagged)}
+          hint={`Raised by the chain's own consistency rule, across every tender and ministry.${readNote}`}
           icon={<ShieldAlert className="size-3.5" aria-hidden="true" />}
         />
         <Stat
-          label="Vendors affected"
-          value={String(affectedVendors.size)}
-          hint="Distinct suppliers contradicted in front of this browser."
+          label="Vendor–product histories flagged"
+          value={chainValue((c) => c.vendorProductPairsFlagged)}
+          hint="Distinct vendor-and-product records on chain holding at least one contradiction."
         />
         <Stat
-          label="Declarations observed"
-          value={String(declarations.length)}
-          hint="Classifications and evaluations watched from this browser."
+          label="Declarations on chain"
+          value={chainValue((c) => c.totalDeclarations)}
+          hint="Every local-content declaration recorded in pramaanConsistency.declarations."
         />
         <Stat
           label="Tolerance"
-          value={formatBps(TOLERANCE_BPS)}
-          hint="The runtime's ToleranceBps. Beyond it, a declaration is flagged."
+          value={formatBps(counters?.toleranceBps ?? TOLERANCE_BPS)}
+          hint={
+            counters
+              ? "The runtime's ToleranceBps, read from the chain's own constants. Beyond it, a declaration is flagged."
+              : "The runtime's ToleranceBps. Beyond it, a declaration is flagged."
+          }
           icon={<Scale className="size-3.5" aria-hidden="true" />}
         />
       </section>
@@ -115,12 +175,16 @@ export function VigilanceConsole() {
       <section aria-labelledby="register-heading" className="space-y-4">
         <div>
           <h2 id="register-heading" className="text-xl font-semibold tracking-tight text-ink">
-            Cross-tender inconsistency register
+            Cross-tender inconsistency register — this session
           </h2>
           <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
             A declaration is checked against the vendor&apos;s own history for the same product
             regardless of which of the twelve pathways it travelled. Each entry below is a flag
-            the chain raised, with both declarations set against each other.
+            the chain raised <strong className="font-semibold text-ink">while this browser was
+            watching</strong>, with both declarations set against each other. The national count
+            is the &ldquo;Inconsistency flags&rdquo; figure above, and every contradiction on
+            chain — including those raised before this tab was opened — is listed in the anomaly
+            panel at the top of the page.
           </p>
         </div>
 

@@ -9,6 +9,14 @@ import { cn } from './cn';
 /**
  * Tables scroll horizontally inside their own container so the page body never does —
  * the demo runs from projector width down to tablet (spec Part 9.8).
+ *
+ * `relative` is load-bearing, not decoration. `overflow-x: auto` clips a descendant only
+ * when the scroll container is in that descendant's containing-block chain, and an
+ * absolutely positioned child — every `sr-only` label is one — resolves its containing
+ * block to the nearest *positioned* ancestor. With a static container those labels laid
+ * out at their static position deep inside a wide table, escaped the scroller entirely and
+ * grew the document: `/auditor` measured `documentElement.scrollWidth` 825 against a
+ * `clientWidth` of 753 at 768px, from the single `sr-only` "Certify" header cell.
  */
 export function Table({
   className,
@@ -16,7 +24,7 @@ export function Table({
   ...rest
 }: TableHTMLAttributes<HTMLTableElement> & { containerClassName?: string }) {
   return (
-    <div className={cn('w-full overflow-x-auto', containerClassName)}>
+    <div className={cn('relative w-full overflow-x-auto', containerClassName)}>
       <table className={cn('w-full border-collapse text-left text-sm', className)} {...rest} />
     </div>
   );

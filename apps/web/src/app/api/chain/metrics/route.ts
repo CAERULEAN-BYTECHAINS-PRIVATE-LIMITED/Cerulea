@@ -91,9 +91,14 @@ export async function GET(): Promise<Response> {
     }
 
     // --- Debarments, split active vs. lapsed at the current head -------------------------
+    // `debarmentRecords` is every record CURRENTLY held in
+    // `pramaanDebarment.debarments`, active plus lapsed — not a cumulative total of every
+    // debarment ever issued. `lift_debarment` removes the record outright, so lifting one
+    // decrements this figure; a name like `totalDebarments` promised a running total the
+    // storage cannot supply and would have read as a fall in enforcement activity.
     const byMinistry = new Map<string, { active: number; lapsed: number }>();
     let activeDebarments = 0;
-    let totalDebarments = 0;
+    let debarmentRecords = 0;
 
     for (const [key, value] of debarments) {
       const vendor = key.args[0].toString();
@@ -106,7 +111,7 @@ export async function GET(): Promise<Response> {
           effective_to?: number | null;
         }[]) ?? [];
       for (const record of records) {
-        totalDebarments += 1;
+        debarmentRecords += 1;
         const ministry = decodeId(record.ministry);
         const from = record.effectiveFrom ?? record.effective_from ?? 0;
         const to = record.effectiveTo ?? record.effective_to ?? null;
@@ -141,7 +146,8 @@ export async function GET(): Promise<Response> {
         certificatesIssued: certificates.length,
         preferenceDecisions: preferences.length,
         activeDebarments,
-        totalDebarments,
+        /** Records held in storage right now, active plus lapsed. Never a total-ever. */
+        debarmentRecords,
       },
       ministries,
       debarmentsByMinistry,

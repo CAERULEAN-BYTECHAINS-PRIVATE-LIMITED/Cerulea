@@ -15,7 +15,9 @@ const controlClasses = [
   'transition-[border-color,box-shadow] duration-150 ease-out',
   'focus:border-cerulea focus:outline-2 focus:-outline-offset-1 focus:outline-cerulea',
   'disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted',
-  'aria-[invalid=true]:border-status-red',
+  // Not `status-red`. The three status colours are reserved for compliance verdicts
+  // (docs/PRAMAAN_BUILD_CONTRACT.md section 5); a badly formatted field is not a verdict.
+  'aria-[invalid=true]:border-form-error',
 ].join(' ');
 
 /**
@@ -76,7 +78,7 @@ export function Field({
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-xs font-medium text-status-red">
+        <p id={errorId} className="text-xs font-medium text-form-error">
           <span className="sr-only">Error: </span>
           {error}
         </p>

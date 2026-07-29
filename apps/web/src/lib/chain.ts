@@ -26,6 +26,17 @@ export const FINALITY_TIMEOUT_MS = 10_000;
 
 export const CHAIN_ENDPOINT = process.env.CHAIN_WS_ENDPOINT ?? 'ws://127.0.0.1:9944';
 
+/** How long to wait for the initial WebSocket connection before giving up. */
+export const CONNECT_TIMEOUT_MS = 5_000;
+
+/** The node could not be reached at all — distinct from the chain rejecting a call. */
+export class ChainUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ChainUnreachableError';
+  }
+}
+
 /**
  * Next.js dev-mode hot reload re-evaluates modules, so a plain module-level singleton
  * would leak a new WebSocket per reload. Cache on globalThis instead.
@@ -57,10 +68,46 @@ export async function getApi(): Promise<ApiPromise> {
   }
 
   globalForChain.__pramaanApi = (async () => {
-    const provider = new WsProvider(CHAIN_ENDPOINT);
-    const api = await ApiPromise.create({ provider, noInitWarn: true });
-    await api.isReady;
-    return api;
+    // Bound the CONNECT, not just the finality wait.
+    //
+    // WsProvider retries a dead endpoint forever, so `await api.isReady` simply never
+    // settles when the node is down or the endpoint is wrong. Every route then hangs
+    // indefinitely -- observed at 220s with no end -- and, crucially, the 10s finality
+    // budget in `submitAndFinalize` never applies, because execution never reaches it.
+    // A request that cannot be served must fail quickly and say why; hanging is the one
+    // behaviour that leaves a caller with nothing to act on.
+    //
+    // `autoConnectMs: 0` disables the retry loop so a refused connection surfaces as an
+    // error instead of being swallowed and retried behind our backs.
+    const provider = new WsProvider(CHAIN_ENDPOINT, 0);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const api = await Promise.race([
+        ApiPromise.create({ provider, noInitWarn: true }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new ChainUnreachableError(
+                  `Could not connect to the Cerulea node at ${CHAIN_ENDPOINT} within ` +
+                    `${CONNECT_TIMEOUT_MS}ms. Is the node running, and is CHAIN_WS_ENDPOINT correct?`,
+                ),
+              ),
+            CONNECT_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      await api.isReady;
+      return api;
+    } catch (error) {
+      // Drop the failed attempt so the next request retries rather than awaiting a
+      // permanently rejected promise.
+      globalForChain.__pramaanApi = undefined;
+      await provider.disconnect().catch(() => {});
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   })();
   return globalForChain.__pramaanApi;
 }
