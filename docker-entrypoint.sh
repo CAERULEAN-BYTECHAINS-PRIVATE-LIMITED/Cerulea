@@ -134,6 +134,27 @@ BASE_ARGS=(
 )
 
 case "$NODE_ROLE" in
+    solo)
+        # A single, self-sufficient validator on the --dev genesis, where Alice is the
+        # sole authority and finalises every block herself. This is the reliable-uptime
+        # mode for the live site: with no peers there is no sync layer to desync and no
+        # quorum to lose, so finality can never stall mid-demo. Switching the live chain
+        # between `solo` and the three-validator roles is a NODE_ROLE change, no rebuild,
+        # so a three-node network that misbehaves in a hosted environment falls back
+        # instantly.
+        echo "Starting solo validator (--dev, single-node finality)..."
+        exec cerulea-node \
+            --base-path "$BASE_PATH" \
+            --dev \
+            --rpc-port "$RPC_PORT" \
+            --prometheus-port "$PROMETHEUS_PORT" \
+            --unsafe-rpc-external \
+            --rpc-cors all \
+            --state-pruning archive \
+            --blocks-pruning archive \
+            --name Solo
+        ;;
+
     alice)
         echo "Starting Alice (bootnode + public RPC)..."
         exec cerulea-node \
