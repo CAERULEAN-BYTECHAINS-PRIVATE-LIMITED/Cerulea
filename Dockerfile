@@ -97,7 +97,10 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # restarts and deployments.  Bob and Charlie auto-generate their own keys.
 # If keys/alice/secret_ed25519 doesn't exist the entrypoint generates one at
 # first boot (useful for local dev without the keys/ directory).
-COPY keys/ /etc/cbc/keys/
+# keys/ is gitignored and absent from a clean checkout, so COPYing it fails the build
+# with "keys: not found" on every hosted platform. Alice's key now arrives at runtime
+# via ALICE_NODE_KEY, which docker-entrypoint.sh writes out before deriving her peer-id.
+# The guard below stays: it simply finds no baked key and falls through.
 RUN if [ -f /etc/cbc/keys/alice/secret_ed25519 ]; then \
         mkdir -p /etc/cbc && \
         cp /etc/cbc/keys/alice/secret_ed25519 /etc/cbc/alice_network_key && \
