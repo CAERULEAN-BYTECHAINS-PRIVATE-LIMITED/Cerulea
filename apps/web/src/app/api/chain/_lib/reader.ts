@@ -22,8 +22,7 @@
  */
 
 import { getApi } from '@/lib/chain';
-import type { ApiPromise } from '@polkadot/api';
-import { encodeAddress } from '@polkadot/util-crypto';
+import { encodeAddress, type ApiPromise } from '@cerulea/api';
 
 /**
  * Blocks pulled in on the very first read, so the explorer is never empty on open.
@@ -87,10 +86,10 @@ interface ReaderState {
   catchUp: Promise<void> | null;
 }
 
-const globalForReader = globalThis as unknown as { __pramaanReader?: ReaderState };
+const globalForReader = globalThis as unknown as { __pramaanReaderV2?: ReaderState };
 
 function state(): ReaderState {
-  globalForReader.__pramaanReader ??= {
+  globalForReader.__pramaanReaderV2 ??= {
     blocks: new Map(),
     events: [],
     txIndex: new Map(),
@@ -99,7 +98,7 @@ function state(): ReaderState {
     gapped: false,
     catchUp: null,
   };
-  return globalForReader.__pramaanReader;
+  return globalForReader.__pramaanReaderV2;
 }
 
 /**
@@ -297,15 +296,20 @@ export interface IndexWindow {
   blocksIndexed: number;
   /** True when a catch-up had to skip blocks, so the window is not continuous. */
   gapped: boolean;
+  /** Blocks held whose state had already been pruned, so their events could not be read. */
+  blocksWithoutEvents: number;
 }
 
 export function indexWindow(): IndexWindow {
   const store = state();
+  let blocksWithoutEvents = 0;
+  for (const block of store.blocks.values()) if (!block.eventsAvailable) blocksWithoutEvents += 1;
   return {
     from: store.lowestIndexed,
     to: store.highestIndexed,
     blocksIndexed: store.blocks.size,
     gapped: store.gapped,
+    blocksWithoutEvents,
   };
 }
 

@@ -101,7 +101,13 @@ export function EventsPanel({ onOpenTx }: { onOpenTx: (txRef: string) => void })
       <Card>
         <CardHeader
           title="Runtime events"
-          description={`Decoded from the ${data.window.blocksIndexed.toLocaleString('en-IN')} blocks this explorer holds, ${formatBlockNumber(data.window.from)} to ${formatBlockNumber(data.window.to)}.`}
+          description={
+            `Decoded from the ${data.window.blocksIndexed.toLocaleString('en-IN')} blocks this explorer holds, ` +
+            `${formatBlockNumber(data.window.from)} to ${formatBlockNumber(data.window.to)}.` +
+            (data.window.blocksWithoutEvents > 0
+              ? ` ${data.window.blocksWithoutEvents.toLocaleString('en-IN')} of them were read after the node pruned their state, so their events are not available here.`
+              : '')
+          }
         />
         <CardBody className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">

@@ -29,6 +29,7 @@ export async function GET(request: Request): Promise<Response> {
       author: block.author,
       extrinsicCount: block.extrinsicCount,
       eventCount: block.eventCount,
+      eventsAvailable: block.eventsAvailable,
       finalized: block.number <= finalizedBlock,
       extrinsics: block.extrinsics,
     }));
