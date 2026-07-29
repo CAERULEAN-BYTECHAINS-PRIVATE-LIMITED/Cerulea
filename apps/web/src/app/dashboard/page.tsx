@@ -24,9 +24,8 @@ export default function DashboardPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow="Cross-ministry view"
+      breadcrumb="Network"
       title="Compliance analytics"
-      subtitle="What the chain currently holds across all twenty-one ministry rule sets: the verdicts returned in this session, the debarments in force, and how long each trigger point actually took to reach a finalized answer."
     >
       <DashboardClient />
     </AppShell>

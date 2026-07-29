@@ -1,14 +1,16 @@
 'use client';
 
-import { Building2, FileWarning, Landmark, ScrollText } from 'lucide-react';
 import Link from 'next/link';
 import {
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
-  ErrorState,
-  Stat,
+  Chip,
+  Figure,
+  FigureRow,
+  Notice,
+  Panel,
+  PanelHead,
+  PanelNote,
+  SkeletonRows,
+  StaleBanner,
   Table,
   TBody,
   TD,
@@ -32,7 +34,7 @@ export function DashboardClient() {
 
   if (!metrics.data) {
     return (
-      <ErrorState
+      <Notice
         kind="chain-unreachable"
         title="The dashboard could not read the chain"
         detail="None of the figures on this page are cached or precomputed — they are storage reads and decoded events — so with the network unreachable there is nothing honest to show."
@@ -45,44 +47,37 @@ export function DashboardClient() {
   const { counters, verdicts, debarmentsByMinistry, ministries, chain } = metrics.data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {metrics.error && (
-        <p className="rounded-card border border-border bg-surface-sunken px-4 py-2.5 text-sm text-ink-muted">
-          Showing the last figures read successfully. The most recent refresh did not
-          complete: {metrics.error}
-        </p>
+        <StaleBanner message={`The most recent refresh did not complete: ${metrics.error}`} />
       )}
 
       {/* --- Counter row (spec Part 9.6) ------------------------------------------------ */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
+      <FigureRow>
+        <Figure
           label="Ministries onboarded"
           value={counters.ministriesOnboarded.toLocaleString('en-IN')}
-          hint="Rule sets registered in pramaanRuleRegistry"
-          icon={<Landmark className="size-3.5" aria-hidden="true" />}
+          note="Rule sets registered in pramaanRuleRegistry."
         />
-        <Stat
+        <Figure
           label="Declarations recorded"
           value={counters.totalDeclarations.toLocaleString('en-IN')}
-          hint={`Across ${counters.declarationPairs.toLocaleString('en-IN')} vendor–product histories`}
-          icon={<ScrollText className="size-3.5" aria-hidden="true" />}
+          note={`Across ${counters.declarationPairs.toLocaleString('en-IN')} vendor–product histories.`}
         />
-        <Stat
+        <Figure
           label="Inconsistencies flagged"
           value={counters.inconsistenciesFlagged.toLocaleString('en-IN')}
-          hint={`Declarations more than ${formatBps(counters.toleranceBps)} apart for the same product`}
-          icon={<FileWarning className="size-3.5" aria-hidden="true" />}
+          note={`Declarations more than ${formatBps(counters.toleranceBps)} apart for the same product.`}
         />
-        <Stat
+        <Figure
           label="Certificates issued"
           value={counters.certificatesIssued.toLocaleString('en-IN')}
-          hint={`${counters.preferenceDecisions.toLocaleString('en-IN')} preference decisions on record`}
-          icon={<Building2 className="size-3.5" aria-hidden="true" />}
+          note={`${counters.preferenceDecisions.toLocaleString('en-IN')} preference decisions on record.`}
         />
-      </div>
+      </FigureRow>
 
       {/* --- Charts --------------------------------------------------------------------- */}
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <VerdictChart
           entries={verdicts.entries}
           sessionStartedAt={verdicts.sessionStartedAt}
@@ -95,7 +90,7 @@ export function DashboardClient() {
       {latency.data ? (
         <LatencyChart byTrigger={latency.data.byTrigger} />
       ) : (
-        <ErrorState
+        <Notice
           kind="unknown"
           title="Latency measurements are unavailable"
           detail="The session's measured trigger-point latencies could not be read. No figure is shown rather than a placeholder one."
@@ -105,85 +100,78 @@ export function DashboardClient() {
       )}
 
       {/* --- Ministry rule sets ---------------------------------------------------------- */}
-      <Card>
-        <CardHeader
+      <Panel>
+        <PanelHead
           title="Ministry rule sets on chain"
-          description="Each ministry owns its own thresholds, calculation method and Para 3A position. The version number rises every time a nodal administrator amends the rule, and every past version stays queryable."
-          actions={
-            <Link href="/explorer" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
+          meta={
+            <Link href="/explorer" className={buttonClasses({ variant: 'default' })}>
               Open the explorer
             </Link>
           }
         />
-        <Table containerClassName="rounded-b-card">
+        <Table>
           <THead>
             <TR>
-              <TH>Ministry</TH>
-              <TH className="text-right">Rule version</TH>
+              <TH className="w-48">Ministry</TH>
+              <TH numeric className="w-32">Rule version</TH>
               <TH>Amended since genesis</TH>
             </TR>
           </THead>
           <TBody>
             {ministries.map((ministry) => (
-              <TR key={ministry.ministryId} className="hover:bg-surface-sunken">
+              <TR key={ministry.ministryId} className="hover:bg-shell">
                 <TD mono>{ministry.ministryId}</TD>
-                <TD className="text-right font-mono tabular-nums">v{ministry.ruleVersion}</TD>
+                <TD numeric>v{ministry.ruleVersion}</TD>
                 <TD>
                   {ministry.ruleVersion > 1 ? (
-                    <Badge tone="brand" size="sm">
+                    <Chip tone="accent">
                       {ministry.ruleVersion - 1} amendment
                       {ministry.ruleVersion - 1 === 1 ? '' : 's'}
-                    </Badge>
+                    </Chip>
                   ) : (
-                    <span className="text-sm text-ink-subtle">Genesis rule unchanged</span>
+                    <span className="text-2xs text-ink-subtle">Genesis rule unchanged</span>
                   )}
                 </TD>
               </TR>
             ))}
           </TBody>
         </Table>
-      </Card>
+        <PanelNote>
+          Each ministry owns its own thresholds, calculation method and Para 3A position. The
+          version number rises every time a nodal administrator amends the rule, and every past
+          version stays queryable.
+        </PanelNote>
+      </Panel>
 
-      <Card>
-        <CardBody className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2 text-xs text-ink-muted">
-          <p>
-            Every figure on this page is a live storage read or an event decoded from a
-            finalized block. Session counts start when this console connects to the network;
-            chain-wide counts are the totals the chain holds right now.
-          </p>
-          <p className="font-mono whitespace-nowrap">
+      <Panel>
+        <PanelNote className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t-0">
+          <span>
+            Every figure on this page is a live storage read or an event decoded from a finalized
+            block. Session counts start when this console connects to the network; chain-wide
+            counts are the totals the chain holds right now.
+          </span>
+          <span className="font-mono whitespace-nowrap">
             head #{chain.currentBlock.toLocaleString('en-IN')} · finalized #
             {chain.finalizedBlock.toLocaleString('en-IN')}
-          </p>
-        </CardBody>
-      </Card>
+          </span>
+        </PanelNote>
+      </Panel>
     </div>
   );
 }
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6" role="status" aria-live="polite">
-      <span className="sr-only">Reading compliance analytics from the chain.</span>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[0, 1, 2, 3].map((key) => (
-          <div key={key} className="rounded-card border border-border bg-surface px-5 py-4">
-            <div className="h-3 w-28 rounded bg-surface-sunken" />
-            <div className="mt-3 h-7 w-16 rounded bg-surface-sunken" />
-            <div className="mt-2 h-3 w-36 rounded bg-surface-sunken" />
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+    <div className="space-y-4">
+      <Panel>
+        <SkeletonRows rows={4} label="Reading compliance analytics from the chain." />
+      </Panel>
+      <div className="grid gap-4 xl:grid-cols-2">
         {[0, 1].map((key) => (
-          <div key={key} className="rounded-card border border-border bg-surface">
-            <div className="border-b border-border px-5 py-4">
-              <div className="h-4 w-52 rounded bg-surface-sunken" />
-            </div>
-            <div className="px-5 py-4">
-              <div className="h-72 rounded bg-surface-sunken" />
-            </div>
-          </div>
+          <Panel key={key}>
+            <PanelHead title="Reading the chain" />
+            <SkeletonRows rows={8} label="Reading chart data." />
+          </Panel>
         ))}
       </div>
     </div>

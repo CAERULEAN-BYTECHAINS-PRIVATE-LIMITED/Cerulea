@@ -1,18 +1,20 @@
 'use client';
 
-import { ArrowRight, Landmark, LayoutDashboard, Radar } from 'lucide-react';
+import { ArrowRight, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
-  EmptyState,
-  Stat,
+  Chip,
+  Empty,
+  Figure,
+  FigureRow,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  StatusToken,
   Table,
   TBody,
-  TCaption,
   TD,
   TH,
   THead,
@@ -126,67 +128,57 @@ export function NationalRollup() {
   const variances = chainRows.filter((row) => deviations(row.rule, chainDefault).length > 0).length;
 
   return (
-    <div className="space-y-8">
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
+    <div className="space-y-4">
+      <FigureRow>
+        <Figure
           label="Ministries onboarded"
           value={onboarded === null ? '—' : `${onboarded} of ${MINISTRY_COUNT}`}
-          hint="Counted from pramaanRuleRegistry on chain, not from a bundled list."
-          icon={<Landmark className="size-3.5" aria-hidden="true" />}
+          note="Counted from pramaanRuleRegistry on chain, not from a bundled list."
         />
-        <Stat
+        <Figure
           label="Rule sets differing from the default"
-          value={String(variances)}
-          hint="Ministries that have notified their own parameters."
+          value={variances}
+          note="Ministries that have notified their own parameters."
         />
-        <Stat
+        <Figure
           label="Decisions this session"
-          value={String(total)}
-          hint="Trigger-point answers returned after finality."
+          value={total}
+          note="Trigger-point answers returned after finality."
         />
-        <Stat
+        <Figure
           label="Ministries exercised this session"
-          value={String(ministriesTouched)}
-          hint="Distinct rule sets a decision has been taken against."
-          icon={<Radar className="size-3.5" aria-hidden="true" />}
+          value={ministriesTouched}
+          note="Distinct rule sets a decision has been taken against."
         />
-      </section>
+      </FigureRow>
 
       {/* ---- Distribution ------------------------------------------------------ */}
-      <Card>
-        <CardHeader
-          title="Compliance outcome distribution"
-          description="Every verdict this console has seen returned, across all six trigger points."
-          actions={
-            <Link
-              href="/dashboard"
-              className={buttonClasses({ variant: 'primary', size: 'sm' })}
-            >
-              <LayoutDashboard className="size-4" aria-hidden="true" />
+      <Panel>
+        <PanelHead
+          title="Compliance outcome distribution — this session"
+          meta={
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              <LayoutDashboard className="size-3.5" aria-hidden="true" />
               Open the national dashboard
             </Link>
           }
         />
-        <CardBody>
+        <PanelBody>
           {total === 0 ? (
-            <EmptyState
-              icon={<Radar className="size-5" aria-hidden="true" />}
+            <Empty
               title="No decisions recorded in this session yet"
-              description="The distribution fills as bids are classified, preferences calculated, certificates issued and debarments recorded. The dashboard reads the chain directly and does not depend on this session."
+              source="The distribution fills as bids are classified, preferences calculated, certificates issued and debarments recorded. The dashboard reads the chain directly and does not depend on this session."
               action={
-                <Link
-                  href="/vendor"
-                  className={buttonClasses({ variant: 'secondary', size: 'sm' })}
-                >
+                <Link href="/vendor" className={buttonClasses({ variant: 'default' })}>
                   Start with a bid submission
-                  <ArrowRight className="size-4" aria-hidden="true" />
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
                 </Link>
               }
             />
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <div
-                className="flex h-3 w-full overflow-hidden rounded-full bg-surface-sunken"
+                className="flex h-2.5 w-full overflow-hidden rounded-sm bg-shell-2"
                 role="img"
                 aria-label={`${distribution.GREEN} compliant, ${distribution.YELLOW} review required, ${distribution.RED} blocked, out of ${total} decisions.`}
               >
@@ -204,52 +196,56 @@ export function NationalRollup() {
                 />
               </div>
 
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <DistributionCell
-                  token="GREEN"
-                  word="Compliant"
-                  count={distribution.GREEN}
-                  total={total}
-                />
-                <DistributionCell
-                  token="YELLOW"
-                  word="Review required"
-                  count={distribution.YELLOW}
-                  total={total}
-                />
-                <DistributionCell
-                  token="RED"
-                  word="Blocked"
-                  count={distribution.RED}
-                  total={total}
-                />
-              </dl>
-
-              <p className="text-xs text-ink-muted">
-                Counted from decisions returned to this console. The chain is the record; the
-                explorer reads it.
-              </p>
+              <Table>
+                <THead>
+                  <TR>
+                    <TH className="w-24">Token</TH>
+                    <TH>Verdict</TH>
+                    <TH numeric className="w-24">Decisions</TH>
+                    <TH numeric className="w-24">Share</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {(
+                    [
+                      ['GREEN', 'Compliant', distribution.GREEN],
+                      ['YELLOW', 'Review required', distribution.YELLOW],
+                      ['RED', 'Blocked', distribution.RED],
+                    ] as const
+                  ).map(([token, word, count]) => (
+                    <TR key={token}>
+                      <TD>
+                        <StatusToken status={token} />
+                      </TD>
+                      <TD className="font-medium">{word}</TD>
+                      <TD numeric>{count}</TD>
+                      <TD numeric>{Math.round((count / total) * 100)}%</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
             </div>
           )}
-        </CardBody>
-      </Card>
+        </PanelBody>
+        <PanelNote>
+          Counted from decisions returned to this console, across all six trigger points. The
+          chain is the record; the explorer reads it.
+        </PanelNote>
+      </Panel>
 
       {/* ---- The registry ------------------------------------------------------- */}
-      <Card>
-        <CardHeader
-          title="Ministry rule sets against the national default"
-          description="DPIIT owns the default every ministry inherits. A ministry that has notified its own parameters shows what it changed."
-        />
+      <Panel>
+        <PanelHead title="Ministry rule sets against the national default" />
         <Table>
           <THead>
             <TR>
               <TH>Ministry</TH>
-              <TH>Id</TH>
-              <TH>Class-I / Class-II</TH>
-              <TH>Method</TH>
-              <TH className="text-right">Margin</TH>
-              <TH className="text-right">Certification threshold</TH>
-              <TH>Divisibility</TH>
+              <TH className="w-24">Id</TH>
+              <TH className="w-32">Class-I / II</TH>
+              <TH className="w-40">Method</TH>
+              <TH numeric className="w-24">Margin</TH>
+              <TH numeric className="w-36">Certification threshold</TH>
+              <TH className="w-32">Divisibility</TH>
               <TH>Differs from the default</TH>
             </TR>
           </THead>
@@ -261,43 +257,39 @@ export function NationalRollup() {
               const isDefault = entry.ministryId === 'DPIIT';
               const hsn = row.hsnThresholds[0];
               return (
-                <TR key={entry.ministryId} className={isDefault ? 'bg-cerulea-light/40' : undefined}>
+                <TR key={entry.ministryId} className={isDefault ? 'bg-accent-tint' : undefined}>
                   <TD>
                     <span className="font-medium text-ink">{meta?.short ?? entry.ministryId}</span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">
+                    <span className="mt-0.5 block text-2xs text-ink-muted">
                       {meta?.name ?? 'Name not held on chain'}
                     </span>
                   </TD>
                   <TD mono>
                     {entry.ministryId}
-                    <span className="mt-0.5 block font-mono text-[0.6875rem] text-ink-subtle">
+                    <span className="mt-0.5 block text-ink-subtle">
                       v{entry.ruleVersion}
-                      {!entry.commenced ? ' · not yet in force' : ''}
+                      {!entry.commenced ? ' · not in force' : ''}
                     </span>
                   </TD>
                   <TD className="tabular-nums">
                     {hsn ? `${formatBps(hsn.classOneBps)} / ${formatBps(hsn.classTwoBps)}` : '—'}
-                    <span className="mt-0.5 block font-mono text-[0.6875rem] text-ink-subtle">
+                    <span className="mt-0.5 block font-mono text-2xs text-ink-subtle">
                       HSN {hsn?.hsnCode ?? '—'}
                     </span>
                   </TD>
                   <TD>{row.calculationMethod}</TD>
-                  <TD className="text-right tabular-nums">{formatBps(row.preferenceMarginBps)}</TD>
-                  <TD className="text-right tabular-nums">
-                    {formatPaise(row.certificationThresholdPaise)}
-                  </TD>
+                  <TD numeric>{formatBps(row.preferenceMarginBps)}</TD>
+                  <TD numeric>{formatPaise(row.certificationThresholdPaise)}</TD>
                   <TD>{row.divisibility}</TD>
                   <TD>
                     {isDefault ? (
-                      <Badge tone="brand">The national default</Badge>
+                      <Chip tone="accent">The national default</Chip>
                     ) : differences.length === 0 ? (
-                      <span className="text-sm text-ink-muted">Inherits the default</span>
+                      <span className="text-2xs text-ink-muted">Inherits the default</span>
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {differences.map((difference) => (
-                          <Badge key={difference} tone="neutral" size="sm">
-                            {difference}
-                          </Badge>
+                          <Chip key={difference}>{difference}</Chip>
                         ))}
                       </span>
                     )}
@@ -306,53 +298,13 @@ export function NationalRollup() {
               );
             })}
           </TBody>
-          <TCaption>
-            {chainError
-              ? `Rule parameters could not be read from the chain (${chainError}). Nothing is shown rather than showing values that may be stale.`
-              : `Read live from pramaanRuleRegistry at block ${chain?.currentBlock ?? '—'}, refreshed every ten seconds. Ministry names are local reference data; every rule parameter above is on-chain state. Adding the twenty-second ministry is a row in scripts/seed-ministries/ministries.json, not a release.`}
-          </TCaption>
         </Table>
-      </Card>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------------------------
-
-function DistributionCell({
-  token,
-  word,
-  count,
-  total,
-}: {
-  token: TriState;
-  word: string;
-  count: number;
-  total: number;
-}) {
-  const chip =
-    token === 'GREEN'
-      ? 'bg-status-green text-white'
-      : token === 'YELLOW'
-        ? 'bg-status-yellow text-ink'
-        : 'bg-status-red text-white';
-
-  return (
-    <div className="rounded-lg border border-border px-4 py-3">
-      <dt className="flex items-center gap-2">
-        <span
-          className={`rounded px-1.5 py-0.5 font-mono text-[0.6875rem] font-bold tracking-widest ${chip}`}
-        >
-          {token}
-        </span>
-        <span className="text-sm font-medium text-ink">{word}</span>
-      </dt>
-      <dd className="mt-2 text-2xl font-semibold tabular-nums text-ink">
-        {count}
-        <span className="ml-2 text-sm font-normal text-ink-muted">
-          {total === 0 ? '' : `${Math.round((count / total) * 100)}%`}
-        </span>
-      </dd>
+        <PanelNote>
+          {chainError
+            ? `Rule parameters could not be read from the chain (${chainError}). Nothing is shown rather than values that may be stale.`
+            : `Read live from pramaanRuleRegistry at block ${chain?.currentBlock ?? '—'}, refreshed every ten seconds. Ministry names are local reference data; every rule parameter above is on-chain state.`}
+        </PanelNote>
+      </Panel>
     </div>
   );
 }

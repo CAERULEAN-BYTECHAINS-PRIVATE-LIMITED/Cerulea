@@ -2,55 +2,43 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './cn';
 
 /**
- * Button styling, kept in its own module with no `'use client'` directive.
+ * Button styling, kept in a module with no `'use client'` directive so a Server Component
+ * can style a `next/link` with the same class list a Client Component gets.
  *
- * `<Button>` itself is a Client Component (it takes event handlers), but a Server
- * Component still needs to style a `next/link` as a button — the landing page's two calls
- * to action are exactly that. A function exported from a client module cannot be called on
- * the server, so the class list lives here and `Button.tsx` imports it.
- *
- * Note the absence of a red or green variant. The three status colours are reserved for a
- * compliance verdict (docs/PRAMAAN_BUILD_CONTRACT section 5); a destructive action such as
- * "Debar vendor" uses the neutral `secondary` variant with a warning icon instead.
+ * Four variants and no more. There is no destructive red: the three status colours are
+ * reserved for compliance verdicts, so "Record debarment order" is a `primary` button
+ * with a confirmation step behind it, not a red one.
  */
 export const buttonVariants = cva(
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg',
-    'font-medium leading-none select-none',
-    'transition-[background-color,border-color,color,box-shadow] duration-150 ease-out',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea',
-    'disabled:pointer-events-none disabled:opacity-50',
+    'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md',
+    'border font-medium leading-none select-none',
+    'transition-[background-color,border-color,color] duration-150',
+    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+    'disabled:pointer-events-none disabled:opacity-45',
   ].join(' '),
   {
     variants: {
       variant: {
-        primary: 'bg-cerulea text-white shadow-sm hover:bg-cerulea-dark active:bg-cerulea-dark',
-        secondary:
-          'bg-surface text-ink border border-border shadow-sm hover:bg-surface-sunken hover:border-ink-subtle',
-        subtle: 'bg-cerulea-light text-cerulea-dark hover:bg-cerulea-light/70',
-        ghost: 'text-ink-muted hover:bg-surface-sunken hover:text-ink',
-        link: 'text-cerulea underline-offset-4 hover:underline px-0 h-auto',
+        primary: 'border-accent bg-accent text-white hover:border-accent-dark hover:bg-accent-dark',
+        default: 'border-line-strong bg-paper text-ink hover:bg-shell',
+        quiet: 'border-transparent bg-transparent text-ink-muted hover:bg-shell hover:text-ink',
+        link: 'h-auto border-transparent px-0 text-accent underline-offset-2 hover:underline',
       },
       size: {
-        sm: 'h-8 px-3 text-[0.8125rem]',
-        md: 'h-10 px-4 text-sm',
-        lg: 'h-12 px-6 text-base',
+        xs: 'h-7 px-2 text-2xs',
+        sm: 'h-8 px-2.5 text-xs',
+        md: 'h-9 px-3.5 text-sm',
       },
-      block: {
-        true: 'w-full',
-        false: '',
-      },
+      block: { true: 'w-full', false: '' },
     },
-    defaultVariants: { variant: 'primary', size: 'md', block: false },
+    defaultVariants: { variant: 'default', size: 'sm', block: false },
   },
 );
 
 export type ButtonVariantProps = VariantProps<typeof buttonVariants>;
 
-/**
- * Style any element as a button.
- * `<Link href="/demo" className={buttonClasses({ variant: 'primary', size: 'lg' })}>`
- */
+/** Style any element as a button: `<Link className={buttonClasses({ variant: 'primary' })}>`. */
 export function buttonClasses(props: ButtonVariantProps & { className?: string } = {}): string {
   const { className, ...variants } = props;
   return cn(buttonVariants(variants), className);

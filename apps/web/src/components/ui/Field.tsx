@@ -9,23 +9,27 @@ import type {
 import { useId } from 'react';
 import { cn } from './cn';
 
-const controlClasses = [
-  'w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink',
-  'placeholder:text-ink-subtle',
-  'transition-[border-color,box-shadow] duration-150 ease-out',
-  'focus:border-cerulea focus:outline-2 focus:-outline-offset-1 focus:outline-cerulea',
-  'disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted',
-  // Not `status-red`. The three status colours are reserved for compliance verdicts
-  // (docs/PRAMAAN_BUILD_CONTRACT.md section 5); a badly formatted field is not a verdict.
-  'aria-[invalid=true]:border-form-error',
+/**
+ * One form-control vocabulary. Every control in the product is 32px tall, 13px, hairline
+ * bordered, 3px radius, and takes the same focus ring.
+ *
+ * Invalid controls take `--form-error`, a deep plum, and NOT the reserved red. A badly
+ * formatted HSN code is a typo; #D93025 in this application legally means "blocked under
+ * the PPP-MII Order", and using it here would teach the wrong association within seconds.
+ */
+const control = [
+  'w-full rounded-md border border-line-strong bg-paper px-2 text-sm text-ink',
+  'placeholder:text-ink-muted',
+  'transition-[border-color] duration-150',
+  'focus:border-accent focus:outline-2 focus:-outline-offset-1 focus:outline-accent',
+  'disabled:cursor-not-allowed disabled:bg-shell disabled:text-ink-muted',
+  'aria-[invalid=true]:border-form-error aria-[invalid=true]:bg-form-error-bg',
 ].join(' ');
 
 /**
- * A labelled form control.
- *
- * The label, hint and error are wired to the control by generated ids, so a screen reader
- * announces all three together. Errors are never colour-only: the message is text, prefixed
- * with "Error:", and the control carries `aria-invalid`.
+ * A labelled control. Label, hint and error are wired to the control by generated ids so
+ * a screen reader announces all three together, and an error is never colour-only: the
+ * message is text and the control carries `aria-invalid`.
  */
 export function Field({
   label,
@@ -36,10 +40,10 @@ export function Field({
   className,
 }: {
   label: string;
-  hint?: string;
+  hint?: ReactNode;
   error?: string;
   required?: boolean;
-  /** Receives `id`, `aria-describedby` and `aria-invalid`. */
+  /** Receives `id`, `aria-describedby`, `aria-invalid` and `required`. */
   children: (props: {
     id: string;
     'aria-describedby': string | undefined;
@@ -54,11 +58,11 @@ export function Field({
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={id} className="text-sm font-medium text-ink">
+    <div className={cn('flex min-w-0 flex-col gap-1', className)}>
+      <label htmlFor={id} className="text-xs font-semibold text-ink-2">
         {label}
         {required && (
-          <span className="ml-1 text-ink-muted" aria-hidden="true">
+          <span className="ml-0.5 text-form-error" aria-hidden="true">
             *
           </span>
         )}
@@ -73,12 +77,12 @@ export function Field({
       })}
 
       {hint && !error && (
-        <p id={hintId} className="text-xs text-ink-muted">
+        <p id={hintId} className="text-2xs text-ink-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-xs font-medium text-form-error">
+        <p id={errorId} className="text-2xs font-medium text-form-error">
           <span className="sr-only">Error: </span>
           {error}
         </p>
@@ -88,24 +92,64 @@ export function Field({
 }
 
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(controlClasses, 'h-10', className)} {...rest} />;
+  return <input className={cn(control, 'h-8', className)} {...rest} />;
 }
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(controlClasses, 'min-h-24 py-2', className)} {...rest} />;
+  return <textarea className={cn(control, 'min-h-20 py-1.5 leading-relaxed', className)} {...rest} />;
 }
 
 export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn(controlClasses, 'h-10 appearance-none bg-right pr-9', className)}
+      className={cn(control, 'h-8 appearance-none pr-7', className)}
       style={{
         backgroundImage:
-          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235f6368' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2355606e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
         backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'right 0.65rem center',
+        backgroundPosition: 'right 0.5rem center',
       }}
       {...rest}
     />
+  );
+}
+
+/** A checkbox with its label, sized and spaced like every other control on the form. */
+export function Check({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+  className,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: ReactNode;
+  hint?: ReactNode;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        'flex cursor-pointer items-start gap-2 rounded-md border border-line bg-paper px-2.5 py-2',
+        'transition-colors duration-150 hover:bg-shell',
+        disabled && 'cursor-not-allowed opacity-55 hover:bg-paper',
+        className,
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 size-3.5 shrink-0 accent-[#1b4a8f]"
+      />
+      <span className="min-w-0">
+        <span className="block text-xs font-medium text-ink">{label}</span>
+        {hint && <span className="mt-0.5 block text-2xs text-ink-muted">{hint}</span>}
+      </span>
+    </label>
   );
 }

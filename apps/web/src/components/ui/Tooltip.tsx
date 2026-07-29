@@ -7,7 +7,6 @@ import {
   useId,
   useState,
   type FocusEvent,
-  type KeyboardEvent,
   type MouseEvent,
   type ReactElement,
   type ReactNode,
@@ -26,9 +25,9 @@ type TriggerProps = {
  * A description tooltip.
  *
  * It clones its single child so `aria-describedby` lands on the real interactive element
- * rather than a wrapper — a screen reader reading the trigger also reads the explanation.
- * It opens on hover *and* on keyboard focus, and Escape dismisses it, so the content is
- * never mouse-only. Tooltips carry supporting detail here, never the only copy of a fact.
+ * rather than a wrapper, and it opens on keyboard focus as well as hover. Tooltips carry
+ * supporting detail only — never the only copy of a fact, because a projector audience
+ * cannot hover.
  */
 export function Tooltip({
   content,
@@ -69,30 +68,23 @@ export function Tooltip({
   });
 
   return (
-    <span
-      className="relative inline-flex"
-      onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
-        if (event.key === 'Escape') setOpen(false);
-      }}
-    >
+    <span className="relative inline-flex">
       {trigger}
-      <span
-        id={id}
-        role="tooltip"
-        className={cn(
-          'pointer-events-none absolute left-1/2 z-40 w-max max-w-xs -translate-x-1/2',
-          'rounded-md bg-ink px-2.5 py-1.5 text-xs leading-snug font-normal text-white shadow-lg',
-          'transition-opacity duration-150 ease-out',
-          // `invisible` (visibility:hidden) keeps the node out of the accessibility tree
-          // while it is closed, which the `hidden` attribute would do too — but visibility
-          // is animatable, so the fade is real rather than decorative.
-          open ? 'visible opacity-100' : 'invisible opacity-0',
-          side === 'top' ? 'bottom-[calc(100%+0.5rem)]' : 'top-[calc(100%+0.5rem)]',
-          className,
-        )}
-      >
-        {content}
-      </span>
+      {open && (
+        <span
+          role="tooltip"
+          id={id}
+          className={cn(
+            'pointer-events-none absolute left-1/2 z-80 w-64 -translate-x-1/2',
+            'rounded-md border border-masthead-2 bg-masthead px-2.5 py-1.5',
+            'text-2xs leading-relaxed text-white shadow-pop',
+            side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+            className,
+          )}
+        >
+          {content}
+        </span>
+      )}
     </span>
   );
 }

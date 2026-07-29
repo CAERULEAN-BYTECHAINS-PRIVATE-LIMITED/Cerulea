@@ -1,20 +1,25 @@
 'use client';
 
-import { Boxes, CircleCheckBig, CircleDashed } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
-  Badge,
-  Card,
-  CardHeader,
-  ErrorState,
-  Stat,
+  BlockRef,
+  Chip,
+  Figure,
+  FigureRow,
+  Hash,
+  Nil,
+  Notice,
+  Panel,
+  PanelHead,
+  PanelNote,
+  SkeletonRows,
+  StaleBanner,
   Table,
   TBody,
   TD,
   TH,
   THead,
   TR,
-  TxRef,
 } from '@/components';
 import { formatAge, formatBlockNumber, formatClock } from './format';
 import type { BlocksResponse } from './types';
@@ -35,13 +40,20 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
     return () => clearInterval(timer);
   }, []);
 
-  if (loading && !data) return <BlocksSkeleton />;
+  if (loading && !data) {
+    return (
+      <Panel>
+        <PanelHead title="Recent blocks" />
+        <SkeletonRows rows={8} label="Reading the chain head." />
+      </Panel>
+    );
+  }
 
   if (!data) {
     return (
-      <ErrorState
+      <Notice
         kind="chain-unreachable"
-        detail="The explorer could not read the chain head. Blocks will reappear as soon as a validator responds."
+        detail="The explorer could not read the chain head. Blocks reappear as soon as a validator responds."
         technicalDetail={error ?? undefined}
         onRetry={refresh}
       />
@@ -56,17 +68,13 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
     blocks.length > 1 ? Math.round((spanSeconds * 1000) / (blocks.length - 1)) : null;
 
   return (
-    <div className="space-y-5">
-      {error && (
-        <p className="rounded-card border border-border bg-surface-sunken px-4 py-2.5 text-sm text-ink-muted">
-          Showing the last blocks read successfully. The most recent refresh did not
-          complete: {error}
-        </p>
-      )}
+    <div className="space-y-4">
+      {error && <StaleBanner message={`The most recent refresh did not complete: ${error}`} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
+      <FigureRow>
+        <Figure
           label="Best block"
+          mono
           value={
             data.bestBlock
               ? formatBlockNumber(data.bestBlock)
@@ -74,41 +82,37 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
                 ? formatBlockNumber(head.number)
                 : '—'
           }
-          mono
         />
-        <Stat
+        <Figure
           label="Finalized block"
-          value={formatBlockNumber(data.finalizedBlock)}
-          hint="Decisions are only returned at or below this height"
           mono
+          value={formatBlockNumber(data.finalizedBlock)}
+          note="Decisions are only returned at or below this height."
         />
-        <Stat
+        <Figure
           label="Average block time"
           value={averageBlockMs === null ? '—' : `${averageBlockMs} ms`}
-          hint={`Measured across the last ${blocks.length} blocks`}
+          note={`Measured across the last ${blocks.length} blocks.`}
         />
-        <Stat
+        <Figure
           label="Blocks indexed"
           value={data.window.blocksIndexed.toLocaleString('en-IN')}
-          hint={`${formatBlockNumber(data.window.from)} to ${formatBlockNumber(data.window.to)}`}
+          note={`${formatBlockNumber(data.window.from)} to ${formatBlockNumber(data.window.to)}`}
         />
-      </div>
+      </FigureRow>
 
-      <Card>
-        <CardHeader
-          title="Recent blocks"
-          description="Live, refreshed every two seconds. A block is marked finalized only once the node reports a finalized head at or past it."
-        />
-        <Table containerClassName="rounded-b-card">
+      <Panel>
+        <PanelHead title="Recent blocks" meta={<Chip>Refreshed every 2 s</Chip>} />
+        <Table>
           <THead>
             <TR>
-              <TH>Block</TH>
-              <TH>Age</TH>
-              <TH>Author</TH>
-              <TH className="text-right">Extrinsics</TH>
-              <TH className="text-right">Events</TH>
+              <TH className="w-32">Block</TH>
+              <TH className="w-20">Age</TH>
+              <TH className="w-40">Author</TH>
+              <TH numeric className="w-24">Extrinsics</TH>
+              <TH numeric className="w-20">Events</TH>
               <TH>Contents</TH>
-              <TH>Finality</TH>
+              <TH className="w-28">Finality</TH>
             </TR>
           </THead>
           <TBody>
@@ -117,33 +121,31 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
                 extrinsic.section.startsWith(PRAMAAN_PREFIX),
               );
               return (
-                <TR key={block.hash} className="hover:bg-surface-sunken">
+                <TR key={block.hash} className="hover:bg-shell">
                   <TD>
                     <button
                       type="button"
                       onClick={() => onOpenBlock(block.number)}
-                      className="rounded font-mono text-[0.8125rem] font-semibold text-cerulea transition-colors duration-150 hover:text-cerulea-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea"
+                      className="rounded-sm font-mono text-2xs font-semibold text-accent transition-colors duration-150 hover:text-accent-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
                     >
                       {formatBlockNumber(block.number)}
                     </button>
-                    <span className="mt-0.5 block text-xs text-ink-subtle">
+                    <span className="mt-0.5 block text-2xs text-ink-subtle">
                       {formatClock(block.timestamp)}
                     </span>
                   </TD>
-                  <TD className="text-sm text-ink-muted whitespace-nowrap">
+                  <TD className="whitespace-nowrap text-ink-muted">
                     {formatAge(block.timestamp, now)}
                   </TD>
                   <TD>
                     {block.author ? (
-                      <TxRef value={block.author} label="Validator address" head={8} tail={6} />
+                      <Hash value={block.author} label="Validator address" />
                     ) : (
-                      <span className="text-sm text-ink-subtle">Not in digest</span>
+                      <Nil label="Not in digest" />
                     )}
                   </TD>
-                  <TD className="text-right font-mono text-[0.8125rem] text-ink tabular-nums">
-                    {block.extrinsicCount}
-                  </TD>
-                  <TD className="text-right font-mono text-[0.8125rem] text-ink tabular-nums">
+                  <TD numeric>{block.extrinsicCount}</TD>
+                  <TD numeric>
                     {block.eventsAvailable === false ? (
                       <span
                         className="text-ink-subtle"
@@ -157,34 +159,22 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
                   </TD>
                   <TD>
                     {pramaanCalls.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
+                      <span className="flex flex-wrap gap-1">
                         {pramaanCalls.map((call) => (
-                          <Badge key={call.hash} tone="brand" size="sm">
+                          <Chip key={call.hash} tone="accent">
                             {call.section.replace(PRAMAAN_PREFIX, '')}.{call.method}
-                          </Badge>
+                          </Chip>
                         ))}
-                      </div>
+                      </span>
                     ) : (
-                      <span className="text-sm text-ink-subtle">Consensus only</span>
+                      <span className="text-2xs text-ink-subtle">Consensus only</span>
                     )}
                   </TD>
                   <TD>
                     {block.finalized ? (
-                      <Badge
-                        tone="teal"
-                        size="sm"
-                        icon={<CircleCheckBig className="size-3" aria-hidden="true" />}
-                      >
-                        Finalized
-                      </Badge>
+                      <Chip tone="accent">Finalized</Chip>
                     ) : (
-                      <Badge
-                        tone="neutral"
-                        size="sm"
-                        icon={<CircleDashed className="size-3" aria-hidden="true" />}
-                      >
-                        Included
-                      </Badge>
+                      <Chip>Included</Chip>
                     )}
                   </TD>
                 </TR>
@@ -192,35 +182,11 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
             })}
           </TBody>
         </Table>
-      </Card>
-    </div>
-  );
-}
-
-function BlocksSkeleton() {
-  return (
-    <div className="space-y-5" role="status" aria-live="polite">
-      <span className="sr-only">Reading the chain head.</span>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((key) => (
-          <div key={key} className="rounded-card border border-border bg-surface px-5 py-4">
-            <div className="h-3 w-24 rounded bg-surface-sunken" />
-            <div className="mt-3 h-6 w-20 rounded bg-surface-sunken" />
-          </div>
-        ))}
-      </div>
-      <Card>
-        <CardHeader
-          title="Recent blocks"
-          description="Reading the last blocks from the node."
-          actions={<Boxes className="size-4 text-ink-subtle" aria-hidden="true" />}
-        />
-        <div className="space-y-2 px-5 py-4">
-          {Array.from({ length: 8 }, (_, index) => (
-            <div key={index} className="h-9 rounded bg-surface-sunken" />
-          ))}
-        </div>
-      </Card>
+        <PanelNote>
+          A block is marked finalized only once the node reports a finalized head at or past it.
+          The head is currently <BlockRef value={data.finalizedBlock} />.
+        </PanelNote>
+      </Panel>
     </div>
   );
 }

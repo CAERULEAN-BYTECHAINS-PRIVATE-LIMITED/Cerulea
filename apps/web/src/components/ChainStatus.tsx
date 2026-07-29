@@ -4,18 +4,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { cn } from './ui/cn';
 
 /**
- * Connection state for the header indicator.
+ * Connection state and the latest finalized block, polled every five seconds and shown in
+ * the masthead.
  *
- * Note the colours below: teal, ink and border grey. The connection indicator deliberately
- * does NOT use --status-green or --status-red. Those three carry a legal meaning in this
- * application (a compliance verdict) and a green dot next to "network live" would teach a
- * judge the wrong association within the first five seconds of the demo.
+ * Note what the indicator is NOT: it is not green when connected. The three status
+ * colours carry a legal meaning in this application, and a green dot beside "network
+ * live" would teach a judge the wrong association inside the first five seconds. Live is
+ * a filled white dot; unavailable is a hollow one.
  */
 type Connection = 'checking' | 'live' | 'offline';
 
 export interface ChainStatusData {
   connected: boolean;
   finalizedBlock?: number;
+  bestBlock?: number;
   chainName?: string;
   endpoint?: string;
 }
@@ -41,14 +43,6 @@ function readString(source: Record<string, unknown>, ...keys: string[]): string 
   return undefined;
 }
 
-/**
- * Chain connectivity and the latest finalized block, polled every five seconds.
- *
- * The status endpoint is owned by the API layer, so this component is written to survive
- * it being absent, slow or shaped slightly differently: any failure degrades to a calm
- * "status unavailable" rather than an error, and the payload is read leniently across the
- * obvious field names. A demo must never show a stack trace in its header.
- */
 export function ChainStatus({
   endpoint = '/api/chain/status',
   className,
@@ -75,21 +69,18 @@ export function ChainStatus({
           'block',
         );
         const connected =
-          typeof payload.connected === 'boolean'
-            ? payload.connected
-            : finalizedBlock !== undefined;
+          typeof payload.connected === 'boolean' ? payload.connected : finalizedBlock !== undefined;
 
         setData({
           connected,
           finalizedBlock,
+          bestBlock: readNumber(payload, 'bestBlock'),
           chainName: readString(payload, 'chainName', 'chain', 'name'),
           endpoint: readString(payload, 'endpoint', 'wsEndpoint', 'rpc'),
         });
         setState(connected ? 'live' : 'offline');
       } catch (error) {
-        if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
-          return;
-        }
+        if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
         setState('offline');
         setData(null);
       }
@@ -110,49 +101,30 @@ export function ChainStatus({
     };
   }, [poll]);
 
-  const dot =
-    state === 'live'
-      ? 'bg-teal'
-      : state === 'checking'
-        ? 'bg-ink-subtle'
-        : 'bg-ink-subtle opacity-50';
-
   const headline =
-    state === 'live'
-      ? 'Network live'
-      : state === 'checking'
-        ? 'Checking network'
-        : 'Status unavailable';
-
-  const detail =
-    state === 'live' && data?.finalizedBlock !== undefined
-      ? `#${data.finalizedBlock.toLocaleString('en-IN')} finalized`
-      : state === 'live'
-        ? 'Connected'
-        : state === 'checking'
-          ? '—'
-          : 'Retrying';
+    state === 'live' ? 'Network live' : state === 'checking' ? 'Connecting' : 'Unavailable';
 
   return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5',
-        className,
-      )}
+    <span
+      className={cn('inline-flex items-center gap-2 text-2xs whitespace-nowrap', className)}
       title={data?.endpoint ? `Cerulea endpoint: ${data.endpoint}` : undefined}
     >
-      <span className="relative flex size-2 shrink-0" aria-hidden="true">
-        {state === 'live' && (
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-teal opacity-60" />
+      <span
+        aria-hidden="true"
+        className={cn(
+          'size-1.5 shrink-0 rounded-full',
+          state === 'live' ? 'bg-white' : 'border border-white/50 bg-transparent',
         )}
-        <span className={cn('relative inline-flex size-2 rounded-full', dot)} />
+      />
+      <span aria-live="polite" className="flex items-baseline gap-2">
+        <span className="text-white/70">{headline}</span>
+        {state === 'live' && data?.finalizedBlock !== undefined && (
+          <span className="font-mono text-white tabular-nums">
+            <span className="text-white/50">final</span> #
+            {data.finalizedBlock.toLocaleString('en-IN')}
+          </span>
+        )}
       </span>
-
-      <span aria-live="polite" className="flex items-baseline gap-1.5 leading-none">
-        <span className="text-xs font-medium text-ink">{headline}</span>
-        <span className="font-mono text-[0.6875rem] text-ink-muted tabular-nums">{detail}</span>
-      </span>
-
       <span className="sr-only">
         {state === 'live'
           ? `Connected to the Cerulea network${
@@ -164,6 +136,6 @@ export function ChainStatus({
             ? 'Checking the network connection.'
             : 'Network status is unavailable. Retrying every five seconds.'}
       </span>
-    </div>
+    </span>
   );
 }

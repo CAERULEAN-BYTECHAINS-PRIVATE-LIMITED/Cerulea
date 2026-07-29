@@ -1,18 +1,27 @@
 'use client';
 
-import { Radio } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  Badge,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  EmptyState,
-  ErrorState,
+  Chip,
+  Empty,
   Field,
+  Hash,
   Input,
-  TxRef,
+  Nil,
+  Notice,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  SkeletonRows,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  cn,
 } from '@/components';
 import { eventFields, formatBlockNumber, formatClock } from './format';
 import type { EventsResponse, ExplorerEvent } from './types';
@@ -66,21 +75,16 @@ export function EventsPanel({ onOpenTx }: { onOpenTx: (txRef: string) => void })
 
   if (loading && !data) {
     return (
-      <Card>
-        <CardHeader title="Runtime events" description="Reading events from recent blocks." />
-        <div className="space-y-2 px-5 py-4" role="status" aria-live="polite">
-          <span className="sr-only">Reading runtime events.</span>
-          {[0, 1, 2, 3, 4].map((key) => (
-            <div key={key} className="h-16 rounded bg-surface-sunken" />
-          ))}
-        </div>
-      </Card>
+      <Panel>
+        <PanelHead title="Runtime events" />
+        <SkeletonRows rows={6} label="Reading runtime events." />
+      </Panel>
     );
   }
 
   if (!data) {
     return (
-      <ErrorState
+      <Notice
         kind="chain-unreachable"
         detail="Runtime events could not be decoded from recent blocks."
         technicalDetail={error ?? undefined}
@@ -97,20 +101,11 @@ export function EventsPanel({ onOpenTx }: { onOpenTx: (txRef: string) => void })
     .reduce((total, section) => total + section.count, 0);
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader
-          title="Runtime events"
-          description={
-            `Decoded from the ${data.window.blocksIndexed.toLocaleString('en-IN')} blocks this explorer holds, ` +
-            `${formatBlockNumber(data.window.from)} to ${formatBlockNumber(data.window.to)}.` +
-            (data.window.blocksWithoutEvents > 0
-              ? ` ${data.window.blocksWithoutEvents.toLocaleString('en-IN')} of them were read after the node pruned their state, so their events are not available here.`
-              : '')
-          }
-        />
-        <CardBody className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-4">
+      <Panel>
+        <PanelHead title="Runtime events" meta={<Chip>{events.length} shown</Chip>} />
+        <PanelBody className="space-y-3">
+          <div className="scroll-x flex flex-wrap items-center gap-1.5">
             <FilterChip
               active={scope === 'pramaan'}
               onClick={() => setScope('pramaan')}
@@ -163,36 +158,50 @@ export function EventsPanel({ onOpenTx }: { onOpenTx: (txRef: string) => void })
               />
             )}
           </Field>
-        </CardBody>
-      </Card>
+        </PanelBody>
+        <PanelNote>
+          Decoded from the {data.window.blocksIndexed.toLocaleString('en-IN')} blocks this explorer
+          holds, {formatBlockNumber(data.window.from)} to {formatBlockNumber(data.window.to)}.
+          {data.window.blocksWithoutEvents > 0
+            ? ` ${data.window.blocksWithoutEvents.toLocaleString('en-IN')} of them were read after the node pruned their state, so their events are not available here.`
+            : ''}
+        </PanelNote>
+      </Panel>
 
       {events.length === 0 ? (
-        <EmptyState
-          icon={<Radio className="size-5" aria-hidden="true" />}
+        <Empty
           title={
             query
               ? 'No event in this window matches that filter'
               : 'No events from these pallets in the current window'
           }
-          description={
+          source={
             query
-              ? 'The filter matches an event name, a decoded field value, or a transaction reference. Clear it to see everything in the window.'
-              : 'Every classification, preference calculation, certification, debarment and rule change appears here within a second of being finalized. Run a trigger point from a persona console or the guided walkthrough and it will show up.'
+              ? 'The filter matches an event name, a decoded field value, or a transaction reference.'
+              : 'Every classification, preference calculation, certification, debarment and rule change appears here within a second of being finalized.'
           }
-          action={
-            query ? (
-              <Button size="sm" variant="secondary" onClick={() => setQuery('')}>
-                Clear filter
-              </Button>
-            ) : undefined
-          }
+          action={query ? <Button onClick={() => setQuery('')}>Clear filter</Button> : undefined}
         />
       ) : (
-        <ul className="space-y-3">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} onOpenTx={onOpenTx} />
-          ))}
-        </ul>
+        <Panel>
+          <Table>
+            <THead>
+              <TR>
+                <TH className="w-28">Block</TH>
+                <TH className="w-24">Time</TH>
+                <TH className="w-36">Pallet</TH>
+                <TH className="w-52">Event</TH>
+                <TH>Decoded fields</TH>
+                <TH className="w-44">Transaction</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {events.map((event) => (
+                <EventRow key={event.id} event={event} onOpenTx={onOpenTx} />
+              ))}
+            </TBody>
+          </Table>
+        </Panel>
       )}
     </div>
   );
@@ -214,24 +223,24 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ' +
-        'transition-colors duration-150 ease-out ' +
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea ' +
-        (active
-          ? 'border-cerulea bg-cerulea text-white'
-          : 'border-border bg-surface text-ink-muted hover:border-cerulea/40 hover:text-ink')
-      }
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-sm border px-2 py-0.5 text-2xs font-medium',
+        'transition-colors duration-150',
+        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+        active
+          ? 'border-accent bg-accent text-white'
+          : 'border-line bg-paper text-ink-muted hover:bg-shell hover:text-ink',
+      )}
     >
       {children}
-      <span className={active ? 'font-mono text-white/80' : 'font-mono text-ink-subtle'}>
+      <span className={cn('font-mono', active ? 'text-white/75' : 'text-ink-subtle')}>
         {count.toLocaleString('en-IN')}
       </span>
     </button>
   );
 }
 
-function EventCard({
+function EventRow({
   event,
   onOpenTx,
 }: {
@@ -242,54 +251,50 @@ function EventCard({
   const isPramaan = event.section.startsWith('pramaan');
 
   return (
-    <li>
-      <Card>
-        <CardBody className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={isPramaan ? 'brand' : 'neutral'} size="sm">
-                {SECTION_LABELS[event.section] ?? event.section}
-              </Badge>
-              <span className="font-mono text-sm font-semibold text-ink">{event.method}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-              <span className="font-mono">{formatBlockNumber(event.blockNumber)}</span>
-              <span>{formatClock(event.timestamp)}</span>
-              {event.txRef && (
-                <button
-                  type="button"
-                  onClick={() => onOpenTx(event.txRef as string)}
-                  className="rounded font-medium text-cerulea transition-colors duration-150 hover:text-cerulea-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea"
+    <TR className="hover:bg-shell">
+      <TD mono>{formatBlockNumber(event.blockNumber)}</TD>
+      <TD className="whitespace-nowrap text-2xs text-ink-muted">{formatClock(event.timestamp)}</TD>
+      <TD>
+        <Chip tone={isPramaan ? 'accent' : 'neutral'}>
+          {SECTION_LABELS[event.section] ?? event.section}
+        </Chip>
+      </TD>
+      <TD className="font-mono text-2xs font-semibold text-ink">{event.method}</TD>
+      <TD>
+        {fields.length === 0 ? (
+          <Nil label="No decoded fields" />
+        ) : (
+          <dl className="flex flex-wrap gap-x-4 gap-y-0.5">
+            {fields.map((field) => (
+              <div key={field.label} className="min-w-0">
+                <dt className="text-2xs tracking-wide text-ink-subtle uppercase">{field.label}</dt>
+                <dd
+                  className="max-w-56 truncate font-mono text-2xs text-ink"
+                  title={field.value}
                 >
-                  Trace this transaction
-                </button>
-              )}
-            </div>
-          </div>
-
-          {fields.length > 0 && (
-            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-              {fields.map((field) => (
-                <div key={field.label} className="min-w-0">
-                  <dt className="text-xs tracking-wide text-ink-subtle uppercase">
-                    {field.label}
-                  </dt>
-                  <dd className="truncate font-mono text-[0.8125rem] text-ink" title={field.value}>
-                    {field.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-
-          {event.txRef && (
-            <p className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-ink-muted">
-              <span className="tracking-wide uppercase">Txn</span>
-              <TxRef value={event.txRef} />
-            </p>
-          )}
-        </CardBody>
-      </Card>
-    </li>
+                  {field.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </TD>
+      <TD>
+        {event.txRef ? (
+          <span className="flex flex-col items-start gap-0.5">
+            <Hash value={event.txRef} />
+            <button
+              type="button"
+              onClick={() => onOpenTx(event.txRef as string)}
+              className="rounded-sm text-2xs font-medium text-accent transition-colors duration-150 hover:text-accent-dark hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            >
+              Trace this transaction
+            </button>
+          </span>
+        ) : (
+          <Nil label="No transaction" />
+        )}
+      </TD>
+    </TR>
   );
 }

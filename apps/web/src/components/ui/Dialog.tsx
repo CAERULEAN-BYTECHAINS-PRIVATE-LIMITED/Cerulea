@@ -1,170 +1,89 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { cn } from './cn';
 
-const FOCUSABLE =
-  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
-
 /**
- * A modal dialog, hand-built to the ARIA authoring practice.
+ * A modal built on the native `<dialog>` element.
  *
- * - `role="dialog"` + `aria-modal` + `aria-labelledby` / `aria-describedby`
- * - focus moves into the dialog on open and returns to the trigger on close
- * - Tab and Shift+Tab are trapped inside the panel
- * - Escape closes; the backdrop closes; the panel itself does not
- * - background scroll is locked while open
+ * `showModal()` puts the dialog in the browser's top layer, which means it escapes every
+ * `overflow: hidden` and stacking context on the page for free, traps focus without a
+ * hand-rolled trap, and closes on Escape without a key handler. The alternative — a fixed
+ * div with a manual focus trap — is the version that goes wrong in front of an audience.
  *
- * Motion stays inside the 300 ms budget: 160 ms backdrop fade, 180 ms panel rise.
+ * Modals are used sparingly here: exactly one, for issuing a certificate, where the action
+ * is a discrete legal act with its own inputs and its own record.
  */
 export function Dialog({
   open,
   onClose,
   title,
-  description,
+  subtitle,
   footer,
-  children,
   size = 'md',
-  className,
+  children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
-  description?: string;
+  subtitle?: ReactNode;
   footer?: ReactNode;
+  size?: 'md' | 'lg';
   children: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
-  className?: string;
 }) {
-  const baseId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-
-  const onKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== 'Tab' || !panelRef.current) return;
-
-      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const activeEl = document.activeElement;
-
-      if (event.shiftKey && (activeEl === first || activeEl === panelRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && activeEl === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    },
-    [onClose],
-  );
+  const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    const node = ref.current;
+    if (!node) return;
+    if (open && !node.open) node.showModal();
+    if (!open && node.open) node.close();
+  }, [open]);
 
-    returnFocusRef.current = document.activeElement as HTMLElement | null;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', onKeyDown);
+  return (
+    <dialog
+      ref={ref}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClose={onClose}
+      // Clicking the backdrop — the dialog element's own box outside its content — closes.
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
+      aria-labelledby="dialog-title"
+      className={cn(
+        'm-auto w-[calc(100vw-2rem)] rounded-md border border-line-strong bg-paper p-0 text-ink shadow-modal',
+        'backdrop:bg-masthead/55',
+        size === 'lg' ? 'max-w-3xl' : 'max-w-xl',
+      )}
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-line bg-shell px-4 py-2.5">
+        <div className="min-w-0">
+          <h2 id="dialog-title" className="text-sm font-semibold text-ink">
+            {title}
+          </h2>
+          {subtitle && <p className="mt-0.5 text-2xs text-ink-muted">{subtitle}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="-mr-1 shrink-0 rounded-sm p-1 text-ink-muted transition-colors duration-150 hover:bg-shell-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
 
-    // A timeout rather than requestAnimationFrame: rAF does not fire in a background or
-    // non-compositing tab, and focus must land in the dialog whether or not the browser
-    // happens to be painting.
-    const focusTimer = setTimeout(() => {
-      const target =
-        panelRef.current?.querySelector<HTMLElement>(FOCUSABLE) ?? panelRef.current ?? null;
-      target?.focus();
-    }, 0);
+      <div className="max-h-[70vh] overflow-y-auto px-4 py-4">{children}</div>
 
-    return () => {
-      clearTimeout(focusTimer);
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = overflow;
-      returnFocusRef.current?.focus?.();
-    };
-  }, [open, onKeyDown]);
-
-  const reduceMotion = useReducedMotion();
-  if (typeof document === 'undefined') return null;
-
-  const widths = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' } as const;
-
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
-          <motion.div
-            className="absolute inset-0 bg-ink/40"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.16, ease: 'easeOut' }}
-            onClick={onClose}
-            aria-hidden="true"
-          />
-          <motion.div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`${baseId}-title`}
-            aria-describedby={description ? `${baseId}-description` : undefined}
-            tabIndex={-1}
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className={cn(
-              'relative flex max-h-[90vh] w-full flex-col overflow-hidden bg-surface shadow-xl',
-              'rounded-t-card sm:rounded-card',
-              widths[size],
-              className,
-            )}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div className="min-w-0">
-                <h2 id={`${baseId}-title`} className="text-base font-semibold text-ink">
-                  {title}
-                </h2>
-                {description && (
-                  <p id={`${baseId}-description`} className="mt-1 text-sm text-ink-muted">
-                    {description}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close dialog"
-                className="-mt-1 -mr-1 rounded-md p-1.5 text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-
-            {footer && (
-              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-sunken px-5 py-3">
-                {footer}
-              </div>
-            )}
-          </motion.div>
+      {footer && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-shell px-4 py-2.5">
+          {footer}
         </div>
       )}
-    </AnimatePresence>,
-    document.body,
+    </dialog>
   );
 }

@@ -6,19 +6,22 @@ import { cn } from './cn';
 export interface TabItem {
   id: string;
   label: ReactNode;
-  /** Optional count or badge shown after the label. */
+  /** Optional count shown after the label. */
   meta?: ReactNode;
   content: ReactNode;
   disabled?: boolean;
 }
 
 /**
- * Tabs built to the WAI-ARIA authoring practice, by hand — Radix is not a dependency here.
+ * A segmented control, built to the WAI-ARIA authoring practice by hand.
  *
- * - `tablist` / `tab` / `tabpanel` roles with `aria-selected`, `aria-controls`, `aria-labelledby`
+ * - `tablist` / `tab` / `tabpanel` roles with `aria-selected`, `aria-controls`
  * - roving tabindex: exactly one tab is in the tab order, arrows move between them
  * - Left/Right wrap, Home/End jump to the ends, disabled tabs are skipped
- * - the panel itself is focusable (`tabIndex={0}`) so keyboard users can reach its content
+ * - the panel is focusable so keyboard users can reach its content
+ *
+ * The selected tab is a filled block rather than an underline: on a projector an
+ * underline two pixels tall is the first thing to disappear.
  */
 export function Tabs({
   items,
@@ -26,8 +29,6 @@ export function Tabs({
   value,
   onValueChange,
   className,
-  listClassName,
-  panelClassName,
 }: {
   items: TabItem[];
   defaultTabId?: string;
@@ -35,8 +36,6 @@ export function Tabs({
   value?: string;
   onValueChange?: (id: string) => void;
   className?: string;
-  listClassName?: string;
-  panelClassName?: string;
 }) {
   const baseId = useId();
   const [internal, setInternal] = useState(defaultTabId ?? items[0]?.id);
@@ -46,11 +45,6 @@ export function Tabs({
   function select(id: string) {
     if (value === undefined) setInternal(id);
     onValueChange?.(id);
-  }
-
-  function focusTab(id: string) {
-    select(id);
-    tabRefs.current[id]?.focus();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -66,7 +60,8 @@ export function Tabs({
     else return;
 
     event.preventDefault();
-    focusTab(enabled[next].id);
+    select(enabled[next].id);
+    tabRefs.current[enabled[next].id]?.focus();
   }
 
   const activeItem = items.find((item) => item.id === active);
@@ -76,7 +71,7 @@ export function Tabs({
       <div
         role="tablist"
         onKeyDown={onKeyDown}
-        className={cn('flex gap-1 overflow-x-auto border-b border-border', listClassName)}
+        className="scroll-x flex w-fit max-w-full rounded-md border border-line bg-paper p-0.5"
       >
         {items.map((item) => {
           const selected = item.id === active;
@@ -95,17 +90,24 @@ export function Tabs({
               disabled={item.disabled}
               onClick={() => select(item.id)}
               className={cn(
-                'relative -mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium',
-                'transition-colors duration-150 ease-out',
-                'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cerulea',
+                'flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium',
+                'transition-colors duration-150',
+                'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent',
                 'disabled:cursor-not-allowed disabled:opacity-40',
-                selected
-                  ? 'border-cerulea text-cerulea-dark'
-                  : 'border-transparent text-ink-muted hover:border-border hover:text-ink',
+                selected ? 'bg-accent text-white' : 'text-ink-muted hover:bg-shell hover:text-ink',
               )}
             >
               {item.label}
-              {item.meta}
+              {item.meta && (
+                <span
+                  className={cn(
+                    'font-mono text-2xs',
+                    selected ? 'text-white/75' : 'text-ink-subtle',
+                  )}
+                >
+                  {item.meta}
+                </span>
+              )}
             </button>
           );
         })}
@@ -117,10 +119,7 @@ export function Tabs({
           id={`${baseId}-panel-${activeItem.id}`}
           aria-labelledby={`${baseId}-tab-${activeItem.id}`}
           tabIndex={0}
-          className={cn(
-            'pt-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cerulea',
-            panelClassName,
-          )}
+          className="mt-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {activeItem.content}
         </div>

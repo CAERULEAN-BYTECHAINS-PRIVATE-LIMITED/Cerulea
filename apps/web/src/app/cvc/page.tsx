@@ -17,9 +17,9 @@ export default function CvcPage() {
   return (
     <AppShell
       width="wide"
-      eyebrow={`Vigilance console · ${PERSONA.actingAs}`}
+      breadcrumb="Role portals"
       title="Cross-tender review"
-      subtitle="A declaration made to one ministry is checked against the same vendor's declarations to every other one. This console reads that record after the fact and submits nothing itself."
+      actingAs={PERSONA.actingAs}
     >
       <VigilanceConsole />
     </AppShell>

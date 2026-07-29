@@ -11,8 +11,8 @@ export interface ButtonProps
   loading?: boolean;
   /** Announced while `loading`, so the state is not signalled by the spinner alone. */
   loadingLabel?: string;
-  leadingIcon?: ReactNode;
-  trailingIcon?: ReactNode;
+  icon?: ReactNode;
+  iconAfter?: ReactNode;
 }
 
 export function Button({
@@ -22,8 +22,8 @@ export function Button({
   block,
   loading = false,
   loadingLabel = 'Working',
-  leadingIcon,
-  trailingIcon,
+  icon,
+  iconAfter,
   children,
   disabled,
   type = 'button',
@@ -38,12 +38,12 @@ export function Button({
       {...rest}
     >
       {loading ? (
-        <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+        <LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
       ) : (
-        leadingIcon
+        icon
       )}
       <span>{children}</span>
-      {loading ? <span className="sr-only">{loadingLabel}</span> : trailingIcon}
+      {loading ? <span className="sr-only">{loadingLabel}</span> : iconAfter}
     </button>
   );
 }

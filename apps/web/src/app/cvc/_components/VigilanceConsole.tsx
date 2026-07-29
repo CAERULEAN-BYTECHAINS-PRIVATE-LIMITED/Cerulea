@@ -1,25 +1,30 @@
 'use client';
 
-import { ArrowRight, FileSearch, Scale, ShieldAlert } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
+  Chip,
+  DataList,
   DataRow,
-  EmptyState,
+  Empty,
+  Figure,
+  FigureRow,
+  Hash,
+  Nil,
+  Panel,
+  PanelBody,
+  PanelHead,
+  PanelNote,
+  SectionHead,
   Select,
-  Stat,
+  StatusToken,
   Table,
   TBody,
-  TCaption,
   TD,
   TH,
   THead,
   TR,
-  TxRef,
   buttonClasses,
 } from '@/components';
 import {
@@ -56,10 +61,9 @@ const TOLERANCE_BPS = 1_000;
  *
  * They used to be counted out of localStorage, which meant a reviewer opening `/cvc` in a
  * fresh browser was shown four zeroes while `/dashboard` — reading the same chain — showed
- * a hundred and twenty declarations and four contradictions. Worse, one of the hints
- * claimed national scope ("across every tender and ministry") for a number that only ever
- * counted what that one tab had watched happen. Everything in this block is now a chain
- * read, and the register further down, which is still session-scoped, says so on its face.
+ * a hundred and twenty declarations and four contradictions. Everything in this block is
+ * now a chain read, and the register further down, which is still session-scoped, says so
+ * on its face.
  */
 interface ChainCounters {
   totalDeclarations: number;
@@ -119,9 +123,7 @@ export function VigilanceConsole() {
   /** Never a zero standing in for "not read yet" — an em dash says the read has not landed. */
   const chainValue = (pick: (counters: ChainCounters) => number): string =>
     counters ? pick(counters).toLocaleString('en-IN') : '—';
-  const readNote = countersError
-    ? ` The chain could not be read: ${countersError}`
-    : '';
+  const readNote = countersError ? ` Chain read failed: ${countersError}` : '';
 
   const declarations = ledger.filter(
     (entry) => entry.kind === 'classification' || entry.kind === 'evaluation',
@@ -138,73 +140,61 @@ export function VigilanceConsole() {
   }, [declarations]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Reads the chain on every load, as do the four figures directly below it. */}
       <AnomalyPanel />
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
+      <FigureRow>
+        <Figure
           label="Inconsistency flags"
           value={chainValue((c) => c.inconsistenciesFlagged)}
-          hint={`Raised by the chain's own consistency rule, across every tender and ministry.${readNote}`}
-          icon={<ShieldAlert className="size-3.5" aria-hidden="true" />}
+          note={`Raised by the chain's own consistency rule, across every tender and ministry.${readNote}`}
         />
-        <Stat
+        <Figure
           label="Vendor–product histories flagged"
           value={chainValue((c) => c.vendorProductPairsFlagged)}
-          hint="Distinct vendor-and-product records on chain holding at least one contradiction."
+          note="Distinct vendor-and-product records on chain holding at least one contradiction."
         />
-        <Stat
+        <Figure
           label="Declarations on chain"
           value={chainValue((c) => c.totalDeclarations)}
-          hint="Every local-content declaration recorded in pramaanConsistency.declarations."
+          note="Every local-content declaration in pramaanConsistency.declarations."
         />
-        <Stat
+        <Figure
           label="Tolerance"
           value={formatBps(counters?.toleranceBps ?? TOLERANCE_BPS)}
-          hint={
+          note={
             counters
-              ? "The runtime's ToleranceBps, read from the chain's own constants. Beyond it, a declaration is flagged."
+              ? "The runtime's ToleranceBps, read from the chain's own constants."
               : "The runtime's ToleranceBps. Beyond it, a declaration is flagged."
           }
-          icon={<Scale className="size-3.5" aria-hidden="true" />}
         />
-      </section>
+      </FigureRow>
 
       {/* ---- The register ------------------------------------------------------ */}
-      <section aria-labelledby="register-heading" className="space-y-4">
-        <div>
-          <h2 id="register-heading" className="text-xl font-semibold tracking-tight text-ink">
-            Cross-tender inconsistency register — this session
-          </h2>
-          <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
-            A declaration is checked against the vendor&apos;s own history for the same product
-            regardless of which of the twelve pathways it travelled. Each entry below is a flag
-            the chain raised <strong className="font-semibold text-ink">while this browser was
-            watching</strong>, with both declarations set against each other. The national count
-            is the &ldquo;Inconsistency flags&rdquo; figure above, and every contradiction on
-            chain — including those raised before this tab was opened — is listed in the anomaly
-            panel at the top of the page.
-          </p>
-        </div>
+      <section aria-labelledby="register-heading" className="space-y-3">
+        <SectionHead
+          id="register-heading"
+          title="Cross-tender inconsistency register"
+          meta={<Chip>This session only</Chip>}
+        />
 
         {flags.length === 0 ? (
-          <EmptyState
-            icon={<FileSearch className="size-5" aria-hidden="true" />}
+          <Empty
             title="No inconsistency flagged yet in this session"
-            description="A flag is raised when a vendor declares a materially different local content figure for the same product on a second tender. Submit a declaration from the vendor console carrying a product identifier, then submit another for the same product with a very different figure."
+            source="A flag is raised when a vendor declares a materially different local content figure for the same product on a second tender. The national count is the figure above; every contradiction on chain is listed in the anomaly panel."
             action={
-              <Link href="/vendor" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>
+              <Link href="/vendor" className={buttonClasses({ variant: 'default' })}>
                 Open the vendor console
-                <ArrowRight className="size-4" aria-hidden="true" />
+                <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
             }
           />
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-3">
             {flags.map((flag) => (
               <li key={flag.id}>
-                <FlagCard flag={flag} />
+                <FlagPanel flag={flag} />
               </li>
             ))}
           </ul>
@@ -212,158 +202,128 @@ export function VigilanceConsole() {
       </section>
 
       {/* ---- The canonical case, labelled for what it is ----------------------- */}
-      <section aria-labelledby="worked-heading" className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="worked-heading" className="text-xl font-semibold tracking-tight text-ink">
-              The case the check exists for
-            </h2>
-            <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
-              The worked example from the PoC document, reproduced here so the register&apos;s
-              format is readable before the first live flag arrives.
-            </p>
-          </div>
-          <Badge tone="neutral">Worked example — not a chain record</Badge>
-        </div>
+      <section aria-labelledby="worked-heading" className="space-y-3">
+        <SectionHead
+          id="worked-heading"
+          title="The case the check exists for"
+          meta={<Chip tone="outline">Worked example — not a chain record</Chip>}
+        />
 
-        <Card>
-          <CardHeader
-            title="Same product, same vendor, two irreconcilable declarations"
-            description="Optical Fibre Cable (24F, Armoured), HSN 8544, declared to two different buyers within one quarter."
-          />
-          <CardBody>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <DeclarationPanel
+        <Panel>
+          <PanelHead title="Same product, same vendor, two irreconcilable declarations" />
+          <PanelBody>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <Declaration
                 heading="Declaration on the earlier tender"
                 tender="GEM/2025/B/6712330"
                 ministry="DOT"
                 bps={8_600}
-                emphasis
               />
-              <DeclarationPanel
+              <Declaration
                 heading="Declaration on the later tender"
                 tender="GEM/2025/B/6390218"
                 ministry="MOHUA"
                 bps={3_000}
-                emphasis
               />
             </div>
-            <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-              The gap is 56 percentage points against a tolerance of {formatBps(TOLERANCE_BPS)}.
-              Under today&apos;s arrangements these two declarations sit in two ministries&apos; files
-              and never meet. Here the second one is contradicted by the first at the moment it is
-              made, and both are recorded against the same product in one history.
-            </p>
-          </CardBody>
-        </Card>
+          </PanelBody>
+          <PanelNote>
+            Optical Fibre Cable (24F, Armoured), HSN 8544, declared to two different buyers within
+            one quarter. The gap is 56 percentage points against a tolerance of{' '}
+            {formatBps(TOLERANCE_BPS)}. Under today&apos;s arrangements these two declarations sit
+            in two ministries&apos; files and never meet.
+          </PanelNote>
+        </Panel>
       </section>
 
       {/* ---- Vendor drill-down -------------------------------------------------- */}
-      <section aria-labelledby="history-heading" className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="history-heading" className="text-xl font-semibold tracking-tight text-ink">
-              Vendor declaration history
-            </h2>
-            <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
-              Every declaration this console has seen decided, with the block it was sealed in.
-            </p>
-          </div>
-          <div className="w-full max-w-xs">
-            <label htmlFor="vendor-filter" className="sr-only">
-              Filter by vendor
-            </label>
-            <Select
-              id="vendor-filter"
-              value={vendorFilter}
-              onChange={(event) => setVendorFilter(event.target.value)}
-            >
-              <option value="all">All vendors</option>
-              {vendorsSeen.map((vendor) => (
-                <option key={vendor.account} value={vendor.account}>
-                  {vendor.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </div>
+      <section aria-labelledby="history-heading" className="space-y-3">
+        <SectionHead
+          id="history-heading"
+          title="Vendor declaration history"
+          meta={
+            <div className="w-full max-w-xs">
+              <label htmlFor="vendor-filter" className="sr-only">
+                Filter by vendor
+              </label>
+              <Select
+                id="vendor-filter"
+                value={vendorFilter}
+                onChange={(event) => setVendorFilter(event.target.value)}
+              >
+                <option value="all">All vendors</option>
+                {vendorsSeen.map((vendor) => (
+                  <option key={vendor.account} value={vendor.account}>
+                    {vendor.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          }
+        />
 
-        <Card>
+        <Panel>
           {history.length === 0 ? (
-            <CardBody>
-              <EmptyState
-                icon={<FileSearch className="size-5" aria-hidden="true" />}
+            <PanelBody>
+              <Empty
                 title="No declaration history to trace yet"
-                description="Once a bid has been classified or evaluated anywhere in the console, its decision appears here with the rule version, the tender and the finalized block it was recorded in."
+                source="Once a bid has been classified or evaluated anywhere in the console, its decision appears here with the tender and the finalized block it was recorded in."
               />
-            </CardBody>
+            </PanelBody>
           ) : (
             <Table>
               <THead>
                 <TR>
-                  <TH>Recorded</TH>
+                  <TH className="w-40">Recorded</TH>
                   <TH>Vendor</TH>
-                  <TH>Tender</TH>
-                  <TH>Ministry</TH>
-                  <TH>Declared</TH>
+                  <TH className="w-48">Tender</TH>
+                  <TH className="w-32">Ministry</TH>
+                  <TH numeric className="w-24">Declared</TH>
                   <TH>Outcome</TH>
-                  <TH>Block</TH>
-                  <TH>Transaction</TH>
+                  <TH numeric className="w-28">Block</TH>
+                  <TH className="w-40">Transaction</TH>
                 </TR>
               </THead>
               <TBody>
                 {history.map((entry) => (
                   <TR key={entry.id}>
-                    <TD className="whitespace-nowrap text-xs text-ink-muted">
+                    <TD className="text-2xs whitespace-nowrap text-ink-muted">
                       {new Date(entry.at).toLocaleString('en-IN', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
                     </TD>
-                    <TD>{entry.vendor ? vendorName(entry.vendor) : '—'}</TD>
-                    <TD mono>{entry.tender ?? '—'}</TD>
-                    <TD>{entry.ministry ? ministryShort(entry.ministry) : '—'}</TD>
-                    <TD className="tabular-nums">
-                      {entry.facts?.['Declared local content'] ?? '—'}
-                    </TD>
+                    <TD>{entry.vendor ? vendorName(entry.vendor) : <Nil />}</TD>
+                    <TD mono>{entry.tender ?? <Nil />}</TD>
+                    <TD>{entry.ministry ? ministryShort(entry.ministry) : <Nil />}</TD>
+                    <TD numeric>{entry.facts?.['Declared local content'] ?? <Nil />}</TD>
                     <TD>
-                      <span className="block text-sm text-ink">{entry.headline}</span>
-                      <Badge
-                        tone={
-                          entry.result === 'GREEN'
-                            ? 'green'
-                            : entry.result === 'YELLOW'
-                              ? 'yellow'
-                              : 'red'
-                        }
-                        size="sm"
-                        className="mt-1"
-                      >
-                        {entry.result}
-                      </Badge>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <StatusToken status={entry.result} />
+                        <span className="text-ink">{entry.headline}</span>
+                      </span>
                     </TD>
-                    <TD mono>
-                      {entry.blockNumber === null || entry.blockNumber === undefined
-                        ? 'Ledger read'
-                        : `#${entry.blockNumber.toLocaleString('en-IN')}`}
-                    </TD>
-                    <TD>
-                      {entry.txRef ? (
-                        <TxRef value={entry.txRef} head={8} tail={6} />
+                    <TD numeric>
+                      {entry.blockNumber === null || entry.blockNumber === undefined ? (
+                        <span className="font-sans text-2xs text-ink-muted">Ledger read</span>
                       ) : (
-                        <span className="text-xs text-ink-muted">No transaction submitted</span>
+                        `#${entry.blockNumber.toLocaleString('en-IN')}`
                       )}
+                    </TD>
+                    <TD>
+                      {entry.txRef ? <Hash value={entry.txRef} /> : <Nil label="No transaction" />}
                     </TD>
                   </TR>
                 ))}
               </TBody>
-              <TCaption>
-                Trace any row further in the explorer, which reads the chain rather than this
-                console&apos;s record of it.
-              </TCaption>
             </Table>
           )}
-        </Card>
+          <PanelNote>
+            Every declaration this console has seen decided, with the block it was sealed in. Trace
+            any row further in the explorer, which reads the chain rather than this console&apos;s
+            record of it.
+          </PanelNote>
+        </Panel>
       </section>
     </div>
   );
@@ -371,25 +331,19 @@ export function VigilanceConsole() {
 
 // -------------------------------------------------------------------------------------
 
-function FlagCard({ flag }: { flag: InconsistencyEntry }) {
-  const gap =
-    flag.priorBps === null ? null : Math.abs(flag.declaredBps - flag.priorBps);
+function FlagPanel({ flag }: { flag: InconsistencyEntry }) {
+  const gap = flag.priorBps === null ? null : Math.abs(flag.declaredBps - flag.priorBps);
   const tender = getTender(flag.tender);
 
   return (
-    <Card className="border-status-yellow/30">
-      <CardHeader
+    <Panel>
+      <PanelHead
         title={`${vendorName(flag.vendor)} — ${flag.product}`}
-        description={
-          tender
-            ? `${tender.itemCategory} · HSN ${tender.hsnCode}`
-            : 'Declared against a product already in this vendor’s history'
-        }
-        actions={<Badge tone="yellow">Inconsistency flagged</Badge>}
+        meta={<Chip tone="yellow">Inconsistency flagged</Chip>}
       />
-      <CardBody>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <DeclarationPanel
+      <PanelBody>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <Declaration
             heading="Declared earlier"
             tender={flag.priorTender ?? 'Recorded on chain'}
             // The earlier declaration may have been made to an entirely different
@@ -401,7 +355,7 @@ function FlagCard({ flag }: { flag: InconsistencyEntry }) {
             }
             bps={flag.priorBps}
           />
-          <DeclarationPanel
+          <Declaration
             heading="Declared on this bid"
             tender={flag.tender}
             ministry={flag.ministry}
@@ -409,53 +363,61 @@ function FlagCard({ flag }: { flag: InconsistencyEntry }) {
           />
         </div>
 
-        <dl className="mt-4">
+        <DataList className="mt-3">
           <DataRow
             label="Gap between the two declarations"
-            value={gap === null ? 'Materially different' : `${formatBps(gap)} against a tolerance of ${formatBps(TOLERANCE_BPS)}`}
+            value={
+              gap === null
+                ? 'Materially different'
+                : `${formatBps(gap)} against a tolerance of ${formatBps(TOLERANCE_BPS)}`
+            }
           />
           <DataRow
             label="Finalized block"
             value={
-              flag.blockNumber === null || flag.blockNumber === undefined
-                ? 'Not recorded'
-                : `#${flag.blockNumber.toLocaleString('en-IN')}`
+              flag.blockNumber === null || flag.blockNumber === undefined ? (
+                <Nil />
+              ) : (
+                `#${flag.blockNumber.toLocaleString('en-IN')}`
+              )
             }
             mono
           />
           <DataRow
             label="Transaction"
-            value={flag.txRef ? <TxRef value={flag.txRef} /> : 'Not recorded'}
+            value={flag.txRef ? <Hash value={flag.txRef} /> : <Nil />}
           />
-        </dl>
-      </CardBody>
-    </Card>
+        </DataList>
+      </PanelBody>
+      <PanelNote>
+        {tender
+          ? `${tender.itemCategory} · HSN ${tender.hsnCode}`
+          : 'Declared against a product already in this vendor’s history.'}
+      </PanelNote>
+    </Panel>
   );
 }
 
-function DeclarationPanel({
+function Declaration({
   heading,
   tender,
   ministry,
   bps,
-  emphasis = false,
 }: {
   heading: string;
   tender: string;
   ministry: string;
   bps: number | null;
-  emphasis?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-sunken px-4 py-4">
-      <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">{heading}</p>
-      <p
-        className={`mt-2 font-semibold tabular-nums text-ink ${emphasis ? 'text-3xl' : 'text-2xl'}`}
-      >
-        {bps === null ? 'Not readable' : formatBps(bps)}
-      </p>
-      <p className="mt-2 font-mono text-[0.8125rem] text-ink-muted">{tender}</p>
-      <p className="mt-0.5 text-xs text-ink-muted">{ministryShort(ministry)}</p>
-    </div>
+    <Figure
+      label={heading}
+      value={bps === null ? 'Not readable' : formatBps(bps)}
+      note={
+        <>
+          <span className="font-mono">{tender}</span> · {ministryShort(ministry)}
+        </>
+      }
+    />
   );
 }

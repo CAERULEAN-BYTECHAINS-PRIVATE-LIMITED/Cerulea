@@ -1,25 +1,16 @@
 /**
  * The six roles the PoC document Section 8 requires — "each of the six roles (vendor,
  * procuring entity, nodal ministry administrator, cost or chartered accountant, CVC or
- * audit reviewer, and DPIIT) sees only what its role permits".
+ * audit reviewer, and DPIIT) sees only what its role permits" — plus the two
+ * cross-cutting network views.
  *
- * This file is the single source of truth for their routes, labels and iconography, so a
- * persona can be added to the nav, the landing page and the switcher from one place.
+ * This file is the single source of truth for the navigation. Every label here is short
+ * enough to sit in a nav strip and precise enough to be read out to a jury.
  *
- * The `devAccount` values mirror `PERSONA_ACCOUNTS` in `src/lib/chain.ts`. They are
- * repeated here as plain strings on purpose: importing `chain.ts` would pull
- * `@polkadot/api` into the client bundle for what is only ever a caption.
+ * `devAccount` mirrors `PERSONA_ACCOUNTS` in `src/lib/chain.ts`. The values are repeated
+ * here as plain strings on purpose: importing `chain.ts` would pull `@polkadot/api` into
+ * the client bundle for what is only ever a caption.
  */
-
-import {
-  Building2,
-  FileCheck2,
-  Landmark,
-  ScrollText,
-  ShieldCheck,
-  Store,
-  type LucideIcon,
-} from 'lucide-react';
 
 export type PersonaId =
   | 'vendor'
@@ -31,21 +22,17 @@ export type PersonaId =
 
 export interface Persona {
   id: PersonaId;
-  /** Route this persona's console lives at. */
   route: `/${string}`;
-  /** Full institutional title, used as a page heading. */
+  /** Full institutional title. Used as the page heading. */
   label: string;
-  /** Compact title for the nav and the persona switcher. */
-  shortLabel: string;
-  /** One line a judge can read aloud: what this role does in the procurement flow. */
-  summary: string;
-  /** The concrete actions this console exposes. Real capabilities, not marketing. */
-  capabilities: string[];
-  /** The demo organisation this persona is signed in as. */
+  /** What fits in the navigation strip. */
+  navLabel: string;
+  /** The organisation this console is signed in as. */
   actingAs: string;
+  /** The role's remit, in one clause. Read on the portal directory only. */
+  remit: string;
   /** Development account this persona signs with. See `chain.ts`. */
   devAccount: string;
-  icon: LucideIcon;
 }
 
 export const PERSONAS: readonly Persona[] = [
@@ -53,97 +40,55 @@ export const PERSONAS: readonly Persona[] = [
     id: 'vendor',
     route: '/vendor',
     label: 'Vendor',
-    shortLabel: 'Vendor',
-    summary:
-      'Declares local content against a live GeM bid and sees the classification verdict before the bid closes.',
-    capabilities: [
-      'Submit a local content declaration for a bid',
-      'See the Class I / Class II / Non-local verdict and the rule behind it',
-      'Track declaration history across tenders',
-    ],
+    navLabel: 'Vendor',
     actingAs: 'Bharat Precision Instruments Pvt Ltd',
+    remit: 'Declare local content on a GeM bid and receive the classification before close.',
     devAccount: '//Dave',
-    icon: Store,
   },
   {
     id: 'procuring-entity',
     route: '/procuring-entity',
     label: 'Procuring Entity',
-    shortLabel: 'Procuring Entity',
-    summary:
-      'Evaluates the bids received on a tender and applies the purchase preference the order requires.',
-    capabilities: [
-      'Run bid evaluation, including the cross-ministry debarment check',
-      'Calculate purchase preference and the L1 price-match band',
-      'Record the award decision and the pathway it took',
-    ],
+    navLabel: 'Procuring entity',
     actingAs: 'Central Procurement Cell, Northern Railway',
+    remit: 'Evaluate bids, check the national debarment ledger, apply purchase preference.',
     devAccount: '//Charlie',
-    icon: Building2,
   },
   {
     id: 'ministry-admin',
     route: '/ministry-admin',
     label: 'Nodal Ministry Administrator',
-    shortLabel: 'Ministry Admin',
-    summary:
-      'Maintains the ministry rule set — thresholds, Para 3A, PLI linkage — and issues debarments.',
-    capabilities: [
-      'Amend the ministry rule and set its effective block',
-      'Debar or reinstate a vendor with a recorded reason',
-      'Review declarations flagged as inconsistent',
-    ],
+    navLabel: 'Ministry',
     actingAs: 'Ministry of Electronics and Information Technology',
+    remit: 'Maintain the ministry rule set and issue debarment orders.',
     devAccount: '//Bob',
-    icon: Landmark,
   },
   {
     id: 'auditor',
     route: '/auditor',
     label: 'Cost or Chartered Accountant',
-    shortLabel: 'CA / Auditor',
-    summary:
-      'Certifies local content for contracts at or above the Rs 10 crore certification threshold.',
-    capabilities: [
-      'Issue a local content certificate against a contract',
-      'See which contracts require a statutory auditor and which may self-certify',
-      'Review the certificates already on record',
-    ],
+    navLabel: 'Auditor',
     actingAs: 'S. Raghavan & Associates, Cost Accountants',
+    remit: 'Certify local content on contracts at or above the certification threshold.',
     devAccount: '//Eve',
-    icon: FileCheck2,
   },
   {
     id: 'cvc',
     route: '/cvc',
-    label: 'CVC / Audit Reviewer',
-    shortLabel: 'CVC',
-    summary:
-      'Reads the finalized record after the fact — every decision, its inputs, and the block it was sealed in.',
-    capabilities: [
-      'Trace any decision back to the rule version in force at that block',
-      'Review inconsistent declarations across tenders and ministries',
-      'Export an audit trail for a tender or a vendor',
-    ],
+    label: 'Central Vigilance Commission',
+    navLabel: 'Vigilance',
     actingAs: 'Central Vigilance Commission',
+    remit: 'Read the finalized record: anomalies, contradictions, and the block each was sealed in.',
     devAccount: '//Ferdie',
-    icon: ShieldCheck,
   },
   {
     id: 'dpiit',
     route: '/dpiit',
     label: 'DPIIT',
-    shortLabel: 'DPIIT',
-    summary:
-      'Owns the default rule that every ministry inherits, and sees compliance across all of them.',
-    capabilities: [
-      'Set the national default rule and its effective block',
-      'Compare ministry rule sets against the default',
-      'Monitor classification outcomes across all 21 ministries',
-    ],
+    navLabel: 'DPIIT',
     actingAs: 'Department for Promotion of Industry and Internal Trade',
+    remit: 'Own the national default rule and monitor every ministry against it.',
     devAccount: '//Alice',
-    icon: ScrollText,
   },
 ] as const;
 
@@ -162,9 +107,14 @@ export function personaFromPathname(pathname: string): Persona | undefined {
   );
 }
 
-/** Routes that are not persona consoles but appear in the primary navigation. */
-export const GLOBAL_ROUTES = [
-  { href: '/dashboard', label: 'Dashboard' },
+/**
+ * The two network views, which belong to no single role.
+ *
+ * `/demo` is deliberately absent. The guided walkthrough is reachable by typing its URL
+ * and by nothing else: it is a presenter's tool, not a place a judge should stumble into
+ * while looking at the compliance record.
+ */
+export const NETWORK_ROUTES = [
+  { href: '/dashboard', label: 'Analytics' },
   { href: '/explorer', label: 'Explorer' },
-  { href: '/demo', label: 'Walkthrough' },
 ] as const;
