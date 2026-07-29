@@ -50,15 +50,23 @@ export function VerdictChart({
   entries,
   sessionStartedAt,
   totals,
+  now,
 }: {
   entries: VerdictEntry[];
   sessionStartedAt: number;
   totals: Record<'GREEN' | 'YELLOW' | 'RED', number>;
+  /**
+   * When the figures were last read, so the axis runs up to the present rather than
+   * stopping at the last verdict. Passed in rather than read from `Date.now()` here:
+   * a clock read during render is impure, and the poll that produced `entries` already
+   * knows the time it landed.
+   */
+  now: number;
 }) {
   const buckets = useMemo<Bucket[]>(() => {
     if (entries.length === 0) return [];
     const first = Math.min(...entries.map((entry) => entry.timestamp), sessionStartedAt);
-    const last = Math.max(...entries.map((entry) => entry.timestamp), Date.now());
+    const last = Math.max(...entries.map((entry) => entry.timestamp), now);
     const firstBucket = Math.floor(first / BUCKET_MS) * BUCKET_MS;
     const lastBucket = Math.floor(last / BUCKET_MS) * BUCKET_MS;
 
@@ -87,7 +95,7 @@ export function VerdictChart({
       });
     }
     return all.slice(-MAX_BUCKETS);
-  }, [entries, sessionStartedAt]);
+  }, [entries, sessionStartedAt, now]);
 
   const total = totals.GREEN + totals.YELLOW + totals.RED;
 

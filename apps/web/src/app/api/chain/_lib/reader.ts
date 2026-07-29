@@ -31,12 +31,20 @@ import { encodeAddress, type ApiPromise } from '@cerulea/api';
  * block's events can no longer be decoded — the reader handles it gracefully, but there is
  * no point reaching for history it will only have to mark as unavailable.
  */
-const BACKFILL_BLOCKS = 120;
+const BACKFILL_BLOCKS = 600;
 /** Ceiling on a single catch-up, so a long idle period cannot stall a request. */
-const MAX_CATCHUP_BLOCKS = 180;
-/** Ring-buffer bounds. At ~250 ms per block these hold several minutes of history. */
-const MAX_BLOCKS = 600;
-const MAX_EVENTS = 6_000;
+const MAX_CATCHUP_BLOCKS = 1_500;
+/**
+ * Ring-buffer bounds.
+ *
+ * Sized for a whole judging session, not a few minutes. At ~200ms per block the previous
+ * 600-block ceiling covered roughly 3.2 minutes, so a verdict produced at the start of a
+ * ten-minute demo could no longer be looked up by the end of it -- "here is the hash, go
+ * verify it" answering "not found" undoes the argument the entire PoC is making.
+ * 18,000 blocks is about an hour of history.
+ */
+const MAX_BLOCKS = 18_000;
+const MAX_EVENTS = 60_000;
 
 export interface BlockSummary {
   number: number;

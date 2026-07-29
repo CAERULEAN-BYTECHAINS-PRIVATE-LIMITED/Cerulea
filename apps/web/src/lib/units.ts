@@ -51,8 +51,29 @@ export function formatPaise(paise: bigint | string | number): string {
   return `₹${rupees.toLocaleString('en-IN')}`;
 }
 
+/**
+ * Render a scaled figure without misrepresenting a boundary.
+ *
+ * Two decimals alone is not enough here. The certification obligation turns on a
+ * threshold of exactly Rs 10 crore, and `toFixed(2)` renders 9,99,99,999.99 as
+ * "10 crore" — so a contract one paisa BELOW the threshold and one exactly AT it both
+ * printed "Rs 10 crore", one screen saying "below" and the next "at or above". The `>=`
+ * comparison was always correct; only the display collapsed, which is arguably worse,
+ * because it makes correct behaviour look like a bug to anyone probing the boundary.
+ *
+ * Rounding is therefore only applied when it does not cross an integer boundary; a value
+ * that would round up to a whole number is shown with enough precision to stay honest.
+ */
 function trimZeros(n: number): string {
-  return n.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  const rounded = Number(n.toFixed(2));
+  if (n < rounded && Number.isInteger(rounded)) {
+    // Rounding would land on a whole unit the value has not actually reached, so
+    // truncate downward instead. Adding decimals does not help -- 9.999999999 rounds to
+    // "10.0000" at four places too; only truncation preserves the "below" reading.
+    const truncated = Math.floor(n * 100) / 100;
+    return truncated.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+  return rounded.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
 }
 
 /** Percent (0-100, may be fractional) -> basis points. 19.99% -> 1999. */

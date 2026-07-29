@@ -65,7 +65,17 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Best block" value={head ? formatBlockNumber(head.number) : '—'} mono />
+        <Stat
+          label="Best block"
+          value={
+            data.bestBlock
+              ? formatBlockNumber(data.bestBlock)
+              : head
+                ? formatBlockNumber(head.number)
+                : '—'
+          }
+          mono
+        />
         <Stat
           label="Finalized block"
           value={formatBlockNumber(data.finalizedBlock)}

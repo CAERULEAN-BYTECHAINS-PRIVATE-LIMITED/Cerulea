@@ -46,6 +46,42 @@ export interface Scenario {
  * section 4). Ids are stored hyphenated on chain because the pallet's `IdBound` holds raw
  * bytes and a hyphenated form survives a URL without escaping.
  */
+/**
+ * The scenario as an external store.
+ *
+ * The bid number is random, so it cannot be generated during render: the server and the
+ * client would produce two different numbers and hydration would mismatch. Reading it
+ * through `useSyncExternalStore` with a server snapshot of `null` gives the component a
+ * defined server render and a generated value on the client, without a state-setting
+ * effect and without the cascading render one would cause.
+ */
+export const scenarioStore = (() => {
+  let value: Scenario | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    /** Stable between renders: generated once, then returned as the same object. */
+    getSnapshot(): Scenario {
+      value ??= newScenario();
+      return value;
+    },
+    /** Nothing is generated on the server, so the first paint has no bid number to mismatch. */
+    getServerSnapshot(): Scenario | null {
+      return null;
+    },
+    /** Start a fresh walkthrough with a new bid number and new counterparty accounts. */
+    reset() {
+      value = newScenario();
+      listeners.forEach((listener) => listener());
+    },
+  };
+})();
+
 export function newScenario(): Scenario {
   const serial = String(Math.floor(1_000_000 + Math.random() * 9_000_000));
   return {
@@ -56,9 +92,11 @@ export function newScenario(): Scenario {
     otherMinistryName: 'Ministry of Defence',
     vendor: 'vendor',
     vendorName: 'Bharat Precision Instruments Pvt Ltd',
-    rival: '//GlobalInstrumentsTrading',
+    // Derived per run so a second walkthrough debars a fresh account rather than piling
+    // records onto one vendor until the pallet's MaxRecords bound rejects the step.
+    rival: `//GlobalInstrumentsTrading${serial}`,
     rivalName: 'Global Instruments Trading',
-    mseBidder: '//SaraswatiMicroSystems',
+    mseBidder: `//SaraswatiMicroSystems${serial}`,
     mseBidderName: 'Saraswati Micro Systems (MSE)',
     declaredBps: 6_200,
     tenderValueRupees: 42_00_00_000,
@@ -132,7 +170,7 @@ export const WALKTHROUGH: WalkthroughStep[] = [
       declaredLocalContentBps: scenario.declaredBps,
     }),
     caption:
-      "The chain read MeitY's own rule set — not a national default — and judged 62% against the Class-I threshold that ministry has notified for HSN 8471, which is 50%. The bid clears it, so the verdict is Class-I local supplier and the bid proceeds. What matters as much as the answer is when it arrived: the response was withheld until the block carrying it reached finality on the three-validator network, so the classification a judge is reading is not a pending transaction that could still be reorganised away. The vendor never saw a wallet, a key, or a gas fee — from their side this was a form on a procurement portal.",
+      "The chain read MeitY's own rule set — not a national default — and judged the declared 62% against the Class-I threshold that ministry has itself notified for HSN 8471. The verdict states which side of that threshold the bid fell on and why, in the pallet's own words. What matters as much as the answer is when it arrived: the response was withheld until the block carrying it reached finality on the three-validator network, so the classification a judge is reading is not a pending transaction that could still be reorganised away. The vendor never saw a wallet, a key, or a gas fee — from their side this was a form on a procurement portal.",
     claim:
       'Trigger point 1 (Part 8.2), decision pathway P1, and the sub-second finality claim in Part 8.3.',
   },
@@ -165,13 +203,13 @@ export const WALKTHROUGH: WalkthroughStep[] = [
     point: 3,
     title: 'Purchase preference is applied across all bids',
     intent:
-      'Three bids are in. The cheapest is from a non-local supplier at ₹38 crore. A Class-I local supplier has bid ₹43.5 crore — 14.5% higher. Under the Public Procurement (Preference to Make in India) Order the lowest price does not automatically win: a Class-I supplier within the preference margin of L1 must be offered the chance to match it.',
+      'Three bids are in, and the cheapest is from a non-local supplier at ₹38 crore. Under the Public Procurement (Preference to Make in India) Order the lowest price does not automatically win. MeitY has notified this category under Para 3A, and no global tender enquiry has been approved for the tender — two facts that decide the outcome before price is looked at.',
     facts: (scenario) => [
       { label: 'Tender value', value: '₹42 crore' },
       { label: 'L1 bid (Non-local)', value: `₹38 crore — ${scenario.rivalName}` },
       { label: 'Class-I bid', value: `₹43.5 crore — ${scenario.vendorName}` },
       { label: 'Class-II bid (MSE)', value: `₹40 crore — ${scenario.mseBidderName}` },
-      { label: 'Preference margin', value: '20% of L1' },
+      { label: 'Para 3A', value: 'Applicable to this category' },
       { label: 'Global tender enquiry', value: 'Not approved' },
     ],
     endpoint: '/api/trigger/preference-calculation',
@@ -192,19 +230,19 @@ export const WALKTHROUGH: WalkthroughStep[] = [
       ],
     }),
     caption:
-      "The chain worked the arithmetic the Order specifies rather than the arithmetic a spreadsheet would. L1 is ₹38 crore, so the preference band reaches ₹45.6 crore — L1 plus MeitY's notified 20% margin. The Class-I bid at ₹43.5 crore falls inside that band, so it is offered the award at the matched L1 price of ₹38 crore, not at its own bid price. The government pays the lowest price on the table and the contract still goes to a Class-I local supplier. Every excluded bid is recorded too, with the pathway that excluded it, so the file shows why the cheapest bid did not simply win — which is exactly the question an audit asks two years later.",
+      "Expand the on-chain record and read the decision path recorded against each bid, because that is where the reasoning is. Both the non-local bid and the Class-II bid come back on pathway P7 — Para 3A. Where a nodal ministry has notified that domestic capacity is sufficient for a category, sourcing is restricted to Class-I suppliers and the other bids are removed from the ranking entirely, before price is compared at all. That leaves one eligible bid, which takes the full award on P8, the divisible fork. This is why the cheapest bid did not win, and it is recorded per bid rather than inferred: an auditor opening this file in two years gets the pathway, not a conclusion. Had Para 3A not applied to this category, the same call would have run the P8/P9 price-match instead — the Class-I bid at ₹43.5 crore sits inside the ₹45.6 crore band that MeitY's 20% margin draws around L1, and would have been offered the award at the matched L1 price.",
     claim:
-      'Trigger point 3 (Part 8.2), and decision pathways P8 and P9 — the divisible and non-divisible price-match forks in Section 4.2.',
+      'Trigger point 3 (Part 8.2), and decision pathways P7, P8 and P9 in Section 4.2 — the Para 3A restriction and the price-match forks it takes precedence over.',
   },
   {
     id: 'ca-certification',
     point: 4,
     title: 'The contract crosses the certification threshold',
     intent:
-      "The award is worth ₹42 crore, well above MeitY's ₹10 crore certification threshold. The 19.07.2024 amendment moved the local-content certificate from bidding to execution and made a statutory auditor's signature mandatory above that threshold. The vendor lodges its certificate — without one.",
+      "The award is worth ₹42 crore. The 19.07.2024 amendment moved the local-content certificate from bidding to execution and made a statutory auditor's signature mandatory above the certification threshold each ministry notifies. The vendor lodges its certificate — without one.",
     facts: (scenario) => [
       { label: 'Contract value', value: '₹42 crore' },
-      { label: 'Certification threshold', value: '₹10 crore' },
+      { label: 'Certification threshold', value: 'As notified by the ministry, read from chain' },
       { label: 'Certifying party', value: 'Not supplied' },
       { label: 'Vendor', value: scenario.vendorName },
     ],
@@ -280,12 +318,13 @@ export const WALKTHROUGH: WalkthroughStep[] = [
     point: 6,
     title: 'MeitY amends its rule set',
     intent:
-      'MeitY raises the Class-I local content threshold for HSN 8471 from 50% to 60%, effective from a named future block. In the system this PoC replaces, that is a notification, a circular, a change request, and eventually a software release. Here it is a transaction signed by the nodal ministry administrator.',
+      'MeitY sets the Class-I local content threshold for HSN 8471 to 60% and its certification threshold to ₹10 crore, effective from a named future block. In the system this PoC replaces, that is a notification, a circular, a change request, and eventually a software release. Here it is a transaction signed by the nodal ministry administrator.',
     facts: (scenario) => [
       { label: 'Ministry', value: scenario.ministryName },
       { label: 'Item', value: 'HSN 8471 — computers' },
-      { label: 'Class-I threshold', value: '50% → 60%' },
-      { label: 'Class-II threshold', value: '20% (unchanged)' },
+      { label: 'Class-I threshold', value: 'Set to 60%' },
+      { label: 'Class-II threshold', value: 'Set to 20%' },
+      { label: 'Certification threshold', value: 'Set to ₹10 crore' },
       { label: 'Effective from', value: 'Ten blocks from now' },
     ],
     endpoint: '/api/trigger/rule-update',

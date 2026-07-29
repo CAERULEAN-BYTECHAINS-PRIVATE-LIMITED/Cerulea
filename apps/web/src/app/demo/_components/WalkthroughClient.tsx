@@ -3,7 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, CircleCheckBig, Play, RotateCw } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import {
   Badge,
   Button,
@@ -17,7 +17,8 @@ import {
   buttonClasses,
   type ComplianceStatus,
 } from '@/components';
-import { newScenario, WALKTHROUGH, type Scenario, type TriggerId } from './steps';
+import { formatPaise } from '@/lib/units';
+import { scenarioStore, WALKTHROUGH, type Scenario, type TriggerId } from './steps';
 
 interface TriggerResponse {
   result?: ComplianceStatus;
@@ -53,10 +54,13 @@ type RunState =
  * to the next slide, because a walkthrough that cannot fail is not evidence of anything.
  */
 export function WalkthroughClient() {
-  // Generated after mount: the tender number is random per run, and generating it during
-  // render would give the server and the client two different bid numbers.
-  const [scenario, setScenario] = useState<Scenario | null>(null);
-  useEffect(() => setScenario(newScenario()), []);
+  // The tender number is random per run, so it is generated on the client only — see the
+  // note on `scenarioStore`. Null on the server render, a scenario from first paint on.
+  const scenario: Scenario | null = useSyncExternalStore(
+    scenarioStore.subscribe,
+    scenarioStore.getSnapshot,
+    scenarioStore.getServerSnapshot,
+  );
 
   const [current, setCurrent] = useState(0);
   const [runs, setRuns] = useState<Record<number, RunState>>({});
@@ -90,7 +94,13 @@ export function WalkthroughClient() {
 
       // Record the chain's own measured submission-to-finality time so the analytics
       // dashboard plots figures that were measured rather than assumed.
-      if (typeof payload.latencyMs === 'number') {
+      //
+      // Only calls that actually reached a block are recorded. Two of the trigger points
+      // can answer from current state without writing anything — an evaluation blocked by
+      // an existing debarment, a certification that needs an auditor — and those return in
+      // single-digit milliseconds. Real, but not submission-to-finality times, and folding
+      // them into a chart that claims to measure finality would flatter the number.
+      if (typeof payload.latencyMs === 'number' && typeof payload.blockNumber === 'number') {
         void fetch('/api/chain/latency', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -151,7 +161,7 @@ export function WalkthroughClient() {
   );
 
   function restart() {
-    setScenario(newScenario());
+    scenarioStore.reset();
     setRuns({});
     setFollowUps({});
     setCurrent(0);
@@ -320,13 +330,15 @@ export function WalkthroughClient() {
                       Run step {step.point}
                     </Button>
                   )}
-                  {isDone && index < WALKTHROUGH.length - 1 && (
+                  {/* Only the card the presenter is on offers the advance. Completed cards
+                      stay on screen as the record of what was shown, but a second live
+                      "Next step" further up the page is an invitation to lose your place. */}
+                  {isDone && isCurrent && index < WALKTHROUGH.length - 1 && (
                     <Button
                       onClick={() => setCurrent(index + 1)}
-                      variant={isCurrent ? 'primary' : 'secondary'}
                       trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
                     >
-                      Next step
+                      Next step — {WALKTHROUGH[index + 1].title.toLowerCase()}
                     </Button>
                   )}
                 </div>
@@ -381,10 +393,30 @@ function VerdictBlock({ step, outcome }: { step: string; outcome: RunOutcome }) 
     records.push({ label: 'Certificate id', value: response.certificateId, mono: true });
   }
   if (typeof response.matchedPrice === 'string' && response.matchedPrice) {
-    records.push({ label: 'Matched price (paise)', value: response.matchedPrice, mono: true });
+    records.push({
+      label: 'Matched price',
+      value: formatPaise(response.matchedPrice),
+      mono: true,
+    });
+  }
+  if (typeof response.debarredBy === 'string' && response.debarredBy) {
+    records.push({ label: 'Debarred by', value: response.debarredBy, mono: true });
   }
   if (typeof response.status === 'string') {
     records.push({ label: 'Recorded state', value: response.status, mono: true });
+  }
+  // The per-bid decision path is the reasoning behind a preference outcome, so it belongs
+  // in the record rather than only in the prose that describes it.
+  if (Array.isArray(response.outcomes)) {
+    (response.outcomes as { vendor?: string; decisionPath?: string; qualifies?: boolean }[]).forEach(
+      (outcome, index) => {
+        records.push({
+          label: `Bid ${index + 1} pathway`,
+          value: `${outcome.decisionPath ?? '—'} · ${outcome.qualifies ? 'eligible' : 'excluded'}`,
+          mono: true,
+        });
+      },
+    );
   }
   records.push({ label: 'Browser round trip', value: `${roundTripMs} ms`, mono: true });
 

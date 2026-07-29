@@ -26,19 +26,20 @@ export function DebarmentChart({ byMinistry }: { byMinistry: MinistryDebarments[
     const active = byMinistry.filter((entry) => entry.active > 0);
     const head = active.slice(0, CATEGORICAL.length);
     const tail = active.slice(CATEGORICAL.length);
-    const rows: { name: string; value: number; color: string }[] = head.map((entry, index) => ({
+    const named: { name: string; value: number; color: string }[] = head.map((entry, index) => ({
       name: entry.ministryId,
       value: entry.active,
       color: CATEGORICAL[index],
     }));
-    if (tail.length > 0) {
-      rows.push({
+    if (tail.length === 0) return named;
+    return [
+      ...named,
+      {
         name: `Other (${tail.length} ministries)`,
         value: tail.reduce((total, entry) => total + entry.active, 0),
         color: OTHER_COLOR,
-      });
-    }
-    return rows;
+      },
+    ];
   }, [byMinistry]);
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
