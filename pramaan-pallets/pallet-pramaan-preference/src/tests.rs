@@ -241,7 +241,9 @@ mod tests {
 		});
 	}
 
-	// --- 7a. P5: a non-GTE domestic tender priced above Rs 200 crore is rejected. ---
+	// --- 7a. P5: a non-GTE domestic tender priced above Rs 200 crore is rejected.
+	// Balance convention is paise (matching pallet-pramaan-certification's fixed
+	// convention): Rs 200 crore = 200_000_000_000 paise.
 	#[test]
 	fn p5_rejects_domestic_tender_above_200_crore() {
 		new_test_ext().execute_with(|| {
@@ -249,7 +251,7 @@ mod tests {
 			let tender = sample_tender();
 			let ministry = sample_ministry();
 			let bids = BoundedVec::try_from(vec![bid(10u64, ClassResultLike::ClassOne, 1_000, false, false)]).unwrap();
-			let over_limit_value = 2_000_000_001u64; // > Rs 200 crore
+			let over_limit_value = 200_000_000_001u64; // > Rs 200 crore in paise
 
 			assert_noop!(
 				PalletPramaanPreference::calculate_preference(

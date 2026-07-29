@@ -41,25 +41,25 @@ mod benchmarking;
 use codec::{Decode, Encode, MaxEncodedLen};
 use pramaan_primitives::{BasisPoints, Divisibility, MinistryId, PathwayId, RuleLookup, TenderId, BPS_DENOMINATOR};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{AtLeast32BitUnsigned, SaturatedConversion, Saturating, Zero};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, SaturatedConversion, Saturating, Zero};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
-/// Rupees-per-unit Balance convention, chosen to match pallet-pramaan-rule-registry's
-/// DPIIT default fixtures (its `sample_rule()`/benchmarking `certification_threshold` use
-/// raw rupee units, e.g. `100_000_000` = Rs 10 crore, per PoC document Table 10) rather
-/// than paise. Kept consistent here so a `Balance` value read from `Rules[ministry]` via
-/// `RuleLookup` and a `tender_value` submitted to this pallet mean the same thing. This
-/// is a judgment call (the PoC document doesn't state a smallest-unit convention) -- the
-/// certification pallet, written in parallel, needs to agree on the same convention for
-/// `certification_threshold` comparisons to be meaningful across pallets.
+/// Balance-unit convention: raw integer Balance units, smallest currency unit (paise),
+/// consistent with pallet-pramaan-rule-registry's `Balance` type -- matching the
+/// convention pallet-pramaan-certification fixed for the whole build (see its
+/// `DPIIT_DEFAULT_CERTIFICATION_THRESHOLD_PAISE`: Rs 10 crore = `100_000_000_00` paise).
+/// A `Balance` value read from `Rules[ministry]` via `RuleLookup` and a `tender_value`
+/// submitted to this pallet are meant to denote the same unit under this convention.
 ///
 /// PoC document Part 5.3 / Annexure B: P5 "enforces the sub Rupees 200 crore domestic
-/// restriction." Rs 200 crore = 200 * 1,00,00,000 = 2,000,000,000 rupee-units, which fits
-/// a `u32` (max ~4.29 billion), so it converts into any `Balance: AtLeast32BitUnsigned`
-/// via the same `From<u32>` mechanism `pallet-cerulea-pos` uses for its own percentage
-/// arithmetic (e.g. `60u32.into()`).
-pub const DOMESTIC_LIMIT_RUPEES_U32: u32 = 2_000_000_000;
+/// restriction." Rs 200 crore = 200 * 1,00,00,000 rupees * 100 paise/rupee =
+/// `200_000_000_000` paise -- too large for `u32` (unlike a rupee-unit reading of the
+/// same figure), so it is declared as `u128` and converted into `Balance` via
+/// `TryFrom<u128>` (part of `AtLeast32BitUnsigned`'s bound list) with a saturating
+/// fallback to `Balance::max_value()` for the pathological case of a runtime whose
+/// `Balance` type cannot represent it at all.
+pub const DOMESTIC_LIMIT_PAISE_U128: u128 = 200_000_000_000;
 
 /// PoC document Annexure B, verbatim: "MSE and MII, non-MSE Class-I L1: 75 percent to L1;
 /// 25 percent offered to an MSE within a 15 percent band." This 15 percent figure is
@@ -293,7 +293,8 @@ pub mod pallet {
 			let rule = T::RuleSource::rule(&ministry).ok_or(Error::<T>::NoRuleForMinistry)?;
 
 			// P5: "enforces the sub Rupees 200 crore domestic restriction."
-			let domestic_limit: T::Balance = DOMESTIC_LIMIT_RUPEES_U32.into();
+			let domestic_limit: T::Balance =
+				T::Balance::try_from(DOMESTIC_LIMIT_PAISE_U128).unwrap_or_else(|_| T::Balance::max_value());
 			ensure!(
 				!(tender_value > domestic_limit && !is_tender_gte),
 				Error::<T>::TenderValueExceedsDomesticLimit
