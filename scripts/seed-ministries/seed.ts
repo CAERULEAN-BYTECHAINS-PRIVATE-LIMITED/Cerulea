@@ -14,6 +14,7 @@
 // immediately after the 21 set_rule calls, rather than duplicated in the JSON.
 
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
+import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import fs from "fs";
 import path from "path";
 
@@ -63,6 +64,68 @@ function toChainRule(row: MinistryRow) {
 
 function ministryIdBytes(id: string): Uint8Array {
 	return new TextEncoder().encode(id);
+}
+
+/**
+ * Submit a call as Root, via `sudo`, and resolve only once it is finalized.
+ *
+ * `set_rule` / `set_default_rule` are gated on `Config::DpiitOrigin`, which the runtime
+ * wires as `pub type DpiitOrRoot = EnsureRoot<AccountId>` (cerulea-runtime/src/configs/
+ * mod.rs). Despite the "DPIIT or Root" name it currently admits Root only, so signing
+ * these calls directly — as this script previously did — always fails `NotAuthorised`.
+ *
+ * `sudo` does not propagate the inner call's failure as a dispatch error: the outer
+ * extrinsic succeeds and the inner result is reported inside the `sudo.Sudid` event.
+ * Without inspecting that event an `InvalidRule` rejection would be logged as a
+ * successful seed, which is exactly the silent-failure mode Part 7.4 forbids.
+ */
+async function sudoSubmit(
+	api: ApiPromise,
+	signer: ReturnType<Keyring["addFromUri"]>,
+	call: SubmittableExtrinsic<"promise">,
+	label: string
+): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		api.tx.sudo
+			.sudo(call)
+			.signAndSend(signer, ({ status, dispatchError, events }) => {
+				if (dispatchError) {
+					if (dispatchError.isModule) {
+						const decoded = api.registry.findMetaError(dispatchError.asModule);
+						reject(new Error(`${label} failed: ${decoded.section}.${decoded.name}`));
+					} else {
+						reject(new Error(`${label} failed: ${dispatchError.toString()}`));
+					}
+					return;
+				}
+				if (!status.isFinalized) return;
+
+				// Unwrap the inner call's own result out of sudo.Sudid.
+				for (const { event } of events) {
+					if (event.section !== "sudo" || event.method !== "Sudid") continue;
+					const result = event.data[0] as unknown as {
+						isErr: boolean;
+						asErr: { isModule: boolean; asModule: unknown };
+					};
+					if (result?.isErr) {
+						const err = result.asErr;
+						if (err.isModule) {
+							const decoded = api.registry.findMetaError(
+								err.asModule as Parameters<typeof api.registry.findMetaError>[0]
+							);
+							reject(new Error(`${label} rejected by the pallet: ${decoded.section}.${decoded.name}`));
+						} else {
+							reject(new Error(`${label} rejected by the pallet: ${String(err)}`));
+						}
+						return;
+					}
+				}
+
+				console.log(`  ${label} finalized in block ${status.asFinalized.toHex()}`);
+				resolve();
+			})
+			.catch(reject);
+	});
 }
 
 /**
@@ -149,7 +212,11 @@ async function main() {
 
 	const provider = new WsProvider(WS_ENDPOINT);
 	const api = await ApiPromise.create({ provider });
-	const keyring = new Keyring({ type: "sr25519" });
+	// ed25519, matching cerulea-runtime/src/genesis_config_presets.rs, which builds the
+	// sudo key and every endowed account from sp_keyring::Ed25519Keyring. An sr25519
+	// //Alice is a different AccountId32 entirely: not root, and holding no balance to
+	// pay fees with. See apps/web/src/lib/chain.ts for the same reasoning.
+	const keyring = new Keyring({ type: "ed25519" });
 	const dpiit = keyring.addFromUri(DPIIT_SURI);
 
 	console.log(`Connected to ${WS_ENDPOINT}, seeding as ${dpiit.address}`);
@@ -157,50 +224,32 @@ async function main() {
 	for (const row of rows) {
 		const ministryId = ministryIdBytes(row.ministry_id);
 		const rule = toChainRule(row);
-
-		await new Promise<void>((resolve, reject) => {
-			api.tx.pramaanRuleRegistry
-				.setRule(ministryId, rule)
-				.signAndSend(dpiit, ({ status, dispatchError }) => {
-					if (dispatchError) {
-						if (dispatchError.isModule) {
-							const decoded = api.registry.findMetaError(dispatchError.asModule);
-							reject(new Error(`set_rule(${row.ministry_id}) failed: ${decoded.section}.${decoded.name}`));
-						} else {
-							reject(new Error(`set_rule(${row.ministry_id}) failed: ${dispatchError.toString()}`));
-						}
-						return;
-					}
-					if (status.isFinalized) {
-						console.log(`  set_rule(${row.ministry_id}) finalized in block ${status.asFinalized.toHex()}`);
-						resolve();
-					}
-				})
-				.catch(reject);
-		});
+		await sudoSubmit(
+			api,
+			dpiit,
+			api.tx.pramaanRuleRegistry.setRule(ministryId, rule),
+			`set_rule(${row.ministry_id})`
+		);
 	}
 
 	// DPIIT default rule set (PoC document Table 10), sourced from the DPIIT entry's
 	// own shape per this file's header comment.
+	//
+	// The runtime now also pre-loads this same default at genesis (Part 6.2), so this
+	// call is strictly redundant on a fresh chain. It is kept because Part 7.4 requires
+	// the script to be idempotent and self-sufficient: it must reach the correct end
+	// state on a chain whose genesis predates that change, and re-running it on a
+	// current chain simply rewrites an identical value.
 	const dpiitRow = rows.find((r) => r.ministry_id === "DPIIT");
 	if (!dpiitRow) {
 		throw new Error("ministries.json has no DPIIT entry to derive the default rule set from.");
 	}
-	await new Promise<void>((resolve, reject) => {
-		api.tx.pramaanRuleRegistry
-			.setDefaultRule(toChainRule(dpiitRow))
-			.signAndSend(dpiit, ({ status, dispatchError }) => {
-				if (dispatchError) {
-					reject(new Error(`set_default_rule failed: ${dispatchError.toString()}`));
-					return;
-				}
-				if (status.isFinalized) {
-					console.log(`  set_default_rule finalized in block ${status.asFinalized.toHex()}`);
-					resolve();
-				}
-			})
-			.catch(reject);
-	});
+	await sudoSubmit(
+		api,
+		dpiit,
+		api.tx.pramaanRuleRegistry.setDefaultRule(toChainRule(dpiitRow)),
+		"set_default_rule"
+	);
 
 	console.log("\nVerifying: querying Rules for every ministry_id and diffing against the source JSON...");
 	let mismatches = 0;
