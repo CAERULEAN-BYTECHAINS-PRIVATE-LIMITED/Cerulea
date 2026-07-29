@@ -11,6 +11,7 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::traits::Get;
 use frame_support::BoundedVec;
 use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
@@ -53,7 +54,7 @@ impl Get<u32> for MaxHsn {
 /// its own condition before aggregating (tech spec Part 4.2.1 / PathwayId::P2);
 /// Custom routes to a recorded human decision where no automatable formula exists
 /// (tech spec Part 4.2.1 / PathwayId::P3, e.g. software per PoC Table 2).
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
 pub enum CalculationMethod {
 	Standard,
 	ComponentLevel,
@@ -63,7 +64,7 @@ pub enum CalculationMethod {
 
 /// Rule parameter 9 (Divisibility), PoC document Table 10: "Determined by the procuring
 /// entity for each tender, within what the order permits." Drives PathwayId::P8 vs P9.
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
 pub enum Divisibility {
 	Divisible,
 	NonDivisible,
@@ -73,7 +74,7 @@ pub enum Divisibility {
 /// classification boundaries are inclusive at the lower end: a supplier at exactly 50
 /// percent is Class-I, and a supplier at exactly 20 percent is Class-II rather than
 /// Non-local." DPIIT default is class_one_bps = 5000, class_two_bps = 2000 (Table 10).
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
 pub struct HsnThreshold {
 	pub hsn_code: HsnCode,
 	pub class_one_bps: BasisPoints,
@@ -86,7 +87,8 @@ pub struct HsnThreshold {
 /// (thresholds are set per HSN code, PoC Section 4.1.2); the remaining seven map
 /// directly. `effective_from` is the engineering field behind PoC Section 12.2.3's
 /// "every change carries ... an effective date" and behind RuleVersion's audit history.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
+#[serde(bound(serialize = "Balance: Serialize, BlockNumber: Serialize", deserialize = "Balance: Deserialize<'de>, BlockNumber: Deserialize<'de>"))]
 pub struct Rule<Balance, BlockNumber>
 where
 	Balance: Encode + Decode + Clone + PartialEq + Eq + MaxEncodedLen + TypeInfo + 'static,

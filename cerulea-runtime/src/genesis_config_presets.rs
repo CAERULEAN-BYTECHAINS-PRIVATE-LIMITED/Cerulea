@@ -4,10 +4,37 @@
 
 use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, CBC}; // Runtime-specific types
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
-use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
+use frame_support::{build_struct_json_patch, BoundedVec}; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
 use sp_genesis_builder::{self, PresetId}; // Genesis builder utilities and PresetId for pre-defined configs
 use sp_keyring::Ed25519Keyring; // Keyring to easily access dev accounts
+use pramaan_primitives::{CalculationMethod, Divisibility, HsnThreshold, Rule};
+
+/// The DPIIT default rule set (PoC document Table 3 / tech spec Part 7.2), transcribed
+/// verbatim: standard calculation method, 20% preference margin, self-certification
+/// below / auditor certificate above Rs 10 crore, Para 3A applicable, PLI not linked by
+/// default, exemption floor Rs 5 lakh, divisibility determined per tender. Balance unit
+/// is paise throughout this build (see pallet-pramaan-certification's module doc).
+/// Mirrors scripts/seed-ministries/ministries.json's own "DPIIT" row exactly, which is
+/// the source of truth this was cross-checked against.
+fn pramaan_dpiit_default_rule() -> Rule<crate::Balance, crate::BlockNumber> {
+	Rule {
+		hsn_thresholds: BoundedVec::try_from(vec![HsnThreshold {
+			hsn_code: BoundedVec::try_from(b"*".to_vec()).expect("fits IdBound"),
+			class_one_bps: 5_000,
+			class_two_bps: 2_000,
+		}])
+		.expect("fits MaxHsn"),
+		para_3a_applicable: true,
+		pli_linked: false,
+		calculation_method: CalculationMethod::Standard,
+		preference_margin_bps: 2_000,
+		certification_threshold: 100_000_000_00, // Rs 10 crore in paise
+		exemption_floor: 500_000_00,             // Rs 5 lakh in paise
+		divisibility: Divisibility::Divisible,
+		effective_from: 0,
+	}
+}
 
 /// Returns a genesis configuration in JSON format with the specified authorities,
 /// endowed accounts, and sudo (root) key.
@@ -129,6 +156,9 @@ fn testnet_genesis_with_stakes_and_names(
 		// validator set membership and voting weights at genesis
 		dvf: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
+		},
+		pramaan_rule_registry: pallet_pramaan_rule_registry::GenesisConfig {
+			default_rule: Some(pramaan_dpiit_default_rule()),
 		},
 	})
 }
