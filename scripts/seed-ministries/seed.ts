@@ -14,6 +14,7 @@
 // immediately after the 21 set_rule calls, rather than duplicated in the JSON.
 
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
+import { stringToU8a, u8aToHex } from "@polkadot/util";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import fs from "fs";
 import path from "path";
@@ -47,7 +48,7 @@ function toChainRule(row: MinistryRow) {
 	// the polkadot-js API will encode it against the runtime's generated metadata.
 	return {
 		hsnThresholds: row.hsn_thresholds.map((h) => ({
-			hsnCode: h.hsn_code,
+			hsnCode: encodeId(h.hsn_code),
 			classOneBps: h.class_one_bps,
 			classTwoBps: h.class_two_bps,
 		})),
@@ -62,8 +63,20 @@ function toChainRule(row: MinistryRow) {
 	};
 }
 
-function ministryIdBytes(id: string): Uint8Array {
-	return new TextEncoder().encode(id);
+/**
+ * Encode a human-readable id for a `BoundedVec<u8, _>` parameter.
+ *
+ * Must be a 0x-prefixed hex string. Verified against the live chain:
+ *   - raw Uint8Array (what this function used to return) THROWS — polkadot-js expects
+ *     `Bytes` to arrive with its compact length prefix already applied, so it reads the
+ *     first byte as a length and fails with "required length less than remainder,
+ *     expected at least 18, found 5"
+ *   - a plain string works, EXCEPT that any value beginning "0x" is read as hex, so a
+ *     6-character id like "0x1234" silently becomes 2 bytes
+ *   - u8aToHex(stringToU8a(..)) is correct for every input
+ */
+function encodeId(id: string): string {
+	return u8aToHex(stringToU8a(id));
 }
 
 /**
@@ -222,7 +235,7 @@ async function main() {
 	console.log(`Connected to ${WS_ENDPOINT}, seeding as ${dpiit.address}`);
 
 	for (const row of rows) {
-		const ministryId = ministryIdBytes(row.ministry_id);
+		const ministryId = encodeId(row.ministry_id);
 		const rule = toChainRule(row);
 		await sudoSubmit(
 			api,
@@ -254,7 +267,7 @@ async function main() {
 	console.log("\nVerifying: querying Rules for every ministry_id and diffing against the source JSON...");
 	let mismatches = 0;
 	for (const row of rows) {
-		const ministryId = ministryIdBytes(row.ministry_id);
+		const ministryId = encodeId(row.ministry_id);
 		const onChain = await api.query.pramaanRuleRegistry.rules(ministryId);
 		if (onChain.isNone) {
 			console.error(`  MISMATCH: ${row.ministry_id} has no on-chain rule after seeding.`);
