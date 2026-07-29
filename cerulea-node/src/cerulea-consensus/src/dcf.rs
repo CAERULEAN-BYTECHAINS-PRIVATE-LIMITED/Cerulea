@@ -282,7 +282,14 @@ where
                 Duration::ZERO
             });
         
-        let block_interval = Duration::from_secs(self.params.block_time);
+        // Cadence is driven by `min_block_time` (milliseconds), not `block_time`
+        // (whole seconds). CBC-PRAMAAN returns a procurement decision only once it is
+        // finalized, against a sub-second target, which requires sub-second blocks --
+        // and `Duration::from_secs` cannot express 200ms at all. `block_time` is kept
+        // in ConsensusParams for the metrics/telemetry that already report it, but it
+        // no longer gates production; `min_block_time` is the single source of truth
+        // and is also what ProposerFactory throttles on, so the two cannot disagree.
+        let block_interval = Duration::from_millis(self.params.min_block_time);
         let time_since_last = now.saturating_sub(self.last_block_time);
         
         let should_produce = time_since_last >= block_interval;
