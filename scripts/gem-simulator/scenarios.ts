@@ -98,13 +98,15 @@ class Ctx {
   }
 
   /**
-   * The demo's auditor: an account holding the CvcOrAuditReviewer role. The runtime
-   * wires `AuditorSource = AnyAccountIsAuditor` for this build (build contract section
-   * 2), so any signed account is accepted; the persona name is sent alongside the
-   * address so a route that resolves personas instead of addresses still works.
+   * The demo's auditor. This must be an account the on-chain empanelment register
+   * actually holds -- pallet-pramaan-certification now enforces the role rather than
+   * accepting anyone, and genesis empanels //Eve (the auditor persona) and //Ferdie.
+   * A derived random account is correctly refused with AuditorRoleMissing, so this
+   * returns //Eve's ed25519 address, which is what the certify route resolves the
+   * 'auditor' persona to as well.
    */
   auditorAccountId(): string {
-    return accountIdFor(this.opts.seed, 'auditor/cost-accountant-panel');
+    return '5Ck2miBfCe1JQ4cY3NDsXyBaD6EcsgiVmEFTWwqNSs25XDEq';
   }
 }
 
@@ -931,10 +933,15 @@ function buildP7(ctx: Ctx): Scenario {
 // ---------------------------------------------------------------------------------
 
 function buildP8(ctx: Ctx): Scenario {
+  // Ministry of Mines, not MNRE. The real notification data marks MNRE Para 3A
+  // (Class-I only), under which a Class-II L1 cannot participate at all -- so the
+  // divisible-split pathway this scenario proves genuinely cannot occur there. Mines is
+  // Divisible with no Para 3A, which is what the P8 split requires. The item text is
+  // display-only; preference reads the ministry rule, not the catalogue line.
   const bid = ctx.bid({
-    ministryId: 'MNRE',
-    label: 'p8-solar-modules',
-    itemCategoryName: 'Solar Photovoltaic Module (540 Wp, Mono PERC)',
+    ministryId: 'MOM',
+    label: 'p8-mine-haul-dumper',
+    itemCategoryName: 'Underground Load Haul Dumper (6 T)',
     estimatedBidValuePaise: crorePaise(9),
     bidType: 'Standard Bid',
   });
@@ -1014,9 +1021,9 @@ function buildP8(ctx: Ctx): Scenario {
 
 function buildP9(ctx: Ctx): Scenario {
   const bid = ctx.bid({
-    ministryId: 'MOHUA',
+    ministryId: 'MOD-DEFENCE',
     label: 'p9-cbtc',
-    itemCategoryName: 'Metro Rail Signalling System (CBTC)',
+    itemCategoryName: 'Field Shelter (Modular, 20 Man)',
     estimatedBidValuePaise: crorePaise(13),
     bidType: 'Standard Bid',
   });
