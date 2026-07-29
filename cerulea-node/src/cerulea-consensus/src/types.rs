@@ -74,6 +74,11 @@ pub struct ConsensusParams {
     pub slot_duration: std::time::Duration,
     /// Minimum block time in milliseconds
     pub min_block_time: u64,
+    /// How long after startup a validator waits before authoring its first block, in
+    /// milliseconds. Gives peer discovery time to complete, so validators cannot each
+    /// finalize a different block #1 and split the network before it has produced
+    /// anything. See DcfConsensus::should_produce_block.
+    pub startup_grace_ms: u64,
     /// Interval for updating validator metrics (in slots)
     pub metrics_update_interval: u64,
     /// Interval for refreshing validator scores (in slots)

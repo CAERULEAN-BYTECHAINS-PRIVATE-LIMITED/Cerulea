@@ -659,6 +659,10 @@ where
         max_transactions_per_block: 1000,
         slot_duration: std::time::Duration::from_millis(500),
         min_block_time: 500,
+        // 12s: peer discovery over a bootnode settles in a couple of seconds; this is
+        // deliberately generous because the cost is a one-off startup delay and the
+        // failure it prevents is a permanently split network.
+        startup_grace_ms: 12_000,
         metrics_update_interval: 10,
         score_refresh_interval: 50,
         consensus_loop_interval: 100,

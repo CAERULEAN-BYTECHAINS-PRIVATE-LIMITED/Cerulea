@@ -1,5 +1,4 @@
 use crate as pallet_pramaan_certification;
-use crate::AuditorRoleSource;
 use frame_support::BoundedVec;
 use frame_system as system;
 use pramaan_primitives::{CalculationMethod, Divisibility, HsnThreshold, MinistryId, Rule, RuleLookup};
@@ -97,26 +96,35 @@ impl RuleLookup<u64, u64> for MockRuleSource {
 	}
 }
 
-/// Test-only stand-in for "holds the CvcOrAuditReviewer role": only account `7` is a
-/// registered auditor, representing "the one registered auditor" in these tests. Every
-/// other account, including self-certifying vendors, is not.
-pub struct MockAuditorSource;
-impl AuditorRoleSource<u64> for MockAuditorSource {
-	fn is_registered_auditor(who: &u64) -> bool {
-		*who == 7
-	}
-}
+// The role check is NOT stubbed here. The mock wires `AuditorSource` to the pallet's own
+// on-chain empanelment register, exactly as the runtime does, so these tests exercise the
+// real gate rather than a stand-in that could drift from it. Account `7` is empanelled in
+// `new_test_ext` below and plays "the one registered auditor" the tests refer to.
 
 impl pallet_pramaan_certification::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type Balance = u64;
 	type RuleSource = MockRuleSource;
-	type AuditorSource = MockAuditorSource;
+	type AuditorSource = PalletPramaanCertification;
 	type MaxCertsPerAuditor = MaxCertsPerAuditor;
+	/// Root only in tests. The runtime uses DPIIT-or-Root; what matters for these tests
+	/// is that an unprivileged signer cannot alter the empanelment register.
+	type AuditorAdminOrigin = frame_system::EnsureRoot<u64>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let storage = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	let mut storage = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+
+	// Empanel account 7 at genesis -- the registered auditor these tests assume.
+	pallet_pramaan_certification::GenesisConfig::<Test> {
+		auditors: vec![(
+			7u64,
+			frame_support::BoundedVec::try_from(b"Test Auditors LLP".to_vec()).unwrap(),
+		)],
+	}
+	.assimilate_storage(&mut storage)
+	.unwrap();
+
 	storage.into()
 }

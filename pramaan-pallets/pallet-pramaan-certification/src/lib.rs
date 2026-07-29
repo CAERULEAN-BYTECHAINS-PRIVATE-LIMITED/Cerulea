@@ -58,7 +58,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use pramaan_primitives::{CertificateId, MinistryId, TenderId};
+use pramaan_primitives::{CertificateId, IdBound, MinistryId, TenderId};
 use sp_std::prelude::*;
 
 /// ₹10 crore expressed in the chosen Balance-unit convention (raw integer Balance
@@ -127,6 +127,10 @@ pub mod pallet {
 		/// entry can hold.
 		#[pallet::constant]
 		type MaxCertsPerAuditor: Get<u32>;
+
+		/// Who may empanel or remove an auditor. DPIIT or Root in the runtime, matching
+		/// the origin that maintains the rule registry.
+		type AuditorAdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	/// One issued certificate. `auditor: None` means self-certification (PoC document:
@@ -163,9 +167,31 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// The empanelment register: which accounts are qualified to sign a statutory
+	/// certificate, and under what firm name.
+	///
+	/// Held in STORAGE, not compiled into the runtime, so DPIIT empanels or removes a
+	/// firm with a transaction rather than a runtime upgrade. That distinction matters:
+	/// an empanelment that can only change by redeploying software is not something a
+	/// regulator can actually operate, and every change here is itself a finalized,
+	/// auditable on-chain event.
+	#[pallet::storage]
+	#[pallet::getter(fn auditors)]
+	pub type Auditors<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, BoundedVec<u8, IdBound>, OptionQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// A firm was added to the empanelment register.
+		AuditorEmpanelled {
+			auditor: T::AccountId,
+			firm: BoundedVec<u8, IdBound>,
+			block_number: BlockNumberFor<T>,
+		},
+		/// A firm was removed. Certificates it already signed are untouched -- they
+		/// remain in the ledger, which is the point of an accountability record.
+		AuditorRemoved { auditor: T::AccountId, block_number: BlockNumberFor<T> },
 		Certified {
 			certificate_id: CertificateId,
 			vendor: T::AccountId,
@@ -186,10 +212,58 @@ pub mod pallet {
 		CertificateIdAlreadyUsed,
 		/// The auditor's `AuditorLedger` entry is already at `MaxCertsPerAuditor`.
 		AuditorLedgerFull,
+		/// Caller is not permitted to change the empanelment register.
+		NotAuthorised,
+		/// That account is already empanelled.
+		AuditorAlreadyEmpanelled,
+		/// That account is not on the empanelment register.
+		AuditorNotEmpanelled,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Add a firm to the empanelment register. DPIIT or Root only.
+		///
+		/// This is what makes the role check operable: empanelling a newly qualified
+		/// firm is a transaction, finalized and auditable like any other, rather than a
+		/// software release.
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::empanel_auditor())]
+		pub fn empanel_auditor(
+			origin: OriginFor<T>,
+			auditor: T::AccountId,
+			firm: BoundedVec<u8, IdBound>,
+		) -> DispatchResult {
+			T::AuditorAdminOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+			ensure!(!Auditors::<T>::contains_key(&auditor), Error::<T>::AuditorAlreadyEmpanelled);
+
+			Auditors::<T>::insert(&auditor, &firm);
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::AuditorEmpanelled {
+				auditor,
+				firm,
+				block_number,
+			});
+			Ok(())
+		}
+
+		/// Remove a firm from the empanelment register. DPIIT or Root only.
+		///
+		/// Certificates the firm has already signed stay in `AuditorLedger`. Removing an
+		/// empanelment must not erase history -- the ledger exists precisely so that a
+		/// firm later found wanting can have every certificate it signed pulled up.
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::remove_auditor())]
+		pub fn remove_auditor(origin: OriginFor<T>, auditor: T::AccountId) -> DispatchResult {
+			T::AuditorAdminOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+			ensure!(Auditors::<T>::contains_key(&auditor), Error::<T>::AuditorNotEmpanelled);
+
+			Auditors::<T>::remove(&auditor);
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::AuditorRemoved { auditor, block_number });
+			Ok(())
+		}
+
 		/// PoC document Section 4.7 / tech spec Part 5.4. Below
 		/// `Rules[ministry].certification_threshold`, `auditor` may be `None`
 		/// (self-certification). At or above threshold, `auditor` must be `Some` and
@@ -267,6 +341,32 @@ pub mod pallet {
 		/// Accountability Ledger lookup (PoC document Section 4.7).
 		pub fn certificates_for_auditor(auditor: &T::AccountId) -> Vec<CertificateId> {
 			AuditorLedger::<T>::get(auditor).into_inner()
+		}
+	}
+	/// The pallet is its own auditor registry: a runtime wires
+	/// `Config::AuditorSource = PramaanCertification`, so `certify` consults the
+	/// on-chain empanelment register that `empanel_auditor` maintains.
+	impl<T: Config> AuditorRoleSource<T::AccountId> for Pallet<T> {
+		fn is_registered_auditor(who: &T::AccountId) -> bool {
+			Auditors::<T>::contains_key(who)
+		}
+	}
+
+	/// Seeds the empanelment register at genesis, so a fresh chain has qualified
+	/// signatories from block zero rather than every above-threshold certification
+	/// failing until someone remembers to empanel one.
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub auditors: Vec<(T::AccountId, BoundedVec<u8, IdBound>)>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			for (auditor, firm) in &self.auditors {
+				Auditors::<T>::insert(auditor, firm);
+			}
 		}
 	}
 }
