@@ -22,8 +22,13 @@ mod tests {
 			pli_linked: false,
 			calculation_method: CalculationMethod::ComponentLevel,
 			preference_margin_bps: 2_000,
-			certification_threshold: 100_000_000,
-			exemption_floor: 500_000,
+			// Balance convention across this whole build is paise (smallest currency
+			// unit) — see pallet-pramaan-certification's module doc comment, which is
+			// where this was made explicit after pallet-pramaan-preference and this
+			// fixture were both found to have assumed plain rupee units instead.
+			// Rs 10 crore = 100_000_000_00 paise; Rs 5 lakh = 500_000_00 paise.
+			certification_threshold: 100_000_000_00,
+			exemption_floor: 500_000_00,
 			divisibility: Divisibility::Divisible,
 			effective_from: 0,
 		}
