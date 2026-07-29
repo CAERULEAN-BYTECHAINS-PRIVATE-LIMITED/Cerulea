@@ -77,9 +77,16 @@ export async function getApi(): Promise<ApiPromise> {
     // A request that cannot be served must fail quickly and say why; hanging is the one
     // behaviour that leaves a caller with nothing to act on.
     //
-    // `autoConnectMs: 0` disables the retry loop so a refused connection surfaces as an
-    // error instead of being swallowed and retried behind our backs.
-    const provider = new WsProvider(CHAIN_ENDPOINT, 0);
+    // A SMALL positive reconnect interval, not 0.
+    //
+    // `WsProvider(endpoint, 0)` looks like "connect once, don't retry", but 0 is falsy
+    // and disables auto-connect ENTIRELY -- the provider then never dials at all, so
+    // `ApiPromise.create` hangs until the Promise.race timeout below fires and every
+    // request fails "could not connect" against a node that is up and answering in
+    // ~175ms. (Found the hard way.) A 2500ms reconnect keeps the provider trying while
+    // a node is briefly down; the race below is what bounds a caller's wait, so the
+    // provider retrying in the background between requests is fine, not a hang.
+    const provider = new WsProvider(CHAIN_ENDPOINT, 2_500);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const api = await Promise.race([
