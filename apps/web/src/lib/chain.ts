@@ -114,10 +114,21 @@ export class FinalityTimeoutError extends Error {
   }
 }
 
+/**
+ * A pallet rejected the call.
+ *
+ * This is a legitimate compliance answer (RED), not a server fault, and it is just as
+ * auditable as an accepted one: the extrinsic WAS included in a block and the rejection
+ * is recorded there. `blockHash` is therefore carried alongside the tx hash so a RED
+ * response can cite the block that produced it — a verdict a judge cannot look up is
+ * not evidence. A volume run found 8 of 64 preference rejections returning no block
+ * reference at all because this error dropped it.
+ */
 export class ExtrinsicFailedError extends Error {
   constructor(
     public readonly txRef: string,
     public readonly palletError: string,
+    public readonly blockHash?: string,
   ) {
     super(`Extrinsic ${txRef} failed on-chain: ${palletError}`);
     this.name = 'ExtrinsicFailedError';
@@ -174,10 +185,17 @@ export async function submitAndFinalize(
       if (result.dispatchError) {
         clearTimeout(timer);
         unsub?.();
+        // The rejection is itself an on-chain fact, so carry the block it landed in.
+        const failureBlock = result.status.isInBlock
+          ? result.status.asInBlock.toHex()
+          : result.status.isFinalized
+            ? result.status.asFinalized.toHex()
+            : undefined;
         reject(
           new ExtrinsicFailedError(
             result.txHash.toHex(),
             decodeDispatchError(api, result.dispatchError),
+            failureBlock,
           ),
         );
         return;
