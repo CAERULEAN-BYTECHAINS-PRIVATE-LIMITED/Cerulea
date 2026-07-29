@@ -36,14 +36,32 @@ const globalForChain = globalThis as unknown as {
 };
 
 export async function getApi(): Promise<ApiPromise> {
-  if (!globalForChain.__pramaanApi) {
-    globalForChain.__pramaanApi = (async () => {
-      const provider = new WsProvider(CHAIN_ENDPOINT);
-      const api = await ApiPromise.create({ provider, noInitWarn: true });
-      await api.isReady;
-      return api;
-    })();
+  // Drop a cached connection that is no longer live before handing it out.
+  //
+  // Without this the singleton is permanent: if the node restarts (which it does between
+  // demo runs, and `--dev` purges state on restart), every subsequent request fails with
+  // "WebSocket is not connected" until the web server itself is restarted. Observed for
+  // real -- 356 of 356 calls failed that way after a chain restart. Re-creating on a
+  // dead handle makes the app survive a node bounce on its own.
+  const cached = globalForChain.__pramaanApi;
+  if (cached) {
+    try {
+      const api = await cached;
+      if (api.isConnected) return api;
+      // Detach the dead handle so its reconnect loop cannot resurrect a stale provider.
+      await api.disconnect().catch(() => {});
+    } catch {
+      // The cached promise itself rejected; fall through and build a fresh one.
+    }
+    globalForChain.__pramaanApi = undefined;
   }
+
+  globalForChain.__pramaanApi = (async () => {
+    const provider = new WsProvider(CHAIN_ENDPOINT);
+    const api = await ApiPromise.create({ provider, noInitWarn: true });
+    await api.isReady;
+    return api;
+  })();
   return globalForChain.__pramaanApi;
 }
 
