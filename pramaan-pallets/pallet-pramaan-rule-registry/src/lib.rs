@@ -148,11 +148,35 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Rules[ministry] if set, else DefaultRule. Used by classification,
-		/// preference, and certification via the `RuleLookup` trait below, and by the
-		/// Part 5.1 "default fallback" unit test.
+		/// Rules[ministry] if set AND already in force, else DefaultRule. Used by
+		/// classification, preference, and certification via the `RuleLookup` trait
+		/// below, and by the Part 5.1 "default fallback" unit test.
+		///
+		/// **`effective_from` is enforced here, not merely recorded.** PoC document
+		/// Section 12.2.3 requires that every rule change carry an effective date, and a
+		/// notified commencement date is the whole point of that field: a ministry
+		/// notifies a change today that applies from a stated future date. Storing the
+		/// date and then judging bids against the new parameters immediately would make
+		/// the recorded date a decoration, and the API says as much to the caller
+		/// ("takes effect from block N"), so the claim has to be true.
+		///
+		/// A ministry rule whose `effective_from` is still in the future is treated as
+		/// not yet in force, and the DPIIT default applies until it commences -- which
+		/// is exactly the same fallback this function already applies to a ministry that
+		/// has notified no rule at all. The default is subject to the same test, so a
+		/// default scheduled for the future does not apply early either.
+		///
+		/// Decisions already taken are untouched: classification, preference and
+		/// certification store their results, so a later commencement never rewrites a
+		/// verdict that was correct under the rule in force when it was made.
 		pub fn get_effective_rule(ministry: &MinistryId) -> Option<RuleOf<T>> {
-			Rules::<T>::get(ministry).or_else(DefaultRule::<T>::get)
+			let now = frame_system::Pallet::<T>::block_number();
+			let in_force = |rule: &RuleOf<T>| rule.effective_from <= now;
+
+			match Rules::<T>::get(ministry) {
+				Some(rule) if in_force(&rule) => Some(rule),
+				_ => DefaultRule::<T>::get().filter(in_force),
+			}
 		}
 	}
 

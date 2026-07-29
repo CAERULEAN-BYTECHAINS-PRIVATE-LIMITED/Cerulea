@@ -25,7 +25,6 @@ import {
   readLedger,
   subscribeConsoleRecord,
   type LedgerEntry,
-  type MinistryRef,
   type TriState,
 } from '@/lib/api-client';
 import { formatBps, formatPaise } from '@/lib/units';
@@ -33,16 +32,78 @@ import { formatBps, formatPaise } from '@/lib/units';
 /**
  * DPIIT's national view.
  *
- * The ministry count is read from the same list the seed script writes to the chain, so
- * "21 of 21" cannot drift from what is actually onboarded. The distribution below is
- * this session's decisions and says so — a national compliance rate is a claim only the
- * chain can make, and the explorer is where that claim is checked.
+ * **The rule table is read from the chain, not from a bundled constant.** It previously
+ * rendered `MINISTRIES` — a client-side literal — as though it were registry state, with
+ * a comment claiming "21 of 21 cannot drift". It could and did: a QA pass found five
+ * ministries showing an HSN code the chain contradicted, and any `rule-update` left the
+ * table showing superseded values while the chain held the new ones. That is reachable
+ * in two clicks from the scripted walkthrough (amend a rule at step 6, open this page).
+ *
+ * `MINISTRIES` is still used, but only for the human-readable ministry NAMES, which are
+ * reference metadata and are not stored on chain. Every rule parameter — thresholds,
+ * method, margin, certification threshold, divisibility — comes from
+ * `/api/chain/rules`, which reads `pramaanRuleRegistry`.
+ *
+ * The verdict distribution below is this session's decisions and says so: a national
+ * compliance rate is a claim only the chain can make, and the explorer is where it is
+ * checked.
  */
 
-const DEFAULT_RULE = MINISTRIES[0];
+/** Rule parameters exactly as `/api/chain/rules` reports them. */
+interface ChainRuleRow {
+  ministryId: string;
+  ruleVersion: number;
+  commenced: boolean;
+  rule: {
+    hsnThresholds: { hsnCode: string; classOneBps: number; classTwoBps: number }[];
+    para3aApplicable: boolean;
+    pliLinked: boolean;
+    calculationMethod: string;
+    preferenceMarginBps: number;
+    certificationThresholdPaise: string;
+    exemptionFloorPaise: string;
+    divisibility: string;
+    effectiveFrom: number;
+  };
+}
+
+interface ChainRulesResponse {
+  currentBlock: number;
+  ministriesOnboarded: number;
+  defaultRule: ChainRuleRow['rule'] | null;
+  ministries: ChainRuleRow[];
+}
+
+/** Display metadata only. Never a source of rule values. */
+const MINISTRY_NAMES = new Map(MINISTRIES.map((m) => [m.id, { short: m.short, name: m.name }]));
 
 export function NationalRollup() {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [chain, setChain] = useState<ChainRulesResponse | null>(null);
+  const [chainError, setChainError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch('/api/chain/rules', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const body: ChainRulesResponse = await response.json();
+        if (!cancelled) {
+          setChain(body);
+          setChainError(null);
+        }
+      } catch (error) {
+        if (!cancelled) setChainError(error instanceof Error ? error.message : 'unavailable');
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const sync = () => setLedger(readLedger());
@@ -58,15 +119,19 @@ export function NationalRollup() {
 
   const total = distribution.GREEN + distribution.YELLOW + distribution.RED;
   const ministriesTouched = new Set(ledger.map((entry) => entry.ministry).filter(Boolean)).size;
-  const variances = MINISTRIES.filter((row) => deviations(row).length > 0).length;
+
+  const chainRows = chain?.ministries ?? [];
+  const chainDefault = chain?.defaultRule ?? null;
+  const onboarded = chain?.ministriesOnboarded ?? null;
+  const variances = chainRows.filter((row) => deviations(row.rule, chainDefault).length > 0).length;
 
   return (
     <div className="space-y-8">
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Ministries onboarded"
-          value={`${MINISTRY_COUNT} of ${MINISTRY_COUNT}`}
-          hint="Each carrying its own rule set in the registry."
+          value={onboarded === null ? '—' : `${onboarded} of ${MINISTRY_COUNT}`}
+          hint="Counted from pramaanRuleRegistry on chain, not from a bundled list."
           icon={<Landmark className="size-3.5" aria-hidden="true" />}
         />
         <Stat
@@ -189,21 +254,31 @@ export function NationalRollup() {
             </TR>
           </THead>
           <TBody>
-            {MINISTRIES.map((row) => {
-              const differences = deviations(row);
-              const isDefault = row.id === DEFAULT_RULE.id;
+            {chainRows.map((entry) => {
+              const row = entry.rule;
+              const meta = MINISTRY_NAMES.get(entry.ministryId);
+              const differences = deviations(row, chainDefault);
+              const isDefault = entry.ministryId === 'DPIIT';
+              const hsn = row.hsnThresholds[0];
               return (
-                <TR key={row.id} className={isDefault ? 'bg-cerulea-light/40' : undefined}>
+                <TR key={entry.ministryId} className={isDefault ? 'bg-cerulea-light/40' : undefined}>
                   <TD>
-                    <span className="font-medium text-ink">{row.short}</span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">{row.name}</span>
+                    <span className="font-medium text-ink">{meta?.short ?? entry.ministryId}</span>
+                    <span className="mt-0.5 block text-xs text-ink-muted">
+                      {meta?.name ?? 'Name not held on chain'}
+                    </span>
                   </TD>
-                  <TD mono>{row.id}</TD>
-                  <TD className="tabular-nums">
-                    {formatBps(row.hsnThresholds[0].classOneBps)} /{' '}
-                    {formatBps(row.hsnThresholds[0].classTwoBps)}
+                  <TD mono>
+                    {entry.ministryId}
                     <span className="mt-0.5 block font-mono text-[0.6875rem] text-ink-subtle">
-                      HSN {row.hsnThresholds[0].hsnCode}
+                      v{entry.ruleVersion}
+                      {!entry.commenced ? ' · not yet in force' : ''}
+                    </span>
+                  </TD>
+                  <TD className="tabular-nums">
+                    {hsn ? `${formatBps(hsn.classOneBps)} / ${formatBps(hsn.classTwoBps)}` : '—'}
+                    <span className="mt-0.5 block font-mono text-[0.6875rem] text-ink-subtle">
+                      HSN {hsn?.hsnCode ?? '—'}
                     </span>
                   </TD>
                   <TD>{row.calculationMethod}</TD>
@@ -232,9 +307,9 @@ export function NationalRollup() {
             })}
           </TBody>
           <TCaption>
-            {MINISTRY_COUNT} rule sets, seeded from scripts/seed-ministries/ministries.json — the
-            same file the seed script writes to the chain. Adding the twenty-second is a row in
-            that file, not a release.
+            {chainError
+              ? `Rule parameters could not be read from the chain (${chainError}). Nothing is shown rather than showing values that may be stale.`
+              : `Read live from pramaanRuleRegistry at block ${chain?.currentBlock ?? '—'}, refreshed every ten seconds. Ministry names are local reference data; every rule parameter above is on-chain state. Adding the twenty-second ministry is a row in scripts/seed-ministries/ministries.json, not a release.`}
           </TCaption>
         </Table>
       </Card>
@@ -283,10 +358,15 @@ function DistributionCell({
 }
 
 /** What a ministry has notified that the national default does not say. */
-function deviations(row: MinistryRef): string[] {
+type RuleShape = ChainRuleRow['rule'];
+
+/** Which parameters this ministry has notified differently from the national default. */
+function deviations(row: RuleShape, defaultRule: RuleShape | null): string[] {
+  if (!defaultRule) return [];
   const differences: string[] = [];
-  const defaultHsn = DEFAULT_RULE.hsnThresholds[0];
+  const defaultHsn = defaultRule.hsnThresholds[0];
   const hsn = row.hsnThresholds[0];
+  if (!hsn || !defaultHsn) return differences;
 
   if (hsn.hsnCode !== defaultHsn.hsnCode) differences.push(`HSN ${hsn.hsnCode}`);
   if (hsn.classOneBps !== defaultHsn.classOneBps) {
@@ -295,20 +375,20 @@ function deviations(row: MinistryRef): string[] {
   if (hsn.classTwoBps !== defaultHsn.classTwoBps) {
     differences.push(`Class-II ${formatBps(hsn.classTwoBps)}`);
   }
-  if (row.calculationMethod !== DEFAULT_RULE.calculationMethod) {
+  if (row.calculationMethod !== defaultRule.calculationMethod) {
     differences.push(row.calculationMethod);
   }
-  if (row.divisibility !== DEFAULT_RULE.divisibility) differences.push(row.divisibility);
-  if (row.para3aApplicable !== DEFAULT_RULE.para3aApplicable) {
+  if (row.divisibility !== defaultRule.divisibility) differences.push(row.divisibility);
+  if (row.para3aApplicable !== defaultRule.para3aApplicable) {
     differences.push(row.para3aApplicable ? 'Para 3A applies' : 'Para 3A does not apply');
   }
-  if (row.pliLinked !== DEFAULT_RULE.pliLinked) {
+  if (row.pliLinked !== defaultRule.pliLinked) {
     differences.push(row.pliLinked ? 'PLI-linked' : 'Not PLI-linked');
   }
-  if (row.preferenceMarginBps !== DEFAULT_RULE.preferenceMarginBps) {
+  if (row.preferenceMarginBps !== defaultRule.preferenceMarginBps) {
     differences.push(`Margin ${formatBps(row.preferenceMarginBps)}`);
   }
-  if (row.certificationThresholdPaise !== DEFAULT_RULE.certificationThresholdPaise) {
+  if (row.certificationThresholdPaise !== defaultRule.certificationThresholdPaise) {
     differences.push(`Threshold ${formatPaise(row.certificationThresholdPaise)}`);
   }
   return differences;
