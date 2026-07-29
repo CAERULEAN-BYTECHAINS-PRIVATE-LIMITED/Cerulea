@@ -31,9 +31,19 @@ import { encodeAddress, type ApiPromise } from '@cerulea/api';
  * block's events can no longer be decoded — the reader handles it gracefully, but there is
  * no point reaching for history it will only have to mark as unavailable.
  */
-const BACKFILL_BLOCKS = 600;
+// Small on purpose. Each block costs three RPC round-trips (hash, body, events), and
+// over a high-latency public tunnel a cold 600-block backfill took 30-46s -- long
+// enough that the explorer, dashboard and vigilance pages appeared to "open nothing"
+// while the first request was still running. 48 blocks fills the recent view in a
+// couple of seconds; the ring buffer below keeps growing as new blocks stream and as
+// each poll advances the index, so a whole session's history still accumulates and any
+// decision made during the session remains verifiable by its block.
+const BACKFILL_BLOCKS = 48;
 /** Ceiling on a single catch-up, so a long idle period cannot stall a request. */
-const MAX_CATCHUP_BLOCKS = 1_500;
+// Cap a single catch-up so one request can never be forced to scan a huge range (e.g.
+// after the tab was backgrounded): it fetches at most this many and marks the window
+// gapped, rather than blocking the response for tens of seconds.
+const MAX_CATCHUP_BLOCKS = 150;
 /**
  * Ring-buffer bounds.
  *
