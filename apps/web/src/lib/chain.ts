@@ -8,11 +8,18 @@
  * PoC's core claim, so it is enforced in exactly one place rather than per route.
  */
 
-import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
-import type { SubmittableExtrinsic } from '@polkadot/api/types';
-import type { KeyringPair } from '@polkadot/keyring/types';
-import type { ISubmittableResult } from '@polkadot/types/types';
-import { cryptoWaitReady } from '@polkadot/util-crypto';
+import {
+  ApiPromise,
+  WsProvider,
+  Keyring,
+  cryptoWaitReady,
+  blockHashOf,
+  isFinalizedStatus,
+  isRejectedStatus,
+  type SubmittableExtrinsic,
+  type KeyringPair,
+  type ISubmittableResult,
+} from '@cerulea/api';
 
 /** Default finality budget. Part 8.3 recommends 10s, well above the sub-second target. */
 export const FINALITY_TIMEOUT_MS = 10_000;
@@ -186,11 +193,7 @@ export async function submitAndFinalize(
         clearTimeout(timer);
         unsub?.();
         // The rejection is itself an on-chain fact, so carry the block it landed in.
-        const failureBlock = result.status.isInBlock
-          ? result.status.asInBlock.toHex()
-          : result.status.isFinalized
-            ? result.status.asFinalized.toHex()
-            : undefined;
+        const failureBlock = blockHashOf(result);
         reject(
           new ExtrinsicFailedError(
             result.txHash.toHex(),
@@ -202,7 +205,7 @@ export async function submitAndFinalize(
       }
       // Terminal non-inclusion states, otherwise a dropped transaction would sit here
       // until the timeout with no explanation.
-      if (result.status.isInvalid || result.status.isDropped || result.status.isUsurped) {
+      if (isRejectedStatus(result)) {
         clearTimeout(timer);
         unsub?.();
         reject(
@@ -217,15 +220,12 @@ export async function submitAndFinalize(
       // `Finalized` WITHOUT ever emitting `InBlock` for the extrinsic. Waiting only on
       // InBlock therefore times out after 10s on a transaction that was in fact
       // finalized in ~180ms -- a failure mode a slow-finality chain never exhibits.
-      if (result.status.isInBlock || result.status.isFinalized) {
+      if (isFinalizedStatus(result)) {
         clearTimeout(timer);
         unsub?.();
         resolve({
           txRef: result.txHash.toHex(),
-          blockHash: (result.status.isInBlock
-            ? result.status.asInBlock
-            : result.status.asFinalized
-          ).toHex(),
+          blockHash: blockHashOf(result)!,
           events: result.events,
         });
       }

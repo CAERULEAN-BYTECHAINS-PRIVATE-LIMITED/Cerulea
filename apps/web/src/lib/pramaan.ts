@@ -17,11 +17,16 @@
  * percentage conversion goes through `src/lib/units.ts`. Neither is re-implemented here.
  */
 
-import type { ApiPromise } from '@polkadot/api';
-import type { SubmittableExtrinsic } from '@polkadot/api/types';
-import type { ISubmittableResult } from '@polkadot/types/types';
-import { hexToU8a, stringToU8a, u8aToHex, u8aToString } from '@polkadot/util';
-import { decodeAddress } from '@polkadot/util-crypto';
+import {
+  hexToU8a,
+  stringToU8a,
+  u8aToHex,
+  u8aToString,
+  decodeAddress,
+  type ApiPromise,
+  type SubmittableExtrinsic,
+  type ISubmittableResult,
+} from '@cerulea/api';
 
 import {
   addressOf,

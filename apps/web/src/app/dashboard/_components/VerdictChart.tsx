@@ -62,24 +62,29 @@ export function VerdictChart({
     const firstBucket = Math.floor(first / BUCKET_MS) * BUCKET_MS;
     const lastBucket = Math.floor(last / BUCKET_MS) * BUCKET_MS;
 
+    // Tallied first, then the bucket objects are built from the tallies in one pass.
+    // Constructing them empty and incrementing afterwards is the obvious way to write
+    // this and it crashes: the React Compiler freezes values produced inside a memo, so
+    // the increment throws on a read-only property.
+    const tally = new Map<number, { GREEN: number; YELLOW: number; RED: number }>();
+    for (const entry of entries) {
+      const key = Math.floor(entry.timestamp / BUCKET_MS) * BUCKET_MS;
+      const counts = tally.get(key) ?? { GREEN: 0, YELLOW: 0, RED: 0 };
+      tally.set(key, { ...counts, [entry.status]: counts[entry.status] + 1 });
+    }
+
     const all: Bucket[] = [];
     for (let start = firstBucket; start <= lastBucket; start += BUCKET_MS) {
+      const counts = tally.get(start) ?? { GREEN: 0, YELLOW: 0, RED: 0 };
       all.push({
         key: String(start),
         label: clock(start),
         startedAt: start,
-        GREEN: 0,
-        YELLOW: 0,
-        RED: 0,
-        total: 0,
+        GREEN: counts.GREEN,
+        YELLOW: counts.YELLOW,
+        RED: counts.RED,
+        total: counts.GREEN + counts.YELLOW + counts.RED,
       });
-    }
-    const index = new Map(all.map((bucket) => [bucket.key, bucket]));
-    for (const entry of entries) {
-      const bucket = index.get(String(Math.floor(entry.timestamp / BUCKET_MS) * BUCKET_MS));
-      if (!bucket) continue;
-      bucket[entry.status] += 1;
-      bucket.total += 1;
     }
     return all.slice(-MAX_BUCKETS);
   }, [entries, sessionStartedAt]);

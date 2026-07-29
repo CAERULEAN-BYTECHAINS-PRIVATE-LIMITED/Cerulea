@@ -134,7 +134,16 @@ export function BlocksPanel({ onOpenBlock }: { onOpenBlock: (blockNumber: number
                     {block.extrinsicCount}
                   </TD>
                   <TD className="text-right font-mono text-[0.8125rem] text-ink tabular-nums">
-                    {block.eventCount}
+                    {block.eventsAvailable === false ? (
+                      <span
+                        className="text-ink-subtle"
+                        title="The node had already pruned this block's state, so its events could not be decoded. The block itself is unchanged."
+                      >
+                        pruned
+                      </span>
+                    ) : (
+                      block.eventCount
+                    )}
                   </TD>
                   <TD>
                     {pramaanCalls.length > 0 ? (

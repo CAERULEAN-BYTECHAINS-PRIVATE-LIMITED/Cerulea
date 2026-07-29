@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface PolledResource<T> {
   data: T | null;
@@ -34,7 +34,6 @@ export function usePolledResource<T>(
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
-  const inFlight = useRef(false);
 
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
@@ -43,10 +42,14 @@ export function usePolledResource<T>(
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
+    // Scoped to this effect run, not held in a ref: React remounts effects in development,
+    // and a shared in-flight flag left set by an aborted first mount would deadlock the
+    // second one into never scheduling a poll at all.
+    let busy = false;
 
     async function tick() {
-      if (inFlight.current) return;
-      inFlight.current = true;
+      if (busy) return;
+      busy = true;
       try {
         const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
         const payload = (await response.json()) as T & { error?: string };
@@ -59,7 +62,7 @@ export function usePolledResource<T>(
         if (cancelled || controller.signal.aborted) return;
         setError(caught instanceof Error ? caught.message : 'Request failed');
       } finally {
-        inFlight.current = false;
+        busy = false;
         if (!cancelled) {
           setLoading(false);
           timer = setTimeout(() => void tick(), intervalMs);

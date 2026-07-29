@@ -5,6 +5,7 @@ export interface IndexWindow {
   to: number;
   blocksIndexed: number;
   gapped: boolean;
+  blocksWithoutEvents: number;
 }
 
 export interface ExplorerExtrinsic {
@@ -21,6 +22,8 @@ export interface ExplorerBlock {
   author: string | null;
   extrinsicCount: number;
   eventCount: number;
+  /** False when the node pruned this block's state before the explorer read it. */
+  eventsAvailable?: boolean;
   finalized: boolean;
   extrinsics: ExplorerExtrinsic[];
 }

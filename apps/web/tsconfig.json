@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@cerulea/api": ["./src/cerulea-api/index.ts"]
     }
   },
   "include": [
