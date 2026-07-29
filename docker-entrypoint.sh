@@ -124,6 +124,13 @@ BASE_ARGS=(
     --unsafe-rpc-external
     --rpc-cors all
     --validator
+    # Keep ALL state and ALL blocks. This is an audit chain: the whole premise is that a
+    # decision's block can be looked up and its state re-derived long after the fact, so
+    # discarding historical state defeats the point. It also stops "State already
+    # discarded" errors when a reader queries a block the default pruning window has
+    # already dropped -- which on a sub-second chain is only a few minutes of history.
+    --state-pruning archive
+    --blocks-pruning archive
 )
 
 case "$NODE_ROLE" in
