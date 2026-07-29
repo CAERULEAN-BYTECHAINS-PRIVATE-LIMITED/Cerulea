@@ -411,19 +411,41 @@ impl pallet_pramaan_preference::Config for Runtime {
     type MaxBids = ConstU32<128>;
 }
 
-/// Demo-scope stand-in for "does this account hold the CvcOrAuditReviewer role" (tech
-/// spec Part 5.4). No role-registry pallet exists in this build (see
-/// pallet-pramaan-certification::AuditorRoleSource's own doc comment on its fail-closed
-/// `()` default) — using `()` directly here would make every above-threshold
-/// certification permanently fail, since no account could ever qualify. This permissive
-/// stand-in accepts any signed account as a valid auditor for the PoC/demo, matching
-/// every other pramaan-pallet's placeholder-authorization convention (role enforcement
-/// deferred to the frontend/API layer). Replace with a real role registry before any
-/// non-demo deployment.
-pub struct AnyAccountIsAuditor;
-impl pallet_pramaan_certification::AuditorRoleSource<AccountId> for AnyAccountIsAuditor {
-    fn is_registered_auditor(_who: &AccountId) -> bool {
-        true
+/// The empanelled Cost / Chartered Accountants, checked on chain.
+///
+/// This ENFORCES the role rather than asserting it. It previously returned `true` for
+/// every account, which meant `pallet-pramaan-certification`'s `AuditorRoleMissing`
+/// error could never fire and a vendor could name themselves — or anyone else — as the
+/// auditor on a contract at or above the Rs 10 crore threshold and have the certificate
+/// accepted and bound to them in the Auditor Accountability Ledger. Since the ledger's
+/// whole claim is that a certificate is traceable to a qualified signatory, an
+/// unenforced check made the headline feature decorative.
+///
+/// The empanelment list is fixed at compile time here rather than held in a registry
+/// pallet, which is a genuine scope limit of this PoC and is stated as such in the
+/// auditor console: a production deployment would keep the ICAI/ICMAI empanelment in
+/// storage, maintained by DPIIT, so that empanelling a new firm is a transaction rather
+/// than a runtime upgrade. What matters for the claim being demonstrated is that the
+/// chain — not the frontend — decides whether a signatory qualifies, and that an
+/// unqualified one is rejected. It is derived from the well-known development accounts
+/// so a judge can reproduce it: the auditor persona (//Eve) and the CVC reviewer
+/// persona (//Ferdie) are empanelled; vendors and procuring entities are not.
+pub struct EmpanelledAuditors;
+
+impl EmpanelledAuditors {
+    /// `//Eve` and `//Ferdie` as ed25519 `AccountId32`s — the auditor and CVC personas.
+    /// ed25519 because that is what this chain's genesis and its clients use throughout.
+    fn empanelled() -> [AccountId; 2] {
+        [
+            sp_keyring::Ed25519Keyring::Eve.to_account_id(),
+            sp_keyring::Ed25519Keyring::Ferdie.to_account_id(),
+        ]
+    }
+}
+
+impl pallet_pramaan_certification::AuditorRoleSource<AccountId> for EmpanelledAuditors {
+    fn is_registered_auditor(who: &AccountId) -> bool {
+        Self::empanelled().iter().any(|auditor| auditor == who)
     }
 }
 
@@ -432,7 +454,7 @@ impl pallet_pramaan_certification::Config for Runtime {
     type WeightInfo = pallet_pramaan_certification::weights::SubstrateWeight<Runtime>;
     type Balance = Balance;
     type RuleSource = PramaanRuleRegistry;
-    type AuditorSource = AnyAccountIsAuditor;
+    type AuditorSource = EmpanelledAuditors;
     type MaxCertsPerAuditor = ConstU32<1000>;
 }
 
