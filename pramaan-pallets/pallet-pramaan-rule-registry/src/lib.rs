@@ -44,8 +44,19 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		/// The Balance type carried inside `Rule` (certification_threshold,
-		/// exemption_floor).
-		type Balance: Parameter + Member + MaxEncodedLen + Copy + Default + TypeInfo;
+		/// exemption_floor). Requires `Serialize + DeserializeOwned` (beyond what the
+		/// other five pallets' `Balance` associated types need) because this pallet
+		/// alone declares a `#[pallet::genesis_config]` embedding `RuleOf<T>`, and the
+		/// JSON-based `GenesisBuilder` runtime API serde-(de)serialises the whole
+		/// genesis patch.
+		type Balance: Parameter
+			+ Member
+			+ MaxEncodedLen
+			+ Copy
+			+ Default
+			+ TypeInfo
+			+ serde::Serialize
+			+ serde::de::DeserializeOwned;
 
 		/// DPIIT or Root, per tech spec Table 5's Origin column. A `EnsureOrigin`
 		/// combinator (e.g. `EnsureRoot` OR a designated DPIIT signed account) is
@@ -148,6 +159,27 @@ pub mod pallet {
 	impl<T: Config> pramaan_primitives::RuleLookup<T::Balance, BlockNumberFor<T>> for Pallet<T> {
 		fn rule(ministry: &MinistryId) -> Option<RuleOf<T>> {
 			Self::get_effective_rule(ministry)
+		}
+	}
+
+	/// Pre-loads `DefaultRule` at genesis with the DPIIT default rule set (PoC document
+	/// Table 3 / tech spec Part 7.2), so classification/preference/certification have a
+	/// fallback rule from block zero. The full 21-ministry set is intentionally NOT
+	/// baked in here — it is loaded post-genesis via the idempotent seed script (Part
+	/// 7.3/7.4) so it can be re-run during development without a chain restart.
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub default_rule: Option<RuleOf<T>>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			if let Some(rule) = &self.default_rule {
+				Pallet::<T>::validate_rule(rule).expect("genesis default_rule must be valid");
+				DefaultRule::<T>::put(rule);
+			}
 		}
 	}
 }

@@ -19,6 +19,7 @@ scale-info = { features = ["derive"], workspace = true }
 sp-std.workspace = true
 sp-runtime.workspace = true
 pramaan-primitives.workspace = true
+serde.workspace = true
 log = { version = "0.4", default-features = false }
 
 [dev-dependencies]
@@ -37,6 +38,7 @@ std = [
 	"sp-std/std",
 	"sp-runtime/std",
 	"pramaan-primitives/std",
+	"serde/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
