@@ -29,6 +29,7 @@ import {
   ExtrinsicFailedError,
   FinalityTimeoutError,
   findEvent,
+  getApi,
   PERSONA_ACCOUNTS,
   type FinalizedResult,
   type Persona,
@@ -714,15 +715,29 @@ export async function handleTrigger(
     }
 
     if (error instanceof ExtrinsicFailedError) {
+      // A rejection is an on-chain fact and must be auditable: the extrinsic WAS
+      // included, and the block that carried the rejection is what a reviewer looks up
+      // when asked "why was this blocked". `ExtrinsicFailedError` now carries that block
+      // hash, so resolve it to a number rather than reporting null. If the hash is
+      // genuinely unavailable (the transaction failed before inclusion) null is still
+      // returned — honest, rather than invented.
+      let blockNumber: number | null = null;
+      let blockHash: string | null = error.blockHash ?? null;
+      if (error.blockHash) {
+        try {
+          const api = await getApi();
+          blockNumber = (await api.rpc.chain.getHeader(error.blockHash)).number.toNumber();
+        } catch {
+          blockHash = error.blockHash;
+        }
+      }
       return Response.json({
         result: 'RED' satisfies TriState,
         reason: describePalletError(error.palletError),
         palletError: error.palletError,
         txRef: error.txRef,
-        // The dispatch error surfaces at inclusion and `ExtrinsicFailedError` does not
-        // carry the block it was included in, so there is no finalized block number to
-        // report here. Reporting null is honest; inventing one would not be.
-        blockNumber: null,
+        blockNumber,
+        blockHash,
         latencyMs,
         ...(options.onPalletRejection?.(error) ?? {}),
       });
