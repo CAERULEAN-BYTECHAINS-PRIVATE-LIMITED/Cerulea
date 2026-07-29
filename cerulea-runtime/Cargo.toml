@@ -33,6 +33,13 @@ pallet-cerulea-pos.workspace = true
 pallet-cerulea-dcf.workspace = true
 pallet-cerulea-dvf.workspace = true
 pallet-todo.workspace = true
+pramaan-primitives.workspace = true
+pallet-pramaan-rule-registry.workspace = true
+pallet-pramaan-classification.workspace = true
+pallet-pramaan-preference.workspace = true
+pallet-pramaan-certification.workspace = true
+pallet-pramaan-debarment.workspace = true
+pallet-pramaan-consistency.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
 pallet-transaction-payment-rpc-runtime-api.workspace = true                      # Payment APIs for transactions
 pallet-transaction-payment.workspace = true                                      # Transaction fee pallet
@@ -85,6 +92,13 @@ std = [
 	"pallet-cerulea-dcf/std",
 	"pallet-cerulea-dvf/std",
 	"pallet-todo/std",
+	"pramaan-primitives/std",
+	"pallet-pramaan-rule-registry/std",
+	"pallet-pramaan-classification/std",
+	"pallet-pramaan-preference/std",
+	"pallet-pramaan-certification/std",
+	"pallet-pramaan-debarment/std",
+	"pallet-pramaan-consistency/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",

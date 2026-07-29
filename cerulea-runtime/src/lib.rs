@@ -227,6 +227,28 @@ mod runtime {
 
     #[runtime::pallet_index(10)]
     pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
+
+    // CBC-PRAMAAN pallets (Technical Implementation Specification Part 6.1). Indices
+    // 11-16, immediately after the existing custom pallets (0-10), leaving 5 free below
+    // System/Timestamp/etc. in case an existing pallet ever needs a neighbor inserted
+    // without renumbering these six.
+    #[runtime::pallet_index(11)]
+    pub type PramaanRuleRegistry = pallet_pramaan_rule_registry;
+
+    #[runtime::pallet_index(12)]
+    pub type PramaanClassification = pallet_pramaan_classification;
+
+    #[runtime::pallet_index(13)]
+    pub type PramaanPreference = pallet_pramaan_preference;
+
+    #[runtime::pallet_index(14)]
+    pub type PramaanCertification = pallet_pramaan_certification;
+
+    #[runtime::pallet_index(15)]
+    pub type PramaanDebarment = pallet_pramaan_debarment;
+
+    #[runtime::pallet_index(16)]
+    pub type PramaanConsistency = pallet_pramaan_consistency;
 }
 use sp_runtime::traits::parameter_types;
 
