@@ -34,6 +34,7 @@ import {
   type LedgerEntry,
 } from '@/lib/api-client';
 import { formatBps } from '@/lib/units';
+import { AnomalyPanel } from './AnomalyPanel';
 
 /**
  * The CVC / audit reviewer's console: the record after the fact.
@@ -81,22 +82,26 @@ export function VigilanceConsole() {
 
   return (
     <div className="space-y-8">
+      {/* Reads the chain on every load. Deliberately placed above the session-scoped
+          figures below it, which count only what this browser has watched happen. */}
+      <AnomalyPanel />
+
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Inconsistency flags"
           value={String(flags.length)}
-          hint="Raised across every tender and ministry."
+          hint="Seen live by this browser since the console was opened."
           icon={<ShieldAlert className="size-3.5" aria-hidden="true" />}
         />
         <Stat
           label="Vendors affected"
           value={String(affectedVendors.size)}
-          hint="Distinct suppliers with a contradicted declaration."
+          hint="Distinct suppliers contradicted in front of this browser."
         />
         <Stat
           label="Declarations observed"
           value={String(declarations.length)}
-          hint="Classifications and evaluations seen by this console."
+          hint="Classifications and evaluations watched from this browser."
         />
         <Stat
           label="Tolerance"

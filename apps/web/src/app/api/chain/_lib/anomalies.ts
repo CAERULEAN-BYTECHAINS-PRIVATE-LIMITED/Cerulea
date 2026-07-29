@@ -177,6 +177,17 @@ function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
+/**
+ * A shortfall below a threshold, which is routinely smaller than one rupee — the whole
+ * point of the signal is a value trimmed to sit *just* under. `formatPaise` rounds those
+ * to "₹0", which reads as though there were no gap at all, so sub-rupee gaps are stated
+ * in paise instead.
+ */
+function formatShortfall(paise: bigint): string {
+  if (paise < BigInt(100)) return `${paise.toString()} ${plural(Number(paise), 'paisa', 'paise')}`;
+  return formatPaise(paise);
+}
+
 // ---------------------------------------------------------------------------------
 // The report
 // ---------------------------------------------------------------------------------
@@ -697,7 +708,7 @@ export async function buildAnomalyReport(): Promise<AnomalyReport> {
         vendor,
         headline:
           near.length === 1
-            ? `One contract priced ${formatPaise(shortfall)} under the certification threshold`
+            ? `One contract certified at ${formatPaise(latest.value)}, ${formatShortfall(shortfall)} under the threshold`
             : `${near.length} contracts priced just under the certification threshold`,
         evidence:
           `${near.length} ${plural(near.length, 'contract', 'contracts')} certified for this vendor ` +
@@ -720,7 +731,7 @@ export async function buildAnomalyReport(): Promise<AnomalyReport> {
             label: 'Threshold',
             value: `${formatPaise(latest.threshold)} (${latest.ministries.slice(0, 3).join(', ')})`,
           },
-          { label: 'Closest shortfall', value: formatPaise(shortfall) },
+          { label: 'Closest shortfall', value: formatShortfall(shortfall) },
           {
             label: 'Auditor signature',
             value: near.some((n) => n.auditor)
