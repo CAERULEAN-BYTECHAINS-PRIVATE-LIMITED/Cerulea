@@ -180,9 +180,18 @@ pub fn development_config_genesis() -> Value {
 }
 
 /// Returns a local testnet configuration:
-/// - Alice and Bob are set as validators.
+/// - Alice, Bob and Charlie are validators, with EQUAL stake.
 /// - Endows all keyring accounts (except One and Two) with tokens.
 /// - Alice is the sudo key.
+///
+/// The stakes are deliberately equal rather than the 10M/8M/6M default ladder, because
+/// DVF derives each validator's voting weight from its stake and PoC document Section
+/// 4.8 promises a majority quorum of three. With unequal weights "two of three" stops
+/// being a property of the network and becomes a property of WHICH two: measured on this
+/// very topology, Alice plus the smallest validator carried 18,666 of a 21,439 threshold
+/// and finality stalled at block 0, while Alice plus the second-largest would have
+/// cleared it. Equal weight makes any two validators exactly 66.67%, which the 66%
+/// FinalityThreshold clears and no single validator (33.3%) can reach alone.
 pub fn local_config_genesis() -> Value {
 	let initial_validators = vec![
 		Ed25519Keyring::Alice.to_account_id(),
@@ -193,10 +202,11 @@ pub fn local_config_genesis() -> Value {
 		.filter(|v| v != &Ed25519Keyring::One && v != &Ed25519Keyring::Two)
 		.map(|v| v.to_account_id())
 		.collect::<Vec<_>>();
-	testnet_genesis(
+	testnet_genesis_with_stakes(
 		initial_validators,
 		endowed_accounts,
 		Ed25519Keyring::Alice.to_account_id(),
+		Some(vec![10_000_000 * CBC, 10_000_000 * CBC, 10_000_000 * CBC]),
 	)
 }
 
@@ -226,13 +236,15 @@ pub fn multi_validator_config_genesis() -> Value {
 		Ed25519Keyring::Eve.to_account_id(),
 	];
 
-	// Custom stakes for different validator profiles
+	// Equal stakes, so quorum is a property of the NETWORK rather than of which
+	// particular validators happen to have voted. See local_config_genesis for the
+	// measurement that motivated this.
 	let validator_stakes = vec![
-		15_000_000, // Alice: High stake validator
-		12_000_000, // Bob: Medium-high stake
-		8_000_000,  // Charlie: Medium stake
-		5_000_000,  // Dave: Low-medium stake
-		3_000_000,  // Eve: Minimum viable stake
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
 	];
 
 	// Custom validator names for better identification
