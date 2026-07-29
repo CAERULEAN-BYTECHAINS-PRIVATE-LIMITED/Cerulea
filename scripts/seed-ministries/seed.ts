@@ -1,10 +1,15 @@
 // Technical Implementation Specification Part 7.4 — seed script behaviour:
-//   1. Read ministries.json.
-//   2. For each row, call pallet-pramaan-rule-registry's set_rule extrinsic from the
-//      DPIIT account.
-//   3. After all calls, query Rules for each ministry_id and diff against the source
-//      JSON; any mismatch fails the script loudly rather than continuing silently.
-//   4. The script must be idempotent: running it twice produces the same end state.
+//   1. Read ministries.json and hsn-map.json.
+//   2. For each ministry row, call pallet-pramaan-rule-registry's set_rule extrinsic.
+//   3. For each HSN row, call map_hsn_to_ministry so a procuring entity holding only a
+//      catalogue HSN code can resolve the governing ministry without the frontend
+//      hardcoding the answer (see the HsnMinistryMap doc comment on the pallet).
+//   4. After all calls, query Rules for each ministry_id and HsnMinistryMap for every
+//      code, and diff both against the source JSON; any mismatch fails the script
+//      loudly rather than continuing silently.
+//   5. The script must be idempotent: running it twice produces the same end state.
+//      Both set_rule and map_hsn_to_ministry overwrite rather than reject, so a re-run
+//      rewrites identical values.
 //
 // ministries.json holds all 21 nodal ministries from PoC document Table 11 (DPIIT
 // itself is entry #7 there, owning paper/cement/leather/lifts/air-conditioners). The
@@ -12,6 +17,17 @@
 // assigned nodal ministry at all) is numerically identical to DPIIT's own entry in
 // this file, so it is seeded separately via set_default_rule using that same shape,
 // immediately after the 21 set_rule calls, rather than duplicated in the JSON.
+//
+// Both JSON files now carry the REAL transcribed notification data rather than
+// placeholders, each row citing its own notification number, date and source URL in
+// `source_order` (ministries.json) or `note` (hsn-map.json). Two fields exist purely to
+// keep provenance honest end to end:
+//   - `needs_reverification` IS sent on chain (it is a field of pramaan_primitives::Rule)
+//     and marks the three ministries whose source carries a named quality caveat.
+//   - `confidence` is NOT sent on chain — the pallet has no such field. It carries the
+//     research package's own tier (FULL / PARTIAL / INDEX_ONLY / EXTERNAL_POLICY /
+//     DEFAULT_APPLIES) for docs/MINISTRY_DATA_PROVENANCE.md and must stay out of
+//     toChainRule(), or encoding and the post-seed diff would both break.
 
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
 import { stringToU8a, u8aToHex } from "@polkadot/util";
@@ -34,18 +50,38 @@ interface MinistryRow {
 	hsn_thresholds: HsnThresholdJson[];
 	para_3a_applicable: boolean;
 	pli_linked: boolean;
-	calculation_method: "Standard" | "ComponentLevel" | "WeightedModule" | "Custom";
+	/**
+	 * `NegativeList` is Railways only: it publishes a negative list of exempted items and
+	 * requires Class-I for everything not on it, rather than a positive per-item list
+	 * (Railway Board letter 2015/RS(G)/779/5(Vol.III), 12.07.2020). See the variant's doc
+	 * comment in pramaan-primitives.
+	 */
+	calculation_method: "Standard" | "ComponentLevel" | "WeightedModule" | "Custom" | "NegativeList";
 	preference_margin_bps: number;
 	certification_threshold: string; // paise, as a decimal string (u128-range)
 	exemption_floor: string; // paise
 	divisibility: "Divisible" | "NonDivisible";
 	effective_from: number;
+	/** Provenance marker, sent on chain. See the field's doc comment in pramaan-primitives. */
+	needs_reverification: boolean;
+	/** Research-package confidence tier. Documentation only — deliberately NOT sent on chain. */
+	confidence: "FULL" | "PARTIAL" | "INDEX_ONLY" | "EXTERNAL_POLICY" | "DEFAULT_APPLIES";
 	source_order: string;
+}
+
+/** One row of hsn-map.json: a real HSN code from a real notification, and its ministry. */
+interface HsnMapRow {
+	hsn_code: string;
+	ministry_id: string;
+	/** Documentation only, like `confidence` above: which notification the code came from. */
+	needs_reverification: boolean;
+	note: string;
 }
 
 function toChainRule(row: MinistryRow) {
 	// Shape matches pramaan_primitives::Rule<Balance, BlockNumber> field-for-field, as
 	// the polkadot-js API will encode it against the runtime's generated metadata.
+	// `confidence` is absent on purpose: the struct has no such field.
 	return {
 		hsnThresholds: row.hsn_thresholds.map((h) => ({
 			hsnCode: encodeId(h.hsn_code),
@@ -60,6 +96,7 @@ function toChainRule(row: MinistryRow) {
 		exemptionFloor: row.exemption_floor,
 		divisibility: row.divisibility,
 		effectiveFrom: row.effective_from,
+		needsReverification: row.needs_reverification,
 	};
 }
 
@@ -219,9 +256,43 @@ async function main() {
 		if (!row.ministry_name || row.ministry_name.trim().length === 0) {
 			throw new Error(`Ministry ${row.ministry_id} has an empty ministry_name — refusing to seed.`);
 		}
+		// Every row's provenance is the thing a reviewer checks the submission against, so
+		// an empty one is a seeding failure rather than a cosmetic omission.
+		if (!row.source_order || row.source_order.trim().length === 0) {
+			throw new Error(`Ministry ${row.ministry_id} has an empty source_order — refusing to seed data with no provenance.`);
+		}
+	}
+
+	const hsnPath = path.join(__dirname, "hsn-map.json");
+	const hsnRows: HsnMapRow[] = JSON.parse(fs.readFileSync(hsnPath, "utf8"));
+
+	// Validate the HSN map before touching the chain: a bad row here silently routes a
+	// real bid to the wrong ministry's thresholds, which is worse than not seeding at all.
+	const knownMinistryIds = new Set(rows.map((r) => r.ministry_id));
+	const seenHsn = new Set<string>();
+	for (const hsn of hsnRows) {
+		if (!hsn.hsn_code || hsn.hsn_code.trim().length === 0) {
+			throw new Error("hsn-map.json holds a row with an empty hsn_code — refusing to seed.");
+		}
+		if (!knownMinistryIds.has(hsn.ministry_id)) {
+			throw new Error(
+				`hsn-map.json maps HSN ${hsn.hsn_code} to unknown ministry_id "${hsn.ministry_id}". Every code must resolve to a ministry that ministries.json actually seeds.`
+			);
+		}
+		if (!hsn.note || hsn.note.trim().length === 0) {
+			throw new Error(`hsn-map.json row for HSN ${hsn.hsn_code} has an empty note — every code must say which notification it came from.`);
+		}
+		// HsnMinistryMap is keyed by code, so a duplicate is not additive: the later row
+		// would silently overwrite the earlier one and one of the two notifications would
+		// vanish without any error.
+		if (seenHsn.has(hsn.hsn_code)) {
+			throw new Error(`hsn-map.json lists HSN ${hsn.hsn_code} more than once — the second entry would silently overwrite the first.`);
+		}
+		seenHsn.add(hsn.hsn_code);
 	}
 
 	console.log(`Loaded ${rows.length} ministries from ${jsonPath}`);
+	console.log(`Loaded ${hsnRows.length} HSN-to-ministry mappings from ${hsnPath}`);
 
 	const provider = new WsProvider(WS_ENDPOINT);
 	const api = await ApiPromise.create({ provider });
@@ -264,6 +335,20 @@ async function main() {
 		"set_default_rule"
 	);
 
+	// HSN -> ministry, from the notifications that actually print HSN codes: DoT's
+	// Table-A, Heavy Industries' 29.04.2025 boiler re-notification, and the Department of
+	// Chemicals and Petrochemicals' 13.08.2024 OM. Same sudo path as set_rule — the
+	// pallet gates map_hsn_to_ministry on the same DpiitOrigin, which the runtime wires
+	// as EnsureRoot.
+	for (const hsn of hsnRows) {
+		await sudoSubmit(
+			api,
+			dpiit,
+			api.tx.pramaanRuleRegistry.mapHsnToMinistry(encodeId(hsn.hsn_code), encodeId(hsn.ministry_id)),
+			`map_hsn_to_ministry(${hsn.hsn_code} -> ${hsn.ministry_id})`
+		);
+	}
+
 	console.log("\nVerifying: querying Rules for every ministry_id and diffing against the source JSON...");
 	let mismatches = 0;
 	for (const row of rows) {
@@ -285,14 +370,59 @@ async function main() {
 		}
 	}
 
+	// The HSN map is diffed in both directions. Read the whole storage map once rather
+	// than querying key by key, so codes present on chain but absent from the JSON are
+	// visible too — a one-directional check would report a clean PASS on a chain still
+	// holding a mapping the notification has since moved to another ministry.
+	console.log("\nVerifying: reading HsnMinistryMap back and diffing against hsn-map.json...");
+	const onChainHsn = new Map<string, string>();
+	const rawEntries = (await api.query.pramaanRuleRegistry.hsnMinistryMap.entries()) as unknown as Array<
+		[{ args: Array<{ toHex(): string }> }, { isNone: boolean; unwrap(): { toHex(): string } }]
+	>;
+	for (const [key, value] of rawEntries) {
+		if (value.isNone) continue;
+		const code = key.args[0] ? hexToUtf8(key.args[0].toHex()) : "";
+		onChainHsn.set(code, hexToUtf8(value.unwrap().toHex()));
+	}
+
+	for (const hsn of hsnRows) {
+		const actual = onChainHsn.get(hsn.hsn_code);
+		if (actual === undefined) {
+			console.error(`  MISMATCH: HSN ${hsn.hsn_code} has no on-chain mapping after seeding.`);
+			mismatches++;
+			continue;
+		}
+		if (actual !== hsn.ministry_id) {
+			console.error(`  MISMATCH: HSN ${hsn.hsn_code} maps to "${actual}" on chain, expected "${hsn.ministry_id}".`);
+			mismatches++;
+		}
+	}
+
+	// An on-chain code the JSON never declared is reported but does not fail the run.
+	// This script owns the codes it seeds, not the whole map: DPIIT can map a code by
+	// hand or through the ministry-admin console, and failing here would make the script
+	// un-rerunnable the moment anyone did. Silence would be the wrong answer too, so it
+	// is printed loudly enough to notice.
+	for (const [code, ministry] of onChainHsn) {
+		if (!seenHsn.has(code)) {
+			console.warn(`  NOTE: on-chain HSN ${code} -> ${ministry} is not declared in hsn-map.json (left untouched).`);
+		}
+	}
+
 	await api.disconnect();
 
 	if (mismatches > 0) {
-		console.error(`\n${mismatches} ministr${mismatches === 1 ? "y" : "ies"} failed verification. Failing loudly per Part 7.4.`);
+		console.error(`\n${mismatches} record${mismatches === 1 ? "" : "s"} failed verification. Failing loudly per Part 7.4.`);
 		process.exit(1);
 	}
 
-	console.log(`\nAll ${rows.length} ministries verified on-chain, plus the DPIIT default rule set. Seed complete.`);
+	const flagged = rows.filter((r) => r.needs_reverification).map((r) => r.ministry_id);
+	console.log(
+		`\nAll ${rows.length} ministries and ${hsnRows.length} HSN mappings verified on-chain, plus the DPIIT default rule set. Seed complete.`
+	);
+	console.log(
+		`Seeded with needs_reverification = true (source carries a named quality caveat): ${flagged.length > 0 ? flagged.join(", ") : "none"}. See docs/MINISTRY_DATA_PROVENANCE.md.`
+	);
 }
 
 main().catch((err) => {

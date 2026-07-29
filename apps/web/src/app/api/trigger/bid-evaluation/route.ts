@@ -16,6 +16,7 @@
 
 import { getApi, getSigner, submitAndFinalize } from '@/lib/chain';
 import {
+  assertMinistryOnboarded,
   classToTriState,
   classifyTx,
   describeClass,
@@ -26,6 +27,7 @@ import {
   requireBps,
   requireEventField,
   requireId,
+  requireIdText,
   resolveAccount,
   type ClassResult,
 } from '@/lib/pramaan';
@@ -40,6 +42,7 @@ export async function POST(request: Request): Promise<Response> {
     const vendor = await resolveAccount(body, 'vendor');
     const tender = requireId(body, 'tender');
     const ministry = requireId(body, 'ministry');
+    const ministryText = requireIdText(body, 'ministry');
     // FLAGGED — spec vs. source. The build contract's route table gives this route a
     // three-field body (vendor, tender, ministry), but the classify extrinsic it then
     // calls requires a declared local-content percentage, and no pallet stores one that
@@ -50,6 +53,10 @@ export async function POST(request: Request): Promise<Response> {
     const isPliManufacturer = optionalBoolean(body, 'isPliManufacturer', false);
 
     const api = await getApi();
+    // A ministry the registry has never heard of is a typo, not a policy gap; see
+    // `assertMinistryOnboarded`. Checked before the debarment read so a mistyped buyer is
+    // reported as the input error it is rather than answered.
+    await assertMinistryOnboarded(api, ministryText);
 
     // --- Debarment first, as a storage read -----------------------------------------
     // No extrinsic is submitted for a debarred vendor. Submitting one would be rejected

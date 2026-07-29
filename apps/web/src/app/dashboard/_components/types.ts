@@ -29,7 +29,8 @@ export interface MetricsResponse {
     certificatesIssued: number;
     preferenceDecisions: number;
     activeDebarments: number;
-    totalDebarments: number;
+    /** Debarment records held in storage now, active plus lapsed — not a total-ever. */
+    debarmentRecords: number;
   };
   ministries: { ministryId: string; ruleVersion: number }[];
   debarmentsByMinistry: MinistryDebarments[];

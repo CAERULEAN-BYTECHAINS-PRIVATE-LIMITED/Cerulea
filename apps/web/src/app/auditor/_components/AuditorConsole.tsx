@@ -89,7 +89,9 @@ function buildQueue(): QueueRow[] {
 }
 
 export function AuditorConsole() {
-  const queue = useMemo(buildQueue, []);
+  // Inline arrow, not a bare reference: `react-hooks/use-memo` rejects the latter, and
+  // the React Compiler cannot see through a passed-by-name factory either.
+  const queue = useMemo(() => buildQueue(), []);
   const [active, setActive] = useState<QueueRow | null>(null);
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -181,7 +183,7 @@ export function AuditorConsole() {
           title="Certifications pending"
           description="Contracts in this accountant's book of work, ranked with the statutory ones first."
         />
-        <Table>
+        <Table containerClassName="rounded-b-card">
           <THead>
             <TR>
               <TH>Contract</TH>

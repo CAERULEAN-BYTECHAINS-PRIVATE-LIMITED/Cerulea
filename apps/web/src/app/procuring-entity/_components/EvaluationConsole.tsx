@@ -187,7 +187,7 @@ export function EvaluationConsole() {
       <Card>
         <CardHeader
           title="Tenders open for evaluation"
-          description="Bids received on this buyer's live tenders. A status appears against a tender only once its bids have been evaluated on chain."
+          description="Sample tenders and sample bids, bundled with this console as the inputs an evaluation is run against — they are not read from the chain and no bid below has been received from anyone. What IS real is the verdict: evaluating one submits a signed extrinsic, and a status appears against a tender only once its bids have been decided on chain."
         />
         <Table containerClassName="rounded-b-card">
           <THead>
@@ -300,10 +300,10 @@ export function EvaluationConsole() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader
-              title="Bids received"
-              description="Every bid is checked against the shared national debarment ledger before it is classified."
+              title="Sample bids on this tender"
+              description="Bundled sample inputs, not bids received from suppliers. Each one is nonetheless evaluated for real: every bid is checked against the shared national debarment ledger on chain before it is classified."
             />
-            <Table>
+            <Table containerClassName="rounded-b-card">
               <THead>
                 <TR>
                   <TH>Bidder</TH>

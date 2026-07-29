@@ -22,6 +22,7 @@
 
 import { ExtrinsicFailedError, getApi, getSigner, submitAndFinalize } from '@/lib/chain';
 import {
+  assertMinistryOnboarded,
   classToTriState,
   classifyComponentLevelTx,
   classifyTx,
@@ -52,6 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     const vendor = await resolveAccount(body, 'vendor');
     const tender = requireId(body, 'tender');
     const ministry = requireId(body, 'ministry');
+    const ministryText = requireIdText(body, 'ministry');
     // FLAGGED — spec vs. source. The build contract's route table lists four request
     // fields, but `classify` takes a fifth argument, `is_pli_manufacturer`, which drives
     // PathwayId P4's deeming rule. It is accepted here as an optional field defaulting
@@ -69,6 +71,9 @@ export async function POST(request: Request): Promise<Response> {
       : requireBps(body, 'declaredLocalContentBps');
 
     const api = await getApi();
+    // A ministry the registry has never heard of is a typo, not a policy gap: without this
+    // the pallet's (correct) default-rule fallback would answer it with a confident verdict.
+    await assertMinistryOnboarded(api, ministryText);
     // Classification is a procuring-entity action: the buyer, not the vendor, records
     // where a bid lands against the rule. Signing as the vendor would let a bidder write
     // its own classification.

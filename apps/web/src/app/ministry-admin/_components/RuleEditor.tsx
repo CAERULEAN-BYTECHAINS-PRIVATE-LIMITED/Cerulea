@@ -325,8 +325,10 @@ export function RuleEditor({ defaultMinistryId }: { defaultMinistryId: string })
                     Remove
                   </Button>
                 </div>
+                {/* `form-error`, not `status-red`: a malformed threshold row is a typo, not
+                    a compliance verdict. See the token note in globals.css. */}
                 {touched && errors.hsn[index] && (
-                  <p className="mt-2 text-xs font-medium text-status-red">
+                  <p className="mt-2 text-xs font-medium text-form-error">
                     <span className="sr-only">Error: </span>
                     {errors.hsn[index]}
                   </p>

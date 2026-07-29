@@ -65,6 +65,10 @@ export function WalkthroughClient() {
   const [current, setCurrent] = useState(0);
   const [runs, setRuns] = useState<Record<number, RunState>>({});
   const [followUps, setFollowUps] = useState<Record<number, RunState>>({});
+  /** True while the reset is lifting the debarment step 5 wrote — see `restart` below. */
+  const [resetting, setResetting] = useState(false);
+  /** Set only when that lift failed, so the presenter is told the chain is still dirty. */
+  const [resetNote, setResetNote] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   const setRun = useCallback((index: number, state: RunState) => {
@@ -160,13 +164,68 @@ export function WalkthroughClient() {
     [call, scenario, setFollowUp],
   );
 
-  function restart() {
+  /**
+   * Restart the walkthrough — and put the chain back the way this run found it.
+   *
+   * Resetting used to mint a new bid number and nothing else, which made the demo
+   * cumulative rather than repeatable: step 5 writes a real debarment, and nothing ever
+   * lifted it. Rehearsing five times before a judging session left five active debarments
+   * standing, and the analytics dashboard — which correctly reads the chain — reported
+   * every one of them. Six rehearsals, six debarred vendors, none of them part of the story
+   * being told.
+   *
+   * So the reset lifts the debarment it raised before handing out a fresh scenario. Three
+   * details make that work:
+   *
+   *   - the lift is attempted only if step 5 actually completed, since there is nothing to
+   *     lift otherwise and `lift_debarment` would fail with `NoSuchDebarment`;
+   *   - the scenario is captured BEFORE `scenarioStore.reset()`, because the debarred
+   *     account is derived per run and the new scenario cannot name who was debarred;
+   *   - a failed lift never blocks the restart. The presenter still gets a clean
+   *     walkthrough, and the note below says plainly that the chain was not fully restored
+   *     rather than leaving them to discover it on the dashboard mid-demo.
+   */
+  const restart = useCallback(async () => {
+    if (resetting) return;
+    const debarmentIndex = WALKTHROUGH.findIndex((step) => step.id === 'debarment');
+    const raisedDebarment = debarmentIndex >= 0 && runs[debarmentIndex]?.status === 'done';
+    const finishing = scenario;
+
+    setResetNote(null);
+    if (raisedDebarment && finishing) {
+      setResetting(true);
+      try {
+        const response = await fetch('/api/trigger/debarment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendor: finishing.rival,
+            ministry: finishing.otherMinistry,
+            action: 'lift',
+          }),
+        });
+        const payload = (await response.json()) as TriggerResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? `The trigger point returned ${response.status}.`);
+        }
+      } catch (error) {
+        setResetNote(
+          `The debarment step 5 recorded against ${finishing.rivalName} could not be lifted, so it ` +
+            `is still in force and the dashboard will keep counting it as active. ` +
+            `${error instanceof Error ? error.message : 'The request did not complete.'} ` +
+            `Lift it from the ministry administrator console before the next run.`,
+        );
+      } finally {
+        setResetting(false);
+      }
+    }
+
     scenarioStore.reset();
     setRuns({});
     setFollowUps({});
     setCurrent(0);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  }, [resetting, runs, scenario]);
 
   const completed = WALKTHROUGH.filter((_, index) => runs[index]?.status === 'done').length;
   const finished = completed === WALKTHROUGH.length;
@@ -183,6 +242,15 @@ export function WalkthroughClient() {
 
   return (
     <div className="space-y-6">
+      {resetNote && (
+        <div className="rounded-lg border border-border bg-surface px-4 py-3" role="alert">
+          <p className="text-xs font-semibold tracking-wide text-ink uppercase">
+            The chain was not fully restored
+          </p>
+          <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-muted">{resetNote}</p>
+        </div>
+      )}
+
       <ProgressRail current={current} runs={runs} onSelect={setCurrent} />
 
       <div className="space-y-6">
@@ -352,7 +420,7 @@ export function WalkthroughClient() {
         <Card>
           <CardHeader
             title="All six trigger points have run on the live chain"
-            description="Every verdict above came back only after its block was finalized, and every one of them is now a permanent, queryable record. Two places to check that claim rather than take it on trust."
+            description="Every verdict above came back only after its block was finalized, and every one of them is now a permanent, queryable record. Two places to check that claim rather than take it on trust. Starting again also lifts the debarment step 5 recorded, so the walkthrough can be rehearsed as often as you like without the count of active debarments creeping upward."
           />
           <CardBody className="flex flex-wrap gap-3">
             <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
@@ -363,10 +431,14 @@ export function WalkthroughClient() {
             </Link>
             <Button
               variant="ghost"
-              onClick={restart}
+              onClick={() => void restart()}
+              loading={resetting}
+              loadingLabel="Lifting the debarment this walkthrough recorded"
               leadingIcon={<RotateCw className="size-4" aria-hidden="true" />}
             >
-              Start again with a fresh bid number
+              {resetting
+                ? 'Lifting the debarment and starting again'
+                : 'Start again — lifts the debarment first'}
             </Button>
           </CardBody>
         </Card>

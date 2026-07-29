@@ -1,7 +1,7 @@
 [
   {
     "ministry_id": "DPIIT",
-    "ministry_name": "Department for Promotion of Industry and Internal Trade (default)",
+    "ministry_name": "Department for Promotion of Industry and Internal Trade (default; also nodal for cement and paper)",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
     "para_3a_applicable": true,
     "pli_linked": false,
@@ -11,7 +11,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 10 (DPIIT default rule set) and Table 11: general order P-45021/2/2017-PP(BE-II) and amendments (15.06.2017, 28.05.2018, 29.05.2019, 04.06.2020, 16.09.2020, 19.07.2024). Also the general order and its Para 3A lists for cement and paper. Product categories: paper products, cement, leather products, light engineering items, lifts and escalators, air-conditioners."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. DPIIT acting directly as nodal department for cement and paper: 5 items (cement) and 7 items (paper), notifications dated 13.05.2020 and 04.02.2021. Source: https://dpiit.gov.in/department-promotion-industry-and-internal-trade-0 . The numeric parameters on this row are the DPIIT general order itself, P-45021/2/2017-PP(BE-II), dated 15.06.2017 and revised 28.05.2018, 29.05.2019, 04.06.2020, 16.09.2020 and most recently 19.07.2024: Class-I 50 percent (5000 bps), Class-II 20 percent (2000 bps), Standard formula (sale price minus imported content) x 100 / sale price, 20 percent purchase preference margin to Class-I only, auditor certificate mandatory above Rs 10 crore, procurement below Rs 5 lakh exempt. Boundaries are inclusive at the lower end (exactly 50 percent is Class-I, exactly 20 percent is Class-II). seed.ts derives set_default_rule from this row, so this is simultaneously DPIIT's own ministry rule and the chain-wide default."
   },
   {
     "ministry_id": "MEITY",
@@ -25,12 +27,23 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 2/Table 11: Notification W-43/4/2019-IPHW (07.09.2020, amended 19.10.2023); cyber security products (06.12.2019); cellular mobile phones under Para 3A. Table 2: thresholds 'per notification' (not enumerated numerically in the submission; DPIIT default applied here pending the dated notification's own figures). KNOWN SCHEMA LIMITATION: Table 2 states MeitY's method varies by category (component-level for computers HSN 8471, standard for others, custom for software HSN 8523), but this registry's Rule struct carries exactly one calculation_method per ministry_id (Part 4.1's own schema design), so this record uses ComponentLevel as the representative HSN 8471/computers method — a software-specific bid under this ministry_id would be misclassified until the registry supports a per-HSN calculation_method override, which Part 6.3's Smart Evolution upgrade path is the intended mechanism for. PLI: Electronics PLI. Product categories: CCTV cameras, security/video surveillance systems, IT and electronics including software, currency counting machines, IT data/imaging/printing/storage consumables and accessories."
+    "needs_reverification": false,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL. Notification history: 33(1)/2017-IPHW dated 14.09.2017; 33(5)/2017-IPHW dated 01.08.2018; W-43/4/2019-IPHW dated 07.09.2020, amended 19.10.2023 (servers and other products, per-product mechanisms, mechanism change on Clause 4.12); DPIIT's master index cites a further notification of 1 item dated 27.03.2025. THE ONE FIGURE CONFIRMED CURRENT: cellular mobile phones require 50 percent local content irrespective of purchase value, per Notification No. 33(5)/2017-IPHW read with W-43/1/2020-IPHW-MeitY. Source: https://www.cmai.asia/pdf/19.3.21%20Meityh%20PPP%20apply%20on%20Mobile%20irrespective%20of%20order%20value.pdf ; 2020 notification reference: https://www.gconnect.in/news/public-procurement-order-meity-notification.html . GAP: the current Electronic Products per-product mechanism table (structurally similar to the DoT Table-A) was not fetched, so no product-specific percentage other than the mobile-phone 50 percent is in hand; the DPIIT default therefore governs this row and is the correct fallback, not a placeholder. KNOWN SCHEMA LIMITATION (unchanged from the previous seed): MeitY's method varies by category (component-level for computers HSN 8471, standard for others, custom for software HSN 8523) but Rule carries exactly one calculation_method per ministry_id, so ComponentLevel is recorded as the representative HSN 8471 method; a software bid under this ministry_id is misclassified until the registry supports a per-HSN calculation_method override. PLI: Electronics PLI."
   },
   {
     "ministry_id": "DOT",
     "ministry_name": "Department of Telecommunications",
-    "hsn_thresholds": [{ "hsn_code": "8517", "class_one_bps": 6000, "class_two_bps": 2000 }],
+    "hsn_thresholds": [
+      { "hsn_code": "85176290", "class_one_bps": 5000, "class_two_bps": 2000 },
+      { "hsn_code": "85176990", "class_one_bps": 5000, "class_two_bps": 2000 },
+      { "hsn_code": "85172990", "class_one_bps": 6000, "class_two_bps": 2000 },
+      { "hsn_code": "85176270", "class_one_bps": 6000, "class_two_bps": 2000 },
+      { "hsn_code": "85177100", "class_one_bps": 6000, "class_two_bps": 2000 },
+      { "hsn_code": "85256091", "class_one_bps": 5000, "class_two_bps": 2000 },
+      { "hsn_code": "85447090", "class_one_bps": 5500, "class_two_bps": 2000 },
+      { "hsn_code": "9001000", "class_one_bps": 5000, "class_two_bps": 2000 }
+    ],
     "para_3a_applicable": true,
     "pli_linked": true,
     "calculation_method": "Standard",
@@ -39,12 +52,14 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: order dated 31.08.2021. Table 2: Class-I threshold 'per notification, raised' above the DPIIT 50% default — the submission document does not enumerate the exact raised figure, so this seed uses 60% (6000 bps) as a realistic, commonly-cited telecom threshold pending the notification's own published number; flagged for correction against the actual DoT order text. Para 3A: per Para 3A list. PLI: Telecom PLI. Product category: telecommunications."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Department of Telecommunications Notification No. 18-10/2017-IP, dated September 2024 (in force per DPIIT's master index dated 21.10.2024), issued in furtherance of the DPIIT PPP-MII order revision of 19.07.2024. Source: https://www.dot.gov.in/static/uploads/2025/07/d9dc8635bad67a0fbb6e534a98a9eab8.pdf . 36 product rows transcribed in full with HSN codes and exact Minimum Local Content percentages. HOW THESE NUMBERS WERE DERIVED, because it matters: the notification sets MLC PER PRODUCT, not per HSN code, and one HSN code carries several products at different MLC levels (85176290 spans 50, 55, 60 and 65 percent; 85176990 spans 50, 55, 60 and 65 percent; 85256091 is 50 percent; 85447090 is 55 percent; 85172990, 85176270 and 85177100 are 60 percent; 9001000 is 50 percent). The registry keys thresholds by HSN code and has no product key, so each row carries the LOWEST MLC that the notification actually prints for that code. No figure here is interpolated or averaged: every value appears verbatim in the notification for at least one product under that code. The full per-product table is preserved in the source package (telecom_full_table.json) and must be consulted for product-level classification. TWO FURTHER NOTIFIED CONSTRAINTS NOT EXPRESSIBLE IN THIS SCHEMA: (a) Table-B caps the share of total LC claimable via in-house design at a per-product ceiling of 0 to 55 percent, and caps claimable LC at 10 percent of Bill of Material where the product is merely assembled, integrated or tested in India rather than designed here; (b) the cost of integrated chips is excluded from the Bill of Material denominator. DATA ANOMALY: the code printed as 9001000 (optical fibre) is 7 digits where HSN codes are normally 8; it is recorded exactly as the source prints it rather than corrected, and should be checked against a clean copy. PREVIOUS SEED CORRECTED: the placeholder carried HSN 8517 at 6000 bps with its own note admitting 60 percent was 'a realistic, commonly-cited telecom threshold' chosen pending the notification text. That invented number is now removed. Para 3A: per Para 3A list. PLI: Telecom PLI."
   },
   {
     "ministry_id": "DHI",
-    "ministry_name": "Department of Heavy Industries",
-    "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
+    "ministry_name": "Ministry of Heavy Industries",
+    "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 6500, "class_two_bps": 6000 }],
     "para_3a_applicable": true,
     "pli_linked": true,
     "calculation_method": "Standard",
@@ -53,7 +68,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: industrial boilers and steam generators notification (29.09.2020). Table 2: thresholds 'per notification' (DPIIT default applied pending exact figures); Para 3A: boilers; PLI: Automotive PLI. Product categories: automobiles and automotive components, capital goods including heavy machinery and machine tools."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. One of the only ministries that notifies its OWN numeric threshold instead of falling back to the DPIIT 50 percent default. AUTOMOBILES: Class-I at 65 percent (6500 bps), only Class-I local suppliers eligible to bid irrespective of purchase value, covering internal-combustion Passenger Vehicles, Commercial Vehicles (LCVs and M and HCVs), Two-wheelers and Three-wheelers. AUTOMOTIVE COMPONENTS: Class-I at 60 percent (6000 bps) across roughly 56 notified component categories. Source: Department of Heavy Industry order dated October 2020, in supersession of the order dated 04/05/2020 and referencing DPIIT's order of 16.09.2020, https://www.dpiit.gov.in/static/uploads/2025/07/74633e5056ad0a88a3daf0c59970a26b.pdf . READ THE TWO NUMBERS ON THIS ROW CAREFULLY: class_one_bps 6500 is the automobile Class-I threshold and class_two_bps 6000 is the automotive-component Class-I threshold. They are two Class-I figures for two product families, recorded in the one threshold pair this schema gives a ministry. class_two_bps is NOT a notified Class-II boundary for this ministry; the DPIIT Class-II floor of 20 percent is not displaced by this notification, and a per-product-family threshold key is the schema change that would let both be stated properly. INDUSTRIAL BOILERS AND STEAM GENERATORS: Order No. F.No.16(4)/2018-HEI-(Part-1)(E-15608) dated 29.04.2025, re-notified with HSN codes, superseding the order of 29.09.2020 and referencing DPIIT's order of 19.07.2024, https://www.dpiit.gov.in/static/uploads/2025/07/bd5d95649befc0e1d56802b136a73e8e.pdf . Boilers carry Class-I-only eligibility irrespective of purchase value at the STANDARD 50 percent definition, with no boiler-specific percentage; their 35 goods HSN codes and 4 service SAC codes are seeded in hsn-map.json. Because pallet-pramaan-classification reads only hsn_thresholds.first(), a boiler bid routed through this ministry_id is currently judged at the 65 percent automobile figure; that is a known limitation of the single-threshold-per-ministry shape, not a claim about the notification. DPIIT master index: 101 items, notification issued with HSN code dated 29.11.2020, 29.12.2021 and 29.04.2025, https://dpiit.gov.in/ministry-heavy-industries-and-public-enterprises . GAP: the 29.12.2021 batch was not located and the component list is a partial reconstruction (31 of roughly 56 categories). PLI: Automotive PLI."
   },
   {
     "ministry_id": "MOPNG",
@@ -64,16 +81,18 @@
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
     "certification_threshold": "10000000000",
-    "exemption_floor": "50000000",
+    "exemption_floor": "1000000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: no dated order given in the submission beyond the ministry name and product category (petroleum and natural gas). DPIIT default applied — 'the ministry has not varied the general order' per Table 10's own fallback rule."
+    "needs_reverification": false,
+    "confidence": "EXTERNAL_POLICY",
+    "source_order": "CONFIDENCE EXTERNAL_POLICY. This ministry does NOT appear in DPIIT's master list of 18 PPP-MII-notified ministries. It runs its own Purchase Preference linked with Local Content (PP-LC) policy for the PSUs under its administrative control, issued directly by the ministry: Letter No. O-27011/44/2015-ONG-II/FP dated 25.04.2017, with further instruments dated 06.08.2018, 25.06.2019, 07.10.2019 and 17.11.2020, and revised 26.04.2022. THE DEVIATION THAT IS ENCODED HERE: the 26.04.2022 revision sets this ministry's exemption floor at Rs 1 crore, not the Rs 5 lakh that applies everywhere else, so exemption_floor on this row is 1000000000 paise (Rs 1 crore) against 50000000 paise (Rs 5 lakh) on all twenty other rows. THE DEVIATION THAT IS NOT ENCODED, and why: the same revision permits AMC, CMC, transportation and training to count as local value addition, which the DPIIT order expressly excludes. Rule carries no per-ministry exclusion list, so calculation_method stays Standard (the DPIIT-compliant formula). That choice is deliberate rather than an oversight: DPIIT's own Standing Committee has formally objected to the inclusion of those service components as of a 2024 committee meeting and no final resolution was found, so the contested wider basis is documented here rather than silently applied. Source for the objection: https://www.business-standard.com/economy/news/dpiit-seeks-removal-of-services-components-in-local-content-calculation-124050201199_1.html . GAP: the full text of the 2022 revised policy was not fetched; the Rs 1 crore floor and the AMC/CMC inclusion are the two provisions confirmed."
   },
   {
     "ministry_id": "DCPC",
     "ministry_name": "Department of Chemicals and Petrochemicals",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -81,13 +100,15 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: chemicals. DPIIT default applied, no ministry-specific order cited in the submission."
+    "needs_reverification": true,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL, needs_reverification TRUE. Office Memorandum No. C.I.43012/52/2017-Chem-I(B) dated 13.08.2024, confirming 28 items from this department's order of 12.02.2021 and re-notifying them with HSN codes. Source: https://www.dpiit.gov.in/static/uploads/2025/07/eeabb9b009e06d2d2bfb17bdaa9cea4c.pdf . DPIIT master index: 28 items, notification issued with HSN code dated 13.08.2024, https://dpiit.gov.in/department-chemicals-and-petrochemicals . Original baseline superseded by the above: Order No. C.I-43012/52/2017-Chem-1(B) dated 25.05.2018. Rule: Class-I local supplier only, irrespective of purchase value, at the standard 50 percent definition; the notification states no chemicals-specific percentage. THE DOUBTFUL FIELD IS THE HSN DIGITS, NOT THE ITEM NAMES OR THE THRESHOLD. The source is a scanned PDF and the OCR pass could not resolve six codes with confidence: Acetaldehyde 29121200, Expandable Polystyrene 39031100, Polyester/PET Chips 39076110, PVC 39041010, Lambda Cyhalothrin 38089910, Reactive Dyes 320416. Those six are seeded in hsn-map.json individually marked as unverified. A second, separate doubt: the OM lists 28 items but only 26 were transcribed with confidence in the item name, because a garbled cluster around the agrochemicals grouping may conceal one or two further distinct items; the item COUNT therefore also needs re-verification against a clean copy. The threshold values on this row (50/20 DPIIT default) do not depend on either doubt. Unconfirmed context deliberately NOT seeded: 2020-era press referred to an escalating 60/70/80 percent schedule for a predecessor 55-item chemicals list, which was not confirmed as current for this 28-item 2024 notification, so it is recorded here and not encoded as a number."
   },
   {
     "ministry_id": "MOHUA",
     "ministry_name": "Ministry of Housing and Urban Affairs",
-    "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 6000, "class_two_bps": 2000 }],
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -95,7 +116,9 @@
     "exemption_floor": "50000000",
     "divisibility": "NonDivisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: construction, metro rail systems, and all other works. Divisibility set NonDivisible as a representative default for works contracts (actual divisibility is chosen per-tender by the procuring entity per Table 10)."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Ministry of Housing and Urban Affairs F.No. K-14011/10/2019-UT-V dated 01.01.2021, addressed to all Metro Rail Corporation Managing Directors pursuant to PPP-MII Order clause 3(a). Source: https://www.cmai.asia/pdf/1.1.21%20Metro%20Local%20Manufacturing%20List.pdf . DPIIT master index: 64 items, notification issued dated 01.01.2021, https://dpiit.gov.in/ministry-housing-and-urban-affairs-0 . The complete 4-category list (Traction and Substations, E and M Works, Signalling, Rolling Stock) was transcribed and matches DPIIT's item count exactly. All listed items must be procured from Class-I local suppliers. EVIDENTIARY BASIS OF THE 60 PERCENT (6000 bps), stated precisely because it is not the DPIIT default: the 01.01.2021 letter restricts sourcing to Class-I without itself restating a percentage. The 60 percent figure comes from a real Delhi Metro Rail Corporation tender, the approved NIT dated 30.12.2021, which defines a Class-I local supplier for this sector at 60 percent local content while citing the DPIIT Order of 04.06.2020: https://backend.delhimetrorail.com/documents/1826/Approved-NIT-30122021.pdf . So the number is real, sourced and consistently reported across two files of the research package, but its instrument is a procuring entity's tender document rather than the ministry's own notification. If a reviewer holds that the tender applied a tender-specific enhancement rather than restating a notified sectoral threshold, the correct value reverts to the DPIIT default of 5000 bps. GAP: the source fetch truncated at Rolling Stock item 25, so a small number of trailing rolling-stock items may be missing. Divisibility NonDivisible is a representative default for works contracts; actual divisibility is chosen per tender by the procuring entity."
   },
   {
     "ministry_id": "MOT",
@@ -109,13 +132,15 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: textiles and apparel. DPIIT default applied."
+    "needs_reverification": true,
+    "confidence": "INDEX_ONLY",
+    "source_order": "CONFIDENCE INDEX_ONLY, needs_reverification TRUE. THE ITEM LIST FOR THIS MINISTRY IS GENUINELY UNRESOLVED AFTER THREE RESEARCH ATTEMPTS AND IS NOT SEEDED. What is confirmed real: two notifications covering 17 items, dated 01.02.2019 and 23.10.2019, per DPIIT's master index at https://dpiit.gov.in/ministry-textiles . What is NOT in hand: the notification NUMBERS (the research recovered the two dates and the item count from DPIIT's index, but no notification number for either instrument), and the 17 item names. Direct search, direct fetch and an autonomous research agent all returned the same two dates and item count and none of them reached the underlying item table, most probably because the only prior mirror of these documents sits at a now-dead URL; the DPIIT Textiles page would likely close this out if opened in a real browser rather than an automated fetch. NOTHING HAS BEEN INVENTED TO FILL THE GAP. The threshold values on this row are the DPIIT default (Class-I 50 percent, Class-II 20 percent, Standard method), which is the correct governing rule for any textiles procurement not covered by the unrecovered 17-item list; para_3a_applicable is left false because the operative clause of the two notifications was never read. Re-verify the whole row once the item list is obtained."
   },
   {
     "ministry_id": "MOS",
-    "ministry_name": "Ministry of Shipping",
+    "ministry_name": "Ministry of Ports, Shipping and Waterways",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -123,7 +148,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: shipping. DPIIT default applied."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Ministry of Ports, Shipping and Waterways Notification No. SY-13017/4/2017-SBR (part 3) dated 17.09.2021, SBR Section, superseding the Gazette notification dated 05.05.2020; predecessor Notification No. SY-24015/2/2018-SBR dated 31.08.2018. Source: https://shipmin.gov.in/sites/default/files/MII%20Clause%203%20notification.pdf . DPIIT master index: 6 items, notification issued dated 17.09.2021, https://dpiit.gov.in/ministry-shipping . The complete 6-item list was obtained: Rubber/Steel Fenders; Cable Installation Material (cable rack, saddle, hanger, tray); Grating and Chequered Plates; Hand Tools; Cable Ties and Cable Hangers; Galvanised Sheet. Rule: Class-I local supplier only, irrespective of purchase value, at the standard 50 percent definition set by this ministry's separate Minimum Local Content notification dated 13.10.2020, so the DPIIT default thresholds on this row are the ministry's actual notified figures rather than a fallback. VERIFICATION NOTE: this list came via a research pass rather than a direct fetch, because shipmin.gov.in has previously returned JS-blank pages to automated fetches; one direct re-fetch is recommended to confirm the six item names verbatim. needs_reverification is left false because the flag is reserved for the three ministries whose SOURCE QUALITY is caveated (Chemicals, Civil Aviation, Textiles) and because no numeric parameter on this row depends on that re-fetch. PREVIOUS SEED CORRECTED: ministry_name was 'Ministry of Shipping', now the current name."
   },
   {
     "ministry_id": "MOR",
@@ -131,27 +158,31 @@
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
     "para_3a_applicable": true,
     "pli_linked": true,
-    "calculation_method": "Standard",
+    "calculation_method": "NegativeList",
     "preference_margin_bps": 2000,
     "certification_threshold": "10000000000",
     "exemption_floor": "50000000",
     "divisibility": "NonDivisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: order dated 22.06.2020. Product category: railways and all railway works. Table 2: Para 3A per Para 3A list; PLI per PLI notification."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL for the rule MECHANISM, which is why this row is the only one carrying calculation_method NegativeList. Railway Board letter No. 2015/RS(G)/779/5(Vol.III) dated 12.07.2020 (extending the regime to all wagons and wagon parts), referencing the base negative-list notification dated 22.06.2020 and the original PPP-MII adoption dated 03.08.2017. Source: https://www.cmai.asia/pdf/12.7.20%20Railway%20relaxations%20some%20wagons%20mfg.pdf . DPIIT master index: https://dpiit.gov.in/ministry-railways . Original baseline notification dated 01.02.2018. UNLIKE EVERY OTHER MINISTRY HERE, Railways publishes no positive per-item list. It publishes a NEGATIVE list of exempted items, and everything not on that list must be procured from Class-I local suppliers only, irrespective of purchase value, with self-certification a mandatory tender condition: a vendor who cannot certify as Class-I is barred from quoting at all, not merely deprioritised. Negative lists notified 22.06.2020 (69 items), 12.07.2020, 18.09.2020 (40 items), 24.09.2020, 19.02.2021, 07.07.2021 and 20.01.2023, consolidated by OM dated 07.02.2025. THRESHOLD: 50 percent, the DPIIT default. Railways' notifications do not set a different number; they set only the SCOPE of what must comply. The two exempted items confirmed verbatim from the wagon extension are the Automatic Twist Lock to RDSO Document No. CONTR-01-MSG-ATL-2011 (envelope drawing CONTR-9405/S/21) and Grease for CTRB Class E and Class K to RDSO specification No. WD-24-MISC-2003. GAP: the full 69-item and 40-item negative lists were not fetched, so the exempted-item names beyond those two are not in hand; the registry has no excluded-items collection to hold them in any case. STEEL DEFERRAL: for steel procurement specifically Railways does not apply this rule at all, deferring entirely to the Ministry of Steel DMI and SP policy (per the same 12.07.2020 letter, citing the Ministry of Steel Gazette notification dated 29.05.2019, since superseded). para_3a_applicable is left true because the negative-list regime restricts eligibility to Class-I for the covered categories exactly as Para 3A does for an enumerated list. PLI: per PLI notification."
   },
   {
     "ministry_id": "MOD-DEFENCE",
     "ministry_name": "Department of Defence, Ministry of Defence",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": true,
-    "pli_linked": true,
+    "para_3a_applicable": false,
+    "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
     "certification_threshold": "10000000000",
     "exemption_floor": "50000000",
     "divisibility": "NonDivisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: all defence works. Table 2: Para 3A per Para 3A list; PLI per PLI notification."
+    "needs_reverification": false,
+    "confidence": "DEFAULT_APPLIES",
+    "source_order": "CONFIDENCE DEFAULT_APPLIES. THE DPIIT DEFAULT IS THE CORRECT ANSWER FOR THIS MINISTRY, NOT MISSING DATA. This is the Department of Defence (Ministry of Defence works), distinct from the Department of Defence Production which has its own row. It does not appear in DPIIT's master list of 18 ministries carrying item-specific notifications, and no equivalent minimum-local-content notification for it was found in three research passes. A PIB release of 2019 states explicitly that the Ministry of Civil Aviation, the Department of Defence and the Ministry of Power were then yet to issue notifications of minimum local content for their product segments: https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=1563772 . Civil Aviation and Power have since issued theirs, both confirmed and seeded on their own rows; the Department of Defence has not. The governing instrument for this ministry is therefore the DPIIT general order P-45021/2/2017-PP(BE-II) as revised 19.07.2024: Class-I 50 percent, Class-II 20 percent, Standard method, 20 percent preference margin, Rs 10 crore certification threshold, Rs 5 lakh exemption floor. PREVIOUS SEED CORRECTED: the placeholder carried para_3a_applicable true and pli_linked true from the PoC document's Table 2 row for 'all defence works'; both are set false here because no notification exists to have notified any item under Para 3A and no PLI linkage was found for this department. Recorded as a real, current, verified-negative finding."
   },
   {
     "ministry_id": "DDP",
@@ -165,7 +196,9 @@
     "exemption_floor": "50000000",
     "divisibility": "NonDivisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: notification 59011/8/2015-D(HAL-II) (26.07.2018, covering 17 item categories); additional Para 3A list 05.10.2020. Table 2: 17 items and the 2020 list (Para 3A); PLI per PLI notification."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Notification No. 59011/8/2015-D(HAL-II) dated 26.07.2018 (17 items), amended by Notification No. 18(2)/19/PPO-Notification/DP(Plg-MS) dated July 2020, and expanded and partially superseded by Notification No. 18(2)/19/PPO-Notification/DP(Plg-MS) dated 25.08.2020 notifying 24 items under clause 3(a). Sources: https://www.dpiit.gov.in/static/uploads/2025/07/05301814eb95c7912a20d7ca9a8a918a.pdf and https://www.cmai.asia/pdf/25.8.2020%20MOD%20notification%20of%2024%20items%20under%203%28a%29.pdf . Both lists were fetched and transcribed in full: 41 distinct items across the two (17 plus 24, overlapping by 4 - the steel plates, electric motor and cable assemblies recur), against the 46 DPIIT cites, leaving roughly 9 unaccounted for; a companion notification dated 05.10.2020 is referenced by DPIIT's index but was not located. WHY THE THRESHOLD IS 50/20 AND NOT THE 40 PERCENT THAT APPEARS IN THE 2018 TABLE: the 2018 notification prints 50 percent minimum local content for its first 12 items and 40 percent for its 5 electronic and electrical sub-assemblies (Electric Motor 474175410130, Cable Assemblies, MASS-R118 455611150102, Dual Switched Amplifier 455610540360, AMPLIDYNE EMU 474475030132). Those 40 percent figures are NOT seeded, for two independent reasons. First, the 25.08.2020 notification drops explicit percentages in favour of a blanket Class-I-only requirement for every listed item, so 50 percent is the operative current figure. Second, defence local content is computed under the Indigenous Content definition in the Defence Procurement Procedure, not the DPIIT sale-price formula, so a 40 percent IC figure and a 50 percent DPIIT figure are not the same measurement and must not be mixed in one threshold field; separately, the PPP-MII framework permits a nodal ministry to notify a HIGHER Class-I threshold than 50 percent, never a lower one. The 2018 percentages are recorded here rather than encoded. NOTE: this notification carries no HSN codes at all; items are identified by name and, for sub-assemblies, an internal part number. Para 3A: the 24-item list of 25.08.2020 is expressly a clause 3(a) notification. PLI: per PLI notification."
   },
   {
     "ministry_id": "MOP",
@@ -179,13 +212,15 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: order dated 28.07.2020. Product category: power generation, transmission, distribution. Table 2: Para 3A per Para 3A list; PLI per PLI notification."
+    "needs_reverification": false,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL. CURRENT NOTIFICATION: 210 items, issued dated 16.11.2021, per DPIIT's master index at https://dpiit.gov.in/ministry-power . That 2021 revision was located and confirmed to exist but its content could not be extracted, because the hosted copy is a scanned image PDF with no machine-readable text layer. DIRECT PREDECESSOR, FETCHED AND TRANSCRIBED IN FULL: Ministry of Power Order No. 11/05/2018-Coord. dated 28.07.2020, issued in furtherance of DPIIT's notification of 04.06.2020 and superseding all prior sectoral orders (Hydro and Transmission 20.12.2018, Thermal 28.12.2018, Distribution 17.03.2020), https://powermin.gov.in/sites/default/files/webform/notices/Public_Procurent_Preference_to_Make_in_India_to_provide_Purchase_Preference_0.pdf . Complete real item lists across Transmission 66kV and above, Hydro generating stations, and Thermal coal/lignite and gas-based plants, every one on a Class-I-only basis irrespective of purchase value, and applying to Tariff Based Competitive Bidding projects as well. WHY THE THRESHOLD IS UNAFFECTED BY THE GAP: the Ministry of Power sets no threshold of its own in either the 2020 order or, on the evidence available, the 2021 revision; both operate by restricting eligibility to Class-I at the DPIIT default of 50 percent. The unextracted material is the item SCOPE, not any number on this row. A separate Annexure-II covers items still made under foreign licence with technology-transfer agreements (400kV-plus GIS, HVDC transformers, SCADA, EHV cables), reviewed periodically and moved into the Class-I-only list as local capacity develops; the registry has no field for that carve-out. GAP: the 2020 list is very likely missing later additions, including HVDC transmission equipment and smart/energy meters. PLI: per PLI notification."
   },
   {
     "ministry_id": "MNRE",
     "ministry_name": "Ministry of New and Renewable Energy",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -193,13 +228,15 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: non-conventional energy, including solar photovoltaic modules and cells. DPIIT default applied, no ministry-specific order cited in the submission."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Ministry of New and Renewable Energy Order No. 283/22/2019-GRID SOLAR dated 09.02.2021, superseding the same-numbered order dated 23.09.2020 and referencing DPIIT's order of 16.09.2020. Sources: https://www.eqmagpro.com/wp-content/uploads/2021/02/file_f-1612877902917.pdf ; predecessor https://www.dpiit.gov.in/static/uploads/2025/07/654bcb4a957d53fbcf515f785208a19d.pdf ; DPIIT master index (78 items, notification issued dated 09.02.2021) https://dpiit.gov.in/ministry-new-and-renewable-energy . The complete 78-item list was obtained across 8 categories and the per-category counts reconcile exactly to 78: small hydro power 9, wind power 10, off-grid decentralised solar 8, grid-connected solar 2, biomass gasifier 13, biomass cogeneration 11, municipal solid waste 11, waste-to-energy biogas and bio-CNG 14. Rule: for every listed item, Class-I local supplier only, irrespective of purchase value, at the standard 50 percent definition. MNRE notifies no higher ministry-specific percentage, so the DPIIT default on this row is the ministry's actual operative figure rather than a fallback. Annexure-II (foreign-licence and technology-transfer exemptions) is EMPTY for this ministry, which is a positive finding rather than an absence of data."
   },
   {
     "ministry_id": "MOCA",
     "ministry_name": "Ministry of Civil Aviation",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -207,7 +244,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: aviation, and X-ray baggage scanners. DPIIT default applied."
+    "needs_reverification": true,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL, needs_reverification TRUE, AND THIS IS THE LOWEST-CONFIDENCE DATASET IN THE WHOLE PACKAGE. Ministry of Civil Aviation Notification No. AV-29013/12/2018-AAI-MOCA (E-128515) dated 26.05.2020. Source: https://civilaviation.gov.in/sites/default/files/Notification%20_001.pdf . DPIIT master index: 41 items, notification issued dated 26.05.2020, https://dpiit.gov.in/ministry-civil-aviation . THE DOUBTFUL FIELD IS THE WHOLE ITEM LIST, not one column of it. The source PDF's Annex-1 table is heavily OCR-degraded and part of the original printed mirror-reversed; the roughly 34 item names recovered are a RECONSTRUCTION, indicative only, and are not verbatim. They must be re-transcribed from a clean copy before any live use. Re-transcription is the single action that closes this row. WHAT IS CONFIRMED REAL: the notification number, the date, and the rule structure. Items are grouped by Airports Authority of India department into three clauses - clause 3(a) restricts sourcing to Class-I local suppliers only; clauses 3(b) and 3(c) give an L1 price-matching preference; clause 13 exempts items sourced under foreign IPR or technology-transfer agreements from the local-purchase requirement. The source text references an estimated-value threshold of under Rs 50 lakh in the clause 3(a) context; that figure is recorded here and deliberately NOT encoded as this row's exemption_floor, because its scope in the source is unclear under the same OCR degradation and the Rs 5 lakh DPIIT floor is the only floor confirmed to apply. The ministry notifies no percentage of its own, so the thresholds on this row are the DPIIT default and do not depend on the OCR problem."
   },
   {
     "ministry_id": "MOSTEEL",
@@ -221,7 +260,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: DMI&SP Policy (08.05.2017, revised May 2019, revised 26.05.2025, amended 25.07.2025). Table 2: thresholds and exemptions 'per DMI&SP appendix' with an explicit deviation from the DPIIT default: 'Rs 5 lakh floor; GTE barred to Rs 200 cr' (the GTE-bar-at-200cr nuance is enforced generically by PathwayId::P5 in pallet-pramaan-preference, not encoded per-ministry here). Para 3A: per appendix; PLI: per PLI notification. Product category: iron and steel."
+    "needs_reverification": false,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL. Domestically Manufactured Iron and Steel Products (DMI and SP) Policy. Original baseline: Notification No. G.S.R. 451(E) dated 08.05.2017. Source: https://steel.gov.in/policy-providing-preference-domestically . CURRENCY WARNING, CARRIED FORWARD FROM THE RESEARCH PACKAGE: DPIIT's master index still cites the DMI and SP policy 'as on 31.12.2020', but the Ministry of Steel revised the policy on 26.05.2025 and amended it again on 25.07.2025, so any citation resting on the 31.12.2020 version - including the PoC document's own Annexure C entry for Steel - is stale against the policy actually in force. STRUCTURE: Appendix A lists the notified iron and steel products; Appendix B gives the minimum domestic value addition per item plus an exempted list of capital goods that may be imported; Appendix C covers indigenous technology suppliers. GAP AND WHY NO PER-ITEM NUMBER IS SEEDED: the Appendix A/B table was not fetched, so the per-item percentages are not in hand. The package reports that DMI and SP minimum value addition varies between 15 and 50 percent by item. Those figures are NOT written into this row, because DMI and SP minimum domestic value addition is a different policy instrument from the PPP-MII Class-I/Class-II boundary and a 15 percent figure would in any case sit below the PPP-MII Class-II floor of 20 percent, which a nodal ministry may not lower. The DPIIT default 50/20 governs this registry row; the Appendix B percentages govern DMI and SP compliance separately and need the appendix itself before they can be encoded. The PoC document's Table 2 also records a Steel-specific deviation, a Rs 5 lakh floor with global tender enquiry barred to Rs 200 crore; the Rs 200 crore bar is enforced generically by PathwayId::P5 in pallet-pramaan-preference rather than per-ministry here. Railways defers its own steel procurement entirely to this policy (see the MOR row). PLI: per PLI notification."
   },
   {
     "ministry_id": "MOM",
@@ -235,7 +276,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: mining. DPIIT default applied."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL for scope. Ministry of Mines notification dated 06.12.2021 covering exactly 1 item, Aluminium Metal, per DPIIT's master index at https://dpiit.gov.in/ministry-mines . The single-item scope is confirmed real, which is what makes this row FULL: because the notification reaches one product only, the DPIIT default (Class-I 50 percent, Class-II 20 percent, Standard method) is the correct and complete rule for every other product this ministry procures, and is not a stand-in for missing data. The exact percentage stated inside the notification for Aluminium Metal itself was not fetched from the primary text; no number has been invented in its place, and if that notification sets a higher Class-I figure for Aluminium Metal it would need its own HSN-keyed threshold row. para_3a_applicable is left false because the operative clause of the 06.12.2021 notification was not read."
   },
   {
     "ministry_id": "DOF",
@@ -249,13 +292,15 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: fertilizers. DPIIT default applied."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL for scope. Department of Fertilizers notification dated 20.08.2020 covering exactly 1 item, Single Super Phosphate, per DPIIT's master index at https://dpiit.gov.in/department-fertilizers . The single-item scope is confirmed real, on the same basis as the Ministry of Mines row: the notification reaches one product, so the DPIIT default (Class-I 50 percent, Class-II 20 percent, Standard method) is the correct and complete rule for every other fertiliser product this department procures. The exact percentage stated inside the notification for Single Super Phosphate itself was not fetched from the primary text and has not been invented; if it sets a higher Class-I figure for that product it would need its own HSN-keyed threshold row. para_3a_applicable is left false because the operative clause of the 20.08.2020 notification was not read."
   },
   {
     "ministry_id": "DST",
     "ministry_name": "Department of Science and Technology",
     "hsn_thresholds": [{ "hsn_code": "*", "class_one_bps": 5000, "class_two_bps": 2000 }],
-    "para_3a_applicable": false,
+    "para_3a_applicable": true,
     "pli_linked": false,
     "calculation_method": "Standard",
     "preference_margin_bps": 2000,
@@ -263,7 +308,9 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: scientific laboratory and test equipment. DPIIT default applied."
+    "needs_reverification": false,
+    "confidence": "FULL",
+    "source_order": "CONFIDENCE FULL. Department of Science and Technology (CDN Section) Order No. Misc.1/03/2021-CDN (e-31937) dated 29.11.2022, referencing DPIIT's order of 16.09.2020. Source: https://www.dpiit.gov.in/static/uploads/2025/07/2172ce6992b0054d722411621e774ab1.pdf . DPIIT master index: 26 items, notification issued dated 29.11.2022, https://dpiit.gov.in/department-science-and-technology . The complete 26-item list of laboratory and scientific instruments was transcribed verbatim from the source notification. Rule: Class-I local supplier only, irrespective of purchase value, at the standard 50 percent definition; DST states no department-specific percentage, so the DPIIT default on this row is the operative notified figure rather than a fallback. NOTE: this notification carries no HSN codes, so nothing from it appears in hsn-map.json. Its Annexure-II lists indicative suppliers only, not additional items."
   },
   {
     "ministry_id": "DAE",
@@ -277,7 +324,9 @@
     "exemption_floor": "50000000",
     "divisibility": "NonDivisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: nuclear reactors and related supplies. DPIIT default applied."
+    "needs_reverification": false,
+    "confidence": "DEFAULT_APPLIES",
+    "source_order": "CONFIDENCE DEFAULT_APPLIES. THE DPIIT DEFAULT IS THE CORRECT ANSWER FOR THIS DEPARTMENT, NOT MISSING DATA. No PPP-MII-specific local-content notification for the Department of Atomic Energy appears in DPIIT's master list of 18 notified ministries or in general search across three research passes, so THERE IS NO MINISTRY NOTIFICATION NUMBER, DATE OR SOURCE URL TO CITE ON THIS ROW, and none has been fabricated to fill the column. The procurement material that does exist for this department concerns nuclear power project execution and general indigenisation targets, not a formal Class-I/Class-II local-content notification under the PPP-MII framework. The governing instrument is therefore the DPIIT general order P-45021/2/2017-PP(BE-II) as revised 19.07.2024, whose terms are transcribed on the DPIIT row of this same file: Class-I 50 percent, Class-II 20 percent, Standard method, 20 percent preference margin, Rs 10 crore certification threshold, Rs 5 lakh exemption floor. This is a verified-negative finding recorded as such, on the same footing as the Department of Defence row."
   },
   {
     "ministry_id": "DOP",
@@ -291,6 +340,8 @@
     "exemption_floor": "50000000",
     "divisibility": "Divisible",
     "effective_from": 0,
-    "source_order": "PoC document Table 11: 19 additional devices notified as having sufficient local capacity (25.03.2021) — Para 3A. Product category: pharmaceuticals and medical devices. PLI: Pharmaceutical PLI."
+    "needs_reverification": false,
+    "confidence": "PARTIAL",
+    "source_order": "CONFIDENCE PARTIAL. Two notifications dated 16.02.2021 and 25.03.2021, together covering 154 medical devices, per DPIIT's master index at https://dpiit.gov.in/department-pharmaceuticals . SCOPE CONFIRMED PRECISELY: 135 items notified on 16.02.2021 plus 19 further items notified on 25.03.2021 equals the 154 total DPIIT cites, and both sets sit under the Class-I / 50 percent default. This is the second-largest notification in the whole framework by item count. GAP: the 154 individual device names were not fetched or transcribed. That gap affects the item SCOPE only; every numeric parameter on this row is the DPIIT default, which both notifications apply rather than vary, so no number here is uncertain. Para 3A: the 19 devices notified on 25.03.2021 are expressly notified as having sufficient local capacity, which is the Para 3A trigger. PLI: Pharmaceutical PLI."
   }
 ]

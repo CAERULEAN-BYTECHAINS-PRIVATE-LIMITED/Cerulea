@@ -507,6 +507,46 @@ export async function readActiveDebarment(
   return null;
 }
 
+/**
+ * Every ministry id currently onboarded in `pramaanRuleRegistry.rules`, decoded from the
+ * `BoundedVec<u8, 64>` storage keys and sorted. The same set `GET /api/chain/rules` lists.
+ */
+export async function onboardedMinistries(api: ApiPromise): Promise<string[]> {
+  const keys = await api.query.pramaanRuleRegistry.rules.keys();
+  return keys
+    .map((key) => decodeByteVec(key.args[0].toHex()))
+    .filter((id) => id.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Refuse a ministry the registry has never heard of, at the API boundary.
+ *
+ * The pallet's own fallback — an unknown ministry is judged under DPIIT's default rule —
+ * is deliberate and correct, and is left exactly as it is: a ministry that has notified no
+ * rule of its own must still be governed by something. What that fallback cannot tell
+ * apart is a ministry with no notified rule from a ministry that does not exist, so
+ * `{"ministry": "NOSUCHMINISTRY"}` came back GREEN / ClassOne — a confident verdict on a
+ * typo, which in front of an audience is worse than an error.
+ *
+ * This guard sits only in front of the routes whose answer is decided by a ministry's rule
+ * set. `rule-update` is deliberately NOT guarded: onboarding a new ministry is precisely
+ * the act of naming one the registry does not yet hold.
+ */
+export async function assertMinistryOnboarded(
+  api: ApiPromise,
+  ministryText: string,
+): Promise<void> {
+  const known = await onboardedMinistries(api);
+  if (known.includes(ministryText)) return;
+  throw new BadRequestError(
+    `"ministry" names a ministry that is not onboarded on this chain: "${ministryText}". ` +
+      `No rule set exists for it, so no compliance verdict can be issued against it. The ` +
+      `${known.length} onboarded ${known.length === 1 ? 'ministry is' : 'ministries are'}: ` +
+      `${known.join(', ')}. GET /api/chain/rules lists them with their rule versions.`,
+  );
+}
+
 /** The nine rule parameters as read back off the chain, in the units the chain uses. */
 export interface EffectiveRule {
   certificationThresholdPaise: bigint;

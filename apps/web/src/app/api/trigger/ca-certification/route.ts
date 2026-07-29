@@ -14,11 +14,13 @@
 import { getApi, getSigner, submitAndFinalize } from '@/lib/chain';
 import {
   handleTrigger,
+  assertMinistryOnboarded,
   certifyTx,
   optionalAccount,
   readEffectiveRule,
   requireEvent,
   requireId,
+  requireIdText,
   requirePaise,
   resolveAccount,
   rupees,
@@ -46,6 +48,7 @@ export async function POST(request: Request): Promise<Response> {
       // other way to read `Rules[ministry].certification_threshold`, and without the
       // threshold there is no way to know whether an auditor is mandatory.
       const ministry = requireId(body, 'ministry');
+      const ministryText = requireIdText(body, 'ministry');
       const valuePaise = requirePaise(body, 'valuePaise', 'value');
       const auditor = await optionalAccount(body, 'auditor');
 
@@ -59,6 +62,10 @@ export async function POST(request: Request): Promise<Response> {
       const certificateId = requireId({ certificateId: certificateIdText }, 'certificateId');
 
       const api = await getApi();
+      // `readEffectiveRule` below falls back to the DPIIT default for a ministry with no
+      // rule of its own — right for an un-notified ministry, wrong for one that does not
+      // exist, which would otherwise be handed a certification threshold it never set.
+      await assertMinistryOnboarded(api, ministryText);
 
       // The threshold is a rule parameter, not a result, so reading it from the registry
       // is not a substitute for reading the outcome from the finalized event — it is

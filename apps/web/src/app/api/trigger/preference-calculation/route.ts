@@ -16,6 +16,7 @@ import {
   BadRequestError,
   BID_CLASSES,
   MAX_BIDS,
+  assertMinistryOnboarded,
   calculatePreferenceTx,
   coerceUnsignedInteger,
   handleTrigger,
@@ -24,6 +25,7 @@ import {
   requireEnum,
   requireEvent,
   requireId,
+  requireIdText,
   requirePaise,
   resolveAccountValue,
   rupees,
@@ -45,6 +47,7 @@ export async function POST(request: Request): Promise<Response> {
     // restrictive reading, since GTE approval is an affirmative act under GFR Rule
     // 161(iv) and must never be assumed.
     const ministry = requireId(body, 'ministry');
+    const ministryText = requireIdText(body, 'ministry');
     const tenderValuePaise = requirePaise(body, 'tenderValuePaise', 'tenderValue');
     const isTenderGte = optionalBoolean(body, 'isTenderGte', false);
 
@@ -83,6 +86,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const api = await getApi();
+    // The preference margin and the divisibility fork both come out of this ministry's
+    // rule, so a ministry the registry does not hold cannot be ranked against one.
+    await assertMinistryOnboarded(api, ministryText);
     // Ranking bids and awarding preference is the procuring entity's act, not the
     // vendor's and not DPIIT's.
     const signer = await getSigner('procuringEntity');
