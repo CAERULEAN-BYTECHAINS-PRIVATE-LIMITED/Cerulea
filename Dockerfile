@@ -109,5 +109,11 @@ RUN chmod +x /usr/local/bin/cerulea-node /usr/local/bin/docker-entrypoint.sh
 # P2P | RPC | Prometheus
 EXPOSE 30333 9944 9615
 
-VOLUME ["/data"]
+# NOTE: no `VOLUME ["/data"]` directive.
+#
+# Railway rejects the build outright with "docker VOLUME at Line N is not supported,
+# use Railway Volumes", and every platform this runs on declares the mount itself:
+# Railway via its own Volumes, Render via the `disk:` block in render.yaml, and
+# docker-compose via its named volumes. A VOLUME line here would add nothing on any of
+# them while blocking one entirely.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
