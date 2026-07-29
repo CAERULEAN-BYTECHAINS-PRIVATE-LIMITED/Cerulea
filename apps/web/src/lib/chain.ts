@@ -40,10 +40,28 @@ export async function getApi(): Promise<ApiPromise> {
   return globalForChain.__pramaanApi;
 }
 
+/**
+ * ed25519, not sr25519 — this must match the chain, and the chain is ed25519.
+ *
+ * `cerulea-runtime/src/genesis_config_presets.rs` builds every preset from
+ * `sp_keyring::Ed25519Keyring`: the initial validators, the sudo key, and the endowed
+ * account list all come from it. An `AccountId32` is the hash of a *specific* public
+ * key, so sr25519 `//Alice` and ed25519 `//Alice` are two entirely different accounts.
+ *
+ * Signing with sr25519 would therefore fail twice over: the account would not be the
+ * genesis sudo key (`RequireSudo` on any root-gated call such as `set_rule`), and it
+ * would hold a zero balance, so `pallet_transaction_payment` — wired with `IdentityFee`
+ * in `configs/mod.rs` — would reject the extrinsic for want of fees before any pallet
+ * logic ran.
+ *
+ * Note this departs from spec Part 10's security table, which says "sr25519 key pair".
+ * The chain as built is ed25519; matching it is what makes the claim true rather than
+ * aspirational. Switching the whole build to sr25519 would mean regenerating genesis.
+ */
 export async function getKeyring(): Promise<Keyring> {
   await cryptoWaitReady();
   if (!globalForChain.__pramaanKeyring) {
-    globalForChain.__pramaanKeyring = new Keyring({ type: 'sr25519' });
+    globalForChain.__pramaanKeyring = new Keyring({ type: 'ed25519' });
   }
   return globalForChain.__pramaanKeyring;
 }

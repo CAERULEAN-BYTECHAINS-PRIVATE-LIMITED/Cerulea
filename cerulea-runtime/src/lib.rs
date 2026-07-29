@@ -100,8 +100,20 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 mod block_times {
-    /// Defines the average expected block time in milliseconds for DCF consensus
-    pub const MILLI_SECS_PER_BLOCK: u64 = 6000;
+    /// Defines the average expected block time in milliseconds for DCF consensus.
+    ///
+    /// 200ms, not the 6000ms a general-purpose chain would use, because CBC-PRAMAAN
+    /// returns a GREEN/YELLOW/RED procurement decision only after that decision is
+    /// FINALIZED (Technical Implementation Specification Part 8.3), and PoC document
+    /// Section 7.2 commits to that finality-confirmed response landing under one second.
+    ///
+    /// Finality-confirmed latency is roughly `1.5 x MILLI_SECS_PER_BLOCK` when
+    /// `FinalityCheckpointInterval` is 1: on average half a block period waiting for
+    /// inclusion, then one more block for the finality checkpoint. At 6000ms that is
+    /// ~9s per decision even before the old 10-block checkpoint interval turned it into
+    /// ~60s, which no amount of API-side engineering can rescue. At 200ms it is ~300ms,
+    /// which is the claim actually being made -- measured, not asserted.
+    pub const MILLI_SECS_PER_BLOCK: u64 = 200;
 
     // The slot duration is the minimum time between blocks
     pub const SLOT_DURATION: u64 = MILLI_SECS_PER_BLOCK;
@@ -350,7 +362,18 @@ parameter_types! {
     pub const ScoreWeightFactor: u128 = 1000;
     pub const ScoreBoostCap: u128 = 100_000;
     pub const FinalityThreshold: sp_runtime::Perbill = sp_runtime::Perbill::from_percent(67);
-    pub const FinalityCheckpointInterval: u32 = 10;
+    /// Finalize at EVERY block, not every tenth.
+    ///
+    /// With the previous value of 10 the client's finalized head advanced in visible
+    /// 10-block jumps -- measured on a live node, finality sat at #10 while the chain
+    /// was at #19, then committed to #20, a ~60s sawtooth. A procurement decision that
+    /// must be finalized before it is returned therefore took up to 60s, against PoC
+    /// document Section 7.2's under-one-second commitment.
+    ///
+    /// 67% of three validators is two, so this remains genuine 2-of-3 quorum finality
+    /// (FinalityThreshold above is untouched); only the checkpoint cadence changed.
+    /// Every block is now its own checkpoint.
+    pub const FinalityCheckpointInterval: u32 = 1;
     pub const VoteRetentionRounds: u32 = 20;
 }
 
