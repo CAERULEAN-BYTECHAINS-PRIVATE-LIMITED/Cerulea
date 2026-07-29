@@ -15,6 +15,13 @@ members = [
     "cerulea-pallets/pallet-todo",
     "tools",
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
+    "pramaan-primitives",
+    "pramaan-pallets/pallet-pramaan-rule-registry",
+    "pramaan-pallets/pallet-pramaan-classification",
+    "pramaan-pallets/pallet-pramaan-preference",
+    "pramaan-pallets/pallet-pramaan-certification",
+    "pramaan-pallets/pallet-pramaan-debarment",
+    "pramaan-pallets/pallet-pramaan-consistency",
 ]
 resolver = "2"
 
@@ -23,6 +30,13 @@ cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
+pramaan-primitives = { path = "./pramaan-primitives", default-features = false }
+pallet-pramaan-rule-registry = { path = "./pramaan-pallets/pallet-pramaan-rule-registry", default-features = false }
+pallet-pramaan-classification = { path = "./pramaan-pallets/pallet-pramaan-classification", default-features = false }
+pallet-pramaan-preference = { path = "./pramaan-pallets/pallet-pramaan-preference", default-features = false }
+pallet-pramaan-certification = { path = "./pramaan-pallets/pallet-pramaan-certification", default-features = false }
+pallet-pramaan-debarment = { path = "./pramaan-pallets/pallet-pramaan-debarment", default-features = false }
+pallet-pramaan-consistency = { path = "./pramaan-pallets/pallet-pramaan-consistency", default-features = false }
 pallet-cerulea-dvf = {path="./cerulea-pallets/pallet-cerulea-dvf", default-features = false}
 pallet-todo = { path = "./cerulea-pallets/pallet-todo", default-features = false }
 clap = { version = "4.5.13" }
