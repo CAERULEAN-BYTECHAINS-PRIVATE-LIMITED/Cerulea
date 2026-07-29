@@ -107,7 +107,7 @@ pub mod pallet {
 
 	/// One declaration a vendor has made for a given product, on a given tender.
 	/// "Every declaration a vendor has made for a given product, across tenders" (spec).
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 	pub struct DeclarationRecord<BlockNumber> {
 		pub tender: TenderId,
 		pub local_content_bps: u16,

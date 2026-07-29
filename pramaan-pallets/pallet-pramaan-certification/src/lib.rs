@@ -132,7 +132,7 @@ pub mod pallet {
 	/// One issued certificate. `auditor: None` means self-certification (PoC document:
 	/// "Self-certification: Accepted at bidding for all values."); `Some(account)`
 	/// means the named account, holding the CvcOrAuditReviewer role, certified it.
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 	pub struct Certificate<AccountId, Balance, BlockNumber> {
 		pub vendor: AccountId,
 		pub tender: TenderId,

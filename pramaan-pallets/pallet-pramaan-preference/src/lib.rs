@@ -41,7 +41,7 @@ mod benchmarking;
 use codec::{Decode, Encode, MaxEncodedLen};
 use pramaan_primitives::{BasisPoints, Divisibility, MinistryId, PathwayId, RuleLookup, TenderId, BPS_DENOMINATOR};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, SaturatedConversion, Saturating, Zero};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, SaturatedConversion};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
@@ -75,7 +75,7 @@ pub const MSE_BAND_BPS: BasisPoints = 1_500;
 /// rather than direct crate dependencies (per pramaan-primitives's own doc comments).
 /// Only `ClassOne` and `NonLocal` are read by this pallet's pathway logic; `ClassTwo` is
 /// carried through so a caller can submit its full classification without lossy mapping.
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 pub enum ClassResultLike {
 	ClassOne,
 	ClassTwo,
@@ -91,7 +91,7 @@ pub enum ClassResultLike {
 /// judgment call flagged in the handoff notes: if a future revision intends `is_gte` to
 /// mean something bid-specific, the P6 check in `calculate_preference` will need revising
 /// to consult it instead of (or in addition to) `is_tender_gte`.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 pub struct BidItem<AccountId, Balance> {
 	pub vendor: AccountId,
 	pub class: ClassResultLike,
@@ -107,7 +107,7 @@ pub struct BidItem<AccountId, Balance> {
 /// average local-content percentage PoC document Part 5.3 describes can do so with the
 /// exact formula, before that single number is used upstream (e.g. by
 /// pallet-pramaan-classification) to produce the `ClassResultLike` carried in `BidItem`.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 pub struct BidLineItem<Balance> {
 	pub sale_price: Balance,
 	pub local_value_added: Balance,
@@ -161,7 +161,7 @@ where
 /// eligibility rejection records P6/P7; an award (won, matched, or excluded from the
 /// award but still ranked) records P8/P9/P10 depending on the rule's divisibility and
 /// which award-split case applied.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
 pub struct PreferenceOutcome<Balance> {
 	pub qualifies: bool,
 	pub matched_price: Option<Balance>,
