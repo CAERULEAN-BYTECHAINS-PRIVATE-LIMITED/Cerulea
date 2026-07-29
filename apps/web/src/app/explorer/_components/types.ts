@@ -30,6 +30,8 @@ export interface ExplorerBlock {
 
 export interface BlocksResponse {
   finalizedBlock: number;
+  /** Highest block the index actually holds. Always >= finalizedBlock. */
+  bestBlock?: number;
   blocks: ExplorerBlock[];
   window: IndexWindow;
 }

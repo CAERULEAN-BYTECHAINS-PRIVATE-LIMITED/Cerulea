@@ -45,12 +45,12 @@ export interface LatencySample {
 const MAX_SAMPLES = 300;
 
 const globalForLatency = globalThis as unknown as {
-  __pramaanLatency?: { samples: LatencySample[]; sessionStartedAt: number };
+  __pramaanLatencyV2?: { samples: LatencySample[]; sessionStartedAt: number };
 };
 
 function store() {
-  globalForLatency.__pramaanLatency ??= { samples: [], sessionStartedAt: Date.now() };
-  return globalForLatency.__pramaanLatency;
+  globalForLatency.__pramaanLatencyV2 ??= { samples: [], sessionStartedAt: Date.now() };
+  return globalForLatency.__pramaanLatencyV2;
 }
 
 export function isTriggerPoint(value: unknown): value is TriggerPoint {

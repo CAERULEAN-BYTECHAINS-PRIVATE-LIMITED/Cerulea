@@ -75,9 +75,10 @@ export function LatencyChart({ byTrigger }: { byTrigger: TriggerLatencySummary[]
         </span>
       }
       footnote={
-        allSubSecond
-          ? 'Every measurement above sits below the one-second reference line, and each was taken only after the block carrying the transaction reached finality — not at inclusion.'
-          : 'At least one measurement crossed the one-second reference line. The figure is reported as measured; nothing here is smoothed or discarded.'
+        (allSubSecond
+          ? 'Every measurement above sits below the one-second reference line, and each was taken only after the block carrying the transaction reached finality — not at inclusion. '
+          : 'At least one measurement crossed the one-second reference line. The figure is reported as measured; nothing here is smoothed or discarded. ') +
+        'Only calls that wrote to a block are plotted. Two trigger points can answer from current state without submitting anything — an evaluation blocked by an existing debarment, a certification awaiting its auditor — and those return in single-digit milliseconds. They are excluded rather than folded in, because they are not finality times and would make this chart look better than the claim it is testing.'
       }
       table={{
         columns: ['Trigger point', 'Mean (ms)', 'Fastest (ms)', 'Slowest (ms)', 'Measurements'],

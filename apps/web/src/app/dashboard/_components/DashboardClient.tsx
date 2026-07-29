@@ -87,6 +87,7 @@ export function DashboardClient() {
           entries={verdicts.entries}
           sessionStartedAt={verdicts.sessionStartedAt}
           totals={verdicts.totals}
+          now={metrics.updatedAt ?? verdicts.sessionStartedAt}
         />
         <DebarmentChart byMinistry={debarmentsByMinistry} />
       </div>
