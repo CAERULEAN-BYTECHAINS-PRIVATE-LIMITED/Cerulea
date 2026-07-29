@@ -65,6 +65,71 @@ function ministryIdBytes(id: string): Uint8Array {
 	return new TextEncoder().encode(id);
 }
 
+/**
+ * Render a Rule (from either side of the comparison) as a canonical string.
+ *
+ * The two sides arrive in genuinely different representations and a naive
+ * JSON.stringify comparison is worse than useless here — it reports a false PASS.
+ * Specifically:
+ *
+ *   - Key order differs, so the strings must be built from sorted keys, recursively.
+ *     (The previous implementation passed `Object.keys(top).sort()` as stringify's
+ *     *replacer array*, which is an allow-list applied at EVERY depth — so every
+ *     nested hsn_threshold key was silently dropped from both sides and the HSN
+ *     values were never actually compared.)
+ *   - `certification_threshold` / `exemption_floor` are u128. The chain returns them
+ *     as a number when small enough and a "0x..." hex string when not; the JSON
+ *     source holds a decimal string. All three normalise to a BigInt.
+ *   - `hsn_code` is a BoundedVec<u8>, which the chain returns as hex ("0x2a"), while
+ *     the source holds the readable string ("*"). Decode the hex back to UTF-8.
+ */
+function canonicalise(value: unknown): string {
+	return JSON.stringify(normalise(value));
+}
+
+function normalise(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(normalise);
+	}
+	if (value !== null && typeof value === "object") {
+		const source = value as Record<string, unknown>;
+		const out: Record<string, unknown> = {};
+		for (const key of Object.keys(source).sort()) {
+			// polkadot-js emits camelCase from toJSON(); toChainRule() already does too.
+			out[key] = normaliseField(key, source[key]);
+		}
+		return out;
+	}
+	return value;
+}
+
+function normaliseField(key: string, value: unknown): unknown {
+	if (key === "hsnCode" && typeof value === "string") {
+		return hexToUtf8(value);
+	}
+	if ((key === "certificationThreshold" || key === "exemptionFloor") && value !== null) {
+		return toBigIntString(value);
+	}
+	return normalise(value);
+}
+
+function toBigIntString(value: unknown): string {
+	if (typeof value === "bigint") return value.toString();
+	if (typeof value === "number") return BigInt(value).toString();
+	if (typeof value === "string") {
+		return value.startsWith("0x") ? BigInt(value).toString() : BigInt(value).toString();
+	}
+	return String(value);
+}
+
+function hexToUtf8(value: string): string {
+	if (!value.startsWith("0x")) return value;
+	const bytes = new Uint8Array(
+		(value.slice(2).match(/.{1,2}/g) ?? []).map((byte) => parseInt(byte, 16))
+	);
+	return new TextDecoder().decode(bytes);
+}
+
 async function main() {
 	const jsonPath = path.join(__dirname, "ministries.json");
 	const rows: MinistryRow[] = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
@@ -94,7 +159,7 @@ async function main() {
 		const rule = toChainRule(row);
 
 		await new Promise<void>((resolve, reject) => {
-			api.tx.palletPramaanRuleRegistry
+			api.tx.pramaanRuleRegistry
 				.setRule(ministryId, rule)
 				.signAndSend(dpiit, ({ status, dispatchError }) => {
 					if (dispatchError) {
@@ -122,7 +187,7 @@ async function main() {
 		throw new Error("ministries.json has no DPIIT entry to derive the default rule set from.");
 	}
 	await new Promise<void>((resolve, reject) => {
-		api.tx.palletPramaanRuleRegistry
+		api.tx.pramaanRuleRegistry
 			.setDefaultRule(toChainRule(dpiitRow))
 			.signAndSend(dpiit, ({ status, dispatchError }) => {
 				if (dispatchError) {
@@ -141,24 +206,19 @@ async function main() {
 	let mismatches = 0;
 	for (const row of rows) {
 		const ministryId = ministryIdBytes(row.ministry_id);
-		const onChain = await api.query.palletPramaanRuleRegistry.rules(ministryId);
+		const onChain = await api.query.pramaanRuleRegistry.rules(ministryId);
 		if (onChain.isNone) {
 			console.error(`  MISMATCH: ${row.ministry_id} has no on-chain rule after seeding.`);
 			mismatches++;
 			continue;
 		}
-		const onChainJson = onChain.unwrap().toJSON();
-		const expected = toChainRule(row);
-		// Structural diff via JSON string comparison after normalizing key order is
-		// good enough here since both sides come from the same toChainRule() shape;
-		// a byte-level SCALE comparison would be stricter but this catches the class
-		// of error the spec is guarding against (a value silently not applied).
-		const onChainNormalized = JSON.stringify(onChainJson, Object.keys(onChainJson).sort());
-		const expectedNormalized = JSON.stringify(expected, Object.keys(expected).sort());
-		if (onChainNormalized !== expectedNormalized) {
+		const actual = canonicalise(onChain.unwrap().toJSON());
+		const expected = canonicalise(toChainRule(row));
+
+		if (actual !== expected) {
 			console.error(`  MISMATCH: ${row.ministry_id} on-chain value differs from ministries.json.`);
-			console.error(`    on-chain: ${onChainNormalized}`);
-			console.error(`    expected: ${expectedNormalized}`);
+			console.error(`    on-chain: ${actual}`);
+			console.error(`    expected: ${expected}`);
 			mismatches++;
 		}
 	}
