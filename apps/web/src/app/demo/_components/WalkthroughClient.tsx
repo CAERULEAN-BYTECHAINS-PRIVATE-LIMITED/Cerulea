@@ -20,7 +20,10 @@ import {
   type ComplianceStatus,
 } from '@/components';
 import { formatPaise } from '@/lib/units';
-import { scenarioStore, WALKTHROUGH, type Scenario, type TriggerId } from './steps';
+import { scenarioStore, WALKTHROUGH, type Scenario, type StepId, type TriggerId } from './steps';
+
+/** Trigger point 1 — the classification whose block the provenance step re-reads. */
+const BID_SUBMISSION_INDEX = WALKTHROUGH.findIndex((step) => step.id === 'bid-submission');
 
 interface TriggerResponse {
   result?: ComplianceStatus;
@@ -133,8 +136,39 @@ export function WalkthroughClient() {
       const step = WALKTHROUGH[index];
       setRun(index, { status: 'running' });
       try {
+        // The provenance panel writes nothing: it re-reads the classification recorded at
+        // trigger point 1 from that decision's own block, so it needs step 1's block
+        // number and calls its read endpoint directly rather than through `call`, which is
+        // built for trigger points that submit an extrinsic and post a latency sample.
+        if (step.kind === 'provenance') {
+          const source = runs[BID_SUBMISSION_INDEX];
+          const blockNumber =
+            source?.status === 'done' ? source.outcome.response.blockNumber ?? null : null;
+          if (blockNumber == null) {
+            throw new Error(
+              'Run trigger point 1 first — its finalized block is the one this step re-reads.',
+            );
+          }
+          const startedAt = performance.now();
+          const response = await fetch(step.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...(await step.body(scenario)), blockNumber }),
+          });
+          const payload = (await response.json()) as TriggerResponse;
+          const roundTripMs = Math.round(performance.now() - startedAt);
+          if (!response.ok) {
+            throw new Error(payload.error ?? `The verification returned ${response.status}.`);
+          }
+          setRun(index, { status: 'done', outcome: { response: payload, roundTripMs } });
+          return;
+        }
+
         const body = await step.body(scenario);
-        setRun(index, { status: 'done', outcome: await call(step.endpoint, body, step.id) });
+        setRun(index, {
+          status: 'done',
+          outcome: await call(step.endpoint, body, step.id as TriggerId),
+        });
       } catch (error) {
         setRun(index, {
           status: 'failed',
@@ -142,7 +176,7 @@ export function WalkthroughClient() {
         });
       }
     },
-    [call, scenario, setRun],
+    [call, scenario, setRun, runs],
   );
 
   const runFollowUp = useCallback(
@@ -275,7 +309,11 @@ export function WalkthroughClient() {
                   </span>
                 }
                 meta={
-                  isDone ? (
+                  step.kind === 'provenance' ? (
+                    <Chip tone={isDone ? 'accent' : undefined}>
+                      {isDone ? 'Verified' : 'Verification'}
+                    </Chip>
+                  ) : isDone ? (
                     <Chip tone="accent">Run</Chip>
                   ) : (
                     <Chip>Trigger point {step.point} of 6</Chip>
@@ -290,7 +328,13 @@ export function WalkthroughClient() {
                 />
 
                 {state.status === 'running' && (
-                  <Awaiting label={`Running trigger point ${step.point}`} />
+                  <Awaiting
+                    label={
+                      step.kind === 'provenance'
+                        ? 'Re-deriving the step 1 verdict from its finalized block'
+                        : `Running trigger point ${step.point}`
+                    }
+                  />
                 )}
 
                 {state.status === 'failed' && (
@@ -312,9 +356,13 @@ export function WalkthroughClient() {
                       transition={{ duration: 0.2, ease: 'easeOut' }}
                       className="space-y-4"
                     >
-                      <VerdictBlock step={step.title} outcome={state.outcome} />
+                      {step.kind === 'provenance' ? (
+                        <ProvenanceBlock outcome={state.outcome} />
+                      ) : (
+                        <VerdictBlock step={step.title} outcome={state.outcome} />
+                      )}
                       <Caption
-                        heading="What just happened"
+                        heading={step.kind === 'provenance' ? 'What this proves' : 'What just happened'}
                         body={step.caption}
                         claim={step.claim}
                       />
@@ -370,9 +418,13 @@ export function WalkthroughClient() {
 
               <PanelFoot>
                 <p className="font-mono text-2xs text-ink-muted">
-                  {isDone
-                    ? `Trigger point ${step.point} complete.`
-                    : `POST ${step.endpoint} — a real extrinsic, signed and finalized.`}
+                  {step.kind === 'provenance'
+                    ? isDone
+                      ? 'Verification complete — historical state re-read, nothing written.'
+                      : `POST ${step.endpoint} — a read of historical state; nothing is written.`
+                    : isDone
+                      ? `Trigger point ${step.point} complete.`
+                      : `POST ${step.endpoint} — a real extrinsic, signed and finalized.`}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {state.status === 'idle' && (
@@ -381,7 +433,9 @@ export function WalkthroughClient() {
                       onClick={() => void runStep(index)}
                       icon={<Play className="size-3.5" aria-hidden="true" />}
                     >
-                      Run step {step.point}
+                      {step.kind === 'provenance'
+                        ? 'Re-derive the step 1 verdict'
+                        : `Run step ${step.point}`}
                     </Button>
                   )}
                   {/* Only the panel the presenter is on offers the advance. Completed panels
@@ -405,7 +459,7 @@ export function WalkthroughClient() {
 
       {finished && (
         <Panel>
-          <PanelHead title="All six trigger points have run on the live chain" />
+          <PanelHead title="All six trigger points have run, and the step 1 verdict has been re-derived from its block" />
           <PanelBody className="flex flex-wrap gap-2">
             <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
               See the measured latency for these six calls
@@ -489,6 +543,71 @@ function VerdictBlock({ step, outcome }: { step: string; outcome: RunOutcome }) 
   );
 }
 
+/**
+ * The provenance panel's result: the step 1 verdict read back from its own block, set
+ * beside current state. A match is the evidence; a mismatch would be a genuine alarm, so
+ * it is shown as one rather than hidden.
+ */
+function ProvenanceBlock({ outcome }: { outcome: RunOutcome }) {
+  const { response } = outcome;
+  const classAtBlock = typeof response.classAtBlock === 'string' ? response.classAtBlock : null;
+  const classAtHead = typeof response.classAtHead === 'string' ? response.classAtHead : null;
+  const match = response.match === true;
+  const recordedBlock =
+    typeof response.recordedBlock === 'number' ? response.recordedBlock : null;
+  const finalizedHead =
+    typeof response.finalizedHead === 'number' ? response.finalizedHead : null;
+  const confirmations =
+    typeof response.confirmations === 'number' ? response.confirmations : null;
+  const blockHash = typeof response.blockHash === 'string' ? response.blockHash : null;
+
+  const status: ComplianceStatus = match ? 'GREEN' : 'RED';
+  const tri: Record<string, string> = { GREEN: 'ClassOne (GREEN)', YELLOW: 'ClassTwo / review (YELLOW)', RED: 'NonLocal (RED)' };
+
+  const records: { label: string; value: string; mono?: boolean }[] = [];
+  if (recordedBlock !== null) {
+    records.push({ label: 'Verdict recorded at block', value: `#${recordedBlock.toLocaleString('en-IN')}`, mono: true });
+  }
+  if (blockHash) {
+    records.push({ label: 'That block’s hash', value: `${blockHash.slice(0, 14)}…${blockHash.slice(-6)}`, mono: true });
+  }
+  records.push({
+    label: 'Read from state at that block',
+    value: classAtBlock ? (tri[classAtBlock] ?? classAtBlock) : 'not found',
+    mono: true,
+  });
+  records.push({
+    label: 'Read from current state, now',
+    value: classAtHead ? (tri[classAtHead] ?? classAtHead) : 'not found',
+    mono: true,
+  });
+  if (confirmations !== null) {
+    records.push({
+      label: 'Finalized blocks stacked on top',
+      value: confirmations.toLocaleString('en-IN'),
+      mono: true,
+    });
+  }
+  if (finalizedHead !== null) {
+    records.push({ label: 'Current finalized head', value: `#${finalizedHead.toLocaleString('en-IN')}`, mono: true });
+  }
+  records.push({ label: 'Match', value: match ? 'identical — record intact' : 'MISMATCH', mono: true });
+
+  const reason = match
+    ? `The classification read from block #${recordedBlock?.toLocaleString('en-IN') ?? '—'} is identical to the one in current state, after the rule was amended at step 6. The record was re-derived from a finalized block, not recalled by the application.`
+    : 'The verdict read from the recorded block does not match current state. On this chain that should be impossible without a re-finalization — treat it as an alarm, not a demo artefact.';
+
+  return (
+    <Verdict
+      status={status}
+      trigger="Step 1 verdict, re-derived from its block"
+      reason={reason}
+      blockNumber={recordedBlock ?? undefined}
+      records={records}
+    />
+  );
+}
+
 function Caption({
   heading,
   body,
@@ -524,7 +643,7 @@ function ProgressRail({
 }) {
   return (
     <nav aria-label="Walkthrough steps">
-      <ol className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
+      <ol className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-7">
         {WALKTHROUGH.map((step, index) => {
           const state = runs[index]?.status ?? 'idle';
           const done = state === 'done';
@@ -571,11 +690,12 @@ function ProgressRail({
   );
 }
 
-const STEP_SHORT_LABELS: Record<TriggerId, string> = {
+const STEP_SHORT_LABELS: Record<StepId, string> = {
   'bid-submission': 'Bid submission',
   'bid-evaluation': 'Bid evaluation',
   'preference-calculation': 'Preference',
   'ca-certification': 'Certification',
   debarment: 'Debarment',
   'rule-update': 'Rule update',
+  provenance: 'Provenance',
 };
