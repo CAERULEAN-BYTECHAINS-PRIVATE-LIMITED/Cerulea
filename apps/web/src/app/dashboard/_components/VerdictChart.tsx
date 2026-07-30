@@ -49,11 +49,19 @@ export function VerdictChart({
   entries,
   sessionStartedAt,
   totals,
+  chainTotals,
   now,
 }: {
   entries: VerdictEntry[];
   sessionStartedAt: number;
   totals: Record<'GREEN' | 'YELLOW' | 'RED', number>;
+  /**
+   * The verdict split across every classification the chain holds, not just the ones
+   * observed since this console connected. When no bid has been classified this session
+   * the timeline has nothing to draw, so the chart falls back to this chain-wide
+   * distribution — one aggregate bar — rather than an empty panel.
+   */
+  chainTotals: Record<'GREEN' | 'YELLOW' | 'RED', number>;
   /**
    * When the figures were last read, so the axis runs up to the present rather than
    * stopping at the last verdict. Passed in rather than read from `Date.now()` here:
@@ -96,17 +104,37 @@ export function VerdictChart({
     return all.slice(-MAX_BUCKETS);
   }, [entries, sessionStartedAt, now]);
 
-  const total = totals.GREEN + totals.YELLOW + totals.RED;
+  const sessionTotal = totals.GREEN + totals.YELLOW + totals.RED;
+  const chainTotal = chainTotals.GREEN + chainTotals.YELLOW + chainTotals.RED;
 
-  if (total === 0) {
+  // The timeline is session-scoped by nature; when nothing has been classified since this
+  // console connected, fall back to the chain-wide distribution as a single aggregate bar
+  // so the panel always shows real on-chain data rather than an empty state.
+  const showTimeline = sessionTotal > 0;
+  const legendTotals = showTimeline ? totals : chainTotals;
+  const displayBuckets: Bucket[] = showTimeline
+    ? buckets
+    : [
+        {
+          key: 'chain-wide',
+          label: 'All on chain',
+          startedAt: 0,
+          GREEN: chainTotals.GREEN,
+          YELLOW: chainTotals.YELLOW,
+          RED: chainTotals.RED,
+          total: chainTotal,
+        },
+      ];
+
+  if (chainTotal === 0 && sessionTotal === 0) {
     return (
       <ChartFrame
-        title="Compliance verdicts this session"
-        description="Every classification the chain has returned since this console connected, split by outcome."
+        title="Compliance verdicts"
+        description="Every classification the chain has returned, split by outcome."
       >
         <Empty
-          title="No verdicts recorded yet in this session"
-          source="This chart counts pramaanClassification events as they are finalized. Submit a bid from the vendor console and the first bar appears within a second."
+          title="No verdicts recorded on this chain yet"
+          source="This chart reads pramaanClassification.classifications from chain state. Submit a bid from the vendor console and the first bar appears within a second."
         />
       </ChartFrame>
     );
@@ -114,21 +142,35 @@ export function VerdictChart({
 
   return (
     <ChartFrame
-      title="Compliance verdicts this session"
-      description={`${total.toLocaleString('en-IN')} classification${total === 1 ? '' : 's'} finalized since this console connected, in half-minute intervals.`}
+      title={showTimeline ? 'Compliance verdicts this session' : 'Compliance verdicts on this chain'}
+      description={
+        showTimeline
+          ? `${sessionTotal.toLocaleString('en-IN')} classification${sessionTotal === 1 ? '' : 's'} finalized since this console connected, in half-minute intervals.`
+          : `${chainTotal.toLocaleString('en-IN')} classification${chainTotal === 1 ? '' : 's'} recorded on this chain, by outcome. A bid classified this session switches this panel to a live timeline.`
+      }
       legend={
         <ChartLegend
           items={TRI_STATES.map((status) => ({
             color: STATUS_COLORS[status],
             label: `${STATUS_LABELS[status]} (${status})`,
-            value: totals[status].toLocaleString('en-IN'),
+            value: legendTotals[status].toLocaleString('en-IN'),
           }))}
         />
       }
-      footnote="Counted from pramaanClassification.Classified and ManualReviewRequired events decoded out of finalized blocks. Nothing here is estimated or carried over from a previous run."
+      footnote={
+        showTimeline
+          ? 'Counted from pramaanClassification.Classified and ManualReviewRequired events decoded out of finalized blocks. Nothing here is estimated or carried over from a previous run.'
+          : 'Read from pramaanClassification.classifications in chain state — the full set of stored verdicts. ClassOne is compliant, NonLocal is blocked, ClassTwo and ManualReviewRequired need review. Nothing here is estimated.'
+      }
       table={{
-        columns: ['Interval', 'Compliant', 'Review required', 'Blocked', 'Total'],
-        rows: buckets.map((bucket) => [
+        columns: [
+          showTimeline ? 'Interval' : 'Scope',
+          'Compliant',
+          'Review required',
+          'Blocked',
+          'Total',
+        ],
+        rows: displayBuckets.map((bucket) => [
           bucket.label,
           bucket.GREEN,
           bucket.YELLOW,
@@ -139,7 +181,7 @@ export function VerdictChart({
     >
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={buckets} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+          <BarChart data={displayBuckets} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
             <CartesianGrid stroke={CHROME.grid} strokeWidth={1} vertical={false} />
             <XAxis
               dataKey="label"
@@ -162,7 +204,7 @@ export function VerdictChart({
                 if (!active || !payload?.length) return null;
                 return (
                   <TooltipShell
-                    title={`Interval starting ${String(label)}`}
+                    title={showTimeline ? `Interval starting ${String(label)}` : 'All classifications on chain'}
                     rows={payload
                       .filter((item) => Number(item.value) > 0)
                       .map((item) => ({
