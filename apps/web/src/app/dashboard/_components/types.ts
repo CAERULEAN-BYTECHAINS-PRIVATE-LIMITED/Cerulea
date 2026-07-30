@@ -37,6 +37,7 @@ export interface MetricsResponse {
   verdicts: {
     sessionStartedAt: number;
     totals: Record<'GREEN' | 'YELLOW' | 'RED', number>;
+    chainTotals: Record<'GREEN' | 'YELLOW' | 'RED', number>;
     entries: VerdictEntry[];
   };
   window: { from: number; to: number; blocksIndexed: number; gapped: boolean };

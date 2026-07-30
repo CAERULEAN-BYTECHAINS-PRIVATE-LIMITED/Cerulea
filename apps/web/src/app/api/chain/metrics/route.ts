@@ -47,13 +47,19 @@ export async function GET(): Promise<Response> {
     const finalizedBlock = (await api.rpc.chain.getHeader(finalizedHash)).number.toNumber();
     const currentBlock = head.number.toNumber();
 
-    const [rules, declarations, debarments, certificates, preferences] = await Promise.all([
-      api.query.pramaanRuleRegistry.rules.entries(),
-      api.query.pramaanConsistency.declarations.entries(),
-      api.query.pramaanDebarment.debarments.entries(),
-      api.query.pramaanCertification.certificates.entries(),
-      api.query.pramaanPreference.preferenceResults.entries(),
-    ]);
+    const [rules, declarations, debarments, certificates, preferences, classifications] =
+      await Promise.all([
+        api.query.pramaanRuleRegistry.rules.entries(),
+        api.query.pramaanConsistency.declarations.entries(),
+        api.query.pramaanDebarment.debarments.entries(),
+        api.query.pramaanCertification.certificates.entries(),
+        api.query.pramaanPreference.preferenceResults.entries(),
+        // Every classification result the chain holds, so the verdict distribution is
+        // chain-wide and populated on load, not limited to what happened to be in the
+        // recent event window. ClassResult maps to the tri-state a judge reads:
+        // ClassOne -> GREEN, ClassTwo / ManualReviewRequired -> YELLOW, NonLocal -> RED.
+        api.query.pramaanClassification.classifications.entries(),
+      ]);
 
     // --- Ministries -------------------------------------------------------------------
     const ministries = await Promise.all(
@@ -134,6 +140,20 @@ export async function GET(): Promise<Response> {
     const totals = { GREEN: 0, YELLOW: 0, RED: 0 };
     for (const entry of ledger.entries) totals[entry.status] += 1;
 
+    // --- Chain-wide verdict distribution ----------------------------------------------
+    // From every stored classification result, not the recent-event window, so the chart
+    // reflects the whole chain and is populated the moment the page loads.
+    const chainTotals = { GREEN: 0, YELLOW: 0, RED: 0 };
+    for (const [, value] of classifications) {
+      const raw = value.toString();
+      const cls = raw.includes('ClassOne')
+        ? 'GREEN'
+        : raw.includes('NonLocal')
+          ? 'RED'
+          : 'YELLOW'; // ClassTwo and ManualReviewRequired both read as caveat
+      chainTotals[cls] += 1;
+    }
+
     return Response.json({
       chain: { currentBlock, finalizedBlock },
       counters: {
@@ -154,6 +174,7 @@ export async function GET(): Promise<Response> {
       verdicts: {
         sessionStartedAt: ledger.sessionStartedAt,
         totals,
+        chainTotals,
         entries: ledger.entries,
       },
       sources: {
