@@ -21,6 +21,13 @@ export type TriggerId =
   | 'debarment'
   | 'rule-update';
 
+/**
+ * Every panel in the walkthrough. The six trigger points, plus one verification panel
+ * (`provenance`) that writes nothing and instead re-reads an earlier decision from the
+ * block it was recorded in — the tamper-evidence demonstration.
+ */
+export type StepId = TriggerId | 'provenance';
+
 export interface Scenario {
   /** GeM bid number, generated fresh per walkthrough so a judge can run it twice. */
   tender: string;
@@ -123,8 +130,13 @@ export interface FollowUp {
 }
 
 export interface WalkthroughStep {
-  id: TriggerId;
-  /** Trigger point number in the PoC document, 1–6. */
+  id: StepId;
+  /**
+   * A trigger point (default) POSTs a real extrinsic and shows the verdict. A provenance
+   * step writes nothing: it re-derives an earlier decision from historical chain state.
+   */
+  kind?: 'trigger' | 'provenance';
+  /** Trigger point number in the PoC document, 1–6; the provenance panel is 7. */
   point: number;
   title: string;
   /** Set-up shown before the step runs: what is about to be asked of the chain. */
@@ -346,5 +358,28 @@ export const WALKTHROUGH: WalkthroughStep[] = [
       "The rule set is now at a new version and takes effect from the block named in the record, not from the moment the transaction landed — which is how a policy with a notified commencement date actually works. No code was deployed and no service was restarted. The part that matters for audit is what did not change: the classification returned at step 1 is still judged against the version that was in force at its block. A rule change going forward is not a rewriting of decisions already taken, and a system that cannot make that distinction cannot be trusted with procurement law.",
     claim:
       'Trigger point 6 (Part 8.2), and the Smart Evolution upgrade path in Part 6.3 — policy as versioned on-chain state rather than as a software release.',
+  },
+  {
+    id: 'provenance',
+    kind: 'provenance',
+    point: 7,
+    title: 'The step 1 verdict is re-derived from its own block',
+    intent:
+      'The rule changed a moment ago at step 6. So the obvious question an auditor asks is: did that quietly change the verdict step 1 already returned? This panel answers it without trusting the application. It reads the classification recorded at step 1 straight from the chain’s state as it stood in the exact block that decision was finalized into, and compares it to what current state holds now — after every later step, including the rule amendment, has run.',
+    facts: (scenario) => [
+      { label: 'Decision under audit', value: 'Step 1 classification' },
+      { label: 'Vendor', value: scenario.vendorName },
+      { label: 'GeM bid number', value: scenario.tender },
+      { label: 'Read from', value: 'pramaanClassification.classifications, at the recorded block hash' },
+      { label: 'Method', value: 'api.at(blockHash) — historical state, no write' },
+    ],
+    endpoint: '/api/chain/provenance',
+    // The client merges in `blockNumber` from step 1's finalized result; the endpoint
+    // needs the block that decision was written into to read state as of it.
+    body: (scenario) => ({ vendor: scenario.vendor, tender: scenario.tender }),
+    caption:
+      'The verdict read back from the block is byte-identical to the one recorded at step 1, and identical to what current state holds now — even though the rule was amended in between. That match is the whole point. The record was not fetched from the application’s memory; it was re-derived from the state of a finalized block, and that block is now buried under thousands of later finalized blocks. Changing one byte of it would change the block’s state root, and therefore its hash, and therefore break finality for every block built on top — which the validator set will not do. This is what tamper-evident means in practice: not that the software promises not to change the record, but that the chain makes changing it detectable and infeasible.',
+    claim:
+      'Immutability and provenance (Part 6, audit-chain premise) — a finalized decision is re-derivable from its own block and cannot be silently rewritten, which is the property a plain database cannot offer.',
   },
 ];
