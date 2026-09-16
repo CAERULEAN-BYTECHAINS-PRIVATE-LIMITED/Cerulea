@@ -28,12 +28,15 @@ under 3 s.
   ```
 
   The override bypasses `docker-entrypoint.sh`; `NODE_ROLE` is ignored while it is set.
-- Volume `cbc-alice-volume-2` is mounted at **/data2** (not /data). The original /data
-  volume filled its 5 GB in 48 days under archive pruning and was deleted on 2026-09-16.
+- Volume `cbc-alice-data` is mounted at **/data**, which is where the entrypoint keeps the
+  database. The original volume filled its 5 GB in 48 days under archive pruning and was
+  deleted on 2026-09-16. A service-level start-command override was tried and removed:
+  Railway's redeploy-from-image path ignores it, so all runtime configuration lives in
+  variables (`NODE_ROLE=solo`, `STATE_PRUNING`, `BLOCKS_PRUNING`).
   At the same rate the new one fills around **early November 2026**: grow it in the
   dashboard (Volume settings) or relax `--state-pruning` before then.
-- `cbc-bob`, `cbc-charlie` and the Railway `CBC-PRAMAAN` web service are not part of the
-  live path. Their last builds failed, and the web service still runs a July deployment.
+- `cbc-bob` and `cbc-charlie` exist but have no volume and no successful build; the
+  Railway `CBC-PRAMAAN` web service was deleted on 2026-09-16 (the web app is on Vercel).
 
 ## Rebuilding the image on Railway is unreliable
 
@@ -51,6 +54,33 @@ mutation { deploymentRedeploy(id: "f0bc8335-c3a1-485c-81e9-7a90d9b06799", usePre
 ```
 
 The Railway CLI's session token lives at `~/.railway/config.json` (`user.accessToken`).
+
+## Access control (added 2026-09-16)
+
+Every `/api/trigger/*` route now requires a credential (apps/web/src/lib/auth.ts):
+
+- Browsers: the consoles show an access-code prompt on load and `POST /api/session` sets
+  a 12-hour HttpOnly session cookie. The code is `PRAMAAN_DEMO_PASSWORD` on Vercel.
+- Machines (GeM integration, simulator scripts): send `x-api-key: <key>`; keys are the
+  comma-separated `PRAMAAN_API_KEYS`. `PRAMAAN_SESSION_SECRET` signs the cookie.
+- With none of the three set the routes are open and the server logs a warning once.
+- Per-role signing keys: `PERSONA_SURI_<DPIIT|MINISTRYADMIN|PROCURINGENTITY|VENDOR|AUDITOR|CVC>`
+  replace the well-known dev accounts; fund any override with fund-personas first.
+
+Rotate a credential with `vercel env rm` / `vercel env add` and a redeploy.
+
+## Node image comes from GitHub Actions
+
+`.github/workflows/node-image.yml` builds the Dockerfile on every push to `pramaan-poc`
+or `develop` that touches the node and publishes
+`ghcr.io/caerulean-bytechains-private-limited/cerulea-node:<branch>` (plus a `<branch>-<sha>`
+tag and a `:buildcache` layer cache). Railway's `cbc-alice` should deploy that image
+rather than build from source; a failed build here never touches the running node.
+The service variables `STATE_PRUNING=100000` and `BLOCKS_PRUNING=archive` take effect
+with any image built from that commit onwards (docker-entrypoint.sh reads them).
+
+`.github/workflows/uptime.yml` (default branch `develop`) checks the live domain and the
+Railway RPC every 15 minutes and fails, with an email, when either is unreachable.
 
 ## The one Vercel env var
 

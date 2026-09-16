@@ -17,6 +17,7 @@
  * percentage conversion goes through `src/lib/units.ts`. Neither is re-implemented here.
  */
 
+import { authorize } from '@/lib/auth';
 import {
   hexToU8a,
   stringToU8a,
@@ -745,6 +746,13 @@ export async function handleTrigger(
   options: TriggerOptions = {},
 ): Promise<Response> {
   const startedAt = Date.now();
+  // Access control comes before the body is even parsed: an unauthenticated caller must
+  // not be able to trigger a chain write, or learn from validation errors what one looks
+  // like. See src/lib/auth.ts.
+  const auth = authorize(request);
+  if (!auth.ok) {
+    return Response.json({ error: auth.reason ?? 'Unauthorized.' }, { status: 401 });
+  }
   try {
     const body = await readJsonObject(request);
     const payload = await handler(body);

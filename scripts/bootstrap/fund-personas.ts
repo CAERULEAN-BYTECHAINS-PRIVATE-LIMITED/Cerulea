@@ -28,7 +28,17 @@ import { cryptoWaitReady } from '@polkadot/util-crypto';
 const WS_ENDPOINT = process.env.CHAIN_WS_ENDPOINT ?? 'ws://127.0.0.1:9944';
 
 /** Must mirror PERSONA_ACCOUNTS in apps/web/src/lib/chain.ts. */
-const PERSONAS = ['//Bob', '//Charlie', '//Dave', '//Eve', '//Ferdie'] as const;
+const PERSONA_DEFAULTS: Record<string, string> = {
+  MINISTRYADMIN: '//Bob',
+  PROCURINGENTITY: '//Charlie',
+  VENDOR: '//Dave',
+  AUDITOR: '//Eve',
+  CVC: '//Ferdie',
+};
+/** PERSONA_SURI_<ROLE> overrides, exactly as apps/web/src/lib/chain.ts reads them. */
+const PERSONAS = Object.entries(PERSONA_DEFAULTS).map(
+  ([role, fallback]) => process.env[`PERSONA_SURI_${role}`]?.trim() || fallback,
+);
 
 /** Generous enough that no demo run can exhaust it; far below Alice's genesis balance. */
 const TARGET_BALANCE = 1_000_000_000_000_000n;
