@@ -164,18 +164,38 @@ export const PERSONA_ACCOUNTS = {
 
 export type Persona = keyof typeof PERSONA_ACCOUNTS;
 
+/**
+ * Per-role signing keys. `PERSONA_SURI_<ROLE>` (e.g. `PERSONA_SURI_VENDOR=//SomeSecret`)
+ * replaces the well-known dev account for that role, so a hosted deployment can give every
+ * role its own key that nobody else knows. Any account used this way must be funded first
+ * (scripts/bootstrap/fund-personas.ts reads the same variables). When a role falls back
+ * to its dev account on a production build, that is logged once.
+ */
+const warnedDefaultKey = new Set<Persona>();
+
+export function personaUri(persona: Persona): string {
+  const override = process.env[`PERSONA_SURI_${persona.toUpperCase()}`]?.trim();
+  if (override) return override;
+  if (process.env.NODE_ENV === 'production' && !warnedDefaultKey.has(persona)) {
+    warnedDefaultKey.add(persona);
+    console.warn(
+      `[chain] persona "${persona}" is signing with the well-known dev account ${PERSONA_ACCOUNTS[persona]}; ` +
+        `set PERSONA_SURI_${persona.toUpperCase()} to give it a private key.`,
+    );
+  }
+  return PERSONA_ACCOUNTS[persona];
+}
+
 export async function getSigner(persona: Persona): Promise<KeyringPair> {
   const keyring = await getKeyring();
-  return keyring.addFromUri(PERSONA_ACCOUNTS[persona]);
+  return keyring.addFromUri(personaUri(persona));
 }
 
 /** Resolve a persona (or a raw //Uri) to its SS58 address without signing anything. */
 export async function addressOf(personaOrUri: Persona | string): Promise<string> {
   const keyring = await getKeyring();
   const uri =
-    personaOrUri in PERSONA_ACCOUNTS
-      ? PERSONA_ACCOUNTS[personaOrUri as Persona]
-      : personaOrUri;
+    personaOrUri in PERSONA_ACCOUNTS ? personaUri(personaOrUri as Persona) : personaOrUri;
   return keyring.addFromUri(uri).address;
 }
 

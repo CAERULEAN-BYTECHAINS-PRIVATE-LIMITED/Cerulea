@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { AccessGate } from './AccessGate';
 import { ChainStatus } from './ChainStatus';
 import { SiteNav } from './SiteNav';
 import { cn } from './ui/cn';
@@ -50,6 +51,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <AccessGate />
       <a
         href="#main"
         className="sr-only rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-40"
