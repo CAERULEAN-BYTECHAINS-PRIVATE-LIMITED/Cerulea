@@ -1,21 +1,35 @@
 # cbc-pramaan.cerulea.io — live deployment state
 
-Updated 2026-09-16.
+Updated 2026-09-16 (evening).
 
 ## What is live right now
 
-`https://cbc-pramaan.cerulea.io` serves the CBC-PRAMAAN web app (Vercel) and answers real,
-finalized, on-chain compliance decisions from a Cerulea validator hosted on Railway.
+`https://cbc-pramaan.cerulea.io` serves the CBC-PRAMAAN application (repository
+CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/CBC-PRAMAAN, branch `main`). Every write is a
+finalized extrinsic on the Cerulea validator hosted on Railway; the application keeps a
+SQLite read model that it rebuilds from the chain at boot.
 
 ```
-Vercel (cbc-pramaan.cerulea.io)  ->  wss://cbc-alice-production.up.railway.app  ->  Railway service cbc-alice
-   web app + API routes                public WebSocket RPC                       solo --dev validator, volume at /data2
+Vercel project cbc-pramaan-edge (holds the domain, instant TLS, vercel.json rewrite)
+    -> https://cbc-pramaan-poc-production.up.railway.app   Railway service cbc-pramaan-poc (Next.js app, volume /app/data)
+    -> wss://cbc-alice-production.up.railway.app           Railway service cbc-alice (solo Cerulea validator, volume /data)
 ```
 
-Verified on 2026-09-16 against the live domain: `/api/chain/status` connected, 21 ministries
-and 76 HSN mappings seeded and read back, a GREEN bid, a RED bid and a YELLOW bid with a
-cross-tender consistency flag, each returning a tx hash and finalized block number in
-under 3 s.
+- The domain sits on Vercel deliberately: Railway's certificate issuance for the custom
+  domain stayed at "validating ownership" for over an hour despite propagated DNS, while
+  Vercel issues instantly. The edge project is a one-file `vercel.json` in
+  `CBC-PRAMAAN/edge/` that proxies every path to the Railway app (cookies and headers
+  pass through). Deployment protection on that project must stay OFF (it was on by
+  default and answered 302 to Vercel SSO).
+- The former web app in this repository (`apps/web`, Vercel project `cbc-pramaan`) is no
+  longer aliased to the domain and is not part of the live path.
+- Access control: browsers get an access-code prompt; machines send `x-api-key`. Values
+  live in the Railway service variables `PRAMAAN_DEMO_PASSWORD`, `PRAMAAN_API_KEYS`,
+  `PRAMAAN_SESSION_SECRET` on `cbc-pramaan-poc` (and, historically, on Vercel `cbc-pramaan`).
+- Application variables on `cbc-pramaan-poc`: `CHAIN_WS_ENDPOINT`, `PRAMAAN_LEDGER_SURI`
+  (`//Alice`), `PRAMAAN_LEDGER_NAMESPACE` (`cbc-pramaan`), `PRAMAAN_LEDGER_START_BLOCK`
+  (`7934`, the first block of the production data set). A wiped read model rebuilds from
+  the chain automatically at boot; a read model from the pre-chain release is discarded.
 
 ## Railway (project CBC-PRAMAAN, environment production)
 
@@ -88,7 +102,7 @@ minute at block #7032 with the volume intact. Service variables `NODE_ROLE=solo`
 `.github/workflows/uptime.yml` (default branch `develop`) checks the live domain and the
 Railway RPC every 15 minutes and fails, with an email, when either is unreachable.
 
-## The one Vercel env var
+## Vercel `cbc-pramaan` (legacy web app) env var
 
 `CHAIN_WS_ENDPOINT` (Production) = `wss://cbc-alice-production.up.railway.app`.
 A new value only takes effect on a new deployment:
