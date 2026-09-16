@@ -69,15 +69,21 @@ Every `/api/trigger/*` route now requires a credential (apps/web/src/lib/auth.ts
 
 Rotate a credential with `vercel env rm` / `vercel env add` and a redeploy.
 
-## Node image comes from GitHub Actions
+## Node binary comes from GitHub Actions; Railway only assembles the image
 
 `.github/workflows/node-image.yml` builds the Dockerfile on every push to `pramaan-poc`
-or `develop` that touches the node and publishes
-`ghcr.io/caerulean-bytechains-private-limited/cerulea-node:<branch>` (plus a `<branch>-<sha>`
-tag and a `:buildcache` layer cache). Railway's `cbc-alice` should deploy that image
-rather than build from source; a failed build here never touches the running node.
-The service variables `STATE_PRUNING=100000` and `BLOCKS_PRUNING=archive` take effect
-with any image built from that commit onwards (docker-entrypoint.sh reads them).
+or `develop` that touches the node, pushes the image to GHCR (private: the org policy
+blocks public packages and Railway's plan cannot use registry credentials), and ALSO
+publishes the `cerulea-node` binary as a public release asset on the rolling release
+`node-<branch>` (immutable `cerulea-node-<sha>` assets alongside). `Dockerfile.release`
+downloads that asset onto debian-slim, which is what the Railway service `cbc-alice`
+now builds (source: this repo, branch `pramaan-poc`, `dockerfilePath = Dockerfile.release`,
+about 35 seconds). A failed GitHub build never touches the running node; a Railway
+build only fails if the release asset is missing.
+
+Switched on 2026-09-16 at 12:30 UTC: the node came back on the new image in under a
+minute at block #7032 with the volume intact. Service variables `NODE_ROLE=solo`,
+`STATE_PRUNING=100000`, `BLOCKS_PRUNING=archive` are read by docker-entrypoint.sh.
 
 `.github/workflows/uptime.yml` (default branch `develop`) checks the live domain and the
 Railway RPC every 15 minutes and fails, with an email, when either is unreachable.
