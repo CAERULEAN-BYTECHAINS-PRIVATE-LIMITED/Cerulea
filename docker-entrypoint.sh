@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-# NODE_ROLE must be explicitly set to: alice | bob | charlie
+# NODE_ROLE must be explicitly set to: solo | alice | bob | charlie
+#
+# STATE_PRUNING / BLOCKS_PRUNING (default: archive) bound how much history the node keeps.
+# Archive state filled a 5 GB volume in 48 days on the live solo node; blocks stay archived
+# (the explorer needs bodies and events) while state can be bounded, e.g. STATE_PRUNING=100000.
 # No default — fail loudly rather than silently start a second Alice.
 NODE_ROLE="${NODE_ROLE:?ERROR: NODE_ROLE must be set to alice, bob, or charlie}"
 
@@ -129,8 +133,8 @@ BASE_ARGS=(
     # discarding historical state defeats the point. It also stops "State already
     # discarded" errors when a reader queries a block the default pruning window has
     # already dropped -- which on a sub-second chain is only a few minutes of history.
-    --state-pruning archive
-    --blocks-pruning archive
+    --state-pruning "${STATE_PRUNING:-archive}"
+    --blocks-pruning "${BLOCKS_PRUNING:-archive}"
 )
 
 case "$NODE_ROLE" in
