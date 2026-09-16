@@ -83,13 +83,15 @@ jobs:
           set -euo pipefail
           IMG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
           docker pull "$IMG"
+          # ./cerulea-node is the crate directory in this checkout, so extract into dist/.
+          mkdir -p dist
           id=$(docker create "$IMG")
-          docker cp "$id:/usr/local/bin/cerulea-node" ./cerulea-node
+          docker cp "$id:/usr/local/bin/cerulea-node" dist/cerulea-node
           docker rm "$id"
-          chmod +x ./cerulea-node
-          ./cerulea-node --version || true
-          cp ./cerulea-node "./cerulea-node-${{ github.sha }}"
-          sha256sum ./cerulea-node > ./cerulea-node.sha256
+          chmod +x dist/cerulea-node
+          dist/cerulea-node --version || true
+          cp dist/cerulea-node "dist/cerulea-node-${{ github.sha }}"
+          (cd dist && sha256sum cerulea-node > cerulea-node.sha256)
 
       - name: Publish the binary as a release asset (tag node-<branch>)
         env:
@@ -98,7 +100,7 @@ jobs:
           set -euo pipefail
           TAG="node-${{ github.ref_name }}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "cerulea-node (${{ github.ref_name }})" --notes "Rolling release of the cerulea-node binary built from branch ${{ github.ref_name }}. The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable." --target "${{ github.sha }}"
-          gh release upload "$TAG" ./cerulea-node ./cerulea-node.sha256 "./cerulea-node-${{ github.sha }}" --clobber
+          gh release upload "$TAG" dist/cerulea-node dist/cerulea-node.sha256 "dist/cerulea-node-${{ github.sha }}" --clobber
           gh release edit "$TAG" --notes "Latest build: ${{ github.sha }} ($(date -u +%FT%TZ)). The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable."
 
       - name: Summary
