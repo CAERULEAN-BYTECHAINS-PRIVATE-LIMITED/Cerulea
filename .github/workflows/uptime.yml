@@ -1,0 +1,39 @@
+name: uptime
+
+# Every 15 minutes: the live site must report a connected, advancing chain. A failed run
+# emails the workflow owner, which is how a dead backend gets noticed within minutes
+# instead of weeks. Runs from the default branch (GitHub only schedules from there).
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: cbc-pramaan.cerulea.io chain status
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            body=$(curl -sS -m 25 https://cbc-pramaan.cerulea.io/api/chain/status || true)
+            echo "attempt $attempt: $body"
+            if echo "$body" | grep -q '"connected":true'; then
+              fin=$(echo "$body" | sed -nE 's/.*"finalizedBlock":([0-9]+).*/\1/p')
+              echo "connected, finalized block $fin"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::cbc-pramaan.cerulea.io cannot reach its chain: $body"
+          exit 1
+      - name: Railway node RPC direct
+        run: |
+          set -euo pipefail
+          r=$(curl -sS -m 25 -X POST https://cbc-alice-production.up.railway.app -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"system_health","params":[]}')
+          echo "$r"
+          echo "$r" | grep -q '"result"' || { echo "::error::Railway node RPC not answering"; exit 1; }
