@@ -1,0 +1,26 @@
+###############################################################################
+# Runtime-only image for hosted deployments (Railway).
+#
+# The node binary is built by .github/workflows/node-image.yml on GitHub's runners and
+# published as a public release asset; this image just downloads it. Building the Rust
+# workspace on Railway's builder fails silently ~40 minutes in, and the org's container
+# registry packages are private, so a public release asset is the one artefact every
+# platform can fetch without credentials.
+#
+# NODE_BINARY_URL may be overridden as a build argument to pin an immutable
+# cerulea-node-<sha> asset instead of the rolling "cerulea-node" asset.
+###############################################################################
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends     libssl3 ca-certificates curl     && rm -rf /var/lib/apt/lists/*
+
+ARG NODE_BINARY_URL=https://github.com/CAERULEAN-BYTECHAINS-PRIVATE-LIMITED/Cerulea/releases/download/node-pramaan-poc/cerulea-node
+# A changing build argument defeats a stale layer cache when the rolling asset moves.
+ARG NODE_BINARY_VERSION=latest
+RUN echo "cerulea-node build ${NODE_BINARY_VERSION}"     && curl -fsSL "${NODE_BINARY_URL}" -o /usr/local/bin/cerulea-node     && chmod +x /usr/local/bin/cerulea-node     && /usr/local/bin/cerulea-node --version
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 30333 9944 9615
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

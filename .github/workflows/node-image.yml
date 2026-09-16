@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -74,5 +74,34 @@ jobs:
           cache-from: type=registry,ref=${{ steps.img.outputs.name }}:buildcache
           cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max
 
+      # The org's GHCR packages are private and Railway cannot use private-registry
+      # credentials on its plan, so the node binary is ALSO published as a release asset of
+      # this (public) repository. Dockerfile.release downloads it, which turns Railway's
+      # 40-minute Rust build into a 30-second image assembly.
+      - name: Extract the node binary from the image
+        run: |
+          set -euo pipefail
+          IMG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker pull "$IMG"
+          id=$(docker create "$IMG")
+          docker cp "$id:/usr/local/bin/cerulea-node" ./cerulea-node
+          docker rm "$id"
+          chmod +x ./cerulea-node
+          ./cerulea-node --version || true
+          cp ./cerulea-node "./cerulea-node-${{ github.sha }}"
+          sha256sum ./cerulea-node > ./cerulea-node.sha256
+
+      - name: Publish the binary as a release asset (tag node-<branch>)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="node-${{ github.ref_name }}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "cerulea-node (${{ github.ref_name }})" --notes "Rolling release of the cerulea-node binary built from branch ${{ github.ref_name }}. The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable." --target "${{ github.sha }}"
+          gh release upload "$TAG" ./cerulea-node ./cerulea-node.sha256 "./cerulea-node-${{ github.sha }}" --clobber
+          gh release edit "$TAG" --notes "Latest build: ${{ github.sha }} ($(date -u +%FT%TZ)). The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable."
+
       - name: Summary
-        run: echo "Published ${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Published ${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release asset: https://github.com/${{ github.repository }}/releases/download/node-${{ github.ref_name }}/cerulea-node" >> "$GITHUB_STEP_SUMMARY"
