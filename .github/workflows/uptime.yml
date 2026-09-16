@@ -19,14 +19,17 @@ jobs:
       - name: cbc-pramaan.cerulea.io chain status
         run: |
           set -euo pipefail
+          # The application exposes its chain status at /api/v1/chain/status; the older
+          # path /api/chain/status is tried as a fallback so the check survives a cut-over.
           for attempt in 1 2 3; do
-            body=$(curl -sS -m 25 https://cbc-pramaan.cerulea.io/api/chain/status || true)
-            echo "attempt $attempt: $body"
-            if echo "$body" | grep -q '"connected":true'; then
-              fin=$(echo "$body" | sed -nE 's/.*"finalizedBlock":([0-9]+).*/\1/p')
-              echo "connected, finalized block $fin"
-              exit 0
-            fi
+            for path in /api/v1/chain/status /api/chain/status; do
+              body=$(curl -sS -m 25 "https://cbc-pramaan.cerulea.io$path" || true)
+              echo "attempt $attempt $path: ${body:0:200}"
+              if echo "$body" | grep -q '"connected":true'; then
+                echo "connected via $path"
+                exit 0
+              fi
+            done
             sleep 20
           done
           echo "::error::cbc-pramaan.cerulea.io cannot reach its chain: $body"
