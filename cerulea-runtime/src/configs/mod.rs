@@ -350,4 +350,18 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type ValidatorRegistry = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 
-
+// === The Cerulea schema module ===
+// The schema module holds the registered types and collections of every
+// deployment. The record store hook stays empty until the state module
+// joins the runtime.
+impl pallet_cerulea_schema::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_schema::weights::CeruleaWeight<Runtime>;
+    type Records = ();
+    type MaxTypesPerDeployment = ConstU32<512>;
+    type MaxCollectionsPerDeployment = ConstU32<512>;
+    type MaxDefinitionBytes = ConstU32<262144>;
+    type MaxMigrationBytes = ConstU32<262144>;
+    type MaxVersionsPerCollection = ConstU32<256>;
+    type MigrationStepLimit = ConstU64<1000000>;
+}

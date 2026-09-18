@@ -14,17 +14,21 @@ members = [
     "cerulea-pallets/pallet-cerulea-dcf",
     "tools",
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
+    "cerulea-pallets/pallet-cerulea-custody",
     "cerulea-blueprint",
+    "cerulea-pallets/pallet-cerulea-schema",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
 cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
+pallet-cerulea-schema = { path = "./cerulea-pallets/pallet-cerulea-schema", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
 pallet-cerulea-dvf = {path="./cerulea-pallets/pallet-cerulea-dvf", default-features = false}
+pallet-cerulea-custody = { path = "./cerulea-pallets/pallet-cerulea-custody", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.8.0", default-features = false }

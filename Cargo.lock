@@ -1409,6 +1409,7 @@ dependencies = [
  "pallet-cerulea-dvf",
  "pallet-cerulea-poi",
  "pallet-cerulea-pos",
+ "pallet-cerulea-schema",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -6391,6 +6392,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-custody"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-cerulea-dcf"
 version = "0.1.0"
 dependencies = [
@@ -6464,6 +6482,22 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-cerulea-schema"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
 ]
 
 [[package]]

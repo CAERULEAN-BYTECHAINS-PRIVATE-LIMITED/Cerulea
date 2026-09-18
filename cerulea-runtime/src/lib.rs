@@ -223,6 +223,9 @@ mod runtime {
 
     #[runtime::pallet_index(10)]
     pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
+
+    #[runtime::pallet_index(11)]
+    pub type Schema = pallet_cerulea_schema::Pallet<Runtime>;
 }
 use sp_runtime::traits::parameter_types;
 
