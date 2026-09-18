@@ -8,6 +8,11 @@
 
 pub mod ordering;
 pub mod partition;
+pub mod runner;
 
 pub use ordering::{order_domains, order_members, OrderKey};
 pub use partition::{DisjointSet, DomainPartitioner};
+pub use runner::{
+    DomainOutcome, DomainRunner, DomainStore, ExecutionReport, TransactionOutcome,
+    TransactionRunner,
+};

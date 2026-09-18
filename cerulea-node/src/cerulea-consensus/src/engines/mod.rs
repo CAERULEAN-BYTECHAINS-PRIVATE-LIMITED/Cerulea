@@ -46,7 +46,10 @@ pub mod manifest_guard;
 
 pub mod execution;
 
-pub use execution::{order_domains, order_members, DisjointSet, DomainPartitioner, OrderKey};
+pub use execution::{
+    order_domains, order_members, DisjointSet, DomainOutcome, DomainPartitioner, DomainRunner,
+    DomainStore, ExecutionReport, OrderKey, TransactionOutcome, TransactionRunner,
+};
 
 pub use manifest_guard::{
     run_under_manifest, AccessTally, ManifestGuard, MemoryStateStore, StateAccess, StoredRecord,
