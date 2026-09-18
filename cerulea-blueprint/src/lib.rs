@@ -27,6 +27,7 @@ pub mod identities;
 pub mod permissions;
 pub mod rules;
 pub mod types;
+pub mod workflows;
 
 use alloc::{
     format,
@@ -39,7 +40,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     actions::Action, collections::Collection, identities::Identities, permissions::Permissions,
-    rules::Rules, types::TypeDef,
+    rules::Rules, types::TypeDef, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -201,6 +202,8 @@ pub struct Blueprint {
     pub rules: Rules,
     /// Section six. The actions a caller runs.
     pub actions: Vec<Action>,
+    /// Section seven. The workflows driving records through states.
+    pub workflows: Vec<Workflow>,
 }
 
 impl Blueprint {
@@ -214,6 +217,7 @@ impl Blueprint {
             permissions: Permissions::default(),
             rules: Rules::default(),
             actions: Vec::new(),
+            workflows: Vec::new(),
         }
     }
 
@@ -290,6 +294,38 @@ impl Blueprint {
         for (action, location) in self.permissions.action_refs(&root.field("permissions")) {
             if !action_registry.contains(&action) {
                 report.push(action_registry.missing(&action, location));
+            }
+        }
+
+        let workflows_path = root.field("workflows");
+        report.merge(crate::workflows::validate_workflows(
+            &self.workflows,
+            &type_registry,
+            &collection_registry,
+            &self.identities,
+            &action_registry,
+            &workflows_path,
+        ));
+
+        let workflow_registry = crate::workflows::WorkflowRegistry::build(&self.workflows);
+        for (position, workflow) in self.workflows.iter().enumerate() {
+            for (action, location) in workflow.action_refs(&workflows_path.index(position)) {
+                if !action_registry.contains(&action) {
+                    report.push(action_registry.missing(&action, location));
+                }
+            }
+        }
+        for (position, action) in self.actions.iter().enumerate() {
+            for (workflow, state, location) in action.transition_refs(&actions_path.index(position))
+            {
+                match workflow_registry.get(&workflow) {
+                    Some(found) => {
+                        if !found.has_state(&state) {
+                            report.push(found.missing_state(&state, location));
+                        }
+                    }
+                    None => report.push(workflow_registry.missing(&workflow, location)),
+                }
             }
         }
 
