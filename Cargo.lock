@@ -1265,6 +1265,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cerulea-blueprint"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-crypto-hashing",
+]
+
+[[package]]
 name = "cerulea-consensus"
 version = "0.1.0"
 dependencies = [

@@ -14,11 +14,13 @@ members = [
     "cerulea-pallets/pallet-cerulea-dcf",
     "tools",
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
+    "cerulea-blueprint",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
+cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
@@ -75,6 +77,7 @@ sp-transaction-pool = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
+sp-crypto-hashing = { version = "0.1.0", default-features = false }
 serde = { version = "1.0.219", default-features=false }
 sc-chain-spec = { version = "42.0.0", default-features = false }
 hex-literal ={ version = "1.0.0", default-features = false }
