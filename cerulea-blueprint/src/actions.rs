@@ -130,6 +130,41 @@ impl Param {
     }
 }
 
+/// One typed output a reusable block produces.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub struct BlockOutput {
+    /// The name the output binds in the caller.
+    pub name: ParamName,
+    /// The type the output carries.
+    pub ty: TypeExpr,
+    /// The value the output carries.
+    pub value: Expr,
+}
+
+impl BlockOutput {
+    /// Declare an output.
+    pub fn new(name: &str, ty: TypeExpr, value: Expr) -> Self {
+        BlockOutput {
+            name: ParamName::new(name),
+            ty,
+            value,
+        }
+    }
+}
+
 /// The direction of a state access.
 #[derive(
     Clone,
@@ -362,6 +397,8 @@ impl Effect {
 pub struct BlockBody<'a> {
     /// The typed inputs the block takes.
     pub inputs: &'a [Param],
+    /// The typed outputs the block produces.
+    pub outputs: &'a [BlockOutput],
     /// The effect sequence the block runs.
     pub effects: &'a [Effect],
 }
@@ -660,6 +697,7 @@ impl Action {
         collections: &CollectionRegistry,
         identities: &Identities,
         rules: &Rules,
+        blocks: &dyn BlockSource,
         path: &Path,
     ) -> Report {
         let mut report = Report::new();
@@ -761,6 +799,7 @@ impl Action {
                 &mut effect_ctx,
                 types,
                 collections,
+                blocks,
                 &path.field("effects").index(position),
                 &mut report,
             );
@@ -772,6 +811,7 @@ impl Action {
                 &mut compensation_ctx,
                 types,
                 collections,
+                blocks,
                 &path.field("compensation").index(position),
                 &mut report,
             );
@@ -880,11 +920,13 @@ fn collect_access(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_effect(
     effect: &Effect,
     ctx: &mut TypeContext,
     types: &TypeRegistry,
     collections: &CollectionRegistry,
+    blocks: &dyn BlockSource,
     path: &Path,
     report: &mut Report,
 ) {
@@ -1035,13 +1077,72 @@ fn check_effect(
                 report.push(diagnostic);
             }
         }
-        Effect::RunBlock { arguments, .. } => {
+        Effect::RunBlock { block, arguments } => {
+            let mut supplied: BTreeMap<ParamName, TypeExpr> = BTreeMap::new();
             for (position, (name, value)) in arguments.iter().enumerate() {
                 let here = path.field("arguments").index(position);
                 report.absorb(name.validate(&here.field("name")));
-                if let Err(diagnostic) = value.check(ctx, &here.field("value")) {
-                    report.push(diagnostic);
+                match value.check(ctx, &here.field("value")) {
+                    Ok(found) => {
+                        supplied.insert(name.clone(), found);
+                    }
+                    Err(diagnostic) => report.push(diagnostic),
                 }
+            }
+            match blocks.block(block) {
+                Some(body) => {
+                    for input in body.inputs {
+                        match supplied.get(&input.name) {
+                            Some(found) => {
+                                if found != &input.ty {
+                                    report.push(Diagnostic::at(
+                                        DiagnosticCode::TypeMismatch,
+                                        path.field("arguments").location(),
+                                        format!(
+                                            "The input `{}` carries {} and the block declares {}.",
+                                            input.name,
+                                            found.describe(),
+                                            input.ty.describe()
+                                        ),
+                                        format!(
+                                            "Supply {} for `{}`.",
+                                            input.ty.describe(),
+                                            input.name
+                                        ),
+                                    ));
+                                }
+                            }
+                            None => report.push(Diagnostic::at(
+                                DiagnosticCode::MissingValue,
+                                path.field("arguments").location(),
+                                format!(
+                                    "The call to `{block}` leaves out the input `{}`.",
+                                    input.name
+                                ),
+                                format!("Supply a value for `{}`.", input.name),
+                            )),
+                        }
+                    }
+                    for (name, _) in arguments {
+                        if !body.inputs.iter().any(|input| &input.name == name) {
+                            report.push(Diagnostic::at(
+                                DiagnosticCode::DanglingReference,
+                                path.field("arguments").location(),
+                                format!("The call supplies `{name}`, which `{block}` leaves out."),
+                                format!("Remove `{name}`, or declare it on the block `{block}`."),
+                            ));
+                        }
+                    }
+                    for output in body.outputs {
+                        ctx.bind(&output.name, output.ty.clone());
+                    }
+                }
+                None => report.push(Diagnostic::at(
+                    DiagnosticCode::DanglingReference,
+                    path.field("block").location(),
+                    format!("The effect runs the block `{block}`, which the Blueprint lacks."),
+                    format!("Declare a block named `{block}` in the composition library."),
+                )),
             }
         }
         Effect::Delete { .. } | Effect::Transition { .. } => {}
@@ -1055,6 +1156,7 @@ pub fn validate_actions(
     collections: &CollectionRegistry,
     identities: &Identities,
     rules: &Rules,
+    blocks: &dyn BlockSource,
     path: &Path,
 ) -> Report {
     let mut report = Report::new();
@@ -1069,7 +1171,7 @@ pub fn validate_actions(
                 format!("Rename one of the two actions away from `{}`.", action.id),
             ));
         }
-        report.merge(action.validate(types, collections, identities, rules, &here));
+        report.merge(action.validate(types, collections, identities, rules, blocks, &here));
     }
     report
 }
@@ -1278,6 +1380,7 @@ mod tests {
             &collection_registry,
             &identities(),
             &rules(),
+            &NoBlocks,
             &Path::root().field("actions"),
         )
     }

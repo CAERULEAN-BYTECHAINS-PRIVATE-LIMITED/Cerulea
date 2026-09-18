@@ -260,6 +260,18 @@ pub fn canonicalise(blueprint: &mut Blueprint) {
         stage.roles.sort();
     }
 
+    blueprint
+        .blocks
+        .sort_by(|left, right| left.id.cmp(&right.id));
+    for block in blueprint.blocks.iter_mut() {
+        for effect in block.effects.iter_mut() {
+            canonicalise_effect(effect);
+        }
+        for output in block.outputs.iter_mut() {
+            output.value.canonicalise();
+        }
+    }
+
     if let Some(economics) = blueprint.economics.as_mut() {
         economics
             .sheets

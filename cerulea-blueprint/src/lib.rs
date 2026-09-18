@@ -22,6 +22,7 @@ extern crate alloc;
 pub mod actions;
 pub mod address;
 pub mod collections;
+pub mod compose;
 pub mod economics;
 pub mod events;
 pub mod expression;
@@ -45,8 +46,8 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    actions::Action, collections::Collection, economics::Economics, events::EventDef,
-    governance::Governance, identities::Identities, integrations::Integrations,
+    actions::Action, collections::Collection, compose::Block, economics::Economics,
+    events::EventDef, governance::Governance, identities::Identities, integrations::Integrations,
     permissions::Permissions, rules::Rules, types::TypeDef, views::View, workflows::Workflow,
 };
 
@@ -224,6 +225,9 @@ pub struct Blueprint {
     /// Section twelve. The unit of account. A deployment that records no
     /// amounts leaves this section out.
     pub economics: Option<Economics>,
+    /// The composition library. A block groups a subgraph under a name with
+    /// typed inputs and typed outputs.
+    pub blocks: Vec<Block>,
 }
 
 impl Blueprint {
@@ -243,6 +247,7 @@ impl Blueprint {
             integrations: Integrations::default(),
             governance: Governance::default(),
             economics: None,
+            blocks: Vec::new(),
         }
     }
 
@@ -300,6 +305,15 @@ impl Blueprint {
             &root.field("rules"),
         ));
 
+        let blocks_path = root.field("blocks");
+        let block_library = crate::compose::BlockLibrary::build(&self.blocks);
+        report.merge(crate::compose::validate_blocks(
+            &self.blocks,
+            &type_registry,
+            &collection_registry,
+            &blocks_path,
+        ));
+
         let actions_path = root.field("actions");
         report.merge(crate::actions::validate_actions(
             &self.actions,
@@ -307,6 +321,7 @@ impl Blueprint {
             &collection_registry,
             &self.identities,
             &self.rules,
+            &block_library,
             &actions_path,
         ));
 
