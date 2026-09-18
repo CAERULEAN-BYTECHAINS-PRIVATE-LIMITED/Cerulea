@@ -1,12 +1,34 @@
-//! Block import queue implementation
+//! Block import for the Dynamic Consensus Framework.
 //!
-//! This module provides block import validation and processing logic
-//! that works in conjunction with the DCF runtime pallet.
+//! Import accepts a block only where the header carries a Cerulea seal and that
+//! seal passes every check. The unsigned authorship path is gone. Earlier
+//! releases read the author from an unsigned digest item naming a public key,
+//! so any node built a block naming the scheduled author and the verifier
+//! accepted it. Import now reads the seal alone.
+//!
+//! # What import checks
+//!
+//! 1. **The header carries a Cerulea seal.** A header without one never
+//!    imports.
+//! 2. **The seal verifies against the author key.** The signature covers the
+//!    pre-seal header hash and the seal claim.
+//! 3. **The slot draw of the author verifies.** The draw proof covers the slot
+//!    number and the slot seed derived from the parent hash.
+//! 4. **The author is the scheduled author.** The framework pallet names the
+//!    validator scheduled for that block, and the seal author matches it.
+//! 5. **The author holds a seat.** The framework pallet lists the active
+//!    validator set, and the seal author sits in it.
+//!
+//! The committee membership check and the rank timing check live in
+//! `engines::authoring::verify`. Import reaches those two once the framework
+//! pallet publishes the slot committee and the slot seed.
 
+use crate::engines::authoring::draw::{derive_slot_seed, verify_result, DrawInput};
+use crate::engines::authoring::seal::{check_seal_signature, extract_seal, BlockSeal};
+use crate::engines::Slot;
 use crate::metrics::ConsensusMetrics;
 use crate::types::ValidatorMetrics;
 use cerulea_runtime::AccountId;
-use codec::Decode;
 use log::{debug, error, info, warn};
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use sc_client_api::Backend;
@@ -14,11 +36,26 @@ use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResul
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::Error;
-use sp_runtime::generic::DigestItem;
 use sp_runtime::traits::{Block as BlockTrait, Header as HeaderT, NumberFor, SaturatedConversion};
 use std::sync::Arc;
 
-/// Block import queue for DCF consensus
+/// What import learned about the author of one block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SealedAuthorship {
+    /// The account of the author.
+    pub author: AccountId,
+    /// The slot the block serves.
+    pub slot: Slot,
+    /// The rank the author claimed.
+    pub rank: u8,
+}
+
+/// Read the account of a seal author.
+pub fn author_account(seal: &BlockSeal) -> AccountId {
+    AccountId::from(seal.claim.author.0)
+}
+
+/// The import queue of the Dynamic Consensus Framework.
 pub struct DcfImportQueue<B, C, BE>
 where
     B: BlockTrait,
@@ -39,7 +76,7 @@ where
     C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
     BE: Backend<B>,
 {
-    /// Create a new import queue
+    /// Build an import queue over a client.
     pub fn new(client: Arc<C>) -> Self {
         Self {
             client,
@@ -49,7 +86,7 @@ where
         }
     }
 
-    /// Create a new import queue with consensus metrics
+    /// Build an import queue that reports to the metrics registry.
     pub fn new_with_metrics(client: Arc<C>, consensus_metrics: ConsensusMetrics) -> Self {
         Self {
             client,
@@ -59,47 +96,102 @@ where
         }
     }
 
-    /// Get current import queue metrics
+    /// The import counters this queue holds.
     pub fn get_metrics(&self) -> &ValidatorMetrics {
         &self.metrics
     }
 
-    /// Reset metrics (useful for testing or periodic resets)
+    /// Return the counters to zero.
     pub fn reset_metrics(&mut self) {
         self.metrics = ValidatorMetrics::default();
-        info!("DCF ImportQueue: Metrics reset");
+        info!("Commit Engine import: counters reset");
     }
 
-    /// Extract block author from block header digest
-    fn extract_block_author(&self, header: &B::Header) -> Result<AccountId, Error> {
-        // Look for the author in the digest items
-        for digest_item in header.digest().logs() {
-            match digest_item {
-                DigestItem::PreRuntime(engine_id, data) => {
-                    // For Cerulea consensus, we expect the author to be encoded in the pre-runtime digest
-                    if *engine_id == crate::CERULEA_ENGINE_ID {
-                        // Try to decode the author from the digest data
-                        if let Ok(author) = AccountId::decode(&mut &data[..]) {
-                            return Ok(author);
-                        }
-                    }
-                }
-                DigestItem::Consensus(engine_id, data) => {
-                    // Alternative: author might be in consensus digest
-                    if *engine_id == crate::CERULEA_ENGINE_ID {
-                        if let Ok(author) = AccountId::decode(&mut &data[..]) {
-                            return Ok(author);
-                        }
-                    }
-                }
-                _ => {}
-            }
+    /// Check the seal of one block header.
+    ///
+    /// The call reports one sentence naming the fix wherever a check fails.
+    pub fn verify_authorship(&self, header: &B::Header) -> Result<SealedAuthorship, String> {
+        let block_number = (*header.number()).saturated_into::<u32>();
+
+        // Check one. The header carries a Cerulea seal.
+        let seal = extract_seal(header).ok_or_else(|| {
+            format!(
+                "Block {} carries no Cerulea seal. Fix: produce the block on a node holding the \
+                 author key for that slot.",
+                block_number
+            )
+        })?;
+
+        // Check two. The seal verifies against the author key it names.
+        check_seal_signature(header, &seal).map_err(|reason| reason.to_string())?;
+
+        // Check three. The slot draw of the author verifies against the slot
+        // seed derived from the parent hash.
+        let seed = derive_slot_seed(header.parent_hash().as_ref(), seal.claim.slot);
+        let input = DrawInput::new(seal.claim.slot, seed);
+        verify_result(&input, &seal.claim.draw).map_err(|reason| reason.to_string())?;
+
+        let author = author_account(&seal);
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+
+        // Check four. The author holds a seat in the active validator set.
+        let active = api.get_active_validators(best_hash).map_err(|reason| {
+            format!(
+                "The active validator set failed to load: {:?}. Fix: check that the node runtime \
+                 matches the chain specification.",
+                reason
+            )
+        })?;
+        if active.is_empty() {
+            return Err(format!(
+                "Block {} arrived while the active validator set holds no members. Fix: admit at \
+                 least one validator through the Admission Engine.",
+                block_number
+            ));
+        }
+        if !active.contains(&author) {
+            return Err(format!(
+                "Block {} names an author outside the active validator set. Fix: admit the \
+                 validator through the Admission Engine before it authors.",
+                block_number
+            ));
         }
 
-        // If we can't extract the author from digest, this is an error
-        Err(sp_consensus::Error::ClientImport(
-            "Failed to extract block author from header digest".to_string(),
-        ))
+        // Check five. The author is the validator scheduled for that block.
+        let scheduled = api
+            .get_expected_author(best_hash, block_number)
+            .map_err(|reason| {
+                format!(
+                    "The scheduled author failed to load: {:?}. Fix: check that the node runtime \
+                     matches the chain specification.",
+                    reason
+                )
+            })?;
+        if scheduled.as_ref() != Some(&author) {
+            if let Some(metrics) = &self.consensus_metrics {
+                metrics.record_author_mismatch();
+            }
+            if let Err(reason) =
+                api.report_author_mismatch(best_hash, block_number, scheduled.clone(), author)
+            {
+                warn!(
+                    "Commit Engine import: the mismatch report failed: {:?}",
+                    reason
+                );
+            }
+            return Err(format!(
+                "Block {} names an author other than the scheduled one. Fix: let the scheduled \
+                 validator author that slot.",
+                block_number
+            ));
+        }
+
+        Ok(SealedAuthorship {
+            author,
+            slot: seal.claim.slot,
+            rank: seal.claim.rank.0,
+        })
     }
 }
 
@@ -118,26 +210,24 @@ where
         block: BlockCheckParams<B>,
     ) -> std::result::Result<ImportResult, Self::Error> {
         let block_number = block.number.saturated_into::<u32>();
+        debug!("Commit Engine import: checking block #{}", block_number);
 
-        debug!("DCF ImportQueue: Checking block #{}", block_number);
-
-        // Basic validation - check if we have active validators
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-
-        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
-            sp_consensus::Error::ClientImport(format!("Failed to get active validators: {:?}", e))
+        let active = api.get_active_validators(best_hash).map_err(|reason| {
+            sp_consensus::Error::ClientImport(format!(
+                "The active validator set failed to load: {:?}. Fix: check that the node runtime \
+                 matches the chain specification.",
+                reason
+            ))
         })?;
-
-        if active_validators.is_empty() {
+        if active.is_empty() {
             error!(
-                "DCF ImportQueue: Block check failed for block #{}: No active validators",
+                "Commit Engine import: block #{} arrived with no active validators",
                 block_number
             );
             return Ok(ImportResult::imported(false));
         }
-
-        info!("DCF ImportQueue: Block #{} check passed", block_number);
         Ok(ImportResult::imported(true))
     }
 
@@ -147,227 +237,29 @@ where
     ) -> std::result::Result<ImportResult, Self::Error> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
         let block_hash = block.header.hash();
-        debug!(
-            "DCF ImportQueue: Importing block #{} ({:?})",
-            block_number, block_hash
-        );
 
-        // Extract block author from header digest
-        let author = match self.extract_block_author(&block.header) {
-            Ok(author) => author,
-            Err(e) => {
-                error!(
-                    "DCF ImportQueue: Failed to extract block author for block #{}: {:?}",
-                    block_number, e
-                );
-                return Err(e);
-            }
-        };
-
-        // Validate that we have active validators
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-
-        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
-            sp_consensus::Error::ClientImport(format!("Failed to get active validators: {:?}", e))
-        })?;
-
-        if active_validators.is_empty() {
+        let authorship = self.verify_authorship(&block.header).map_err(|reason| {
             error!(
-                "DCF ImportQueue: Block import failed for block #{}: No active validators",
-                block_number
+                "Commit Engine import: block #{} rejected. {}",
+                block_number, reason
             );
-            return Ok(ImportResult::imported(false));
-        }
-
-        // Validate block author using runtime API
-        let expected_author = api
-            .get_expected_author(best_hash, block_number)
-            .map_err(|e| {
-                sp_consensus::Error::ClientImport(format!("Failed to get expected author: {:?}", e))
-            })?;
-
-        if Some(author.clone()) != expected_author {
-            // Task 8 requirement: Record author mismatch metric
-            if let Some(ref metrics) = self.consensus_metrics {
-                metrics.record_author_mismatch();
-            }
-
-            // Report author mismatch via runtime API for event emission
-            if let Err(e) = api.report_author_mismatch(
-                best_hash,
-                block_number,
-                expected_author.clone(),
-                author.clone(),
-            ) {
-                warn!("DCF ImportQueue: Failed to report author mismatch: {:?}", e);
-            }
-
-            // Reject the block with author mismatch error
-            let error_msg = format!(
-                "Block author mismatch: expected {:?}, got {:?} for block {}",
-                expected_author, author, block_number
-            );
-            error!("DCF ImportQueue: {}", error_msg);
-
-            return Err(sp_consensus::Error::ClientImport(error_msg));
-        }
-
-        // Check if this block should be finalized according to DCF
-        let last_finalized = api.get_last_finalized_block(best_hash).map_err(|e| {
-            sp_consensus::Error::ClientImport(format!(
-                "Failed to get last finalized block: {:?}",
-                e
-            ))
+            sp_consensus::Error::ClientImport(reason)
         })?;
 
-        // Mark block as finalized if DCF has finalized it
-        block.finalized = block_number <= last_finalized;
-
-        if block.finalized {
-            debug!(
-                "DCF ImportQueue: Block #{} marked as finalized (DCF finalized up to #{})",
-                block_number, last_finalized
-            );
-        }
-
-        // Set proper import parameters
-        block.origin = sp_consensus::BlockOrigin::Own;
         block.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
 
-        // For now, just return imported - the actual import will be handled by the client
-        // This is a simplified implementation that validates the block and accepts it
-        let import_result = ImportResult::imported(true);
-
-        match &import_result {
-            ImportResult::Imported(_) => {
-                info!(
-                    "DCF ImportQueue: Successfully imported block #{}",
-                    block_number
-                );
-            }
-            ImportResult::AlreadyInChain => {
-                debug!("DCF ImportQueue: Block #{} already in chain", block_number);
-            }
-            ImportResult::KnownBad => {
-                warn!("DCF ImportQueue: Block #{} is known bad", block_number);
-            }
-            ImportResult::UnknownParent => {
-                warn!(
-                    "DCF ImportQueue: Block #{} has unknown parent",
-                    block_number
-                );
-            }
-            ImportResult::MissingState => {
-                warn!("DCF ImportQueue: Block #{} is missing state", block_number);
-            }
-        }
-
-        // Update consensus metrics if available
-        if let Some(ref _metrics) = self.consensus_metrics {
-            // Update metrics manually since we can't use the generic update_from_runtime here
-            // due to trait bound constraints. We'll update the metrics in the service layer instead.
-            debug!(
-                "DCF ImportQueue: Consensus metrics available but update deferred to service layer"
-            );
-        }
-
-        // Log periodic statistics
-        if block_number % 10u32 == 0 {
-            let current_epoch = api.get_current_epoch(best_hash).unwrap_or(0);
-            info!(
-                "DCF ImportQueue: Block #{} processed - {} active validators, epoch {}",
-                block_number,
-                active_validators.len(),
-                current_epoch
-            );
-        }
-
         info!(
-            "DCF ImportQueue: Block #{} ({:?}) validated and accepted",
-            block_number, block_hash
+            "Commit Engine import: block #{} ({:?}) sealed by {:?} at slot {} rank {}",
+            block_number, block_hash, authorship.author, authorship.slot.0, authorship.rank
         );
 
-        // Return imported with default aux data
-        let aux = sc_consensus::ImportedAux {
+        Ok(ImportResult::Imported(sc_consensus::ImportedAux {
             header_only: false,
             clear_justification_requests: false,
             needs_justification: false,
             bad_justification: false,
             is_new_best: true,
-        };
-
-        Ok(ImportResult::Imported(aux))
-    }
-}
-
-impl<B, C, BE> DcfImportQueue<B, C, BE>
-where
-    B: BlockTrait,
-    C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
-    BE: Backend<B>,
-{
-    /// Handle justifications for finality (stub implementation as requested)
-    pub fn import_justifications(
-        &self,
-        _who: String, // Simplified origin type
-        hash: B::Hash,
-        number: sp_runtime::traits::NumberFor<B>,
-        _justifications: Vec<u8>, // Simplified justifications type
-    ) -> Result<(), Error> {
-        let block_number = number.saturated_into::<u32>();
-
-        debug!(
-            "DCF ImportQueue: Received justifications for block #{} ({:?})",
-            block_number, hash
-        );
-
-        // Get the current finalized block from the DCF pallet
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-
-        match api.get_last_finalized_block(best_hash) {
-            Ok(last_finalized) => {
-                // Check if this justification is for a block that should be finalized
-                if block_number >= last_finalized {
-                    info!("DCF ImportQueue: Justification received for block #{} (last finalized: {})", 
-                          block_number, last_finalized);
-
-                    // Check if the block is already considered finalized by the DCF pallet
-                    match api.is_block_finalized(best_hash, block_number) {
-                        Ok(is_finalized) => {
-                            if is_finalized {
-                                info!("DCF ImportQueue: Block #{} is already finalized according to DCF pallet", 
-                                      block_number);
-                            } else {
-                                info!("DCF ImportQueue: Block #{} justification received but not yet finalized by DCF pallet", 
-                                      block_number);
-
-                                // Here we could potentially update the finalized block
-                                // but for now we just log it for testing purpose
-                            }
-                        }
-                        Err(e) => {
-                            error!("DCF ImportQueue: Failed to check finalization status for block #{}: {:?}", 
-                                   block_number, e);
-                        }
-                    }
-                } else {
-                    debug!("DCF ImportQueue: Justification for block #{} is older than last finalized block {}", 
-                           block_number, last_finalized);
-                }
-            }
-            Err(e) => {
-                error!(
-                    "DCF ImportQueue: Failed to get last finalized block: {:?}",
-                    e
-                );
-            }
-        }
-
-        // Return Ok() as requested - no actual justification processing
-        Ok(())
+        }))
     }
 }
 
@@ -379,57 +271,117 @@ where
     C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
     BE: Backend<B>,
 {
-    async fn verify(&self, block: BlockImportParams<B>) -> Result<BlockImportParams<B>, String> {
+    async fn verify(
+        &self,
+        mut block: BlockImportParams<B>,
+    ) -> Result<BlockImportParams<B>, String> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
-
-        debug!("DCF Verifier: Verifying block #{}", block_number);
-
-        // Perform the same validation as in check_block
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-
-        let active_validators = api
-            .get_active_validators(best_hash)
-            .map_err(|e| format!("Failed to get active validators: {:?}", e))?;
-
-        if active_validators.is_empty() {
-            return Err(format!(
-                "Block verification failed for block #{}: No active validators",
-                block_number
-            ));
-        }
-
-        // Extract and validate block author
-        let author = self
-            .extract_block_author(&block.header)
-            .map_err(|e| format!("Failed to extract block author: {:?}", e))?;
-
-        // Validate block author using runtime API
-        let expected_author = api
-            .get_expected_author(best_hash, block_number)
-            .map_err(|e| format!("Failed to get expected author: {:?}", e))?;
-
-        if Some(author.clone()) != expected_author {
-            // Record author mismatch metric
-            if let Some(ref metrics) = self.consensus_metrics {
-                metrics.record_author_mismatch();
-            }
-
-            return Err(format!(
-                "Block author mismatch: expected {:?}, got {:?} for block {}",
-                expected_author, author, block_number
-            ));
-        }
-
-        info!("DCF Verifier: Block #{} verification passed", block_number);
-
-        // Ensure fork choice is set before passing to inner import
-        let mut block = block;
+        let authorship = self.verify_authorship(&block.header)?;
+        debug!(
+            "Commit Engine import: block #{} passed the seal checks at slot {} rank {}",
+            block_number, authorship.slot.0, authorship.rank
+        );
         if block.fork_choice.is_none() {
             block.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
         }
-
-        // Return the verified block
         Ok(block)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engines::authoring::draw::draw;
+    use crate::engines::authoring::seal::{seal_and_apply, SealClaim};
+    use crate::engines::Rank;
+    use crate::CERULEA_KEY_TYPE;
+    use sp_core::{ed25519, sr25519, Pair as PairTrait};
+    use sp_keystore::testing::MemoryKeystore;
+    use sp_keystore::{Keystore, KeystorePtr};
+    use sp_runtime::generic::{Digest, DigestItem, Header};
+    use sp_runtime::traits::BlakeTwo256;
+    use std::sync::Arc;
+
+    type TestHeader = Header<u32, BlakeTwo256>;
+
+    fn header(number: u32) -> TestHeader {
+        TestHeader::new(
+            number,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Digest::default(),
+        )
+    }
+
+    fn keystore() -> KeystorePtr {
+        Arc::new(MemoryKeystore::new())
+    }
+
+    #[test]
+    fn a_header_without_a_seal_carries_no_author() {
+        let head = header(4);
+        assert!(extract_seal(&head).is_none());
+    }
+
+    #[test]
+    fn an_unsigned_author_digest_carries_no_authorship() {
+        // Earlier releases named the author in an unsigned digest item. Import
+        // reads the seal alone, so an unsigned item names nobody.
+        let mut head = header(4);
+        let author = AccountId::from([9u8; 32]);
+        head.digest_mut().push(DigestItem::PreRuntime(
+            crate::CERULEA_ENGINE_ID,
+            codec::Encode::encode(&author),
+        ));
+        head.digest_mut().push(DigestItem::Consensus(
+            crate::CERULEA_ENGINE_ID,
+            codec::Encode::encode(&author),
+        ));
+        assert!(extract_seal(&head).is_none());
+    }
+
+    #[test]
+    fn a_sealed_header_reads_back_its_author_account() {
+        let keystore = keystore();
+        let seal_key = keystore
+            .ed25519_generate_new(CERULEA_KEY_TYPE, Some("//Cerulea//author"))
+            .expect("the keystore generates a key");
+        let draw_pair = sr25519::Pair::from_seed(&[5u8; 32]);
+        let mut head = header(4);
+        let seed = derive_slot_seed(head.parent_hash().as_ref(), Slot(4));
+        let input = DrawInput::new(Slot(4), seed);
+        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input));
+        let seal = seal_and_apply(&keystore, &mut head, claim).expect("the keystore seals it");
+        assert_eq!(author_account(&seal), AccountId::from(seal_key.0));
+        check_seal_signature(&head, &seal).expect("the seal checks out");
+        verify_result(&input, &seal.claim.draw).expect("the draw checks out");
+    }
+
+    #[test]
+    fn a_seal_from_another_key_fails_the_signature_check() {
+        let keystore = keystore();
+        let seal_key = keystore
+            .ed25519_generate_new(CERULEA_KEY_TYPE, Some("//Cerulea//author"))
+            .expect("the keystore generates a key");
+        let draw_pair = sr25519::Pair::from_seed(&[5u8; 32]);
+        let mut head = header(4);
+        let seed = derive_slot_seed(head.parent_hash().as_ref(), Slot(4));
+        let input = DrawInput::new(Slot(4), seed);
+        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input));
+        let seal = seal_and_apply(&keystore, &mut head, claim).expect("the keystore seals it");
+        let mut forged = seal.clone();
+        forged.claim.author = ed25519::Pair::from_seed(&[1u8; 32]).public();
+        assert!(check_seal_signature(&head, &forged).is_err());
+    }
+
+    #[test]
+    fn the_slot_seed_follows_the_parent_hash_and_the_slot() {
+        let one = derive_slot_seed(&[1u8; 32], Slot(4));
+        let two = derive_slot_seed(&[2u8; 32], Slot(4));
+        let three = derive_slot_seed(&[1u8; 32], Slot(5));
+        assert_ne!(one, two);
+        assert_ne!(one, three);
+        assert_eq!(one, derive_slot_seed(&[1u8; 32], Slot(4)));
     }
 }

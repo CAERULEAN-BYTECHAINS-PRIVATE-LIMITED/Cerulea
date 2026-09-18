@@ -38,6 +38,22 @@ pub const SLOT_DOMAIN: &[u8] = b"slot";
 /// The domain of the slot seed inside the transcript.
 pub const SEED_DOMAIN: &[u8] = b"seed";
 
+/// The separator mixed into every derived slot seed.
+pub const SEED_DERIVATION_DOMAIN: &[u8] = b"cerulea.authoring.seed.v1";
+
+/// Derive the seed of one slot from the parent block hash.
+///
+/// Every node holds the parent hash and the slot number, so every node derives
+/// the same seed without coordination. A new parent gives a new seed, so the
+/// committee of the next slot stays unpredictable.
+pub fn derive_slot_seed(parent_hash: &[u8], slot: Slot) -> SlotSeed {
+    let mut preimage = Vec::with_capacity(SEED_DERIVATION_DOMAIN.len() + parent_hash.len() + 8);
+    preimage.extend_from_slice(SEED_DERIVATION_DOMAIN);
+    preimage.extend_from_slice(parent_hash);
+    preimage.extend_from_slice(&slot.0.to_be_bytes());
+    SlotSeed(sp_core::hashing::blake2_256(&preimage))
+}
+
 /// The input of one slot draw.
 ///
 /// Every node builds the same input for one slot from chain state.

@@ -48,8 +48,8 @@ pub mod authoring;
 pub mod execution;
 
 pub use authoring::{
-    draw, draw_from_keystore, draw_value, verify_draw, verify_result, weighted_draw, CommitteeDraw,
-    DrawInput, DrawProof, DrawResult, SlotCommittee,
+    derive_slot_seed, draw, draw_from_keystore, draw_value, verify_draw, verify_result,
+    weighted_draw, CommitteeDraw, DrawInput, DrawProof, DrawResult, SlotCommittee,
 };
 
 pub use execution::{
