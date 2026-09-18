@@ -1,4 +1,4 @@
-//! Mock runtime for CBC consensus tests
+//! Mock runtime for Cerulea consensus tests
 
 use super::*;
 use crate::{ConsensusResult, ConsensusError, RealBlockImport, ConsensusParams};
@@ -20,7 +20,7 @@ use std::future::Future;
 use futures::StreamExt;
 
 
-// CBC consensus authority types
+// Cerulea consensus authority types
 pub type AuthorityId = u64;
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -95,7 +95,7 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
-// CBC PoS pallet configuration
+// Cerulea PoS pallet configuration
 parameter_types! {
     pub const PosMaxValidators: u32 = 100;
     pub const PosMinStake: u128 = 1000;
@@ -113,7 +113,7 @@ impl pallet_cerulea_pos::Config for Test {
     type MaxSlashingCount = ConstU32<10>;
 }
 
-// CBC PoI pallet configuration
+// Cerulea PoI pallet configuration
 impl pallet_cerulea_poi::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
@@ -338,7 +338,7 @@ pub fn create_test_consensus_params() -> ConsensusParams {
     }
 }
 
-// Mock interfaces for CBC pallets
+// Mock interfaces for Cerulea pallets
 pub struct MockPosInterface;
 impl pallet_cerulea_poi::PosInterface<u64> for MockPosInterface {
     fn boost_score(_validator: &u64, _weight: u32) -> frame_support::dispatch::DispatchResult {
@@ -388,7 +388,7 @@ pub fn new_test_ext_with_validators(validators: Vec<u64>) -> sp_io::TestExternal
     let mut ext = new_test_ext();
     
     ext.execute_with(|| {
-        // Initialize CBC consensus with validators
+        // Initialize Cerulea consensus with validators
         let bounded_validators = frame_support::BoundedVec::try_from(validators.clone())
             .expect("Too many validators for test");
         pallet_cerulea_dcf::ValidatorSet::<Test>::put(bounded_validators.clone());
@@ -398,7 +398,7 @@ pub fn new_test_ext_with_validators(validators: Vec<u64>) -> sp_io::TestExternal
     ext
 }
 
-// Helper to create test authorities (CBC consensus uses validator IDs)
+// Helper to create test authorities (Cerulea consensus uses validator IDs)
 pub fn create_test_authorities(count: u32) -> Vec<u64> {
     (1..=count as u64).collect()
 }

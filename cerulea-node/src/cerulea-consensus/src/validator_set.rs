@@ -1,6 +1,6 @@
 //! Validator Set Management
 //! 
-//! This module provides functionality for managing validator sets in the CBC consensus system.
+//! This module provides functionality for managing validator sets in the Cerulea consensus system.
 //! It interfaces with the DCF pallet to handle validator registration, activation, and scoring.
 
 use sp_std::vec::Vec;
@@ -10,7 +10,7 @@ use codec::{Encode, Decode};
 use crate::error::{ConsensusResult, ConsensusError as CeruleaConsensusError};
 use pallet_cerulea_dcf::DcfApi;
 
-/// Validator set manager for CBC consensus
+/// Validator set manager for Cerulea consensus
 pub struct ValidatorSetManager<Block: BlockT, Client> {
     client: Client,
     _phantom: sp_std::marker::PhantomData<Block>,

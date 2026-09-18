@@ -31,26 +31,26 @@ fn end_to_end_validator_complete_lifecycle() {
         assert_eq!(Balances::free_balance(&validator), initial_balance - stake_amount);
         
         // Phase 2: Register in PoS system
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_eq!(PalletCbcPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
         
         // Phase 3: Participate in PoS scoring
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             validator,
             85
         ));
-        assert_eq!(PalletCbcPos::validator_scores(&validator), Some(85));
+        assert_eq!(PalletCeruleaPos::validator_scores(&validator), Some(85));
         
         // Phase 4: Participate in PoI system
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             90
         ));
-        let (result, epoch) = PalletCbcPoi::inference_results(&validator).unwrap();
+        let (result, epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
         assert_eq!(result, 42);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
@@ -137,41 +137,41 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         ));
         
         // Both register in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(challenger)
         ));
         
         // Submit PoS scores
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             validator,
             75
         ));
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             challenger,
             85
         ));
         
         // Validator submits inference
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             80
         ));
         
         // Challenger challenges the inference
-        assert_ok!(PalletCbcPoi::challenge_inference(
+        assert_ok!(PalletCeruleaPoi::challenge_inference(
             RuntimeOrigin::signed(challenger),
             validator,
             42
         ));
         
         // Verify challenge was recorded
-        let (challenged_validator, result, epoch) = PalletCbcPoi::challenges(&challenger).unwrap();
+        let (challenged_validator, result, epoch) = PalletCeruleaPoi::challenges(&challenger).unwrap();
         assert_eq!(challenged_validator, validator);
         assert_eq!(result, 42);
         assert_eq!(epoch, DcfPallet::current_epoch());
@@ -180,8 +180,8 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         let initial_stake = DcfPallet::validator_stake(&validator);
         
         // PoS slashing for poor performance
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
-        assert_eq!(PalletCbcPos::slashing_count(&validator), Some(1));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // DCF slashing for misbehavior
         let slash_amount = 1000u128;
@@ -195,23 +195,23 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         assert_eq!(initial_stake - post_slash_stake, slash_amount);
         
         // Multiple slashes in PoS lead to removal
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
         
         // Validator should be removed from PoS after 3 slashes
-        assert_eq!(PalletCbcPos::validators(&validator), None);
+        assert_eq!(PalletCeruleaPos::validators(&validator), None);
         
         // But still active in DCF (different slashing rules)
         assert!(DcfPallet::is_validator_active(&validator));
         
         // Challenger benefits from successful challenge
-        assert_ok!(PalletCbcPos::boost_score(
+        assert_ok!(PalletCeruleaPos::boost_score(
             RuntimeOrigin::signed(1),
             challenger,
             10
         ));
         
-        let challenger_score = PalletCbcPos::validator_scores(&challenger).unwrap_or(0);
+        let challenger_score = PalletCeruleaPos::validator_scores(&challenger).unwrap_or(0);
         assert!(challenger_score > 85);
     });
 }
@@ -234,7 +234,7 @@ fn end_to_end_multi_validator_competition() {
             ));
             
             // Register in PoS
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
         }
@@ -244,7 +244,7 @@ fn end_to_end_multi_validator_competition() {
             // Submit different PoS scores
             for (i, validator) in validators.iter().enumerate() {
                 let score = 70 + (i as u32 * 5) + (round * 2);
-                assert_ok!(PalletCbcPos::submit_score(
+                assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     *validator,
                     score
@@ -255,7 +255,7 @@ fn end_to_end_multi_validator_competition() {
             for (i, validator) in validators.iter().enumerate() {
                 let result = 40 + (i as u32 * 2) + round;
                 let confidence = 80 + (i as u32 * 2);
-                assert_ok!(PalletCbcPoi::submit_inference(
+                assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(*validator),
                     result,
                     confidence
@@ -266,7 +266,7 @@ fn end_to_end_multi_validator_competition() {
             if round > 1 {
                 // Validator 0 challenges validator 1
                 let target_result = 40 + (1 * 2) + round;
-                assert_ok!(PalletCbcPoi::challenge_inference(
+                assert_ok!(PalletCeruleaPoi::challenge_inference(
                     RuntimeOrigin::signed(validators[0]),
                     validators[1],
                     target_result
@@ -483,7 +483,7 @@ fn end_to_end_high_frequency_operations() {
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
             
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -495,7 +495,7 @@ fn end_to_end_high_frequency_operations() {
                 
                 // PoS score updates
                 let score = 60 + ((i + round) % 40) as u32;
-                assert_ok!(PalletCbcPos::submit_score(
+                assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
                     score
@@ -504,7 +504,7 @@ fn end_to_end_high_frequency_operations() {
                 // PoI inference submissions
                 let result = (i * round) % 100;
                 let confidence = 75 + ((i + round) % 20) as u32;
-                assert_ok!(PalletCbcPoi::submit_inference(
+                assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(validator),
                     result as u32,
                     confidence
@@ -538,8 +538,8 @@ fn end_to_end_high_frequency_operations() {
         for i in 1..=num_validators {
             let validator = 400 + i;
             assert!(DcfPallet::is_validator_active(&validator));
-            assert_eq!(PalletCbcPos::validators(&validator), Some(true));
-            assert!(PalletCbcPoi::inference_results(&validator).is_some());
+            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+            assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
         }
         
         // Verify system metrics are reasonable
@@ -565,7 +565,7 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("CriticalValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
         }
@@ -577,19 +577,19 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("BackupValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
         }
         
         // Establish normal operations
         for validator in critical_validators.iter().chain(backup_validators.iter()) {
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 *validator,
                 85
             ));
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 42,
                 90
@@ -600,7 +600,7 @@ fn end_to_end_system_recovery_workflow() {
         for validator in &critical_validators {
             // Severe slashing leading to removal
             for _ in 0..3 {
-                assert_ok!(PalletCbcPos::slash_validator(validator, 100));
+                assert_ok!(PalletCeruleaPos::slash_validator(validator, 100));
             }
             
             // DCF slashing
@@ -613,7 +613,7 @@ fn end_to_end_system_recovery_workflow() {
         
         // Verify critical validators are removed from PoS
         for validator in &critical_validators {
-            assert_eq!(PalletCbcPos::validators(validator), None);
+            assert_eq!(PalletCeruleaPos::validators(validator), None);
         }
         
         // System should still maintain minimum validators
@@ -624,7 +624,7 @@ fn end_to_end_system_recovery_workflow() {
         // Backup validators should still be active
         for validator in &backup_validators {
             assert!(DcfPallet::is_validator_active(validator));
-            assert_eq!(PalletCbcPos::validators(validator), Some(true));
+            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         }
         
         // Add new validators to replace failed ones
@@ -635,7 +635,7 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("ReplacementValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
         }
@@ -646,12 +646,12 @@ fn end_to_end_system_recovery_workflow() {
         
         // System should function normally after recovery
         for validator in &replacement_validators {
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 *validator,
                 80
             ));
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 45,
                 85

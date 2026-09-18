@@ -76,8 +76,8 @@ where
         for digest_item in header.digest().logs() {
             match digest_item {
                 DigestItem::PreRuntime(engine_id, data) => {
-                    // For CBC consensus, we expect the author to be encoded in the pre-runtime digest
-                    if *engine_id == crate::CBC_ENGINE_ID {
+                    // For Cerulea consensus, we expect the author to be encoded in the pre-runtime digest
+                    if *engine_id == crate::CERULEA_ENGINE_ID {
                         // Try to decode the author from the digest data
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Ok(author);
@@ -86,7 +86,7 @@ where
                 }
                 DigestItem::Consensus(engine_id, data) => {
                     // Alternative: author might be in consensus digest
-                    if *engine_id == crate::CBC_ENGINE_ID {
+                    if *engine_id == crate::CERULEA_ENGINE_ID {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Ok(author);
                         }

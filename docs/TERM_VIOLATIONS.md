@@ -1,0 +1,2654 @@
+# Term violations at the start of the rebuild
+
+Recorded 19 September 2026 by scripts/term-check.sh before any fix.
+Recording precedes fixing. Every entry below is closed by a task in the
+register. The renames in P0-015 to P0-018 close the identifier entries.
+P1-047 rewrites the consensus document. P12-010 runs the final check.
+
+Total violations: 2517
+
+## By term
+
+| Term | Count |
+|---|---|
+| dvf | 1078 |
+| configuration | 836 |
+| cli | 221 |
+| configured | 89 |
+| poi | 67 |
+| configurable | 59 |
+| configure | 47 |
+| proof-of-inference | 37 |
+| proof | 28 |
+| poi | 21 |
+| grandpa | 10 |
+| pos | 9 |
+| configuring | 4 |
+| cbc | 4 |
+| sdk | 3 |
+| proof | 2 |
+| cbc-chain | 2 |
+
+## By file
+
+| File | Count |
+|---|---|
+| ./docs/term-check-raw.txt | 1233 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs | 231 |
+| ./cerulea-node/src/service.rs | 75 |
+| ./cerulea-node/src/command.rs | 67 |
+| ./cerulea-node/tests/dvf_multi_node_test.rs | 65 |
+| ./docs/AUDIT_CHAIN.md | 62 |
+| ./docs/CONSENSUS_BUGS.md | 60 |
+| ./docs/CONSENSUS_BUG_SOLUTIONS.md | 58 |
+| ./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs | 54 |
+| ./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs | 50 |
+| ./cerulea-node/src/main.rs | 29 |
+| ./cerulea-runtime/README.md | 25 |
+| ./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs | 25 |
+| ./docs/CONSENSUS_ARCHITECTURE.md | 23 |
+| ./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs | 22 |
+| ./cerulea-node/README.md | 20 |
+| ./cerulea-node/src/cerulea-consensus/src/vote_creator.rs | 19 |
+| ./README.md | 19 |
+| ./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs | 18 |
+| ./cerulea-node/src/cerulea-consensus/src/justification_builder.rs | 17 |
+| ./cerulea-runtime/src/genesis_config_presets.rs | 15 |
+| ./cerulea-node/src/cerulea-consensus/README.md | 14 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs | 13 |
+| ./cerulea-runtime/src/configs/mod.rs | 12 |
+| ./cerulea-runtime/src/mock.rs | 11 |
+| ./cerulea-pallets/pallet-cerulea-poi/src/lib.rs | 11 |
+| ./docs/tools/simulate-scores.md | 10 |
+| ./cerulea-node/tests/dev_mode_integration_test.rs | 10 |
+| ./cerulea-node/tests/common/test_runtime.rs | 10 |
+| ./cerulea-node/tests/common/config.rs | 10 |
+| ./cerulea-node/src/cerulea-consensus/src/lib.rs | 10 |
+| ./cerulea-runtime/src/lib.rs | 9 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs | 8 |
+| ./cerulea-node/src/rpc.rs | 8 |
+| ./docs/TESTING_GUIDE.md | 7 |
+| ./cerulea-runtime/src/runtime_integration_tests.rs | 6 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs | 6 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs | 6 |
+| ./cerulea-pallets/pallet-cerulea-dcf/README.md | 6 |
+| ./cerulea-node/tests/common/mock_client.rs | 6 |
+| ./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs | 6 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs | 5 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs | 5 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs | 5 |
+| ./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md | 5 |
+| ./cerulea-node/src/cerulea-consensus/src/mock.rs | 5 |
+| ./cerulea-node/src/cerulea-consensus/src/metrics.rs | 5 |
+| ./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs | 5 |
+| ./docs/tools/score-checker.md | 4 |
+| ./cerulea-pallets/pallet-cerulea-pos/README.md | 4 |
+| ./cerulea-pallets/pallet-cerulea-poi/src/mock.rs | 4 |
+| ./cerulea-pallets/pallet-cerulea-poi/README.md | 4 |
+| ./cerulea-pallets/pallet-cerulea-dvf/src/mock.rs | 4 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/weights.rs | 4 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/trust_score_stability_tests.rs | 4 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/economic_bounds.rs | 4 |
+| ./cerulea-node/tests/rpc_api_tests.rs | 4 |
+| ./cerulea-node/tests/deterministic_authoring_test.rs | 4 |
+| ./cerulea-node/src/logging.rs | 4 |
+| ./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer.rs | 4 |
+| ./cerulea-node/src/cerulea-consensus/src/finality.rs | 4 |
+| ./tools/simulate_scores.rs | 3 |
+| ./tools/fork-checker.rs | 3 |
+| ./docs/AUDIT_STUDIO.md | 3 |
+| ./cerulea-node/src/cerulea-consensus/src/tests/epoch_manager_test.rs | 3 |
+| ./cerulea-node/src/cerulea-consensus/src/dcf.rs | 3 |
+| ./monitoring/README.md | 2 |
+| ./guardrails/writing-rules.md | 2 |
+| ./docs/cbc-types.json | 2 |
+| ./cerulea-runtime/src/benchmarks.rs | 2 |
+| ./cerulea-runtime/src/apis.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-poi/src/tests.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/system_integration_tests.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/performance_tests.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/finality_tests.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/ci_readiness_tests.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/private_chain.rs | 2 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/evm_compatibility.rs | 2 |
+| ./cerulea-node/tests/multi_node_integration_test.rs | 2 |
+| ./cerulea-node/tests/common/logging.rs | 2 |
+| ./cerulea-node/tests/common/error_handling.rs | 2 |
+| ./cerulea-node/src/cli.rs | 2 |
+| ./cerulea-node/src/cerulea-consensus/src/types.rs | 2 |
+| ./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/error.rs | 2 |
+| ./tools/score-checker.rs | 1 |
+| ./docs/DOCKER_SETUP.md | 1 |
+| ./cerulea-pallets/pallet-cerulea-pos/src/mock.rs | 1 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_integration_tests.rs | 1 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/production_readiness_tests.rs | 1 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/mod.rs | 1 |
+| ./cerulea-pallets/pallet-cerulea-dcf/src/tests/dos_protection_tests.rs | 1 |
+| ./cerulea-node/tests/log_file_management_test.rs | 1 |
+| ./cerulea-node/tests/common/mod.rs | 1 |
+| ./cerulea-node/tests/common/generators.rs | 1 |
+| ./cerulea-node/tests/README.md | 1 |
+| ./cerulea-node/src/lib.rs | 1 |
+| ./cerulea-node/src/block_tracker.rs | 1 |
+
+## Full listing
+
+```
+./cerulea-node/README.md:3  term: proof of inference
+./cerulea-node/README.md:57  term: configuration
+./cerulea-node/README.md:59  term: configuration
+./cerulea-node/README.md:323  term: configuration
+./cerulea-node/README.md:329  term: configuration
+./cerulea-node/README.md:331  term: configuration
+./cerulea-node/README.md:335  term: configuration
+./cerulea-node/README.md:337  term: configuration
+./cerulea-node/README.md:343  term: configuration
+./cerulea-node/README.md:346  term: configuration
+./cerulea-node/README.md:350  term: configuration
+./cerulea-node/README.md:359  term: configuration
+./cerulea-node/README.md:76  term: configure
+./cerulea-node/README.md:369  term: configured
+./cerulea-node/README.md:80  term: cli
+./cerulea-node/README.md:134  term: cli
+./cerulea-node/README.md:167  term: cli
+./cerulea-node/README.md:205  term: cli
+./cerulea-node/README.md:206  term: cli
+./cerulea-node/README.md:379  term: cli
+./cerulea-node/src/block_tracker.rs:48  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:3  term: proof of inference
+./cerulea-node/src/cerulea-consensus/README.md:44  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:83  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:169  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:216  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:218  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:221  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:237  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:441  term: configuration
+./cerulea-node/src/cerulea-consensus/README.md:172  term: configure
+./cerulea-node/src/cerulea-consensus/README.md:180  term: configure
+./cerulea-node/src/cerulea-consensus/README.md:189  term: configure
+./cerulea-node/src/cerulea-consensus/README.md:287  term: configurable
+./cerulea-node/src/cerulea-consensus/README.md:518  term: configurable
+./cerulea-node/src/cerulea-consensus/src/dcf.rs:311  term: poi weight
+./cerulea-node/src/cerulea-consensus/src/dcf.rs:1259  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dcf.rs:3  term: cbc chain
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:1  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:3  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:32  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:114  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:171  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:181  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:185  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:1  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:3  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:9  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:12  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:16  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:22  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:32  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:48  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:179  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:181  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_config_validator.rs:185  term: configuration
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:16  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:17  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:19  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:41  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:52  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:59  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:213  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:214  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:229  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:248  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:268  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:282  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:290  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:302  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:310  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:339  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:346  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:351  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:388  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:401  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:407  term: dvf
+./cerulea-node/src/cerulea-consensus/src/dvf_gossip.rs:418  term: dvf
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:495  term: poi score
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:19  term: configuration
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:127  term: configuration
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:158  term: configuration
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:247  term: configuration
+./cerulea-node/src/cerulea-consensus/src/epoch_manager.rs:491  term: configuration
+./cerulea-node/src/cerulea-consensus/src/finality.rs:88  term: dvf
+./cerulea-node/src/cerulea-consensus/src/finality.rs:101  term: dvf
+./cerulea-node/src/cerulea-consensus/src/finality.rs:111  term: dvf
+./cerulea-node/src/cerulea-consensus/src/finality.rs:117  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:4  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:24  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:51  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:92  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:104  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:138  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:151  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:169  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:205  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:224  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:268  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:276  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:312  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:333  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:366  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:487  term: dvf
+./cerulea-node/src/cerulea-consensus/src/justification_builder.rs:495  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:27  term: grandpa
+./cerulea-node/src/cerulea-consensus/src/lib.rs:26  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:28  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:31  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:36  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:38  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:40  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:42  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:44  term: dvf
+./cerulea-node/src/cerulea-consensus/src/lib.rs:44  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs:1  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs:6  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs:43  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs:54  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/config.rs:54  term: cli
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/error.rs:16  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer/error.rs:27  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer.rs:26  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer.rs:41  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer.rs:76  term: configuration
+./cerulea-node/src/cerulea-consensus/src/lifecycle_tracer.rs:82  term: configuration
+./cerulea-node/src/cerulea-consensus/src/metrics.rs:339  term: dvf
+./cerulea-node/src/cerulea-consensus/src/metrics.rs:357  term: dvf
+./cerulea-node/src/cerulea-consensus/src/metrics.rs:361  term: dvf
+./cerulea-node/src/cerulea-consensus/src/metrics.rs:365  term: dvf
+./cerulea-node/src/cerulea-consensus/src/metrics.rs:375  term: dvf
+./cerulea-node/src/cerulea-consensus/src/mock.rs:98  term: configuration
+./cerulea-node/src/cerulea-consensus/src/mock.rs:116  term: configuration
+./cerulea-node/src/cerulea-consensus/src/mock.rs:129  term: configuration
+./cerulea-node/src/cerulea-consensus/src/mock.rs:411  term: configuration
+./cerulea-node/src/cerulea-consensus/src/mock.rs:28  term: configure
+./cerulea-node/src/cerulea-consensus/src/tests/epoch_manager_test.rs:16  term: configuration
+./cerulea-node/src/cerulea-consensus/src/tests/epoch_manager_test.rs:260  term: configuration
+./cerulea-node/src/cerulea-consensus/src/tests/epoch_manager_test.rs:269  term: configuration
+./cerulea-node/src/cerulea-consensus/src/types.rs:37  term: proof of inference
+./cerulea-node/src/cerulea-consensus/src/types.rs:17  term: configuration
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:74  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:105  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:117  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:125  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:146  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:150  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:187  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:206  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:224  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:229  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:236  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:249  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:271  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:272  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:273  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:292  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:300  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:312  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:338  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:346  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:364  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:384  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:394  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:406  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:414  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:432  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:436  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:467  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:483  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:492  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:497  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:505  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:511  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:538  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:562  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:567  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:574  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:615  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:629  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:639  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:650  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:656  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:678  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:688  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:695  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:706  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:717  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:728  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:738  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_aggregator.rs:747  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:4  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:59  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:78  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:88  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:95  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:101  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:113  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:120  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:127  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:135  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:148  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:192  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:244  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:248  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:267  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:288  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:297  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:301  term: dvf
+./cerulea-node/src/cerulea-consensus/src/vote_creator.rs:323  term: dvf
+./cerulea-node/src/cli.rs:13  term: cli
+./cerulea-node/src/cli.rs:109  term: cli
+./cerulea-node/src/command.rs:19  term: cbc chain
+./cerulea-node/src/command.rs:4  term: cli
+./cerulea-node/src/command.rs:17  term: cli
+./cerulea-node/src/command.rs:54  term: cli
+./cerulea-node/src/command.rs:60  term: cli
+./cerulea-node/src/command.rs:63  term: cli
+./cerulea-node/src/command.rs:64  term: cli
+./cerulea-node/src/command.rs:75  term: cli
+./cerulea-node/src/command.rs:88  term: cli
+./cerulea-node/src/command.rs:93  term: cli
+./cerulea-node/src/command.rs:105  term: cli
+./cerulea-node/src/command.rs:106  term: cli
+./cerulea-node/src/command.rs:107  term: cli
+./cerulea-node/src/command.rs:108  term: cli
+./cerulea-node/src/command.rs:121  term: cli
+./cerulea-node/src/command.rs:122  term: cli
+./cerulea-node/src/command.rs:123  term: cli
+./cerulea-node/src/command.rs:124  term: cli
+./cerulea-node/src/command.rs:136  term: cli
+./cerulea-node/src/command.rs:137  term: cli
+./cerulea-node/src/command.rs:138  term: cli
+./cerulea-node/src/command.rs:139  term: cli
+./cerulea-node/src/command.rs:150  term: cli
+./cerulea-node/src/command.rs:151  term: cli
+./cerulea-node/src/command.rs:152  term: cli
+./cerulea-node/src/command.rs:153  term: cli
+./cerulea-node/src/command.rs:174  term: cli
+./cerulea-node/src/command.rs:179  term: cli
+./cerulea-node/src/command.rs:183  term: cli
+./cerulea-node/src/command.rs:187  term: cli
+./cerulea-node/src/command.rs:191  term: cli
+./cerulea-node/src/command.rs:195  term: cli
+./cerulea-node/src/command.rs:200  term: cli
+./cerulea-node/src/command.rs:202  term: cli
+./cerulea-node/src/command.rs:204  term: cli
+./cerulea-node/src/command.rs:206  term: cli
+./cerulea-node/src/command.rs:211  term: cli
+./cerulea-node/src/command.rs:212  term: cli
+./cerulea-node/src/command.rs:213  term: cli
+./cerulea-node/src/command.rs:214  term: cli
+./cerulea-node/src/command.rs:235  term: cli
+./cerulea-node/src/command.rs:237  term: cli
+./cerulea-node/src/command.rs:238  term: cli
+./cerulea-node/src/command.rs:239  term: cli
+./cerulea-node/src/command.rs:240  term: cli
+./cerulea-node/src/command.rs:241  term: cli
+./cerulea-node/src/command.rs:259  term: cli
+./cerulea-node/src/command.rs:260  term: cli
+./cerulea-node/src/command.rs:261  term: cli
+./cerulea-node/src/command.rs:262  term: cli
+./cerulea-node/src/command.rs:263  term: cli
+./cerulea-node/src/command.rs:277  term: cli
+./cerulea-node/src/command.rs:278  term: cli
+./cerulea-node/src/command.rs:279  term: cli
+./cerulea-node/src/command.rs:280  term: cli
+./cerulea-node/src/command.rs:281  term: cli
+./cerulea-node/src/command.rs:289  term: cli
+./cerulea-node/src/command.rs:329  term: cli
+./cerulea-node/src/command.rs:372  term: cli
+./cerulea-node/src/command.rs:382  term: cli
+./cerulea-node/src/command.rs:511  term: cli
+./cerulea-node/src/command.rs:645  term: cli
+./cerulea-node/src/command.rs:652  term: cli
+./cerulea-node/src/command.rs:656  term: cli
+./cerulea-node/src/command.rs:664  term: cli
+./cerulea-node/src/command.rs:668  term: cli
+./cerulea-node/src/command.rs:676  term: cli
+./cerulea-node/src/lib.rs:7  term: cli
+./cerulea-node/src/logging.rs:271  term: configuration
+./cerulea-node/src/logging.rs:253  term: configure
+./cerulea-node/src/logging.rs:280  term: configure
+./cerulea-node/src/logging.rs:285  term: configure
+./cerulea-node/src/main.rs:34  term: configuration
+./cerulea-node/src/main.rs:60  term: configuration
+./cerulea-node/src/main.rs:65  term: configure
+./cerulea-node/src/main.rs:68  term: configured
+./cerulea-node/src/main.rs:87  term: configured
+./cerulea-node/src/main.rs:3  term: cli
+./cerulea-node/src/main.rs:10  term: cli
+./cerulea-node/src/main.rs:12  term: cli
+./cerulea-node/src/main.rs:13  term: cli
+./cerulea-node/src/main.rs:14  term: cli
+./cerulea-node/src/main.rs:17  term: cli
+./cerulea-node/src/main.rs:19  term: cli
+./cerulea-node/src/main.rs:34  term: cli
+./cerulea-node/src/main.rs:42  term: cli
+./cerulea-node/src/main.rs:43  term: cli
+./cerulea-node/src/main.rs:44  term: cli
+./cerulea-node/src/main.rs:45  term: cli
+./cerulea-node/src/main.rs:47  term: cli
+./cerulea-node/src/main.rs:49  term: cli
+./cerulea-node/src/main.rs:50  term: cli
+./cerulea-node/src/main.rs:60  term: cli
+./cerulea-node/src/main.rs:66  term: cli
+./cerulea-node/src/main.rs:69  term: cli
+./cerulea-node/src/main.rs:78  term: cli
+./cerulea-node/src/main.rs:79  term: cli
+./cerulea-node/src/main.rs:93  term: cli
+./cerulea-node/src/main.rs:105  term: cli
+./cerulea-node/src/main.rs:129  term: cli
+./cerulea-node/src/main.rs:130  term: cli
+./cerulea-node/src/rpc.rs:649  term: poi score
+./cerulea-node/src/rpc.rs:654  term: poi score
+./cerulea-node/src/rpc.rs:732  term: poi score
+./cerulea-node/src/rpc.rs:957  term: poi weight
+./cerulea-node/src/rpc.rs:961  term: dvf
+./cerulea-node/src/rpc.rs:982  term: dvf
+./cerulea-node/src/rpc.rs:1161  term: dvf
+./cerulea-node/src/rpc.rs:1555  term: dvf
+./cerulea-node/src/service.rs:429  term: grandpa
+./cerulea-node/src/service.rs:438  term: grandpa
+./cerulea-node/src/service.rs:481  term: grandpa
+./cerulea-node/src/service.rs:289  term: dvf
+./cerulea-node/src/service.rs:295  term: dvf
+./cerulea-node/src/service.rs:297  term: dvf
+./cerulea-node/src/service.rs:323  term: dvf
+./cerulea-node/src/service.rs:324  term: dvf
+./cerulea-node/src/service.rs:326  term: dvf
+./cerulea-node/src/service.rs:334  term: dvf
+./cerulea-node/src/service.rs:357  term: dvf
+./cerulea-node/src/service.rs:391  term: dvf
+./cerulea-node/src/service.rs:405  term: dvf
+./cerulea-node/src/service.rs:422  term: dvf
+./cerulea-node/src/service.rs:428  term: dvf
+./cerulea-node/src/service.rs:430  term: dvf
+./cerulea-node/src/service.rs:442  term: dvf
+./cerulea-node/src/service.rs:445  term: dvf
+./cerulea-node/src/service.rs:448  term: dvf
+./cerulea-node/src/service.rs:451  term: dvf
+./cerulea-node/src/service.rs:454  term: dvf
+./cerulea-node/src/service.rs:457  term: dvf
+./cerulea-node/src/service.rs:460  term: dvf
+./cerulea-node/src/service.rs:469  term: dvf
+./cerulea-node/src/service.rs:474  term: dvf
+./cerulea-node/src/service.rs:475  term: dvf
+./cerulea-node/src/service.rs:487  term: dvf
+./cerulea-node/src/service.rs:489  term: dvf
+./cerulea-node/src/service.rs:493  term: dvf
+./cerulea-node/src/service.rs:508  term: dvf
+./cerulea-node/src/service.rs:527  term: dvf
+./cerulea-node/src/service.rs:529  term: dvf
+./cerulea-node/src/service.rs:535  term: dvf
+./cerulea-node/src/service.rs:552  term: dvf
+./cerulea-node/src/service.rs:554  term: dvf
+./cerulea-node/src/service.rs:569  term: dvf
+./cerulea-node/src/service.rs:571  term: dvf
+./cerulea-node/src/service.rs:807  term: dvf
+./cerulea-node/src/service.rs:810  term: dvf
+./cerulea-node/src/service.rs:821  term: dvf
+./cerulea-node/src/service.rs:832  term: dvf
+./cerulea-node/src/service.rs:836  term: dvf
+./cerulea-node/src/service.rs:845  term: dvf
+./cerulea-node/src/service.rs:851  term: dvf
+./cerulea-node/src/service.rs:859  term: dvf
+./cerulea-node/src/service.rs:861  term: dvf
+./cerulea-node/src/service.rs:865  term: dvf
+./cerulea-node/src/service.rs:885  term: dvf
+./cerulea-node/src/service.rs:891  term: dvf
+./cerulea-node/src/service.rs:895  term: dvf
+./cerulea-node/src/service.rs:922  term: dvf
+./cerulea-node/src/service.rs:950  term: dvf
+./cerulea-node/src/service.rs:954  term: dvf
+./cerulea-node/src/service.rs:987  term: dvf
+./cerulea-node/src/service.rs:989  term: dvf
+./cerulea-node/src/service.rs:991  term: dvf
+./cerulea-node/src/service.rs:4  term: configuration
+./cerulea-node/src/service.rs:40  term: configuration
+./cerulea-node/src/service.rs:259  term: configuration
+./cerulea-node/src/service.rs:289  term: configuration
+./cerulea-node/src/service.rs:295  term: configuration
+./cerulea-node/src/service.rs:297  term: configuration
+./cerulea-node/src/service.rs:321  term: configuration
+./cerulea-node/src/service.rs:323  term: configuration
+./cerulea-node/src/service.rs:324  term: configuration
+./cerulea-node/src/service.rs:326  term: configuration
+./cerulea-node/src/service.rs:331  term: configuration
+./cerulea-node/src/service.rs:334  term: configuration
+./cerulea-node/src/service.rs:343  term: configuration
+./cerulea-node/src/service.rs:347  term: configuration
+./cerulea-node/src/service.rs:68  term: configured
+./cerulea-node/src/service.rs:73  term: configured
+./cerulea-node/src/service.rs:83  term: configured
+./cerulea-node/src/service.rs:1037  term: configured
+./cerulea-node/src/service.rs:1041  term: configured
+./cerulea-node/tests/common/config.rs:1  term: configuration
+./cerulea-node/tests/common/config.rs:3  term: configuration
+./cerulea-node/tests/common/config.rs:10  term: configuration
+./cerulea-node/tests/common/config.rs:40  term: configuration
+./cerulea-node/tests/common/config.rs:76  term: configuration
+./cerulea-node/tests/common/config.rs:115  term: configuration
+./cerulea-node/tests/common/config.rs:169  term: configuration
+./cerulea-node/tests/common/config.rs:196  term: configuration
+./cerulea-node/tests/common/config.rs:201  term: configuration
+./cerulea-node/tests/common/config.rs:209  term: configuration
+./cerulea-node/tests/common/error_handling.rs:85  term: configuration
+./cerulea-node/tests/common/error_handling.rs:121  term: configuration
+./cerulea-node/tests/common/generators.rs:42  term: proof of intelligence
+./cerulea-node/tests/common/logging.rs:3  term: configuration
+./cerulea-node/tests/common/logging.rs:12  term: configuration
+./cerulea-node/tests/common/mock_client.rs:248  term: configuration
+./cerulea-node/tests/common/mock_client.rs:261  term: configuration
+./cerulea-node/tests/common/mock_client.rs:277  term: configuration
+./cerulea-node/tests/common/mock_client.rs:100  term: configure
+./cerulea-node/tests/common/mock_client.rs:348  term: configure
+./cerulea-node/tests/common/mock_client.rs:15  term: configurable
+./cerulea-node/tests/common/mod.rs:7  term: configuration
+./cerulea-node/tests/common/test_runtime.rs:152  term: poi score
+./cerulea-node/tests/common/test_runtime.rs:20  term: configuration
+./cerulea-node/tests/common/test_runtime.rs:96  term: configuration
+./cerulea-node/tests/common/test_runtime.rs:105  term: configuration
+./cerulea-node/tests/common/test_runtime.rs:203  term: configuration
+./cerulea-node/tests/common/test_runtime.rs:69  term: configured
+./cerulea-node/tests/common/test_runtime.rs:72  term: configured
+./cerulea-node/tests/common/test_runtime.rs:206  term: configured
+./cerulea-node/tests/common/test_runtime.rs:3  term: configuring
+./cerulea-node/tests/common/test_runtime.rs:13  term: configuring
+./cerulea-node/tests/deterministic_authoring_test.rs:16  term: configuration
+./cerulea-node/tests/deterministic_authoring_test.rs:8  term: cli
+./cerulea-node/tests/deterministic_authoring_test.rs:590  term: cli
+./cerulea-node/tests/deterministic_authoring_test.rs:605  term: cli
+./cerulea-node/tests/dev_mode_integration_test.rs:5  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:6  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:14  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:48  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:115  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:120  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:148  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:488  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:496  term: configuration
+./cerulea-node/tests/dev_mode_integration_test.rs:518  term: configuration
+./cerulea-node/tests/dvf_multi_node_test.rs:1  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:3  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:20  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:23  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:105  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:108  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:143  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:146  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:199  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:206  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:215  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:228  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:233  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:248  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:262  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:267  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:272  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:277  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:282  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:316  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:332  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:338  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:345  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:366  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:369  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:408  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:414  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:419  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:426  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:434  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:440  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:465  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:488  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:501  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:508  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:510  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:542  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:556  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:566  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1094  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1099  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1136  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1158  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1162  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1169  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1303  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1304  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1306  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1325  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1326  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1354  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1374  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1377  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1380  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1381  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1382  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1388  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1393  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1397  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:1403  term: dvf
+./cerulea-node/tests/dvf_multi_node_test.rs:20  term: configuration
+./cerulea-node/tests/dvf_multi_node_test.rs:23  term: configuration
+./cerulea-node/tests/dvf_multi_node_test.rs:67  term: configuration
+./cerulea-node/tests/dvf_multi_node_test.rs:75  term: configuration
+./cerulea-node/tests/dvf_multi_node_test.rs:83  term: configuration
+./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md:1  term: dvf
+./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md:5  term: dvf
+./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md:13  term: dvf
+./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md:122  term: dvf
+./cerulea-node/tests/DVF_MULTI_NODE_TESTS.md:87  term: configuration
+./cerulea-node/tests/log_file_management_test.rs:25  term: configured
+./cerulea-node/tests/multi_node_integration_test.rs:17  term: configuration
+./cerulea-node/tests/multi_node_integration_test.rs:60  term: configuration
+./cerulea-node/tests/README.md:150  term: configurable
+./cerulea-node/tests/rpc_api_tests.rs:394  term: configuration
+./cerulea-node/tests/rpc_api_tests.rs:404  term: configuration
+./cerulea-node/tests/rpc_api_tests.rs:556  term: configuration
+./cerulea-node/tests/rpc_api_tests.rs:559  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/README.md:7  term: proof of inference
+./cerulea-pallets/pallet-cerulea-dcf/README.md:17  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/README.md:24  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/README.md:66  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/README.md:208  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/README.md:12  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/economic_bounds.rs:14  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/economic_bounds.rs:354  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/economic_bounds.rs:417  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/economic_bounds.rs:475  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/evm_compatibility.rs:22  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/evm_compatibility.rs:237  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:6  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:888  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1495  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1518  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1779  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2155  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2492  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2981  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3783  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3800  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4082  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4090  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4312  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4314  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1522  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4088  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10244  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11173  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11263  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11284  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11322  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12293  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:76  term: pos weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2481  term: pos weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10303  term: pos weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:77  term: poi weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2498  term: poi weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10304  term: poi weight
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1744  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:7692  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:7693  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:7698  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:7699  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:7701  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8056  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12279  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:44  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:46  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:60  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:62  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:65  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:70  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:75  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:81  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:87  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:281  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:443  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:452  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:500  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:512  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:604  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:721  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:852  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:877  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:909  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1228  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1234  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1244  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1294  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1306  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1530  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1998  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2484  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2502  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2544  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2551  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2558  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2563  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2566  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2571  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2582  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2590  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2597  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2612  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2877  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3442  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3518  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3520  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3524  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3713  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3715  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3723  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4553  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4569  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4580  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4790  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4792  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4795  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4798  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4806  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4808  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4811  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4813  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4817  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4819  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4831  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4833  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4858  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4861  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4863  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4888  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4891  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4938  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4954  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5194  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5196  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5375  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5377  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5400  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5430  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5459  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5470  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5472  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5475  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5476  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5639  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5641  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5648  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5650  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5653  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5655  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5661  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5664  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5665  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5667  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5681  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5776  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5784  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5785  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5808  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5817  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5820  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5833  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5836  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5839  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5850  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5859  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5868  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:6373  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:6383  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:6447  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8178  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8325  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8329  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8380  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8390  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8447  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8449  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8453  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8456  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8457  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8492  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8496  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8498  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8502  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8505  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8506  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:8535  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9642  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9645  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9649  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9652  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9653  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9655  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9658  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9661  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9674  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10085  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10097  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10122  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10123  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10319  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10344  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10346  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10414  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10491  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10549  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10592  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10597  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10602  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10606  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10618  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10717  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10748  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10751  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10760  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10829  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10980  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10982  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10986  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11005  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11793  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12783  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13033  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13163  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13166  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13170  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13211  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13220  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13507  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:13509  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5407  term: configure
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3835  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:4181  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5579  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5623  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5626  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:10876  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:11304  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12249  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12482  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12656  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12778  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12786  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:6  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:374  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:452  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:685  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:854  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1286  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1290  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:1442  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2547  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:2592  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:3355  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:5775  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12020  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12650  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:12743  term: configurable
+./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs:379  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs:280  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs:306  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs:377  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/mock.rs:16  term: configure
+./cerulea-pallets/pallet-cerulea-dcf/src/private_chain.rs:13  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/private_chain.rs:174  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/ci_readiness_tests.rs:158  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/ci_readiness_tests.rs:162  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/dos_protection_tests.rs:73  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/finality_tests.rs:87  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/finality_tests.rs:218  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:1  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:6  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:10  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:39  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:46  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:48  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:68  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:113  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:116  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:173  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:211  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:215  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/genesis_validation_tests.rs:58  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:93  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:100  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:359  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:368  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:372  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/integration_tests.rs:97  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs:75  term: pos weight
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs:76  term: poi weight
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs:137  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs:163  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/invariant_tests.rs:173  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/mod.rs:37  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:67  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:74  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:79  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:125  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:221  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:26  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:31  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/parameter_governance_tests.rs:134  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/performance_tests.rs:230  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/performance_tests.rs:238  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/production_readiness_tests.rs:80  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs:534  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs:544  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs:556  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs:565  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_cross_pallet_tests.rs:574  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/runtime_api_integration_tests.rs:133  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/system_integration_tests.rs:147  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/system_integration_tests.rs:151  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/trust_score_stability_tests.rs:24  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/trust_score_stability_tests.rs:18  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/trust_score_stability_tests.rs:37  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/tests/trust_score_stability_tests.rs:92  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:3  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:5  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:16  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:18  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:24  term: dvf
+./cerulea-pallets/pallet-cerulea-dcf/src/traits.rs:24  term: configured
+./cerulea-pallets/pallet-cerulea-dcf/src/weights.rs:256  term: poi score
+./cerulea-pallets/pallet-cerulea-dcf/src/weights.rs:6  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/weights.rs:9  term: configuration
+./cerulea-pallets/pallet-cerulea-dcf/src/weights.rs:30  term: configuration
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:40  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:67  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:79  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:91  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:185  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:190  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:195  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:371  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:383  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:389  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:394  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:401  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:402  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:411  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:412  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:420  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:422  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:549  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:869  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:953  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:1096  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:1103  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:1168  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:371  term: configuration
+./cerulea-pallets/pallet-cerulea-dvf/src/lib.rs:117  term: configure
+./cerulea-pallets/pallet-cerulea-dvf/src/mock.rs:24  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/mock.rs:171  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/mock.rs:171  term: configuration
+./cerulea-pallets/pallet-cerulea-dvf/src/mock.rs:17  term: configure
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:10  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:13  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:16  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:19  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:22  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:25  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:34  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:37  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:38  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:44  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:45  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:46  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:49  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:50  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:58  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:69  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:75  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:80  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:85  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:99  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:127  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:148  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:163  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:191  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:216  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:260  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:295  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:308  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:342  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:355  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:392  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:405  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:442  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:463  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:497  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:522  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:548  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:589  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:738  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:799  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:866  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:898  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:907  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:923  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:939  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:953  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:975  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:1021  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:1061  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:1108  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:1124  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:1295  term: dvf
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:621  term: configured
+./cerulea-pallets/pallet-cerulea-dvf/src/tests.rs:629  term: configured
+./cerulea-pallets/pallet-cerulea-poi/README.md:7  term: proof of inference
+./cerulea-pallets/pallet-cerulea-poi/README.md:3  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-poi/README.md:16  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/README.md:132  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:4  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:150  term: proof-of-inference
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:254  term: poi score
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:266  term: poi score
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:339  term: poi score
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:644  term: poi score
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:682  term: poi score
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:70  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:167  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:8  term: configurable
+./cerulea-pallets/pallet-cerulea-poi/src/lib.rs:10  term: configurable
+./cerulea-pallets/pallet-cerulea-poi/src/mock.rs:26  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/mock.rs:32  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/mock.rs:66  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/mock.rs:17  term: configure
+./cerulea-pallets/pallet-cerulea-poi/src/tests.rs:439  term: configuration
+./cerulea-pallets/pallet-cerulea-poi/src/tests.rs:555  term: configuration
+./cerulea-pallets/pallet-cerulea-pos/README.md:219  term: proof of inference
+./cerulea-pallets/pallet-cerulea-pos/README.md:16  term: configuration
+./cerulea-pallets/pallet-cerulea-pos/README.md:170  term: configuration
+./cerulea-pallets/pallet-cerulea-pos/README.md:14  term: configurable
+./cerulea-pallets/pallet-cerulea-pos/src/mock.rs:15  term: configure
+./cerulea-runtime/README.md:3  term: proof of inference
+./cerulea-runtime/README.md:175  term: proof of inference
+./cerulea-runtime/README.md:390  term: proof of inference
+./cerulea-runtime/README.md:26  term: configuration
+./cerulea-runtime/README.md:32  term: configuration
+./cerulea-runtime/README.md:34  term: configuration
+./cerulea-runtime/README.md:36  term: configuration
+./cerulea-runtime/README.md:37  term: configuration
+./cerulea-runtime/README.md:51  term: configuration
+./cerulea-runtime/README.md:64  term: configuration
+./cerulea-runtime/README.md:110  term: configuration
+./cerulea-runtime/README.md:119  term: configuration
+./cerulea-runtime/README.md:123  term: configuration
+./cerulea-runtime/README.md:134  term: configuration
+./cerulea-runtime/README.md:136  term: configuration
+./cerulea-runtime/README.md:139  term: configuration
+./cerulea-runtime/README.md:140  term: configuration
+./cerulea-runtime/README.md:143  term: configuration
+./cerulea-runtime/README.md:283  term: configuration
+./cerulea-runtime/README.md:326  term: configuration
+./cerulea-runtime/README.md:361  term: configuration
+./cerulea-runtime/README.md:373  term: configuration
+./cerulea-runtime/README.md:435  term: configuration
+./cerulea-runtime/README.md:308  term: configurable
+./cerulea-runtime/README.md:79  term: cli
+./cerulea-runtime/src/apis.rs:465  term: dvf
+./cerulea-runtime/src/apis.rs:1  term: cbc-chain
+./cerulea-runtime/src/benchmarks.rs:35  term: proof-of-inference
+./cerulea-runtime/src/benchmarks.rs:2  term: configuration
+./cerulea-runtime/src/configs/mod.rs:344  term: dvf
+./cerulea-runtime/src/configs/mod.rs:346  term: dvf
+./cerulea-runtime/src/configs/mod.rs:2  term: configuration
+./cerulea-runtime/src/configs/mod.rs:94  term: configuration
+./cerulea-runtime/src/configs/mod.rs:111  term: configuration
+./cerulea-runtime/src/configs/mod.rs:119  term: configuration
+./cerulea-runtime/src/configs/mod.rs:137  term: configuration
+./cerulea-runtime/src/configs/mod.rs:152  term: configuration
+./cerulea-runtime/src/configs/mod.rs:160  term: configuration
+./cerulea-runtime/src/configs/mod.rs:239  term: configuration
+./cerulea-runtime/src/configs/mod.rs:273  term: configuration
+./cerulea-runtime/src/configs/mod.rs:318  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:79  term: dvf
+./cerulea-runtime/src/genesis_config_presets.rs:80  term: dvf
+./cerulea-runtime/src/genesis_config_presets.rs:127  term: dvf
+./cerulea-runtime/src/genesis_config_presets.rs:130  term: dvf
+./cerulea-runtime/src/genesis_config_presets.rs:12  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:27  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:43  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:136  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:152  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:189  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:230  term: configuration
+./cerulea-runtime/src/genesis_config_presets.rs:89  term: configure
+./cerulea-runtime/src/genesis_config_presets.rs:114  term: configure
+./cerulea-runtime/src/genesis_config_presets.rs:121  term: configure
+./cerulea-runtime/src/genesis_config_presets.rs:127  term: configure
+./cerulea-runtime/src/lib.rs:26  term: grandpa
+./cerulea-runtime/src/lib.rs:254  term: poi weight
+./cerulea-runtime/src/lib.rs:26  term: dvf
+./cerulea-runtime/src/lib.rs:27  term: dvf
+./cerulea-runtime/src/lib.rs:30  term: dvf
+./cerulea-runtime/src/lib.rs:35  term: dvf
+./cerulea-runtime/src/lib.rs:225  term: dvf
+./cerulea-runtime/src/lib.rs:15  term: configuration
+./cerulea-runtime/src/lib.rs:60  term: cli
+./cerulea-runtime/src/mock.rs:39  term: configuration
+./cerulea-runtime/src/mock.rs:50  term: configuration
+./cerulea-runtime/src/mock.rs:84  term: configuration
+./cerulea-runtime/src/mock.rs:86  term: configuration
+./cerulea-runtime/src/mock.rs:99  term: configuration
+./cerulea-runtime/src/mock.rs:113  term: configuration
+./cerulea-runtime/src/mock.rs:116  term: configuration
+./cerulea-runtime/src/mock.rs:178  term: configuration
+./cerulea-runtime/src/mock.rs:271  term: configuration
+./cerulea-runtime/src/mock.rs:105  term: configure
+./cerulea-runtime/src/mock.rs:115  term: configure
+./cerulea-runtime/src/runtime_integration_tests.rs:4  term: configuration
+./cerulea-runtime/src/runtime_integration_tests.rs:96  term: configuration
+./cerulea-runtime/src/runtime_integration_tests.rs:133  term: configuration
+./cerulea-runtime/src/runtime_integration_tests.rs:199  term: configuration
+./cerulea-runtime/src/runtime_integration_tests.rs:45  term: configured
+./cerulea-runtime/src/runtime_integration_tests.rs:76  term: configured
+./docs/AUDIT_CHAIN.md:20  term: proof of inference
+./docs/AUDIT_CHAIN.md:98  term: proof of inference
+./docs/AUDIT_CHAIN.md:251  term: poi score
+./docs/AUDIT_CHAIN.md:300  term: poi score
+./docs/AUDIT_CHAIN.md:570  term: poi score
+./docs/AUDIT_CHAIN.md:597  term: poi weight
+./docs/AUDIT_CHAIN.md:6  term: dvf
+./docs/AUDIT_CHAIN.md:38  term: dvf
+./docs/AUDIT_CHAIN.md:48  term: dvf
+./docs/AUDIT_CHAIN.md:49  term: dvf
+./docs/AUDIT_CHAIN.md:57  term: dvf
+./docs/AUDIT_CHAIN.md:60  term: dvf
+./docs/AUDIT_CHAIN.md:76  term: dvf
+./docs/AUDIT_CHAIN.md:81  term: dvf
+./docs/AUDIT_CHAIN.md:82  term: dvf
+./docs/AUDIT_CHAIN.md:83  term: dvf
+./docs/AUDIT_CHAIN.md:114  term: dvf
+./docs/AUDIT_CHAIN.md:195  term: dvf
+./docs/AUDIT_CHAIN.md:199  term: dvf
+./docs/AUDIT_CHAIN.md:227  term: dvf
+./docs/AUDIT_CHAIN.md:229  term: dvf
+./docs/AUDIT_CHAIN.md:231  term: dvf
+./docs/AUDIT_CHAIN.md:238  term: dvf
+./docs/AUDIT_CHAIN.md:252  term: dvf
+./docs/AUDIT_CHAIN.md:253  term: dvf
+./docs/AUDIT_CHAIN.md:254  term: dvf
+./docs/AUDIT_CHAIN.md:328  term: dvf
+./docs/AUDIT_CHAIN.md:331  term: dvf
+./docs/AUDIT_CHAIN.md:333  term: dvf
+./docs/AUDIT_CHAIN.md:337  term: dvf
+./docs/AUDIT_CHAIN.md:342  term: dvf
+./docs/AUDIT_CHAIN.md:346  term: dvf
+./docs/AUDIT_CHAIN.md:348  term: dvf
+./docs/AUDIT_CHAIN.md:351  term: dvf
+./docs/AUDIT_CHAIN.md:356  term: dvf
+./docs/AUDIT_CHAIN.md:360  term: dvf
+./docs/AUDIT_CHAIN.md:361  term: dvf
+./docs/AUDIT_CHAIN.md:362  term: dvf
+./docs/AUDIT_CHAIN.md:367  term: dvf
+./docs/AUDIT_CHAIN.md:452  term: dvf
+./docs/AUDIT_CHAIN.md:466  term: dvf
+./docs/AUDIT_CHAIN.md:476  term: dvf
+./docs/AUDIT_CHAIN.md:495  term: dvf
+./docs/AUDIT_CHAIN.md:517  term: dvf
+./docs/AUDIT_CHAIN.md:519  term: dvf
+./docs/AUDIT_CHAIN.md:523  term: dvf
+./docs/AUDIT_CHAIN.md:524  term: dvf
+./docs/AUDIT_CHAIN.md:546  term: dvf
+./docs/AUDIT_CHAIN.md:550  term: dvf
+./docs/AUDIT_CHAIN.md:574  term: dvf
+./docs/AUDIT_CHAIN.md:591  term: dvf
+./docs/AUDIT_CHAIN.md:604  term: dvf
+./docs/AUDIT_CHAIN.md:615  term: dvf
+./docs/AUDIT_CHAIN.md:628  term: dvf
+./docs/AUDIT_CHAIN.md:638  term: dvf
+./docs/AUDIT_CHAIN.md:641  term: dvf
+./docs/AUDIT_CHAIN.md:642  term: dvf
+./docs/AUDIT_CHAIN.md:132  term: configured
+./docs/AUDIT_CHAIN.md:647  term: configured
+./docs/AUDIT_CHAIN.md:35  term: cli
+./docs/AUDIT_CHAIN.md:36  term: cli
+./docs/AUDIT_CHAIN.md:37  term: cli
+./docs/AUDIT_STUDIO.md:381  term: configuration
+./docs/AUDIT_STUDIO.md:512  term: configuration
+./docs/AUDIT_STUDIO.md:354  term: sdk
+./docs/cbc-types.json:173  term: poi weight
+./docs/cbc-types.json:309  term: configuration
+./docs/CONSENSUS_ARCHITECTURE.md:93  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:95  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:99  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:101  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:111  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:119  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:121  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:124  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:137  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:144  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:146  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:152  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:169  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:189  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:190  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:191  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:192  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:200  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:201  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:202  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:219  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:242  term: dvf
+./docs/CONSENSUS_ARCHITECTURE.md:23  term: configurable
+./docs/CONSENSUS_BUGS.md:142  term: poi score
+./docs/CONSENSUS_BUGS.md:151  term: poi score
+./docs/CONSENSUS_BUGS.md:152  term: poi score
+./docs/CONSENSUS_BUGS.md:153  term: poi score
+./docs/CONSENSUS_BUGS.md:469  term: poi score
+./docs/CONSENSUS_BUGS.md:173  term: dvf
+./docs/CONSENSUS_BUGS.md:175  term: dvf
+./docs/CONSENSUS_BUGS.md:177  term: dvf
+./docs/CONSENSUS_BUGS.md:181  term: dvf
+./docs/CONSENSUS_BUGS.md:183  term: dvf
+./docs/CONSENSUS_BUGS.md:184  term: dvf
+./docs/CONSENSUS_BUGS.md:185  term: dvf
+./docs/CONSENSUS_BUGS.md:187  term: dvf
+./docs/CONSENSUS_BUGS.md:190  term: dvf
+./docs/CONSENSUS_BUGS.md:195  term: dvf
+./docs/CONSENSUS_BUGS.md:196  term: dvf
+./docs/CONSENSUS_BUGS.md:200  term: dvf
+./docs/CONSENSUS_BUGS.md:201  term: dvf
+./docs/CONSENSUS_BUGS.md:204  term: dvf
+./docs/CONSENSUS_BUGS.md:205  term: dvf
+./docs/CONSENSUS_BUGS.md:211  term: dvf
+./docs/CONSENSUS_BUGS.md:213  term: dvf
+./docs/CONSENSUS_BUGS.md:221  term: dvf
+./docs/CONSENSUS_BUGS.md:222  term: dvf
+./docs/CONSENSUS_BUGS.md:233  term: dvf
+./docs/CONSENSUS_BUGS.md:239  term: dvf
+./docs/CONSENSUS_BUGS.md:240  term: dvf
+./docs/CONSENSUS_BUGS.md:243  term: dvf
+./docs/CONSENSUS_BUGS.md:250  term: dvf
+./docs/CONSENSUS_BUGS.md:262  term: dvf
+./docs/CONSENSUS_BUGS.md:263  term: dvf
+./docs/CONSENSUS_BUGS.md:266  term: dvf
+./docs/CONSENSUS_BUGS.md:267  term: dvf
+./docs/CONSENSUS_BUGS.md:276  term: dvf
+./docs/CONSENSUS_BUGS.md:277  term: dvf
+./docs/CONSENSUS_BUGS.md:280  term: dvf
+./docs/CONSENSUS_BUGS.md:285  term: dvf
+./docs/CONSENSUS_BUGS.md:287  term: dvf
+./docs/CONSENSUS_BUGS.md:293  term: dvf
+./docs/CONSENSUS_BUGS.md:301  term: dvf
+./docs/CONSENSUS_BUGS.md:302  term: dvf
+./docs/CONSENSUS_BUGS.md:303  term: dvf
+./docs/CONSENSUS_BUGS.md:305  term: dvf
+./docs/CONSENSUS_BUGS.md:307  term: dvf
+./docs/CONSENSUS_BUGS.md:402  term: dvf
+./docs/CONSENSUS_BUGS.md:425  term: dvf
+./docs/CONSENSUS_BUGS.md:427  term: dvf
+./docs/CONSENSUS_BUGS.md:443  term: dvf
+./docs/CONSENSUS_BUGS.md:444  term: dvf
+./docs/CONSENSUS_BUGS.md:447  term: dvf
+./docs/CONSENSUS_BUGS.md:448  term: dvf
+./docs/CONSENSUS_BUGS.md:451  term: dvf
+./docs/CONSENSUS_BUGS.md:452  term: dvf
+./docs/CONSENSUS_BUGS.md:457  term: dvf
+./docs/CONSENSUS_BUGS.md:461  term: dvf
+./docs/CONSENSUS_BUGS.md:470  term: dvf
+./docs/CONSENSUS_BUGS.md:471  term: dvf
+./docs/CONSENSUS_BUGS.md:472  term: dvf
+./docs/CONSENSUS_BUGS.md:473  term: dvf
+./docs/CONSENSUS_BUGS.md:476  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:295  term: poi score
+./docs/CONSENSUS_BUG_SOLUTIONS.md:356  term: poi score
+./docs/CONSENSUS_BUG_SOLUTIONS.md:380  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:383  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:384  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:388  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:392  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:396  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:409  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:420  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:421  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:426  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:429  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:430  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:471  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:480  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:487  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:491  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:492  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:500  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:502  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:507  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:508  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:510  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:519  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:522  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:529  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:530  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:535  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:538  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:543  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:545  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:546  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:550  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:552  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:566  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:570  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:571  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:680  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:682  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:703  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:704  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:718  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:728  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:743  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:744  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:751  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:758  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:761  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:762  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:766  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:770  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:773  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:778  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:795  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:817  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:819  term: dvf
+./docs/CONSENSUS_BUG_SOLUTIONS.md:572  term: configurable
+./docs/DOCKER_SETUP.md:249  term: configuration
+./docs/term-check-raw.txt:106  term: grandpa
+./docs/term-check-raw.txt:322  term: grandpa
+./docs/term-check-raw.txt:323  term: grandpa
+./docs/term-check-raw.txt:324  term: grandpa
+./docs/term-check-raw.txt:999  term: grandpa
+./docs/term-check-raw.txt:1  term: proof of inference
+./docs/term-check-raw.txt:22  term: proof of inference
+./docs/term-check-raw.txt:140  term: proof of inference
+./docs/term-check-raw.txt:521  term: proof of inference
+./docs/term-check-raw.txt:917  term: proof of inference
+./docs/term-check-raw.txt:938  term: proof of inference
+./docs/term-check-raw.txt:943  term: proof of inference
+./docs/term-check-raw.txt:944  term: proof of inference
+./docs/term-check-raw.txt:945  term: proof of inference
+./docs/term-check-raw.txt:1025  term: proof of inference
+./docs/term-check-raw.txt:1026  term: proof of inference
+./docs/term-check-raw.txt:533  term: proof-of-inference
+./docs/term-check-raw.txt:534  term: proof-of-inference
+./docs/term-check-raw.txt:535  term: proof-of-inference
+./docs/term-check-raw.txt:536  term: proof-of-inference
+./docs/term-check-raw.txt:537  term: proof-of-inference
+./docs/term-check-raw.txt:538  term: proof-of-inference
+./docs/term-check-raw.txt:539  term: proof-of-inference
+./docs/term-check-raw.txt:540  term: proof-of-inference
+./docs/term-check-raw.txt:541  term: proof-of-inference
+./docs/term-check-raw.txt:542  term: proof-of-inference
+./docs/term-check-raw.txt:543  term: proof-of-inference
+./docs/term-check-raw.txt:544  term: proof-of-inference
+./docs/term-check-raw.txt:545  term: proof-of-inference
+./docs/term-check-raw.txt:546  term: proof-of-inference
+./docs/term-check-raw.txt:918  term: proof-of-inference
+./docs/term-check-raw.txt:921  term: proof-of-inference
+./docs/term-check-raw.txt:922  term: proof-of-inference
+./docs/term-check-raw.txt:970  term: proof-of-inference
+./docs/term-check-raw.txt:409  term: proof of intelligence
+./docs/term-check-raw.txt:79  term: poi score
+./docs/term-check-raw.txt:314  term: poi score
+./docs/term-check-raw.txt:315  term: poi score
+./docs/term-check-raw.txt:316  term: poi score
+./docs/term-check-raw.txt:419  term: poi score
+./docs/term-check-raw.txt:547  term: poi score
+./docs/term-check-raw.txt:548  term: poi score
+./docs/term-check-raw.txt:549  term: poi score
+./docs/term-check-raw.txt:550  term: poi score
+./docs/term-check-raw.txt:551  term: poi score
+./docs/term-check-raw.txt:552  term: poi score
+./docs/term-check-raw.txt:553  term: poi score
+./docs/term-check-raw.txt:554  term: poi score
+./docs/term-check-raw.txt:830  term: poi score
+./docs/term-check-raw.txt:923  term: poi score
+./docs/term-check-raw.txt:924  term: poi score
+./docs/term-check-raw.txt:925  term: poi score
+./docs/term-check-raw.txt:926  term: poi score
+./docs/term-check-raw.txt:927  term: poi score
+./docs/term-check-raw.txt:1027  term: poi score
+./docs/term-check-raw.txt:1028  term: poi score
+./docs/term-check-raw.txt:1029  term: poi score
+./docs/term-check-raw.txt:1115  term: poi score
+./docs/term-check-raw.txt:1116  term: poi score
+./docs/term-check-raw.txt:1117  term: poi score
+./docs/term-check-raw.txt:1118  term: poi score
+./docs/term-check-raw.txt:1119  term: poi score
+./docs/term-check-raw.txt:1175  term: poi score
+./docs/term-check-raw.txt:1176  term: poi score
+./docs/term-check-raw.txt:555  term: pos weight
+./docs/term-check-raw.txt:556  term: pos weight
+./docs/term-check-raw.txt:557  term: pos weight
+./docs/term-check-raw.txt:795  term: pos weight
+./docs/term-check-raw.txt:36  term: poi weight
+./docs/term-check-raw.txt:317  term: poi weight
+./docs/term-check-raw.txt:558  term: poi weight
+./docs/term-check-raw.txt:559  term: poi weight
+./docs/term-check-raw.txt:560  term: poi weight
+./docs/term-check-raw.txt:796  term: poi weight
+./docs/term-check-raw.txt:1000  term: poi weight
+./docs/term-check-raw.txt:1030  term: poi weight
+./docs/term-check-raw.txt:1090  term: poi weight
+./docs/term-check-raw.txt:39  term: dvf
+./docs/term-check-raw.txt:40  term: dvf
+./docs/term-check-raw.txt:41  term: dvf
+./docs/term-check-raw.txt:42  term: dvf
+./docs/term-check-raw.txt:43  term: dvf
+./docs/term-check-raw.txt:44  term: dvf
+./docs/term-check-raw.txt:45  term: dvf
+./docs/term-check-raw.txt:57  term: dvf
+./docs/term-check-raw.txt:58  term: dvf
+./docs/term-check-raw.txt:59  term: dvf
+./docs/term-check-raw.txt:60  term: dvf
+./docs/term-check-raw.txt:61  term: dvf
+./docs/term-check-raw.txt:62  term: dvf
+./docs/term-check-raw.txt:63  term: dvf
+./docs/term-check-raw.txt:64  term: dvf
+./docs/term-check-raw.txt:65  term: dvf
+./docs/term-check-raw.txt:66  term: dvf
+./docs/term-check-raw.txt:67  term: dvf
+./docs/term-check-raw.txt:68  term: dvf
+./docs/term-check-raw.txt:69  term: dvf
+./docs/term-check-raw.txt:70  term: dvf
+./docs/term-check-raw.txt:71  term: dvf
+./docs/term-check-raw.txt:72  term: dvf
+./docs/term-check-raw.txt:73  term: dvf
+./docs/term-check-raw.txt:74  term: dvf
+./docs/term-check-raw.txt:75  term: dvf
+./docs/term-check-raw.txt:76  term: dvf
+./docs/term-check-raw.txt:77  term: dvf
+./docs/term-check-raw.txt:78  term: dvf
+./docs/term-check-raw.txt:85  term: dvf
+./docs/term-check-raw.txt:86  term: dvf
+./docs/term-check-raw.txt:87  term: dvf
+./docs/term-check-raw.txt:88  term: dvf
+./docs/term-check-raw.txt:89  term: dvf
+./docs/term-check-raw.txt:90  term: dvf
+./docs/term-check-raw.txt:91  term: dvf
+./docs/term-check-raw.txt:92  term: dvf
+./docs/term-check-raw.txt:93  term: dvf
+./docs/term-check-raw.txt:94  term: dvf
+./docs/term-check-raw.txt:95  term: dvf
+./docs/term-check-raw.txt:96  term: dvf
+./docs/term-check-raw.txt:97  term: dvf
+./docs/term-check-raw.txt:98  term: dvf
+./docs/term-check-raw.txt:99  term: dvf
+./docs/term-check-raw.txt:100  term: dvf
+./docs/term-check-raw.txt:101  term: dvf
+./docs/term-check-raw.txt:102  term: dvf
+./docs/term-check-raw.txt:103  term: dvf
+./docs/term-check-raw.txt:104  term: dvf
+./docs/term-check-raw.txt:105  term: dvf
+./docs/term-check-raw.txt:107  term: dvf
+./docs/term-check-raw.txt:108  term: dvf
+./docs/term-check-raw.txt:109  term: dvf
+./docs/term-check-raw.txt:110  term: dvf
+./docs/term-check-raw.txt:111  term: dvf
+./docs/term-check-raw.txt:112  term: dvf
+./docs/term-check-raw.txt:113  term: dvf
+./docs/term-check-raw.txt:114  term: dvf
+./docs/term-check-raw.txt:127  term: dvf
+./docs/term-check-raw.txt:128  term: dvf
+./docs/term-check-raw.txt:129  term: dvf
+./docs/term-check-raw.txt:130  term: dvf
+./docs/term-check-raw.txt:131  term: dvf
+./docs/term-check-raw.txt:142  term: dvf
+./docs/term-check-raw.txt:143  term: dvf
+./docs/term-check-raw.txt:144  term: dvf
+./docs/term-check-raw.txt:145  term: dvf
+./docs/term-check-raw.txt:146  term: dvf
+./docs/term-check-raw.txt:147  term: dvf
+./docs/term-check-raw.txt:148  term: dvf
+./docs/term-check-raw.txt:149  term: dvf
+./docs/term-check-raw.txt:150  term: dvf
+./docs/term-check-raw.txt:151  term: dvf
+./docs/term-check-raw.txt:152  term: dvf
+./docs/term-check-raw.txt:153  term: dvf
+./docs/term-check-raw.txt:154  term: dvf
+./docs/term-check-raw.txt:155  term: dvf
+./docs/term-check-raw.txt:156  term: dvf
+./docs/term-check-raw.txt:157  term: dvf
+./docs/term-check-raw.txt:158  term: dvf
+./docs/term-check-raw.txt:159  term: dvf
+./docs/term-check-raw.txt:160  term: dvf
+./docs/term-check-raw.txt:161  term: dvf
+./docs/term-check-raw.txt:162  term: dvf
+./docs/term-check-raw.txt:163  term: dvf
+./docs/term-check-raw.txt:164  term: dvf
+./docs/term-check-raw.txt:165  term: dvf
+./docs/term-check-raw.txt:166  term: dvf
+./docs/term-check-raw.txt:167  term: dvf
+./docs/term-check-raw.txt:168  term: dvf
+./docs/term-check-raw.txt:169  term: dvf
+./docs/term-check-raw.txt:170  term: dvf
+./docs/term-check-raw.txt:171  term: dvf
+./docs/term-check-raw.txt:172  term: dvf
+./docs/term-check-raw.txt:173  term: dvf
+./docs/term-check-raw.txt:174  term: dvf
+./docs/term-check-raw.txt:175  term: dvf
+./docs/term-check-raw.txt:176  term: dvf
+./docs/term-check-raw.txt:177  term: dvf
+./docs/term-check-raw.txt:178  term: dvf
+./docs/term-check-raw.txt:179  term: dvf
+./docs/term-check-raw.txt:180  term: dvf
+./docs/term-check-raw.txt:181  term: dvf
+./docs/term-check-raw.txt:182  term: dvf
+./docs/term-check-raw.txt:183  term: dvf
+./docs/term-check-raw.txt:184  term: dvf
+./docs/term-check-raw.txt:185  term: dvf
+./docs/term-check-raw.txt:186  term: dvf
+./docs/term-check-raw.txt:187  term: dvf
+./docs/term-check-raw.txt:188  term: dvf
+./docs/term-check-raw.txt:189  term: dvf
+./docs/term-check-raw.txt:190  term: dvf
+./docs/term-check-raw.txt:191  term: dvf
+./docs/term-check-raw.txt:192  term: dvf
+./docs/term-check-raw.txt:193  term: dvf
+./docs/term-check-raw.txt:194  term: dvf
+./docs/term-check-raw.txt:195  term: dvf
+./docs/term-check-raw.txt:196  term: dvf
+./docs/term-check-raw.txt:197  term: dvf
+./docs/term-check-raw.txt:198  term: dvf
+./docs/term-check-raw.txt:199  term: dvf
+./docs/term-check-raw.txt:200  term: dvf
+./docs/term-check-raw.txt:201  term: dvf
+./docs/term-check-raw.txt:202  term: dvf
+./docs/term-check-raw.txt:203  term: dvf
+./docs/term-check-raw.txt:204  term: dvf
+./docs/term-check-raw.txt:205  term: dvf
+./docs/term-check-raw.txt:206  term: dvf
+./docs/term-check-raw.txt:207  term: dvf
+./docs/term-check-raw.txt:208  term: dvf
+./docs/term-check-raw.txt:209  term: dvf
+./docs/term-check-raw.txt:210  term: dvf
+./docs/term-check-raw.txt:318  term: dvf
+./docs/term-check-raw.txt:319  term: dvf
+./docs/term-check-raw.txt:320  term: dvf
+./docs/term-check-raw.txt:321  term: dvf
+./docs/term-check-raw.txt:325  term: dvf
+./docs/term-check-raw.txt:326  term: dvf
+./docs/term-check-raw.txt:327  term: dvf
+./docs/term-check-raw.txt:328  term: dvf
+./docs/term-check-raw.txt:329  term: dvf
+./docs/term-check-raw.txt:330  term: dvf
+./docs/term-check-raw.txt:331  term: dvf
+./docs/term-check-raw.txt:332  term: dvf
+./docs/term-check-raw.txt:333  term: dvf
+./docs/term-check-raw.txt:334  term: dvf
+./docs/term-check-raw.txt:335  term: dvf
+./docs/term-check-raw.txt:336  term: dvf
+./docs/term-check-raw.txt:337  term: dvf
+./docs/term-check-raw.txt:338  term: dvf
+./docs/term-check-raw.txt:339  term: dvf
+./docs/term-check-raw.txt:340  term: dvf
+./docs/term-check-raw.txt:341  term: dvf
+./docs/term-check-raw.txt:342  term: dvf
+./docs/term-check-raw.txt:343  term: dvf
+./docs/term-check-raw.txt:344  term: dvf
+./docs/term-check-raw.txt:345  term: dvf
+./docs/term-check-raw.txt:346  term: dvf
+./docs/term-check-raw.txt:347  term: dvf
+./docs/term-check-raw.txt:348  term: dvf
+./docs/term-check-raw.txt:349  term: dvf
+./docs/term-check-raw.txt:350  term: dvf
+./docs/term-check-raw.txt:351  term: dvf
+./docs/term-check-raw.txt:352  term: dvf
+./docs/term-check-raw.txt:353  term: dvf
+./docs/term-check-raw.txt:354  term: dvf
+./docs/term-check-raw.txt:355  term: dvf
+./docs/term-check-raw.txt:356  term: dvf
+./docs/term-check-raw.txt:357  term: dvf
+./docs/term-check-raw.txt:358  term: dvf
+./docs/term-check-raw.txt:359  term: dvf
+./docs/term-check-raw.txt:360  term: dvf
+./docs/term-check-raw.txt:361  term: dvf
+./docs/term-check-raw.txt:362  term: dvf
+./docs/term-check-raw.txt:363  term: dvf
+./docs/term-check-raw.txt:364  term: dvf
+./docs/term-check-raw.txt:365  term: dvf
+./docs/term-check-raw.txt:366  term: dvf
+./docs/term-check-raw.txt:367  term: dvf
+./docs/term-check-raw.txt:368  term: dvf
+./docs/term-check-raw.txt:369  term: dvf
+./docs/term-check-raw.txt:370  term: dvf
+./docs/term-check-raw.txt:371  term: dvf
+./docs/term-check-raw.txt:372  term: dvf
+./docs/term-check-raw.txt:373  term: dvf
+./docs/term-check-raw.txt:374  term: dvf
+./docs/term-check-raw.txt:375  term: dvf
+./docs/term-check-raw.txt:376  term: dvf
+./docs/term-check-raw.txt:377  term: dvf
+./docs/term-check-raw.txt:443  term: dvf
+./docs/term-check-raw.txt:444  term: dvf
+./docs/term-check-raw.txt:445  term: dvf
+./docs/term-check-raw.txt:446  term: dvf
+./docs/term-check-raw.txt:447  term: dvf
+./docs/term-check-raw.txt:448  term: dvf
+./docs/term-check-raw.txt:449  term: dvf
+./docs/term-check-raw.txt:450  term: dvf
+./docs/term-check-raw.txt:451  term: dvf
+./docs/term-check-raw.txt:452  term: dvf
+./docs/term-check-raw.txt:453  term: dvf
+./docs/term-check-raw.txt:454  term: dvf
+./docs/term-check-raw.txt:455  term: dvf
+./docs/term-check-raw.txt:456  term: dvf
+./docs/term-check-raw.txt:457  term: dvf
+./docs/term-check-raw.txt:458  term: dvf
+./docs/term-check-raw.txt:459  term: dvf
+./docs/term-check-raw.txt:460  term: dvf
+./docs/term-check-raw.txt:461  term: dvf
+./docs/term-check-raw.txt:462  term: dvf
+./docs/term-check-raw.txt:463  term: dvf
+./docs/term-check-raw.txt:464  term: dvf
+./docs/term-check-raw.txt:465  term: dvf
+./docs/term-check-raw.txt:466  term: dvf
+./docs/term-check-raw.txt:467  term: dvf
+./docs/term-check-raw.txt:468  term: dvf
+./docs/term-check-raw.txt:469  term: dvf
+./docs/term-check-raw.txt:470  term: dvf
+./docs/term-check-raw.txt:471  term: dvf
+./docs/term-check-raw.txt:472  term: dvf
+./docs/term-check-raw.txt:473  term: dvf
+./docs/term-check-raw.txt:474  term: dvf
+./docs/term-check-raw.txt:475  term: dvf
+./docs/term-check-raw.txt:476  term: dvf
+./docs/term-check-raw.txt:477  term: dvf
+./docs/term-check-raw.txt:478  term: dvf
+./docs/term-check-raw.txt:479  term: dvf
+./docs/term-check-raw.txt:480  term: dvf
+./docs/term-check-raw.txt:481  term: dvf
+./docs/term-check-raw.txt:482  term: dvf
+./docs/term-check-raw.txt:483  term: dvf
+./docs/term-check-raw.txt:484  term: dvf
+./docs/term-check-raw.txt:485  term: dvf
+./docs/term-check-raw.txt:486  term: dvf
+./docs/term-check-raw.txt:487  term: dvf
+./docs/term-check-raw.txt:488  term: dvf
+./docs/term-check-raw.txt:489  term: dvf
+./docs/term-check-raw.txt:490  term: dvf
+./docs/term-check-raw.txt:491  term: dvf
+./docs/term-check-raw.txt:492  term: dvf
+./docs/term-check-raw.txt:493  term: dvf
+./docs/term-check-raw.txt:494  term: dvf
+./docs/term-check-raw.txt:495  term: dvf
+./docs/term-check-raw.txt:496  term: dvf
+./docs/term-check-raw.txt:497  term: dvf
+./docs/term-check-raw.txt:498  term: dvf
+./docs/term-check-raw.txt:499  term: dvf
+./docs/term-check-raw.txt:500  term: dvf
+./docs/term-check-raw.txt:501  term: dvf
+./docs/term-check-raw.txt:502  term: dvf
+./docs/term-check-raw.txt:508  term: dvf
+./docs/term-check-raw.txt:509  term: dvf
+./docs/term-check-raw.txt:510  term: dvf
+./docs/term-check-raw.txt:511  term: dvf
+./docs/term-check-raw.txt:561  term: dvf
+./docs/term-check-raw.txt:562  term: dvf
+./docs/term-check-raw.txt:563  term: dvf
+./docs/term-check-raw.txt:564  term: dvf
+./docs/term-check-raw.txt:565  term: dvf
+./docs/term-check-raw.txt:566  term: dvf
+./docs/term-check-raw.txt:567  term: dvf
+./docs/term-check-raw.txt:568  term: dvf
+./docs/term-check-raw.txt:764  term: dvf
+./docs/term-check-raw.txt:824  term: dvf
+./docs/term-check-raw.txt:825  term: dvf
+./docs/term-check-raw.txt:826  term: dvf
+./docs/term-check-raw.txt:827  term: dvf
+./docs/term-check-raw.txt:828  term: dvf
+./docs/term-check-raw.txt:834  term: dvf
+./docs/term-check-raw.txt:835  term: dvf
+./docs/term-check-raw.txt:836  term: dvf
+./docs/term-check-raw.txt:837  term: dvf
+./docs/term-check-raw.txt:838  term: dvf
+./docs/term-check-raw.txt:839  term: dvf
+./docs/term-check-raw.txt:840  term: dvf
+./docs/term-check-raw.txt:841  term: dvf
+./docs/term-check-raw.txt:842  term: dvf
+./docs/term-check-raw.txt:843  term: dvf
+./docs/term-check-raw.txt:844  term: dvf
+./docs/term-check-raw.txt:845  term: dvf
+./docs/term-check-raw.txt:846  term: dvf
+./docs/term-check-raw.txt:847  term: dvf
+./docs/term-check-raw.txt:848  term: dvf
+./docs/term-check-raw.txt:849  term: dvf
+./docs/term-check-raw.txt:850  term: dvf
+./docs/term-check-raw.txt:851  term: dvf
+./docs/term-check-raw.txt:852  term: dvf
+./docs/term-check-raw.txt:853  term: dvf
+./docs/term-check-raw.txt:854  term: dvf
+./docs/term-check-raw.txt:855  term: dvf
+./docs/term-check-raw.txt:856  term: dvf
+./docs/term-check-raw.txt:859  term: dvf
+./docs/term-check-raw.txt:860  term: dvf
+./docs/term-check-raw.txt:863  term: dvf
+./docs/term-check-raw.txt:864  term: dvf
+./docs/term-check-raw.txt:865  term: dvf
+./docs/term-check-raw.txt:866  term: dvf
+./docs/term-check-raw.txt:867  term: dvf
+./docs/term-check-raw.txt:868  term: dvf
+./docs/term-check-raw.txt:869  term: dvf
+./docs/term-check-raw.txt:870  term: dvf
+./docs/term-check-raw.txt:871  term: dvf
+./docs/term-check-raw.txt:872  term: dvf
+./docs/term-check-raw.txt:873  term: dvf
+./docs/term-check-raw.txt:874  term: dvf
+./docs/term-check-raw.txt:875  term: dvf
+./docs/term-check-raw.txt:876  term: dvf
+./docs/term-check-raw.txt:877  term: dvf
+./docs/term-check-raw.txt:878  term: dvf
+./docs/term-check-raw.txt:879  term: dvf
+./docs/term-check-raw.txt:880  term: dvf
+./docs/term-check-raw.txt:881  term: dvf
+./docs/term-check-raw.txt:882  term: dvf
+./docs/term-check-raw.txt:883  term: dvf
+./docs/term-check-raw.txt:884  term: dvf
+./docs/term-check-raw.txt:885  term: dvf
+./docs/term-check-raw.txt:886  term: dvf
+./docs/term-check-raw.txt:887  term: dvf
+./docs/term-check-raw.txt:888  term: dvf
+./docs/term-check-raw.txt:889  term: dvf
+./docs/term-check-raw.txt:890  term: dvf
+./docs/term-check-raw.txt:891  term: dvf
+./docs/term-check-raw.txt:892  term: dvf
+./docs/term-check-raw.txt:893  term: dvf
+./docs/term-check-raw.txt:894  term: dvf
+./docs/term-check-raw.txt:895  term: dvf
+./docs/term-check-raw.txt:896  term: dvf
+./docs/term-check-raw.txt:897  term: dvf
+./docs/term-check-raw.txt:898  term: dvf
+./docs/term-check-raw.txt:899  term: dvf
+./docs/term-check-raw.txt:900  term: dvf
+./docs/term-check-raw.txt:901  term: dvf
+./docs/term-check-raw.txt:902  term: dvf
+./docs/term-check-raw.txt:903  term: dvf
+./docs/term-check-raw.txt:904  term: dvf
+./docs/term-check-raw.txt:905  term: dvf
+./docs/term-check-raw.txt:906  term: dvf
+./docs/term-check-raw.txt:907  term: dvf
+./docs/term-check-raw.txt:908  term: dvf
+./docs/term-check-raw.txt:909  term: dvf
+./docs/term-check-raw.txt:910  term: dvf
+./docs/term-check-raw.txt:911  term: dvf
+./docs/term-check-raw.txt:912  term: dvf
+./docs/term-check-raw.txt:913  term: dvf
+./docs/term-check-raw.txt:914  term: dvf
+./docs/term-check-raw.txt:968  term: dvf
+./docs/term-check-raw.txt:972  term: dvf
+./docs/term-check-raw.txt:973  term: dvf
+./docs/term-check-raw.txt:984  term: dvf
+./docs/term-check-raw.txt:985  term: dvf
+./docs/term-check-raw.txt:986  term: dvf
+./docs/term-check-raw.txt:987  term: dvf
+./docs/term-check-raw.txt:1001  term: dvf
+./docs/term-check-raw.txt:1002  term: dvf
+./docs/term-check-raw.txt:1003  term: dvf
+./docs/term-check-raw.txt:1004  term: dvf
+./docs/term-check-raw.txt:1005  term: dvf
+./docs/term-check-raw.txt:1031  term: dvf
+./docs/term-check-raw.txt:1032  term: dvf
+./docs/term-check-raw.txt:1033  term: dvf
+./docs/term-check-raw.txt:1034  term: dvf
+./docs/term-check-raw.txt:1035  term: dvf
+./docs/term-check-raw.txt:1036  term: dvf
+./docs/term-check-raw.txt:1037  term: dvf
+./docs/term-check-raw.txt:1038  term: dvf
+./docs/term-check-raw.txt:1039  term: dvf
+./docs/term-check-raw.txt:1040  term: dvf
+./docs/term-check-raw.txt:1041  term: dvf
+./docs/term-check-raw.txt:1042  term: dvf
+./docs/term-check-raw.txt:1043  term: dvf
+./docs/term-check-raw.txt:1044  term: dvf
+./docs/term-check-raw.txt:1045  term: dvf
+./docs/term-check-raw.txt:1046  term: dvf
+./docs/term-check-raw.txt:1047  term: dvf
+./docs/term-check-raw.txt:1048  term: dvf
+./docs/term-check-raw.txt:1049  term: dvf
+./docs/term-check-raw.txt:1050  term: dvf
+./docs/term-check-raw.txt:1051  term: dvf
+./docs/term-check-raw.txt:1052  term: dvf
+./docs/term-check-raw.txt:1053  term: dvf
+./docs/term-check-raw.txt:1054  term: dvf
+./docs/term-check-raw.txt:1055  term: dvf
+./docs/term-check-raw.txt:1056  term: dvf
+./docs/term-check-raw.txt:1057  term: dvf
+./docs/term-check-raw.txt:1058  term: dvf
+./docs/term-check-raw.txt:1059  term: dvf
+./docs/term-check-raw.txt:1060  term: dvf
+./docs/term-check-raw.txt:1061  term: dvf
+./docs/term-check-raw.txt:1062  term: dvf
+./docs/term-check-raw.txt:1063  term: dvf
+./docs/term-check-raw.txt:1064  term: dvf
+./docs/term-check-raw.txt:1065  term: dvf
+./docs/term-check-raw.txt:1066  term: dvf
+./docs/term-check-raw.txt:1067  term: dvf
+./docs/term-check-raw.txt:1068  term: dvf
+./docs/term-check-raw.txt:1069  term: dvf
+./docs/term-check-raw.txt:1070  term: dvf
+./docs/term-check-raw.txt:1071  term: dvf
+./docs/term-check-raw.txt:1072  term: dvf
+./docs/term-check-raw.txt:1073  term: dvf
+./docs/term-check-raw.txt:1074  term: dvf
+./docs/term-check-raw.txt:1075  term: dvf
+./docs/term-check-raw.txt:1076  term: dvf
+./docs/term-check-raw.txt:1077  term: dvf
+./docs/term-check-raw.txt:1078  term: dvf
+./docs/term-check-raw.txt:1079  term: dvf
+./docs/term-check-raw.txt:1080  term: dvf
+./docs/term-check-raw.txt:1081  term: dvf
+./docs/term-check-raw.txt:1092  term: dvf
+./docs/term-check-raw.txt:1093  term: dvf
+./docs/term-check-raw.txt:1094  term: dvf
+./docs/term-check-raw.txt:1095  term: dvf
+./docs/term-check-raw.txt:1096  term: dvf
+./docs/term-check-raw.txt:1097  term: dvf
+./docs/term-check-raw.txt:1098  term: dvf
+./docs/term-check-raw.txt:1099  term: dvf
+./docs/term-check-raw.txt:1100  term: dvf
+./docs/term-check-raw.txt:1101  term: dvf
+./docs/term-check-raw.txt:1102  term: dvf
+./docs/term-check-raw.txt:1103  term: dvf
+./docs/term-check-raw.txt:1104  term: dvf
+./docs/term-check-raw.txt:1105  term: dvf
+./docs/term-check-raw.txt:1106  term: dvf
+./docs/term-check-raw.txt:1107  term: dvf
+./docs/term-check-raw.txt:1108  term: dvf
+./docs/term-check-raw.txt:1109  term: dvf
+./docs/term-check-raw.txt:1110  term: dvf
+./docs/term-check-raw.txt:1111  term: dvf
+./docs/term-check-raw.txt:1112  term: dvf
+./docs/term-check-raw.txt:1113  term: dvf
+./docs/term-check-raw.txt:1120  term: dvf
+./docs/term-check-raw.txt:1121  term: dvf
+./docs/term-check-raw.txt:1122  term: dvf
+./docs/term-check-raw.txt:1123  term: dvf
+./docs/term-check-raw.txt:1124  term: dvf
+./docs/term-check-raw.txt:1125  term: dvf
+./docs/term-check-raw.txt:1126  term: dvf
+./docs/term-check-raw.txt:1127  term: dvf
+./docs/term-check-raw.txt:1128  term: dvf
+./docs/term-check-raw.txt:1129  term: dvf
+./docs/term-check-raw.txt:1130  term: dvf
+./docs/term-check-raw.txt:1131  term: dvf
+./docs/term-check-raw.txt:1132  term: dvf
+./docs/term-check-raw.txt:1133  term: dvf
+./docs/term-check-raw.txt:1134  term: dvf
+./docs/term-check-raw.txt:1135  term: dvf
+./docs/term-check-raw.txt:1136  term: dvf
+./docs/term-check-raw.txt:1137  term: dvf
+./docs/term-check-raw.txt:1138  term: dvf
+./docs/term-check-raw.txt:1139  term: dvf
+./docs/term-check-raw.txt:1140  term: dvf
+./docs/term-check-raw.txt:1141  term: dvf
+./docs/term-check-raw.txt:1142  term: dvf
+./docs/term-check-raw.txt:1143  term: dvf
+./docs/term-check-raw.txt:1144  term: dvf
+./docs/term-check-raw.txt:1145  term: dvf
+./docs/term-check-raw.txt:1146  term: dvf
+./docs/term-check-raw.txt:1147  term: dvf
+./docs/term-check-raw.txt:1148  term: dvf
+./docs/term-check-raw.txt:1149  term: dvf
+./docs/term-check-raw.txt:1150  term: dvf
+./docs/term-check-raw.txt:1151  term: dvf
+./docs/term-check-raw.txt:1152  term: dvf
+./docs/term-check-raw.txt:1153  term: dvf
+./docs/term-check-raw.txt:1154  term: dvf
+./docs/term-check-raw.txt:1155  term: dvf
+./docs/term-check-raw.txt:1156  term: dvf
+./docs/term-check-raw.txt:1157  term: dvf
+./docs/term-check-raw.txt:1158  term: dvf
+./docs/term-check-raw.txt:1159  term: dvf
+./docs/term-check-raw.txt:1160  term: dvf
+./docs/term-check-raw.txt:1161  term: dvf
+./docs/term-check-raw.txt:1162  term: dvf
+./docs/term-check-raw.txt:1163  term: dvf
+./docs/term-check-raw.txt:1164  term: dvf
+./docs/term-check-raw.txt:1165  term: dvf
+./docs/term-check-raw.txt:1166  term: dvf
+./docs/term-check-raw.txt:1167  term: dvf
+./docs/term-check-raw.txt:1168  term: dvf
+./docs/term-check-raw.txt:1169  term: dvf
+./docs/term-check-raw.txt:1170  term: dvf
+./docs/term-check-raw.txt:1171  term: dvf
+./docs/term-check-raw.txt:1172  term: dvf
+./docs/term-check-raw.txt:1173  term: dvf
+./docs/term-check-raw.txt:1174  term: dvf
+./docs/term-check-raw.txt:1177  term: dvf
+./docs/term-check-raw.txt:1178  term: dvf
+./docs/term-check-raw.txt:1179  term: dvf
+./docs/term-check-raw.txt:1180  term: dvf
+./docs/term-check-raw.txt:1181  term: dvf
+./docs/term-check-raw.txt:1182  term: dvf
+./docs/term-check-raw.txt:1183  term: dvf
+./docs/term-check-raw.txt:1184  term: dvf
+./docs/term-check-raw.txt:1185  term: dvf
+./docs/term-check-raw.txt:1186  term: dvf
+./docs/term-check-raw.txt:1187  term: dvf
+./docs/term-check-raw.txt:1188  term: dvf
+./docs/term-check-raw.txt:1189  term: dvf
+./docs/term-check-raw.txt:1190  term: dvf
+./docs/term-check-raw.txt:1191  term: dvf
+./docs/term-check-raw.txt:1192  term: dvf
+./docs/term-check-raw.txt:1193  term: dvf
+./docs/term-check-raw.txt:1194  term: dvf
+./docs/term-check-raw.txt:1195  term: dvf
+./docs/term-check-raw.txt:1196  term: dvf
+./docs/term-check-raw.txt:1197  term: dvf
+./docs/term-check-raw.txt:1198  term: dvf
+./docs/term-check-raw.txt:1199  term: dvf
+./docs/term-check-raw.txt:1200  term: dvf
+./docs/term-check-raw.txt:1201  term: dvf
+./docs/term-check-raw.txt:1202  term: dvf
+./docs/term-check-raw.txt:1203  term: dvf
+./docs/term-check-raw.txt:1204  term: dvf
+./docs/term-check-raw.txt:1205  term: dvf
+./docs/term-check-raw.txt:1206  term: dvf
+./docs/term-check-raw.txt:1207  term: dvf
+./docs/term-check-raw.txt:1208  term: dvf
+./docs/term-check-raw.txt:1209  term: dvf
+./docs/term-check-raw.txt:1210  term: dvf
+./docs/term-check-raw.txt:1211  term: dvf
+./docs/term-check-raw.txt:1212  term: dvf
+./docs/term-check-raw.txt:1213  term: dvf
+./docs/term-check-raw.txt:1214  term: dvf
+./docs/term-check-raw.txt:1215  term: dvf
+./docs/term-check-raw.txt:1216  term: dvf
+./docs/term-check-raw.txt:1217  term: dvf
+./docs/term-check-raw.txt:1218  term: dvf
+./docs/term-check-raw.txt:1219  term: dvf
+./docs/term-check-raw.txt:1220  term: dvf
+./docs/term-check-raw.txt:1221  term: dvf
+./docs/term-check-raw.txt:1222  term: dvf
+./docs/term-check-raw.txt:1223  term: dvf
+./docs/term-check-raw.txt:1224  term: dvf
+./docs/term-check-raw.txt:1225  term: dvf
+./docs/term-check-raw.txt:1226  term: dvf
+./docs/term-check-raw.txt:1227  term: dvf
+./docs/term-check-raw.txt:1228  term: dvf
+./docs/term-check-raw.txt:1229  term: dvf
+./docs/term-check-raw.txt:1230  term: dvf
+./docs/term-check-raw.txt:1231  term: dvf
+./docs/term-check-raw.txt:2  term: configuration
+./docs/term-check-raw.txt:3  term: configuration
+./docs/term-check-raw.txt:4  term: configuration
+./docs/term-check-raw.txt:5  term: configuration
+./docs/term-check-raw.txt:6  term: configuration
+./docs/term-check-raw.txt:7  term: configuration
+./docs/term-check-raw.txt:8  term: configuration
+./docs/term-check-raw.txt:9  term: configuration
+./docs/term-check-raw.txt:10  term: configuration
+./docs/term-check-raw.txt:11  term: configuration
+./docs/term-check-raw.txt:12  term: configuration
+./docs/term-check-raw.txt:21  term: configuration
+./docs/term-check-raw.txt:23  term: configuration
+./docs/term-check-raw.txt:24  term: configuration
+./docs/term-check-raw.txt:25  term: configuration
+./docs/term-check-raw.txt:26  term: configuration
+./docs/term-check-raw.txt:27  term: configuration
+./docs/term-check-raw.txt:28  term: configuration
+./docs/term-check-raw.txt:29  term: configuration
+./docs/term-check-raw.txt:30  term: configuration
+./docs/term-check-raw.txt:37  term: configuration
+./docs/term-check-raw.txt:46  term: configuration
+./docs/term-check-raw.txt:47  term: configuration
+./docs/term-check-raw.txt:48  term: configuration
+./docs/term-check-raw.txt:49  term: configuration
+./docs/term-check-raw.txt:50  term: configuration
+./docs/term-check-raw.txt:51  term: configuration
+./docs/term-check-raw.txt:52  term: configuration
+./docs/term-check-raw.txt:53  term: configuration
+./docs/term-check-raw.txt:54  term: configuration
+./docs/term-check-raw.txt:55  term: configuration
+./docs/term-check-raw.txt:56  term: configuration
+./docs/term-check-raw.txt:80  term: configuration
+./docs/term-check-raw.txt:81  term: configuration
+./docs/term-check-raw.txt:82  term: configuration
+./docs/term-check-raw.txt:83  term: configuration
+./docs/term-check-raw.txt:84  term: configuration
+./docs/term-check-raw.txt:115  term: configuration
+./docs/term-check-raw.txt:116  term: configuration
+./docs/term-check-raw.txt:117  term: configuration
+./docs/term-check-raw.txt:118  term: configuration
+./docs/term-check-raw.txt:119  term: configuration
+./docs/term-check-raw.txt:121  term: configuration
+./docs/term-check-raw.txt:122  term: configuration
+./docs/term-check-raw.txt:123  term: configuration
+./docs/term-check-raw.txt:124  term: configuration
+./docs/term-check-raw.txt:125  term: configuration
+./docs/term-check-raw.txt:126  term: configuration
+./docs/term-check-raw.txt:132  term: configuration
+./docs/term-check-raw.txt:133  term: configuration
+./docs/term-check-raw.txt:134  term: configuration
+./docs/term-check-raw.txt:135  term: configuration
+./docs/term-check-raw.txt:137  term: configuration
+./docs/term-check-raw.txt:138  term: configuration
+./docs/term-check-raw.txt:139  term: configuration
+./docs/term-check-raw.txt:141  term: configuration
+./docs/term-check-raw.txt:281  term: configuration
+./docs/term-check-raw.txt:285  term: configuration
+./docs/term-check-raw.txt:286  term: configuration
+./docs/term-check-raw.txt:378  term: configuration
+./docs/term-check-raw.txt:379  term: configuration
+./docs/term-check-raw.txt:380  term: configuration
+./docs/term-check-raw.txt:381  term: configuration
+./docs/term-check-raw.txt:382  term: configuration
+./docs/term-check-raw.txt:383  term: configuration
+./docs/term-check-raw.txt:384  term: configuration
+./docs/term-check-raw.txt:385  term: configuration
+./docs/term-check-raw.txt:386  term: configuration
+./docs/term-check-raw.txt:387  term: configuration
+./docs/term-check-raw.txt:388  term: configuration
+./docs/term-check-raw.txt:389  term: configuration
+./docs/term-check-raw.txt:390  term: configuration
+./docs/term-check-raw.txt:391  term: configuration
+./docs/term-check-raw.txt:397  term: configuration
+./docs/term-check-raw.txt:398  term: configuration
+./docs/term-check-raw.txt:399  term: configuration
+./docs/term-check-raw.txt:400  term: configuration
+./docs/term-check-raw.txt:401  term: configuration
+./docs/term-check-raw.txt:402  term: configuration
+./docs/term-check-raw.txt:403  term: configuration
+./docs/term-check-raw.txt:404  term: configuration
+./docs/term-check-raw.txt:405  term: configuration
+./docs/term-check-raw.txt:406  term: configuration
+./docs/term-check-raw.txt:407  term: configuration
+./docs/term-check-raw.txt:408  term: configuration
+./docs/term-check-raw.txt:410  term: configuration
+./docs/term-check-raw.txt:411  term: configuration
+./docs/term-check-raw.txt:412  term: configuration
+./docs/term-check-raw.txt:413  term: configuration
+./docs/term-check-raw.txt:414  term: configuration
+./docs/term-check-raw.txt:418  term: configuration
+./docs/term-check-raw.txt:420  term: configuration
+./docs/term-check-raw.txt:421  term: configuration
+./docs/term-check-raw.txt:422  term: configuration
+./docs/term-check-raw.txt:423  term: configuration
+./docs/term-check-raw.txt:429  term: configuration
+./docs/term-check-raw.txt:433  term: configuration
+./docs/term-check-raw.txt:434  term: configuration
+./docs/term-check-raw.txt:435  term: configuration
+./docs/term-check-raw.txt:436  term: configuration
+./docs/term-check-raw.txt:437  term: configuration
+./docs/term-check-raw.txt:438  term: configuration
+./docs/term-check-raw.txt:439  term: configuration
+./docs/term-check-raw.txt:440  term: configuration
+./docs/term-check-raw.txt:441  term: configuration
+./docs/term-check-raw.txt:442  term: configuration
+./docs/term-check-raw.txt:503  term: configuration
+./docs/term-check-raw.txt:504  term: configuration
+./docs/term-check-raw.txt:505  term: configuration
+./docs/term-check-raw.txt:506  term: configuration
+./docs/term-check-raw.txt:507  term: configuration
+./docs/term-check-raw.txt:512  term: configuration
+./docs/term-check-raw.txt:514  term: configuration
+./docs/term-check-raw.txt:515  term: configuration
+./docs/term-check-raw.txt:517  term: configuration
+./docs/term-check-raw.txt:518  term: configuration
+./docs/term-check-raw.txt:519  term: configuration
+./docs/term-check-raw.txt:520  term: configuration
+./docs/term-check-raw.txt:522  term: configuration
+./docs/term-check-raw.txt:523  term: configuration
+./docs/term-check-raw.txt:524  term: configuration
+./docs/term-check-raw.txt:525  term: configuration
+./docs/term-check-raw.txt:527  term: configuration
+./docs/term-check-raw.txt:528  term: configuration
+./docs/term-check-raw.txt:529  term: configuration
+./docs/term-check-raw.txt:530  term: configuration
+./docs/term-check-raw.txt:569  term: configuration
+./docs/term-check-raw.txt:570  term: configuration
+./docs/term-check-raw.txt:571  term: configuration
+./docs/term-check-raw.txt:572  term: configuration
+./docs/term-check-raw.txt:573  term: configuration
+./docs/term-check-raw.txt:574  term: configuration
+./docs/term-check-raw.txt:575  term: configuration
+./docs/term-check-raw.txt:576  term: configuration
+./docs/term-check-raw.txt:577  term: configuration
+./docs/term-check-raw.txt:578  term: configuration
+./docs/term-check-raw.txt:579  term: configuration
+./docs/term-check-raw.txt:580  term: configuration
+./docs/term-check-raw.txt:581  term: configuration
+./docs/term-check-raw.txt:582  term: configuration
+./docs/term-check-raw.txt:583  term: configuration
+./docs/term-check-raw.txt:584  term: configuration
+./docs/term-check-raw.txt:585  term: configuration
+./docs/term-check-raw.txt:586  term: configuration
+./docs/term-check-raw.txt:587  term: configuration
+./docs/term-check-raw.txt:588  term: configuration
+./docs/term-check-raw.txt:589  term: configuration
+./docs/term-check-raw.txt:590  term: configuration
+./docs/term-check-raw.txt:591  term: configuration
+./docs/term-check-raw.txt:592  term: configuration
+./docs/term-check-raw.txt:593  term: configuration
+./docs/term-check-raw.txt:594  term: configuration
+./docs/term-check-raw.txt:595  term: configuration
+./docs/term-check-raw.txt:596  term: configuration
+./docs/term-check-raw.txt:597  term: configuration
+./docs/term-check-raw.txt:598  term: configuration
+./docs/term-check-raw.txt:599  term: configuration
+./docs/term-check-raw.txt:600  term: configuration
+./docs/term-check-raw.txt:601  term: configuration
+./docs/term-check-raw.txt:602  term: configuration
+./docs/term-check-raw.txt:603  term: configuration
+./docs/term-check-raw.txt:604  term: configuration
+./docs/term-check-raw.txt:605  term: configuration
+./docs/term-check-raw.txt:606  term: configuration
+./docs/term-check-raw.txt:607  term: configuration
+./docs/term-check-raw.txt:608  term: configuration
+./docs/term-check-raw.txt:609  term: configuration
+./docs/term-check-raw.txt:610  term: configuration
+./docs/term-check-raw.txt:611  term: configuration
+./docs/term-check-raw.txt:612  term: configuration
+./docs/term-check-raw.txt:613  term: configuration
+./docs/term-check-raw.txt:614  term: configuration
+./docs/term-check-raw.txt:615  term: configuration
+./docs/term-check-raw.txt:616  term: configuration
+./docs/term-check-raw.txt:617  term: configuration
+./docs/term-check-raw.txt:618  term: configuration
+./docs/term-check-raw.txt:619  term: configuration
+./docs/term-check-raw.txt:620  term: configuration
+./docs/term-check-raw.txt:621  term: configuration
+./docs/term-check-raw.txt:622  term: configuration
+./docs/term-check-raw.txt:623  term: configuration
+./docs/term-check-raw.txt:624  term: configuration
+./docs/term-check-raw.txt:625  term: configuration
+./docs/term-check-raw.txt:626  term: configuration
+./docs/term-check-raw.txt:627  term: configuration
+./docs/term-check-raw.txt:628  term: configuration
+./docs/term-check-raw.txt:629  term: configuration
+./docs/term-check-raw.txt:630  term: configuration
+./docs/term-check-raw.txt:631  term: configuration
+./docs/term-check-raw.txt:632  term: configuration
+./docs/term-check-raw.txt:633  term: configuration
+./docs/term-check-raw.txt:634  term: configuration
+./docs/term-check-raw.txt:635  term: configuration
+./docs/term-check-raw.txt:636  term: configuration
+./docs/term-check-raw.txt:637  term: configuration
+./docs/term-check-raw.txt:638  term: configuration
+./docs/term-check-raw.txt:639  term: configuration
+./docs/term-check-raw.txt:640  term: configuration
+./docs/term-check-raw.txt:641  term: configuration
+./docs/term-check-raw.txt:642  term: configuration
+./docs/term-check-raw.txt:643  term: configuration
+./docs/term-check-raw.txt:644  term: configuration
+./docs/term-check-raw.txt:645  term: configuration
+./docs/term-check-raw.txt:646  term: configuration
+./docs/term-check-raw.txt:647  term: configuration
+./docs/term-check-raw.txt:648  term: configuration
+./docs/term-check-raw.txt:649  term: configuration
+./docs/term-check-raw.txt:650  term: configuration
+./docs/term-check-raw.txt:651  term: configuration
+./docs/term-check-raw.txt:652  term: configuration
+./docs/term-check-raw.txt:653  term: configuration
+./docs/term-check-raw.txt:654  term: configuration
+./docs/term-check-raw.txt:655  term: configuration
+./docs/term-check-raw.txt:656  term: configuration
+./docs/term-check-raw.txt:657  term: configuration
+./docs/term-check-raw.txt:658  term: configuration
+./docs/term-check-raw.txt:659  term: configuration
+./docs/term-check-raw.txt:660  term: configuration
+./docs/term-check-raw.txt:661  term: configuration
+./docs/term-check-raw.txt:662  term: configuration
+./docs/term-check-raw.txt:663  term: configuration
+./docs/term-check-raw.txt:664  term: configuration
+./docs/term-check-raw.txt:665  term: configuration
+./docs/term-check-raw.txt:666  term: configuration
+./docs/term-check-raw.txt:667  term: configuration
+./docs/term-check-raw.txt:668  term: configuration
+./docs/term-check-raw.txt:669  term: configuration
+./docs/term-check-raw.txt:670  term: configuration
+./docs/term-check-raw.txt:671  term: configuration
+./docs/term-check-raw.txt:672  term: configuration
+./docs/term-check-raw.txt:673  term: configuration
+./docs/term-check-raw.txt:674  term: configuration
+./docs/term-check-raw.txt:675  term: configuration
+./docs/term-check-raw.txt:676  term: configuration
+./docs/term-check-raw.txt:677  term: configuration
+./docs/term-check-raw.txt:678  term: configuration
+./docs/term-check-raw.txt:679  term: configuration
+./docs/term-check-raw.txt:680  term: configuration
+./docs/term-check-raw.txt:681  term: configuration
+./docs/term-check-raw.txt:682  term: configuration
+./docs/term-check-raw.txt:683  term: configuration
+./docs/term-check-raw.txt:684  term: configuration
+./docs/term-check-raw.txt:685  term: configuration
+./docs/term-check-raw.txt:686  term: configuration
+./docs/term-check-raw.txt:687  term: configuration
+./docs/term-check-raw.txt:688  term: configuration
+./docs/term-check-raw.txt:689  term: configuration
+./docs/term-check-raw.txt:690  term: configuration
+./docs/term-check-raw.txt:691  term: configuration
+./docs/term-check-raw.txt:692  term: configuration
+./docs/term-check-raw.txt:693  term: configuration
+./docs/term-check-raw.txt:694  term: configuration
+./docs/term-check-raw.txt:695  term: configuration
+./docs/term-check-raw.txt:696  term: configuration
+./docs/term-check-raw.txt:697  term: configuration
+./docs/term-check-raw.txt:698  term: configuration
+./docs/term-check-raw.txt:699  term: configuration
+./docs/term-check-raw.txt:700  term: configuration
+./docs/term-check-raw.txt:701  term: configuration
+./docs/term-check-raw.txt:702  term: configuration
+./docs/term-check-raw.txt:703  term: configuration
+./docs/term-check-raw.txt:704  term: configuration
+./docs/term-check-raw.txt:705  term: configuration
+./docs/term-check-raw.txt:706  term: configuration
+./docs/term-check-raw.txt:707  term: configuration
+./docs/term-check-raw.txt:708  term: configuration
+./docs/term-check-raw.txt:709  term: configuration
+./docs/term-check-raw.txt:710  term: configuration
+./docs/term-check-raw.txt:711  term: configuration
+./docs/term-check-raw.txt:712  term: configuration
+./docs/term-check-raw.txt:713  term: configuration
+./docs/term-check-raw.txt:714  term: configuration
+./docs/term-check-raw.txt:715  term: configuration
+./docs/term-check-raw.txt:716  term: configuration
+./docs/term-check-raw.txt:717  term: configuration
+./docs/term-check-raw.txt:718  term: configuration
+./docs/term-check-raw.txt:719  term: configuration
+./docs/term-check-raw.txt:720  term: configuration
+./docs/term-check-raw.txt:721  term: configuration
+./docs/term-check-raw.txt:722  term: configuration
+./docs/term-check-raw.txt:723  term: configuration
+./docs/term-check-raw.txt:724  term: configuration
+./docs/term-check-raw.txt:725  term: configuration
+./docs/term-check-raw.txt:726  term: configuration
+./docs/term-check-raw.txt:727  term: configuration
+./docs/term-check-raw.txt:728  term: configuration
+./docs/term-check-raw.txt:729  term: configuration
+./docs/term-check-raw.txt:730  term: configuration
+./docs/term-check-raw.txt:731  term: configuration
+./docs/term-check-raw.txt:732  term: configuration
+./docs/term-check-raw.txt:733  term: configuration
+./docs/term-check-raw.txt:734  term: configuration
+./docs/term-check-raw.txt:765  term: configuration
+./docs/term-check-raw.txt:766  term: configuration
+./docs/term-check-raw.txt:767  term: configuration
+./docs/term-check-raw.txt:769  term: configuration
+./docs/term-check-raw.txt:770  term: configuration
+./docs/term-check-raw.txt:771  term: configuration
+./docs/term-check-raw.txt:772  term: configuration
+./docs/term-check-raw.txt:776  term: configuration
+./docs/term-check-raw.txt:777  term: configuration
+./docs/term-check-raw.txt:778  term: configuration
+./docs/term-check-raw.txt:779  term: configuration
+./docs/term-check-raw.txt:780  term: configuration
+./docs/term-check-raw.txt:781  term: configuration
+./docs/term-check-raw.txt:782  term: configuration
+./docs/term-check-raw.txt:783  term: configuration
+./docs/term-check-raw.txt:784  term: configuration
+./docs/term-check-raw.txt:785  term: configuration
+./docs/term-check-raw.txt:786  term: configuration
+./docs/term-check-raw.txt:787  term: configuration
+./docs/term-check-raw.txt:789  term: configuration
+./docs/term-check-raw.txt:790  term: configuration
+./docs/term-check-raw.txt:791  term: configuration
+./docs/term-check-raw.txt:792  term: configuration
+./docs/term-check-raw.txt:793  term: configuration
+./docs/term-check-raw.txt:797  term: configuration
+./docs/term-check-raw.txt:798  term: configuration
+./docs/term-check-raw.txt:799  term: configuration
+./docs/term-check-raw.txt:800  term: configuration
+./docs/term-check-raw.txt:801  term: configuration
+./docs/term-check-raw.txt:802  term: configuration
+./docs/term-check-raw.txt:803  term: configuration
+./docs/term-check-raw.txt:804  term: configuration
+./docs/term-check-raw.txt:805  term: configuration
+./docs/term-check-raw.txt:809  term: configuration
+./docs/term-check-raw.txt:810  term: configuration
+./docs/term-check-raw.txt:811  term: configuration
+./docs/term-check-raw.txt:812  term: configuration
+./docs/term-check-raw.txt:813  term: configuration
+./docs/term-check-raw.txt:814  term: configuration
+./docs/term-check-raw.txt:815  term: configuration
+./docs/term-check-raw.txt:816  term: configuration
+./docs/term-check-raw.txt:817  term: configuration
+./docs/term-check-raw.txt:818  term: configuration
+./docs/term-check-raw.txt:819  term: configuration
+./docs/term-check-raw.txt:820  term: configuration
+./docs/term-check-raw.txt:831  term: configuration
+./docs/term-check-raw.txt:832  term: configuration
+./docs/term-check-raw.txt:833  term: configuration
+./docs/term-check-raw.txt:857  term: configuration
+./docs/term-check-raw.txt:861  term: configuration
+./docs/term-check-raw.txt:919  term: configuration
+./docs/term-check-raw.txt:920  term: configuration
+./docs/term-check-raw.txt:928  term: configuration
+./docs/term-check-raw.txt:929  term: configuration
+./docs/term-check-raw.txt:932  term: configuration
+./docs/term-check-raw.txt:933  term: configuration
+./docs/term-check-raw.txt:934  term: configuration
+./docs/term-check-raw.txt:936  term: configuration
+./docs/term-check-raw.txt:937  term: configuration
+./docs/term-check-raw.txt:939  term: configuration
+./docs/term-check-raw.txt:940  term: configuration
+./docs/term-check-raw.txt:946  term: configuration
+./docs/term-check-raw.txt:947  term: configuration
+./docs/term-check-raw.txt:948  term: configuration
+./docs/term-check-raw.txt:949  term: configuration
+./docs/term-check-raw.txt:950  term: configuration
+./docs/term-check-raw.txt:951  term: configuration
+./docs/term-check-raw.txt:952  term: configuration
+./docs/term-check-raw.txt:953  term: configuration
+./docs/term-check-raw.txt:954  term: configuration
+./docs/term-check-raw.txt:955  term: configuration
+./docs/term-check-raw.txt:956  term: configuration
+./docs/term-check-raw.txt:957  term: configuration
+./docs/term-check-raw.txt:958  term: configuration
+./docs/term-check-raw.txt:959  term: configuration
+./docs/term-check-raw.txt:960  term: configuration
+./docs/term-check-raw.txt:961  term: configuration
+./docs/term-check-raw.txt:962  term: configuration
+./docs/term-check-raw.txt:963  term: configuration
+./docs/term-check-raw.txt:964  term: configuration
+./docs/term-check-raw.txt:965  term: configuration
+./docs/term-check-raw.txt:971  term: configuration
+./docs/term-check-raw.txt:974  term: configuration
+./docs/term-check-raw.txt:975  term: configuration
+./docs/term-check-raw.txt:976  term: configuration
+./docs/term-check-raw.txt:977  term: configuration
+./docs/term-check-raw.txt:978  term: configuration
+./docs/term-check-raw.txt:979  term: configuration
+./docs/term-check-raw.txt:980  term: configuration
+./docs/term-check-raw.txt:981  term: configuration
+./docs/term-check-raw.txt:982  term: configuration
+./docs/term-check-raw.txt:983  term: configuration
+./docs/term-check-raw.txt:988  term: configuration
+./docs/term-check-raw.txt:989  term: configuration
+./docs/term-check-raw.txt:990  term: configuration
+./docs/term-check-raw.txt:991  term: configuration
+./docs/term-check-raw.txt:992  term: configuration
+./docs/term-check-raw.txt:993  term: configuration
+./docs/term-check-raw.txt:994  term: configuration
+./docs/term-check-raw.txt:1006  term: configuration
+./docs/term-check-raw.txt:1008  term: configuration
+./docs/term-check-raw.txt:1009  term: configuration
+./docs/term-check-raw.txt:1010  term: configuration
+./docs/term-check-raw.txt:1011  term: configuration
+./docs/term-check-raw.txt:1012  term: configuration
+./docs/term-check-raw.txt:1013  term: configuration
+./docs/term-check-raw.txt:1014  term: configuration
+./docs/term-check-raw.txt:1015  term: configuration
+./docs/term-check-raw.txt:1016  term: configuration
+./docs/term-check-raw.txt:1019  term: configuration
+./docs/term-check-raw.txt:1020  term: configuration
+./docs/term-check-raw.txt:1021  term: configuration
+./docs/term-check-raw.txt:1022  term: configuration
+./docs/term-check-raw.txt:1087  term: configuration
+./docs/term-check-raw.txt:1088  term: configuration
+./docs/term-check-raw.txt:1091  term: configuration
+./docs/term-check-raw.txt:1233  term: configuration
+./docs/term-check-raw.txt:13  term: configure
+./docs/term-check-raw.txt:31  term: configure
+./docs/term-check-raw.txt:32  term: configure
+./docs/term-check-raw.txt:33  term: configure
+./docs/term-check-raw.txt:136  term: configure
+./docs/term-check-raw.txt:282  term: configure
+./docs/term-check-raw.txt:283  term: configure
+./docs/term-check-raw.txt:284  term: configure
+./docs/term-check-raw.txt:287  term: configure
+./docs/term-check-raw.txt:415  term: configure
+./docs/term-check-raw.txt:416  term: configure
+./docs/term-check-raw.txt:735  term: configure
+./docs/term-check-raw.txt:768  term: configure
+./docs/term-check-raw.txt:858  term: configure
+./docs/term-check-raw.txt:862  term: configure
+./docs/term-check-raw.txt:935  term: configure
+./docs/term-check-raw.txt:942  term: configure
+./docs/term-check-raw.txt:995  term: configure
+./docs/term-check-raw.txt:996  term: configure
+./docs/term-check-raw.txt:997  term: configure
+./docs/term-check-raw.txt:998  term: configure
+./docs/term-check-raw.txt:1017  term: configure
+./docs/term-check-raw.txt:1018  term: configure
+./docs/term-check-raw.txt:14  term: configured
+./docs/term-check-raw.txt:288  term: configured
+./docs/term-check-raw.txt:289  term: configured
+./docs/term-check-raw.txt:392  term: configured
+./docs/term-check-raw.txt:393  term: configured
+./docs/term-check-raw.txt:394  term: configured
+./docs/term-check-raw.txt:395  term: configured
+./docs/term-check-raw.txt:396  term: configured
+./docs/term-check-raw.txt:424  term: configured
+./docs/term-check-raw.txt:425  term: configured
+./docs/term-check-raw.txt:426  term: configured
+./docs/term-check-raw.txt:513  term: configured
+./docs/term-check-raw.txt:531  term: configured
+./docs/term-check-raw.txt:532  term: configured
+./docs/term-check-raw.txt:736  term: configured
+./docs/term-check-raw.txt:737  term: configured
+./docs/term-check-raw.txt:738  term: configured
+./docs/term-check-raw.txt:739  term: configured
+./docs/term-check-raw.txt:740  term: configured
+./docs/term-check-raw.txt:741  term: configured
+./docs/term-check-raw.txt:742  term: configured
+./docs/term-check-raw.txt:743  term: configured
+./docs/term-check-raw.txt:744  term: configured
+./docs/term-check-raw.txt:745  term: configured
+./docs/term-check-raw.txt:746  term: configured
+./docs/term-check-raw.txt:747  term: configured
+./docs/term-check-raw.txt:773  term: configured
+./docs/term-check-raw.txt:774  term: configured
+./docs/term-check-raw.txt:775  term: configured
+./docs/term-check-raw.txt:788  term: configured
+./docs/term-check-raw.txt:794  term: configured
+./docs/term-check-raw.txt:806  term: configured
+./docs/term-check-raw.txt:807  term: configured
+./docs/term-check-raw.txt:808  term: configured
+./docs/term-check-raw.txt:821  term: configured
+./docs/term-check-raw.txt:822  term: configured
+./docs/term-check-raw.txt:823  term: configured
+./docs/term-check-raw.txt:829  term: configured
+./docs/term-check-raw.txt:915  term: configured
+./docs/term-check-raw.txt:916  term: configured
+./docs/term-check-raw.txt:1023  term: configured
+./docs/term-check-raw.txt:1024  term: configured
+./docs/term-check-raw.txt:1082  term: configured
+./docs/term-check-raw.txt:1083  term: configured
+./docs/term-check-raw.txt:427  term: configuring
+./docs/term-check-raw.txt:428  term: configuring
+./docs/term-check-raw.txt:34  term: configurable
+./docs/term-check-raw.txt:35  term: configurable
+./docs/term-check-raw.txt:417  term: configurable
+./docs/term-check-raw.txt:516  term: configurable
+./docs/term-check-raw.txt:526  term: configurable
+./docs/term-check-raw.txt:748  term: configurable
+./docs/term-check-raw.txt:749  term: configurable
+./docs/term-check-raw.txt:750  term: configurable
+./docs/term-check-raw.txt:751  term: configurable
+./docs/term-check-raw.txt:752  term: configurable
+./docs/term-check-raw.txt:753  term: configurable
+./docs/term-check-raw.txt:754  term: configurable
+./docs/term-check-raw.txt:755  term: configurable
+./docs/term-check-raw.txt:756  term: configurable
+./docs/term-check-raw.txt:757  term: configurable
+./docs/term-check-raw.txt:758  term: configurable
+./docs/term-check-raw.txt:759  term: configurable
+./docs/term-check-raw.txt:760  term: configurable
+./docs/term-check-raw.txt:761  term: configurable
+./docs/term-check-raw.txt:762  term: configurable
+./docs/term-check-raw.txt:763  term: configurable
+./docs/term-check-raw.txt:930  term: configurable
+./docs/term-check-raw.txt:931  term: configurable
+./docs/term-check-raw.txt:941  term: configurable
+./docs/term-check-raw.txt:966  term: configurable
+./docs/term-check-raw.txt:1114  term: configurable
+./docs/term-check-raw.txt:1232  term: configurable
+./docs/term-check-raw.txt:969  term: cbc-chain
+./docs/term-check-raw.txt:38  term: cbc chain
+./docs/term-check-raw.txt:213  term: cbc chain
+./docs/term-check-raw.txt:1089  term: sdk
+./docs/term-check-raw.txt:15  term: cli
+./docs/term-check-raw.txt:16  term: cli
+./docs/term-check-raw.txt:17  term: cli
+./docs/term-check-raw.txt:18  term: cli
+./docs/term-check-raw.txt:19  term: cli
+./docs/term-check-raw.txt:20  term: cli
+./docs/term-check-raw.txt:120  term: cli
+./docs/term-check-raw.txt:211  term: cli
+./docs/term-check-raw.txt:212  term: cli
+./docs/term-check-raw.txt:214  term: cli
+./docs/term-check-raw.txt:215  term: cli
+./docs/term-check-raw.txt:216  term: cli
+./docs/term-check-raw.txt:217  term: cli
+./docs/term-check-raw.txt:218  term: cli
+./docs/term-check-raw.txt:219  term: cli
+./docs/term-check-raw.txt:220  term: cli
+./docs/term-check-raw.txt:221  term: cli
+./docs/term-check-raw.txt:222  term: cli
+./docs/term-check-raw.txt:223  term: cli
+./docs/term-check-raw.txt:224  term: cli
+./docs/term-check-raw.txt:225  term: cli
+./docs/term-check-raw.txt:226  term: cli
+./docs/term-check-raw.txt:227  term: cli
+./docs/term-check-raw.txt:228  term: cli
+./docs/term-check-raw.txt:229  term: cli
+./docs/term-check-raw.txt:230  term: cli
+./docs/term-check-raw.txt:231  term: cli
+./docs/term-check-raw.txt:232  term: cli
+./docs/term-check-raw.txt:233  term: cli
+./docs/term-check-raw.txt:234  term: cli
+./docs/term-check-raw.txt:235  term: cli
+./docs/term-check-raw.txt:236  term: cli
+./docs/term-check-raw.txt:237  term: cli
+./docs/term-check-raw.txt:238  term: cli
+./docs/term-check-raw.txt:239  term: cli
+./docs/term-check-raw.txt:240  term: cli
+./docs/term-check-raw.txt:241  term: cli
+./docs/term-check-raw.txt:242  term: cli
+./docs/term-check-raw.txt:243  term: cli
+./docs/term-check-raw.txt:244  term: cli
+./docs/term-check-raw.txt:245  term: cli
+./docs/term-check-raw.txt:246  term: cli
+./docs/term-check-raw.txt:247  term: cli
+./docs/term-check-raw.txt:248  term: cli
+./docs/term-check-raw.txt:249  term: cli
+./docs/term-check-raw.txt:250  term: cli
+./docs/term-check-raw.txt:251  term: cli
+./docs/term-check-raw.txt:252  term: cli
+./docs/term-check-raw.txt:253  term: cli
+./docs/term-check-raw.txt:254  term: cli
+./docs/term-check-raw.txt:255  term: cli
+./docs/term-check-raw.txt:256  term: cli
+./docs/term-check-raw.txt:257  term: cli
+./docs/term-check-raw.txt:258  term: cli
+./docs/term-check-raw.txt:259  term: cli
+./docs/term-check-raw.txt:260  term: cli
+./docs/term-check-raw.txt:261  term: cli
+./docs/term-check-raw.txt:262  term: cli
+./docs/term-check-raw.txt:263  term: cli
+./docs/term-check-raw.txt:264  term: cli
+./docs/term-check-raw.txt:265  term: cli
+./docs/term-check-raw.txt:266  term: cli
+./docs/term-check-raw.txt:267  term: cli
+./docs/term-check-raw.txt:268  term: cli
+./docs/term-check-raw.txt:269  term: cli
+./docs/term-check-raw.txt:270  term: cli
+./docs/term-check-raw.txt:271  term: cli
+./docs/term-check-raw.txt:272  term: cli
+./docs/term-check-raw.txt:273  term: cli
+./docs/term-check-raw.txt:274  term: cli
+./docs/term-check-raw.txt:275  term: cli
+./docs/term-check-raw.txt:276  term: cli
+./docs/term-check-raw.txt:277  term: cli
+./docs/term-check-raw.txt:278  term: cli
+./docs/term-check-raw.txt:279  term: cli
+./docs/term-check-raw.txt:280  term: cli
+./docs/term-check-raw.txt:290  term: cli
+./docs/term-check-raw.txt:291  term: cli
+./docs/term-check-raw.txt:292  term: cli
+./docs/term-check-raw.txt:293  term: cli
+./docs/term-check-raw.txt:294  term: cli
+./docs/term-check-raw.txt:295  term: cli
+./docs/term-check-raw.txt:296  term: cli
+./docs/term-check-raw.txt:297  term: cli
+./docs/term-check-raw.txt:298  term: cli
+./docs/term-check-raw.txt:299  term: cli
+./docs/term-check-raw.txt:300  term: cli
+./docs/term-check-raw.txt:301  term: cli
+./docs/term-check-raw.txt:302  term: cli
+./docs/term-check-raw.txt:303  term: cli
+./docs/term-check-raw.txt:304  term: cli
+./docs/term-check-raw.txt:305  term: cli
+./docs/term-check-raw.txt:306  term: cli
+./docs/term-check-raw.txt:307  term: cli
+./docs/term-check-raw.txt:308  term: cli
+./docs/term-check-raw.txt:309  term: cli
+./docs/term-check-raw.txt:310  term: cli
+./docs/term-check-raw.txt:311  term: cli
+./docs/term-check-raw.txt:312  term: cli
+./docs/term-check-raw.txt:313  term: cli
+./docs/term-check-raw.txt:430  term: cli
+./docs/term-check-raw.txt:431  term: cli
+./docs/term-check-raw.txt:432  term: cli
+./docs/term-check-raw.txt:967  term: cli
+./docs/term-check-raw.txt:1007  term: cli
+./docs/term-check-raw.txt:1084  term: cli
+./docs/term-check-raw.txt:1085  term: cli
+./docs/term-check-raw.txt:1086  term: cli
+./docs/TESTING_GUIDE.md:39  term: proof-of-inference
+./docs/TESTING_GUIDE.md:167  term: configuration
+./docs/TESTING_GUIDE.md:169  term: configuration
+./docs/TESTING_GUIDE.md:181  term: configuration
+./docs/TESTING_GUIDE.md:304  term: configuration
+./docs/TESTING_GUIDE.md:316  term: configuration
+./docs/TESTING_GUIDE.md:316  term: configured
+./docs/tools/score-checker.md:7  term: proof of inference
+./docs/tools/score-checker.md:123  term: configuration
+./docs/tools/score-checker.md:130  term: configuration
+./docs/tools/score-checker.md:8  term: configurable
+./docs/tools/simulate-scores.md:17  term: poi score
+./docs/tools/simulate-scores.md:29  term: poi score
+./docs/tools/simulate-scores.md:39  term: poi score
+./docs/tools/simulate-scores.md:49  term: poi score
+./docs/tools/simulate-scores.md:87  term: poi score
+./docs/tools/simulate-scores.md:93  term: poi score
+./docs/tools/simulate-scores.md:114  term: poi score
+./docs/tools/simulate-scores.md:10  term: poi weight
+./docs/tools/simulate-scores.md:123  term: poi weight
+./docs/tools/simulate-scores.md:16  term: configurable
+./guardrails/writing-rules.md:25  term: configuration
+./guardrails/writing-rules.md:25  term: configure
+./monitoring/README.md:3  term: configuration
+./monitoring/README.md:30  term: configuration
+./README.md:3  term: proof of inference
+./README.md:7  term: proof of inference
+./README.md:38  term: proof of inference
+./README.md:270  term: proof of inference
+./README.md:427  term: proof of inference
+./README.md:64  term: poi score
+./README.md:50  term: configuration
+./README.md:252  term: configuration
+./README.md:314  term: configuration
+./README.md:317  term: configuration
+./README.md:430  term: configuration
+./README.md:505  term: configuration
+./README.md:513  term: configuration
+./README.md:129  term: configurable
+./README.md:382  term: configurable
+./README.md:383  term: configurable
+./README.md:475  term: sdk
+./README.md:31  term: cli
+./README.md:109  term: cli
+./tools/fork-checker.rs:17  term: cli
+./tools/fork-checker.rs:308  term: cli
+./tools/fork-checker.rs:310  term: cli
+./tools/score-checker.rs:124  term: poi score
+./tools/simulate_scores.rs:227  term: pos weight
+./tools/simulate_scores.rs:228  term: poi weight
+./tools/simulate_scores.rs:44  term: configuration
+```

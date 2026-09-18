@@ -1,4 +1,4 @@
-//! Runtime benchmarking tests for the CBC Runtime
+//! Runtime benchmarking tests for the Cerulea Runtime
 //! 
 //! This module contains tests that verify the benchmarking infrastructure
 //! works correctly and provides performance validation for the runtime.
@@ -32,8 +32,8 @@ mod benchmark_integration_tests {
             let validator: u64 = whitelisted_caller();
             
             // These calls should not panic when benchmarking is enabled
-            let _ = PalletCbcPos::register_validator(RuntimeOrigin::signed(validator));
-            let _ = PalletCbcPos::submit_score(RuntimeOrigin::signed(validator), validator, 75);
+            let _ = PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator));
+            let _ = PalletCeruleaPos::submit_score(RuntimeOrigin::signed(validator), validator, 75);
         });
     }
 
@@ -44,7 +44,7 @@ mod benchmark_integration_tests {
             let validator: u64 = whitelisted_caller();
             
             // These calls should not panic when benchmarking is enabled
-            let _ = PalletCbcPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80);
+            let _ = PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80);
         });
     }
 
@@ -79,9 +79,9 @@ mod benchmark_integration_tests {
             use crate::configs::weights::*;
             
             // Verify weights are non-zero
-            assert!(CBC_DCF_WEIGHT.ref_time() > 0);
-            assert!(CBC_POS_WEIGHT.ref_time() > 0);
-            assert!(CBC_POI_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_DCF_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_POS_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_POI_WEIGHT.ref_time() > 0);
             
             // Verify DCF operations have appropriate weights
             assert!(DCF_JOIN_VALIDATORS_WEIGHT.ref_time() > DCF_LEAVE_VALIDATORS_WEIGHT.ref_time());
@@ -105,8 +105,8 @@ mod benchmark_disabled_tests {
             
             // Basic operations should work
             assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(validator), None));
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator)));
-            assert_ok!(PalletCbcPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator)));
+            assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
         });
     }
 }

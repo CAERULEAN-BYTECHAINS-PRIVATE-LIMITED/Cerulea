@@ -13,19 +13,19 @@ fn runtime_api_cross_pallet_consistency() {
         let validator = 1u64;
         
         // Register validator in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
         // Submit PoS score
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
             85
         ));
         
         // Submit PoI inference
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             90
@@ -45,20 +45,20 @@ fn runtime_api_cross_pallet_consistency() {
         
         // Epoch consistency
         let dcf_epoch = DcfPallet::current_epoch();
-        let poi_epoch = PalletCbcPoi::current_epoch();
+        let poi_epoch = PalletCeruleaPoi::current_epoch();
         assert_eq!(dcf_epoch, poi_epoch);
         
         // Validator state consistency
         let dcf_active = DcfPallet::is_validator_active(&validator);
-        let pos_registered = PalletCbcPos::validators(&validator).is_some();
-        let poi_has_inference = PalletCbcPoi::inference_results(&validator).is_some();
+        let pos_registered = PalletCeruleaPos::validators(&validator).is_some();
+        let poi_has_inference = PalletCeruleaPoi::inference_results(&validator).is_some();
         
         assert!(dcf_active);
         assert!(pos_registered);
         assert!(poi_has_inference);
         
         // Score consistency
-        let pos_score = PalletCbcPos::validator_scores(&validator).unwrap_or(0);
+        let pos_score = PalletCeruleaPos::validator_scores(&validator).unwrap_or(0);
         let dcf_stake_score = DcfPallet::validator_stake_score(&validator);
         let dcf_inference_score = DcfPallet::validator_inference_score(&validator);
         
@@ -92,12 +92,12 @@ fn runtime_api_data_flow_integration() {
             ));
             
             // PoS
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
             
             // PoI
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 40 + *validator as u32,
                 80 + (*validator as u32 % 15)
@@ -106,7 +106,7 @@ fn runtime_api_data_flow_integration() {
         
         // Test bulk API operations
         let dcf_validators = DcfPallet::active_validators();
-        let pos_active_validators = PalletCbcPos::get_active_validators();
+        let pos_active_validators = PalletCeruleaPos::get_active_validators();
         
         // Verify validator lists are consistent
         for validator in &validators {
@@ -142,8 +142,8 @@ fn runtime_api_data_flow_integration() {
             assert!(last_active >= 0);
             
             // Cross-pallet data verification
-            let pos_score = PalletCbcPos::validator_scores(validator).unwrap_or(0);
-            let (poi_result, poi_epoch) = PalletCbcPoi::inference_results(validator).unwrap();
+            let pos_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
+            let (poi_result, poi_epoch) = PalletCeruleaPoi::inference_results(validator).unwrap();
             
             assert!(pos_score > 0);
             assert!(poi_result > 0);
@@ -167,15 +167,15 @@ fn runtime_api_performance_integration() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("PerfValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 validator,
                 70 + (i % 25) as u32
             ));
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 (30 + i % 50) as u32,
                 (75 + i % 20) as u32
@@ -203,8 +203,8 @@ fn runtime_api_performance_integration() {
             let stake_score = DcfPallet::validator_stake_score(&validator);
             let inference_score = DcfPallet::validator_inference_score(&validator);
             let _ = (stake_score, inference_score);
-            let _ = PalletCbcPos::validator_scores(&validator);
-            let _ = PalletCbcPoi::inference_results(&validator);
+            let _ = PalletCeruleaPos::validator_scores(&validator);
+            let _ = PalletCeruleaPoi::inference_results(&validator);
         }
         let duration3 = start.elapsed();
         
@@ -227,10 +227,10 @@ fn runtime_api_error_handling_integration() {
         let invalid_validator = 999u64;
         
         // Setup one valid validator
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(valid_validator)
         ));
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(valid_validator),
             42,
             85
@@ -253,17 +253,17 @@ fn runtime_api_error_handling_integration() {
         assert_eq!(missed, 0);
         
         // PoS APIs should handle gracefully
-        let pos_score = PalletCbcPos::validator_scores(&invalid_validator);
+        let pos_score = PalletCeruleaPos::validator_scores(&invalid_validator);
         assert_eq!(pos_score, None);
         
-        let pos_active = PalletCbcPos::get_active_validators();
+        let pos_active = PalletCeruleaPos::get_active_validators();
         assert!(!pos_active.contains(&invalid_validator));
         
         // PoI APIs should handle gracefully
-        let poi_result = PalletCbcPoi::inference_results(&invalid_validator);
+        let poi_result = PalletCeruleaPoi::inference_results(&invalid_validator);
         assert_eq!(poi_result, None);
         
-        let poi_challenge = PalletCbcPoi::challenges(&invalid_validator);
+        let poi_challenge = PalletCeruleaPoi::challenges(&invalid_validator);
         assert_eq!(poi_challenge, None);
         
         // Test with valid validator for comparison
@@ -273,10 +273,10 @@ fn runtime_api_error_handling_integration() {
         let valid_active = DcfPallet::is_validator_active(&valid_validator);
         assert_eq!(valid_active, true);
         
-        let valid_pos_active = PalletCbcPos::get_active_validators();
+        let valid_pos_active = PalletCeruleaPos::get_active_validators();
         assert!(valid_pos_active.contains(&valid_validator));
         
-        let valid_poi_result = PalletCbcPoi::inference_results(&valid_validator);
+        let valid_poi_result = PalletCeruleaPoi::inference_results(&valid_validator);
         assert!(valid_poi_result.is_some());
     });
 }
@@ -290,8 +290,8 @@ fn runtime_api_state_transitions_integration() {
         
         // Phase 1: Initial state (not in any pallet)
         assert_eq!(DcfPallet::is_validator_active(&validator), false);
-        assert_eq!(PalletCbcPos::validators(&validator), None);
-        assert_eq!(PalletCbcPoi::inference_results(&validator), None);
+        assert_eq!(PalletCeruleaPos::validators(&validator), None);
+        assert_eq!(PalletCeruleaPoi::inference_results(&validator), None);
         
         // Phase 2: Join DCF
         assert_ok!(DcfPallet::join_validators(
@@ -301,34 +301,34 @@ fn runtime_api_state_transitions_integration() {
         
         assert_eq!(DcfPallet::is_validator_active(&validator), true);
         assert!(DcfPallet::validator_stake(&validator) > 0);
-        assert_eq!(PalletCbcPos::validators(&validator), None); // Still not in PoS
+        assert_eq!(PalletCeruleaPos::validators(&validator), None); // Still not in PoS
         
         // Phase 3: Register in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
-        assert_eq!(PalletCbcPos::validators(&validator), Some(true));
-        let pos_active = PalletCbcPos::get_active_validators();
+        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+        let pos_active = PalletCeruleaPos::get_active_validators();
         assert!(pos_active.contains(&validator));
         
         // Phase 4: Submit PoS score
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             validator,
             80
         ));
         
-        assert_eq!(PalletCbcPos::validator_scores(&validator), Some(80));
+        assert_eq!(PalletCeruleaPos::validator_scores(&validator), Some(80));
         
         // Phase 5: Submit PoI inference
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             85
         ));
         
-        let (result, epoch) = PalletCbcPoi::inference_results(&validator).unwrap();
+        let (result, epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
         assert_eq!(result, 42);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
@@ -352,15 +352,15 @@ fn runtime_api_state_transitions_integration() {
         assert!(combined_score > 0);
         
         // Phase 7: Slashing in PoS
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
-        assert_eq!(PalletCbcPos::slashing_count(&validator), Some(1));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // Multiple slashes to remove from PoS
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
         
-        assert_eq!(PalletCbcPos::validators(&validator), None);
-        let pos_active_after_slash = PalletCbcPos::get_active_validators();
+        assert_eq!(PalletCeruleaPos::validators(&validator), None);
+        let pos_active_after_slash = PalletCeruleaPos::get_active_validators();
         assert!(!pos_active_after_slash.contains(&validator));
         
         // But still active in DCF
@@ -384,7 +384,7 @@ fn runtime_api_state_transitions_integration() {
         assert_eq!(DcfPallet::is_validator_active(&validator), false);
         
         // But PoI data might still exist
-        let poi_result_after_leave = PalletCbcPoi::inference_results(&validator);
+        let poi_result_after_leave = PalletCeruleaPoi::inference_results(&validator);
         // This depends on implementation - might be Some or None
         assert!(poi_result_after_leave.is_some() || poi_result_after_leave.is_none());
     });
@@ -470,10 +470,10 @@ fn runtime_api_epoch_synchronization() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 40 + *validator as u32,
                 85
@@ -482,7 +482,7 @@ fn runtime_api_epoch_synchronization() {
         
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         let initial_dcf_epoch = DcfPallet::current_epoch();
-        let initial_poi_epoch = PalletCbcPoi::current_epoch();
+        let initial_poi_epoch = PalletCeruleaPoi::current_epoch();
         
         // Verify initial synchronization
         assert_eq!(initial_dcf_epoch, initial_poi_epoch);
@@ -495,7 +495,7 @@ fn runtime_api_epoch_synchronization() {
             
             // Check epoch consistency during transition
             let dcf_epoch = DcfPallet::current_epoch();
-            let poi_epoch = PalletCbcPoi::current_epoch();
+            let poi_epoch = PalletCeruleaPoi::current_epoch();
             
             // Epochs should remain synchronized
             assert_eq!(dcf_epoch, poi_epoch);
@@ -506,14 +506,14 @@ fn runtime_api_epoch_synchronization() {
         
         // Verify epoch advanced
         let final_dcf_epoch = DcfPallet::current_epoch();
-        let final_poi_epoch = PalletCbcPoi::current_epoch();
+        let final_poi_epoch = PalletCeruleaPoi::current_epoch();
         
         assert!(final_dcf_epoch > initial_dcf_epoch);
         assert_eq!(final_dcf_epoch, final_poi_epoch);
         
         // Test epoch-related data consistency
         for validator in &validators {
-            let (poi_result, poi_epoch) = PalletCbcPoi::inference_results(validator).unwrap();
+            let (poi_result, poi_epoch) = PalletCeruleaPoi::inference_results(validator).unwrap();
             
             // PoI epoch should be valid
             assert!(poi_epoch <= final_dcf_epoch);

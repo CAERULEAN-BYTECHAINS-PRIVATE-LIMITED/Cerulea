@@ -241,11 +241,11 @@ where
 
     /// Gets the validator's public key from the keystore
     fn get_validator_public_key(&self) -> Result<ed25519::Public, String> {
-        // Get all ed25519 public keys from keystore using the CBC DVF key type
-        let public_keys = Keystore::ed25519_public_keys(&*self.keystore, crate::CBC_DVF_KEY_TYPE);
+        // Get all ed25519 public keys from keystore using the Cerulea DVF key type
+        let public_keys = Keystore::ed25519_public_keys(&*self.keystore, crate::CERULEA_KEY_TYPE);
 
         if public_keys.is_empty() {
-            return Err("No CBC DVF ed25519 keys found in keystore. Ensure the node started with --validator and key auto-generation ran.".to_string());
+            return Err("No Cerulea DVF ed25519 keys found in keystore. Ensure the node started with --validator and key auto-generation ran.".to_string());
         }
 
         // Use the first key (in production, this should match validator_account)
@@ -272,7 +272,7 @@ where
         // Sign using keystore
         let signature = Keystore::ed25519_sign(
                 &*self.keystore,
-                crate::CBC_DVF_KEY_TYPE,
+                crate::CERULEA_KEY_TYPE,
                 &vote.validator_public_key,
                 &payload,
             )

@@ -1,0 +1,41 @@
+# Paths scanned by term-check.sh
+
+[include]
+**/*.md
+**/*.rs
+**/*.ts
+**/*.tsx
+**/*.js
+**/*.jsx
+**/*.json
+**/*.yaml
+**/*.yml
+**/*.html
+**/*.txt
+
+[exclude]
+# Dependency manifests and lock files name external crates legitimately.
+**/Cargo.toml
+**/Cargo.lock
+**/package.json
+**/package-lock.json
+**/pnpm-lock.yaml
+**/node_modules/**
+**/target/**
+**/.git/**
+**/dist/**
+**/build/**
+04-guardrails/forbidden-terms.txt
+02-tasks/QUESTIONS.md
+# The build package itself documents the rules and therefore names the terms.
+cerulea-build/**
+
+[context-exempt]
+# These words are permitted in the stated sense only.
+# "substrate" as an ordinary English noun meaning an execution target.
+# Permitted: "execution substrate", "the three substrates", "native substrate".
+# Forbidden: naming the external chain framework.
+substrate
+# "Polkadot", "Cosmos", "Solana", "Avalanche" as bridge target network names.
+# Permitted inside the bridge module and its documents only.
+polkadot

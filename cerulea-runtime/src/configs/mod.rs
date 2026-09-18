@@ -1,4 +1,4 @@
-// This file is part of the CBC Runtime.
+// This file is part of the Cerulea Runtime.
 // It defines configuration settings for the runtime, including consensus parameters,
 // block weights, and other system-wide constants.
 
@@ -157,7 +157,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 
-// === CBC POI Pallet Configuration ===
+// === Cerulea POI Pallet Configuration ===
 pub struct PosInterfaceImpl;
 impl pallet_cerulea_poi::PosInterface<AccountId> for PosInterfaceImpl {
     fn boost_score(validator: &AccountId, weight: u32) -> frame_support::dispatch::DispatchResult {
@@ -236,7 +236,7 @@ impl pallet_cerulea_pos::Config for Runtime {
     type ValidatorHandler = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 
-// === CBC DCF Pallet Configuration ===
+// === Cerulea DCF Pallet Configuration ===
 impl pallet_cerulea_dcf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Balance = Balance;
@@ -351,15 +351,3 @@ impl pallet_cerulea_dcf::Config for Runtime {
 }
 
 
-// ── Todo pallet runtime configuration ────────────────────────
-use frame_support::traits::ConstU32 as TodoConstU32;
-
-impl pallet_todo::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    /// Maximum 256 bytes for a todo title on mainnet.
-    type MaxTitleLength = TodoConstU32<256>;
-    /// Maximum 1024 bytes for a todo description.
-    type MaxDescriptionLength = TodoConstU32<1024>;
-    /// Allow up to 500 todos per account.
-    type MaxTodosPerAccount = TodoConstU32<500>;
-}

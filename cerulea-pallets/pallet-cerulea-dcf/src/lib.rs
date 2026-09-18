@@ -2979,7 +2979,7 @@ pub mod pallet {
     /// 
     /// Tracks the cumulative number of successful AI/ML inference operations
     /// completed by validators as part of the Proof-of-Inference (PoI) consensus.
-    /// This metric is fundamental to the CBC blockchain's AI-focused consensus mechanism.
+    /// This metric is fundamental to the Cerulea blockchain's AI-focused consensus mechanism.
     /// 
     /// The counter increments when validators:
     /// - Successfully complete inference tasks
@@ -4083,7 +4083,7 @@ pub mod pallet {
         /// 
         /// This event specifically tracks changes to PoI scores, which reflect
         /// validator performance in AI/ML inference tasks. PoI scores are a critical
-        /// component of the CBC consensus mechanism's hybrid scoring system.
+        /// component of the Cerulea consensus mechanism's hybrid scoring system.
         ValidatorPoiScoreUpdated {
             /// The validator whose PoI score was updated
             validator: T::AccountId,
@@ -6425,7 +6425,7 @@ pub mod pallet {
                     Ok(())
                 },
                 Err(error) => {
-                    log::error!("============== [CBC-TRACE] 38 [pallet-cerulea-dcf::validate_genesis_configuration] Genesis validation failed: {:?} ==============", error);
+                    log::error!("============== [Cerulea-TRACE] 38 [pallet-cerulea-dcf::validate_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisValidationFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
@@ -6487,7 +6487,7 @@ pub mod pallet {
                     Ok(())
                 },
                 Err(error) => {
-                    log::error!("============== [CBC-TRACE] 38 [pallet-cerulea-dcf::dry_run_genesis_configuration] Genesis validation failed: {:?} ==============", error);
+                    log::error!("============== [Cerulea-TRACE] 38 [pallet-cerulea-dcf::dry_run_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisDryRunFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
@@ -10106,7 +10106,7 @@ pub mod pallet {
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             // STEP 10.1: Genesis block validation started
-            log::info!("============== [CBC-TRACE] 10.1 [pallet-cerulea-dcf::genesis_build] Genesis block validation started ==============");
+            log::info!("============== [Cerulea-TRACE] 10.1 [pallet-cerulea-dcf::genesis_build] Genesis block validation started ==============");
             
             // Perform comprehensive validation if strict_validation is enabled
             if self.strict_validation {
@@ -10120,7 +10120,7 @@ pub mod pallet {
             }
 
             // STEP 10.2: Genesis configuration loaded
-            log::info!("============== [CBC-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis configuration loaded ==============");
+            log::info!("============== [Cerulea-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis configuration loaded ==============");
             log::info!("  Validator count: {}", self.validators.len());
             log::info!("  Epoch: {}", self.current_epoch);
             log::info!("  Blocks per epoch: {}", self.epoch_config.blocks_per_epoch);
@@ -10187,7 +10187,7 @@ pub mod pallet {
                 .enumerate() {
 
                 // STEP 10.3.N: Genesis validator N initialized
-                log::info!("============== [CBC-TRACE] 10.3.{} [pallet-cerulea-dcf::genesis_build] Genesis validator {} initialized ==============", i + 1, i + 1);
+                log::info!("============== [Cerulea-TRACE] 10.3.{} [pallet-cerulea-dcf::genesis_build] Genesis validator {} initialized ==============", i + 1, i + 1);
                 log::info!("  Account ID: {:?}", validator);
                 log::info!("  Stake: {:?}", stake);
                 log::info!("  Initial score: {}", score);
@@ -10293,13 +10293,13 @@ pub mod pallet {
             }
 
             // STEP 10.4: PoS scores calculated for all genesis validators
-            log::info!("============== [CBC-TRACE] 10.4 [pallet-cerulea-dcf::genesis_build] PoS scores calculated for all genesis validators ==============");
+            log::info!("============== [Cerulea-TRACE] 10.4 [pallet-cerulea-dcf::genesis_build] PoS scores calculated for all genesis validators ==============");
             
             // STEP 10.5: PoI scores calculated for all genesis validators
-            log::info!("============== [CBC-TRACE] 10.5 [pallet-cerulea-dcf::genesis_build] PoI scores calculated for all genesis validators ==============");
+            log::info!("============== [Cerulea-TRACE] 10.5 [pallet-cerulea-dcf::genesis_build] PoI scores calculated for all genesis validators ==============");
             
             // STEP 10.6: Combined DCF scores computed for all validators
-            log::info!("============== [CBC-TRACE] 10.6 [pallet-cerulea-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
+            log::info!("============== [Cerulea-TRACE] 10.6 [pallet-cerulea-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
             log::info!("  PoS weight: {}", T::DefaultPosWeight::get());
             log::info!("  PoI weight: {}", T::DefaultPoiWeight::get());
 
@@ -10495,7 +10495,7 @@ pub mod pallet {
             // Generate deterministic author sequence for epoch 0 to fix the missing initialization
             if !self.validators.is_empty() {
                 // STEP 10.7: Deterministic author sequence generated for epoch 0
-                log::info!("============== [CBC-TRACE] 10.7 [pallet-cerulea-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============");
+                log::info!("============== [Cerulea-TRACE] 10.7 [pallet-cerulea-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============");
                 
                 // Create deterministic randomness seed for epoch 0
                 let genesis_randomness_salt = [0u8; 32]; // Use zero salt for genesis
@@ -10535,11 +10535,11 @@ pub mod pallet {
             // Note: At this point in genesis build, the block hash and state root are not yet available
             // as they are computed by the runtime after all pallets complete their genesis build.
             // We log this step to indicate genesis block construction is in progress.
-            log::info!("============== [CBC-TRACE] 10.8 [pallet-cerulea-dcf::genesis_build] Genesis block created ==============");
+            log::info!("============== [Cerulea-TRACE] 10.8 [pallet-cerulea-dcf::genesis_build] Genesis block created ==============");
             log::info!("  Note: Block hash and state root will be computed by runtime after genesis build completes");
 
             // STEP 10.9: Genesis validation completed successfully
-            log::info!("============== [CBC-TRACE] 10.9 [pallet-cerulea-dcf::genesis_build] Genesis validation completed successfully ==============");
+            log::info!("============== [Cerulea-TRACE] 10.9 [pallet-cerulea-dcf::genesis_build] Genesis validation completed successfully ==============");
             log::info!("DCF Genesis completed: {} validators initialized in epoch {}",
                       self.validators.len(), self.current_epoch);
         }
@@ -12562,7 +12562,7 @@ pub mod pallet {
         /// Extract block author from system digest (enhanced implementation)
         fn extract_block_author() -> Option<T::AccountId> {
             // Extract the author from block headers or consensus logs
-            // This matches the digest format created by the CBC consensus engine
+            // This matches the digest format created by the Cerulea consensus engine
             frame_system::Pallet::<T>::digest()
                 .logs()
                 .iter()
@@ -12570,7 +12570,7 @@ pub mod pallet {
                     match log {
                         // Check PreRuntime digest items (where consensus engine stores author info)
                         DigestItem::PreRuntime(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 // The digest data contains: [32 bytes author][32 bytes signature]
                                 if data.len() >= 32 {
                                     // First 32 bytes should be the author's account ID
@@ -12584,7 +12584,7 @@ pub mod pallet {
                         }
                         // Check Seal digest items (alternative location for author info - legacy support)
                         DigestItem::Seal(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 // First 32 bytes should be the author's account ID
                                 if data.len() >= 32 {
                                     T::AccountId::decode(&mut &data[0..32]).ok()
@@ -12597,7 +12597,7 @@ pub mod pallet {
                         }
                         // Check Consensus digest items (legacy support)
                         DigestItem::Consensus(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 T::AccountId::decode(&mut &data[..]).ok()
                             } else {
                                 None

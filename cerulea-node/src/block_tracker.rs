@@ -1,7 +1,7 @@
 //! Block Authoring and Missed Block Tracking Service
 //! 
 //! This module provides comprehensive tracking of block authoring and missed blocks
-//! for the CBC consensus system. It monitors validator performance and provides
+//! for the Cerulea consensus system. It monitors validator performance and provides
 //! real-time statistics and alerts.
 
 use std::{sync::Arc, time::Duration, collections::HashMap};
@@ -316,7 +316,7 @@ pub async fn start_block_tracker<B, C>(
     let config = config.unwrap_or_default();
     let mut tracker = BlockTracker::<B, C>::new(client, config);
     
-    info!("Starting CBC Block Tracker service");
+    info!("Starting Cerulea Block Tracker service");
     tracker.run().await;
 }
 

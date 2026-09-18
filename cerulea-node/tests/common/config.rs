@@ -90,8 +90,8 @@ pub struct TestConfig {
     pub consensus_weights: (u64, u64),
     /// Length of each epoch in blocks
     pub epoch_length: u32,
-    /// Whether CBC RPC extensions are enabled
-    pub enable_cbc_extensions: bool,
+    /// Whether Cerulea RPC extensions are enabled
+    pub enable_cerulea_extensions: bool,
     /// Whether to expose unsafe RPC methods
     pub expose_unsafe_methods: bool,
 }
@@ -105,7 +105,7 @@ impl Default for TestConfig {
             poi_scores: Vec::new(),
             consensus_weights: (60, 40), // 60% PoS, 40% PoI
             epoch_length: 100,
-            enable_cbc_extensions: true,
+            enable_cerulea_extensions: true,
             expose_unsafe_methods: false,
         }
     }
@@ -153,9 +153,9 @@ impl TestConfig {
         self
     }
     
-    /// Enable or disable CBC RPC extensions
-    pub fn with_cbc_extensions(mut self, enabled: bool) -> Self {
-        self.enable_cbc_extensions = enabled;
+    /// Enable or disable Cerulea RPC extensions
+    pub fn with_cerulea_extensions(mut self, enabled: bool) -> Self {
+        self.enable_cerulea_extensions = enabled;
         self
     }
     
@@ -171,8 +171,8 @@ impl TestConfig {
 /// Controls security settings and access controls for RPC endpoints during testing.
 #[derive(Clone, Debug)]
 pub struct RpcSecurityConfig {
-    /// Whether CBC RPC extensions are enabled
-    pub enable_cbc_extensions: bool,
+    /// Whether Cerulea RPC extensions are enabled
+    pub enable_cerulea_extensions: bool,
     /// Whether to expose unsafe RPC methods
     pub expose_unsafe_methods: bool,
     /// Rate limiting window in seconds
@@ -184,7 +184,7 @@ pub struct RpcSecurityConfig {
 impl Default for RpcSecurityConfig {
     fn default() -> Self {
         Self {
-            enable_cbc_extensions: true,
+            enable_cerulea_extensions: true,
             expose_unsafe_methods: false,
             rate_limit_window: 60,
             rate_limit_requests: 100,
@@ -198,10 +198,10 @@ impl RpcSecurityConfig {
         Self::default()
     }
     
-    /// Create a configuration with CBC extensions disabled
+    /// Create a configuration with Cerulea extensions disabled
     pub fn disabled_extensions() -> Self {
         Self {
-            enable_cbc_extensions: false,
+            enable_cerulea_extensions: false,
             ..Self::default()
         }
     }
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn test_rpc_security_config() {
         let config = RpcSecurityConfig::disabled_extensions();
-        assert!(!config.enable_cbc_extensions);
+        assert!(!config.enable_cerulea_extensions);
         
         let unsafe_config = RpcSecurityConfig::with_unsafe_methods();
         assert!(unsafe_config.expose_unsafe_methods);

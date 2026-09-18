@@ -1,6 +1,6 @@
-// CBC Logging Infrastructure
+// Cerulea Logging Infrastructure
 //
-// This module provides structured logging with CBC-specific prefixes and formatting.
+// This module provides structured logging with Cerulea-specific prefixes and formatting.
 // It supports color-coded output, log filtering, log file redirection, startup information display,
 // and log deduplication for repeated messages.
 
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use log::Level;
 
-/// CBC-specific log formatter with color coding and prefixes
+/// Cerulea-specific log formatter with color coding and prefixes
 pub struct CeruleaLogFormatter {
     pub enable_colors: bool,
     #[allow(dead_code)]
@@ -146,7 +146,7 @@ impl StartupInfo {
     }
 
     pub fn display(&self) {
-        println!("CBC Node Startup Information");
+        println!("Cerulea Node Startup Information");
         println!("================================");
         println!("Node Version:     {}", self.node_version);
         println!("Runtime Version:  {}", self.runtime_version);
@@ -172,7 +172,7 @@ impl StartupInfo {
 }
 
 impl CeruleaLogFormatter {
-    /// Create a new CBC log formatter
+    /// Create a new Cerulea log formatter
     pub fn new(enable_colors: bool, enable_timestamps: bool) -> Self {
         Self {
             enable_colors,
@@ -180,32 +180,32 @@ impl CeruleaLogFormatter {
         }
     }
 
-    /// Format a validator-related log message with [CBC-VAL] prefix
+    /// Format a validator-related log message with [Cerulea-VAL] prefix
     pub fn format_validator_log(&self, message: &str) -> String {
         let prefix = if self.enable_colors {
-            format!("{}[CBC-VAL]{}", self.color_for_level(&Level::Info), self.reset_color())
+            format!("{}[Cerulea-VAL]{}", self.color_for_level(&Level::Info), self.reset_color())
         } else {
-            "[CBC-VAL]".to_string()
+            "[Cerulea-VAL]".to_string()
         };
         format!("{} {}", prefix, message)
     }
 
-    /// Format an epoch-related log message with [CBC-EPOCH] prefix
+    /// Format an epoch-related log message with [Cerulea-EPOCH] prefix
     pub fn format_epoch_log(&self, message: &str) -> String {
         let prefix = if self.enable_colors {
-            format!("{}[CBC-EPOCH]{}", self.color_for_level(&Level::Info), self.reset_color())
+            format!("{}[Cerulea-EPOCH]{}", self.color_for_level(&Level::Info), self.reset_color())
         } else {
-            "[CBC-EPOCH]".to_string()
+            "[Cerulea-EPOCH]".to_string()
         };
         format!("{} {}", prefix, message)
     }
 
-    /// Format a consensus-related log message with [CBC-CONSENSUS] prefix
+    /// Format a consensus-related log message with [Cerulea-CONSENSUS] prefix
     pub fn format_consensus_log(&self, message: &str) -> String {
         let prefix = if self.enable_colors {
-            format!("{}[CBC-CONSENSUS]{}", self.color_for_level(&Level::Info), self.reset_color())
+            format!("{}[Cerulea-CONSENSUS]{}", self.color_for_level(&Level::Info), self.reset_color())
         } else {
-            "[CBC-CONSENSUS]".to_string()
+            "[Cerulea-CONSENSUS]".to_string()
         };
         format!("{} {}", prefix, message)
     }
@@ -250,16 +250,16 @@ impl CeruleaLogFormatter {
     }
 }
 
-/// Configure RUST_LOG environment variable for CBC logging
-pub fn configure_rust_log(cbc_log_only: bool, quiet: bool) -> String {
+/// Configure RUST_LOG environment variable for Cerulea logging
+pub fn configure_rust_log(cerulea_log_only: bool, quiet: bool) -> String {
     let log_config = if quiet {
         // Minimal logging - only errors and warnings
         "warn,cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info"
-    } else if cbc_log_only {
-        // Only show CBC-related logs when --cbc-log-only is set
+    } else if cerulea_log_only {
+        // Only show Cerulea-related logs when --cerulea-log-only is set
         "cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info,pallet_cerulea_pos=info,pallet_cerulea_poi=info"
     } else {
-        // Show general info logs plus CBC logs (reduced from debug to info)
+        // Show general info logs plus Cerulea logs (reduced from debug to info)
         "info,cerulea_node=info,cerulea_consensus=info,pallet_cerulea_dcf=info,pallet_cerulea_pos=info,pallet_cerulea_poi=info"
     };
     
@@ -268,22 +268,22 @@ pub fn configure_rust_log(cbc_log_only: bool, quiet: bool) -> String {
     log_config.to_string()
 }
 
-/// Initialize CBC logging configuration (RUST_LOG only, no custom logger)
-pub fn init_cbc_logging_config(cbc_log_only: bool, quiet: bool) -> String {
-    configure_rust_log(cbc_log_only, quiet)
+/// Initialize Cerulea logging configuration (RUST_LOG only, no custom logger)
+pub fn init_cerulea_logging_config(cerulea_log_only: bool, quiet: bool) -> String {
+    configure_rust_log(cerulea_log_only, quiet)
 }
 
-/// Initialize CBC logging system with optional file output
+/// Initialize Cerulea logging system with optional file output
 /// 
 /// **WARNING**: This function should only be used in tests!
 /// In production, Substrate handles logger initialization automatically.
-/// Use `init_cbc_logging_config()` instead to just configure RUST_LOG.
+/// Use `init_cerulea_logging_config()` instead to just configure RUST_LOG.
 /// 
 /// Returns Ok(()) if successful, Err if logger is already initialized
 #[cfg(test)]
-pub fn init_cbc_logging(_enable_colors: bool, cbc_log_only: bool, log_file_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_cerulea_logging(_enable_colors: bool, cerulea_log_only: bool, log_file_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Configure RUST_LOG environment variable
-    configure_rust_log(cbc_log_only, false);
+    configure_rust_log(cerulea_log_only, false);
     
     // Initialize env_logger (this might fail if already initialized, which is fine)
     let result = env_logger::try_init();
@@ -304,7 +304,7 @@ pub fn init_cbc_logging(_enable_colors: bool, cbc_log_only: bool, log_file_path:
     }
 }
 
-/// Display startup information for the CBC node
+/// Display startup information for the Cerulea node
 pub fn display_startup_info(
     runtime_version: &str,
     node_version: &str,
@@ -356,7 +356,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cbc_log_formatter_creation() {
+    fn test_cerulea_log_formatter_creation() {
         let formatter = CeruleaLogFormatter::new(true, true);
         assert!(formatter.enable_colors);
         assert!(formatter.enable_timestamps);
@@ -370,7 +370,7 @@ mod tests {
     fn test_validator_log_formatting() {
         let formatter = CeruleaLogFormatter::new(false, true);
         let result = formatter.format_validator_log("Validator Alice is active");
-        assert!(result.contains("[CBC-VAL]"));
+        assert!(result.contains("[Cerulea-VAL]"));
         assert!(result.contains("Validator Alice is active"));
     }
 
@@ -378,7 +378,7 @@ mod tests {
     fn test_epoch_log_formatting() {
         let formatter = CeruleaLogFormatter::new(false, true);
         let result = formatter.format_epoch_log("Epoch 42 started");
-        assert!(result.contains("[CBC-EPOCH]"));
+        assert!(result.contains("[Cerulea-EPOCH]"));
         assert!(result.contains("Epoch 42 started"));
     }
 
@@ -386,7 +386,7 @@ mod tests {
     fn test_consensus_log_formatting() {
         let formatter = CeruleaLogFormatter::new(false, true);
         let result = formatter.format_consensus_log("Block author selected");
-        assert!(result.contains("[CBC-CONSENSUS]"));
+        assert!(result.contains("[Cerulea-CONSENSUS]"));
         assert!(result.contains("Block author selected"));
     }
 
@@ -408,10 +408,10 @@ mod tests {
         assert!(config_quiet.contains("warn,"));
         assert!(config_quiet.contains("cerulea_node=info"));
         
-        let config_cbc_only = configure_rust_log(true, false);
-        assert!(config_cbc_only.contains("cerulea_node=info"));
-        assert!(config_cbc_only.contains("pallet_cerulea_dcf=info"));
-        assert!(!config_cbc_only.contains("warn,"));
+        let config_cerulea_only = configure_rust_log(true, false);
+        assert!(config_cerulea_only.contains("cerulea_node=info"));
+        assert!(config_cerulea_only.contains("pallet_cerulea_dcf=info"));
+        assert!(!config_cerulea_only.contains("warn,"));
         
         let config_all = configure_rust_log(false, false);
         assert!(config_all.contains("info,"));
@@ -457,7 +457,7 @@ mod tests {
         
         // Test with file path (using temp directory)
         let temp_dir = std::env::temp_dir();
-        let log_path = temp_dir.join("test_cbc.log");
+        let log_path = temp_dir.join("test_cerulea.log");
         let writer = LogFileWriter::new(Some(log_path.to_string_lossy().to_string())).unwrap();
         assert!(writer.is_file_logging());
         
@@ -470,13 +470,13 @@ mod tests {
         let mut startup_info = StartupInfo::new(
             "1.0.0".to_string(),
             "0.1.0".to_string(),
-            "CBC Testnet".to_string(),
+            "Cerulea Testnet".to_string(),
             "Full Node".to_string(),
         );
         
         assert_eq!(startup_info.runtime_version, "1.0.0");
         assert_eq!(startup_info.node_version, "0.1.0");
-        assert_eq!(startup_info.chain_name, "CBC Testnet");
+        assert_eq!(startup_info.chain_name, "Cerulea Testnet");
         assert_eq!(startup_info.node_role, "Full Node");
         assert!(startup_info.peer_id.is_none());
         assert!(startup_info.network_latency.is_none());

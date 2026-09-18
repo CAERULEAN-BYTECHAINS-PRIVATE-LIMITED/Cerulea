@@ -1,6 +1,6 @@
 //! DCF (Dynamic Consensus Framework) implementation
 //! 
-//! This module provides the core consensus engine implementation for the CBC chain.
+//! This module provides the core consensus engine implementation for the Cerulea chain.
 //! It handles block production, validation, and author selection.
 
 use crate::{
@@ -588,7 +588,7 @@ where
         
         // Create the PreRuntime digest item with our author identity
         let digest_item = sp_runtime::generic::DigestItem::PreRuntime(
-            crate::CBC_ENGINE_ID,
+            crate::CERULEA_ENGINE_ID,
             author.encode(),
         );
 
@@ -1099,8 +1099,8 @@ where
         for log in header.digest().logs() {
             match log {
                 DigestItem::Seal(engine_id, data) => {
-                    // Check if this is a CBC consensus seal
-                    if engine_id == b"cbcd" {
+                    // Check if this is a Cerulea consensus seal
+                    if engine_id == b"ceru" {
                         // Try to extract author from seal data
                         // The seal should contain author information
                         if data.len() >= 32 {
@@ -1113,7 +1113,7 @@ where
                 }
                 DigestItem::PreRuntime(engine_id, data) => {
                     // Check for pre-runtime digest with author info
-                    if engine_id == b"cbcd" {
+                    if engine_id == b"ceru" {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Some(author);
                         }
@@ -1121,7 +1121,7 @@ where
                 }
                 DigestItem::Consensus(engine_id, data) => {
                     // Check for consensus digest with author info
-                    if engine_id == b"cbcd" {
+                    if engine_id == b"ceru" {
                         if let Ok(author) = AccountId::decode(&mut &data[..]) {
                             return Some(author);
                         }

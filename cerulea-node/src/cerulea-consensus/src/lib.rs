@@ -1,4 +1,4 @@
-//! CBC Consensus Engine
+//! Cerulea Consensus Engine
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
@@ -20,16 +20,16 @@ pub mod epoch_manager;
 /// Core types and error handling
 pub mod types;
 
-/// Consensus engine ID for CBC DCF
-pub const CBC_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cbcd";
+/// Consensus engine ID for Cerulea DCF
+pub const CERULEA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"ceru";
 
-/// Key type ID for CBC DVF consensus keys (ed25519).
+/// Key type ID for Cerulea DVF consensus keys (ed25519).
 /// This is analogous to Substrate's `GRANDPA` key type (`b"gran"`).
 /// All DVF signing and keystore lookups must use this type ID.
-pub const CBC_DVF_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cdvf");
+pub const CERULEA_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cerk");
 
 /// DVF consensus engine ID
-pub const DVF_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dvfd";
+pub const DVF_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cerf";
 
 pub mod error;
 

@@ -1,0 +1,66 @@
+# Forbidden terms. One per line. Lines beginning with # are comments.
+# Matching is case-insensitive and word-boundary aware.
+# Exempt paths are listed in scan-paths.txt.
+
+# --- external agreement protocols and finality gadgets ---
+hotstuff
+tendermint
+pbft
+practical byzantine fault tolerance
+raft
+narwhal
+bullshark
+nakamoto consensus
+aura
+babe
+grandpa
+casper
+ouroboros
+
+# --- external chain frameworks named as our basis ---
+# These are permitted inside dependency import paths only.
+substrate framework
+polkadot sdk
+polkadot-sdk
+frontier pallet
+
+# --- retired sub-mechanism names ---
+proof of inference
+proof-of-inference
+proof of custody
+proof-of-custody
+proof of intelligence
+poi score
+pos weight
+poi weight
+dvf
+dcf-lite
+
+# --- settings vocabulary ---
+configuration
+configure
+configured
+configuring
+configurable
+reconfigure
+reconfiguration
+config screen
+settings page
+
+# --- retired branding ---
+cbc-chain
+cbc chain
+cbcchain
+caerulean bytechains chain
+sdk
+software development kit
+cli
+command line interface
+ceru token
+ceru coin
+
+# --- prohibited claims ---
+soc 2 certified
+iso 27001 certified
+soc2 certified
+fully certified

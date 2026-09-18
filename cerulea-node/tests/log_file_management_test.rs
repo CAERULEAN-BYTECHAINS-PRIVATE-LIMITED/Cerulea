@@ -5,7 +5,7 @@ use tempfile::TempDir;
 async fn test_log_file_creation() {
     // Create a temporary directory for the test
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
-    let log_file_path = temp_dir.path().join("test_cbc.log");
+    let log_file_path = temp_dir.path().join("test_cerulea.log");
     
     // Test that LogFileWriter can create a log file
     let log_writer = cerulea_node::logging::LogFileWriter::new(
@@ -26,13 +26,13 @@ fn test_startup_info_display() {
     let mut startup_info = cerulea_node::logging::StartupInfo::new(
         "1.0.0".to_string(),
         "0.1.0".to_string(),
-        "CBC Test Chain".to_string(),
+        "Cerulea Test Chain".to_string(),
         "Full Node".to_string(),
     );
     
     assert_eq!(startup_info.runtime_version, "1.0.0");
     assert_eq!(startup_info.node_version, "0.1.0");
-    assert_eq!(startup_info.chain_name, "CBC Test Chain");
+    assert_eq!(startup_info.chain_name, "Cerulea Test Chain");
     assert_eq!(startup_info.node_role, "Full Node");
     
     // Test setting peer ID and latency
@@ -62,11 +62,11 @@ fn test_log_deduplication() {
 }
 
 #[test]
-fn test_cbc_logging_initialization() {
-    // Test that CBC logging can be initialized with different configurations
+fn test_cerulea_logging_initialization() {
+    // Test that Cerulea logging can be initialized with different configurations
     
     // Test without log file
-    let result = cerulea_node::logging::init_cbc_logging(false, false, None);
+    let result = cerulea_node::logging::init_cerulea_logging(false, false, None);
     // Note: This might fail if logging is already initialized, which is expected in tests
     // We just verify the function exists and can be called
     
@@ -74,7 +74,7 @@ fn test_cbc_logging_initialization() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let log_file_path = temp_dir.path().join("test_init.log");
     
-    let result = cerulea_node::logging::init_cbc_logging(
+    let result = cerulea_node::logging::init_cerulea_logging(
         true, 
         false, 
         Some(log_file_path.to_string_lossy().to_string())

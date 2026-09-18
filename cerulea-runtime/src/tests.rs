@@ -1,4 +1,4 @@
-//! Comprehensive tests for the CBC Runtime
+//! Comprehensive tests for the Cerulea Runtime
 //! 
 //! This module contains integration tests that verify the entire runtime
 //! works correctly with all pallets integrated together.
@@ -8,8 +8,8 @@ use crate::{
     RuntimeOrigin, System, Balances, Runtime,
 };
 type DcfPallet = pallet_cerulea_dcf::Pallet<Runtime>;
-type PalletCbcPos = pallet_cerulea_pos::Pallet<Runtime>;
-type PalletCbcPoi = pallet_cerulea_poi::Pallet<Runtime>;
+type PalletCeruleaPos = pallet_cerulea_pos::Pallet<Runtime>;
+type PalletCeruleaPoi = pallet_cerulea_poi::Pallet<Runtime>;
 use frame_support::{assert_ok, assert_noop, traits::Get};
 use sp_runtime::traits::Zero;
 use codec::Encode;
@@ -64,16 +64,16 @@ mod runtime_integration_tests {
             assert_eq!(dcf_stake, stake_amount);
             
             // Test PoS integration
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator.clone())));
-            assert!(PalletCbcPos::validators(&validator).is_some());
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator.clone())));
+            assert!(PalletCeruleaPos::validators(&validator).is_some());
             
             // Test PoI integration
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator.clone()),
                 42,
                 80
             ));
-            assert!(PalletCbcPoi::inference_results(&validator).is_some());
+            assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
         });
     }
 
@@ -163,23 +163,23 @@ mod runtime_integration_tests {
             let validator2 = validators[1].clone();
             
             // Test PoS registration for multiple validators
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator1.clone())));
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator2.clone())));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator1.clone())));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator2.clone())));
             
             // Test PoI submissions from multiple validators
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator1.clone()),
                 42,
                 80
             ));
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator2.clone()),
                 43,
                 85
             ));
             
             // Test challenge mechanism
-            assert_ok!(PalletCbcPoi::challenge_inference(
+            assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(validator2.clone()),
                 validator1.clone(),
                 42
@@ -294,13 +294,13 @@ mod runtime_integration_tests {
             
             // Test invalid PoS operations
             assert_noop!(
-                PalletCbcPos::submit_score(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 75),
+                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 75),
                 pallet_cerulea_pos::Error::<Runtime>::ValidatorNotRegistered
             );
             
             // Test invalid PoI operations
             assert_noop!(
-                PalletCbcPoi::challenge_inference(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 42),
+                PalletCeruleaPoi::challenge_inference(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 42),
                 pallet_cerulea_poi::Error::<Runtime>::InferenceNotFound
             );
         });
@@ -380,8 +380,8 @@ mod runtime_benchmark_tests {
             
             // These should not panic and should complete quickly
             let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator.clone()), None);
-            let _ = PalletCbcPos::register_validator(RuntimeOrigin::signed(validator.clone()));
-            let _ = PalletCbcPoi::submit_inference(RuntimeOrigin::signed(validator.clone()), 42, 80);
+            let _ = PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator.clone()));
+            let _ = PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator.clone()), 42, 80);
         });
     }
 }
@@ -492,7 +492,7 @@ mod runtime_api_tests {
             // epoch is u32, always >= 0
             
             // Test getting inference result (should be None initially)
-            let _result = PalletCbcPoi::inference_results(&validator);
+            let _result = PalletCeruleaPoi::inference_results(&validator);
             // May be None or Some depending on genesis setup
         });
     }
@@ -609,7 +609,7 @@ mod runtime_api_tests {
         new_test_ext().execute_with(|| {
             // Test epoch consistency across pallets
             let dcf_epoch = DcfPallet::current_epoch();
-            let poi_epoch = PalletCbcPoi::current_epoch();
+            let poi_epoch = PalletCeruleaPoi::current_epoch();
             
             // Epochs should be consistent across pallets
             assert_eq!(dcf_epoch, poi_epoch);

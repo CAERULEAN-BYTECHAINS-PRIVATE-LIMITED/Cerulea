@@ -1,4 +1,4 @@
-//! Runtime-level integration tests for the CBC system
+//! Runtime-level integration tests for the Cerulea system
 //! 
 //! These tests verify that all pallets work together correctly within the runtime
 //! and that the runtime configuration is properly set up.
@@ -32,10 +32,10 @@ mod tests {
             assert!(!validators.is_empty());
             
             // PoS pallet integration
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(1)));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(1)));
             
             // PoI pallet integration
-            assert_ok!(PalletCbcPoi::submit_inference(RuntimeOrigin::signed(1), 42, 80));
+            assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(1), 42, 80));
         });
     }
 
@@ -77,9 +77,9 @@ mod tests {
             use crate::configs::weights::*;
             
             // Verify weights are non-zero
-            assert!(CBC_DCF_WEIGHT.ref_time() > 0);
-            assert!(CBC_POS_WEIGHT.ref_time() > 0);
-            assert!(CBC_POI_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_DCF_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_POS_WEIGHT.ref_time() > 0);
+            assert!(CERULEA_POI_WEIGHT.ref_time() > 0);
             
             // Verify operation-specific weights
             assert!(DCF_EPOCH_TRANSITION_WEIGHT.ref_time() > DCF_JOIN_VALIDATORS_WEIGHT.ref_time());
@@ -261,13 +261,13 @@ mod tests {
             
             // PoS errors
             assert_noop!(
-                PalletCbcPos::submit_score(RuntimeOrigin::signed(1), invalid_validator, 75),
+                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(1), invalid_validator, 75),
                 pallet_cerulea_pos::Error::<Runtime>::ValidatorNotRegistered
             );
             
             // PoI errors
             assert_noop!(
-                PalletCbcPoi::challenge_inference(RuntimeOrigin::signed(1), invalid_validator, 42),
+                PalletCeruleaPoi::challenge_inference(RuntimeOrigin::signed(1), invalid_validator, 42),
                 pallet_cerulea_poi::Error::<Runtime>::InferenceNotFound
             );
             
@@ -428,8 +428,8 @@ mod tests {
             System::reset_events();
             
             // Perform operations that should emit events
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator)));
-            assert_ok!(PalletCbcPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator)));
+            assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
             assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(validator), None));
             
             // Verify events were emitted
@@ -441,8 +441,8 @@ mod tests {
                 .iter()
                 .map(|record| {
                     match &record.event {
-                        RuntimeEvent::PalletCbcPos(_) => "PoS",
-                        RuntimeEvent::PalletCbcPoi(_) => "PoI", 
+                        RuntimeEvent::PalletCeruleaPos(_) => "PoS",
+                        RuntimeEvent::PalletCeruleaPoi(_) => "PoI", 
                         RuntimeEvent::DcfPallet(_) => "DCF",
                         RuntimeEvent::System(_) => "System",
                         RuntimeEvent::Balances(_) => "Balances",
@@ -465,7 +465,7 @@ mod tests {
             // Test that transactions consume appropriate fees
             // Note: In test environment, fees might be zero or minimal
             
-            assert_ok!(PalletCbcPos::register_validator(RuntimeOrigin::signed(validator)));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator)));
             
             let balance_after_tx = Balances::free_balance(&validator);
             
@@ -523,7 +523,7 @@ mod tests {
             
             // Register all validators in PoS
             for validator in validators.iter().take(25) {
-                let _ = PalletCbcPos::register_validator(RuntimeOrigin::signed(*validator));
+                let _ = PalletCeruleaPos::register_validator(RuntimeOrigin::signed(*validator));
             }
             
             let registration_time = start.elapsed();
@@ -533,7 +533,7 @@ mod tests {
             let start = Instant::now();
             
             for (i, validator) in validators.iter().take(25).enumerate() {
-                let _ = PalletCbcPoi::submit_inference(
+                let _ = PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(*validator),
                     (i + 1) as u32,
                     80

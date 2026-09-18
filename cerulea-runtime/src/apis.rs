@@ -1,4 +1,4 @@
-//! Runtime API implementations for CBC-CHAIN 
+//! Runtime API implementations for Cerulea-CHAIN 
 
 // External Crates
 use alloc::vec::Vec;

@@ -19,7 +19,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 frame_support::construct_runtime!(
     pub enum Test {
         System: frame_system,
-        PalletCbcPoi: pallet_cerulea_poi,
+        PalletCeruleaPoi: pallet_cerulea_poi,
     }
 );
 

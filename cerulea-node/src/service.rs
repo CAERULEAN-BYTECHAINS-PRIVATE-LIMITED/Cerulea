@@ -171,7 +171,7 @@ pub fn new_partial(
     let consensus_metrics = if let Some(registry) = config.prometheus_registry() {
         match cerulea_consensus::metrics::ConsensusMetrics::new(registry) {
             Ok(metrics) => {
-                log::info!("CBC: Consensus metrics initialized successfully in new_partial");
+                log::info!("Cerulea: Consensus metrics initialized successfully in new_partial");
                 Some(metrics)
             }
             Err(e) => {
@@ -184,12 +184,12 @@ pub fn new_partial(
                         .with_custom("error".to_string(), "true".to_string())
                     ),
                 );
-                log::error!("CBC: Failed to initialize consensus metrics in new_partial: {:?}", e);
+                log::error!("Cerulea: Failed to initialize consensus metrics in new_partial: {:?}", e);
                 None
             }
         }
     } else {
-        log::warn!("CBC: No Prometheus registry available in new_partial, metrics disabled");
+        log::warn!("Cerulea: No Prometheus registry available in new_partial, metrics disabled");
         None
     };
 
@@ -423,11 +423,11 @@ where
 	if config.role.is_authority() {
 		// Get validator account from keystore
 		let keystore = keystore_container.keystore();
-		let mut public_keys = keystore.ed25519_public_keys(cerulea_consensus::CBC_DVF_KEY_TYPE);
+		let mut public_keys = keystore.ed25519_public_keys(cerulea_consensus::CERULEA_KEY_TYPE);
 		
-		// If no CBC DVF ed25519 keys exist, generate and insert one automatically.
+		// If no Cerulea DVF ed25519 keys exist, generate and insert one automatically.
 		// This mirrors how Substrate handles GRANDPA keys: the node generates its own
-		// ed25519 keypair under the CBC DVF key type (b"cdvf") on first start.
+		// ed25519 keypair under the Cerulea DVF key type (b"cerk") on first start.
 		if public_keys.is_empty() {
 			use sp_core::crypto::{Ss58Codec, Pair};
 			use sp_core::ed25519;
@@ -439,25 +439,25 @@ where
 			let node_name = config.network.node_name.to_lowercase();
 			
 			let deterministic_seed: Option<&str> = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
-				log::info!("CBC DVF: Dev mode — using //Alice deterministic key");
+				log::info!("Cerulea DVF: Dev mode — using //Alice deterministic key");
 				Some("//Alice")
 			} else if node_name.contains("alice") {
-				log::info!("CBC DVF: Using deterministic key for Alice");
+				log::info!("Cerulea DVF: Using deterministic key for Alice");
 				Some("//Alice")
 			} else if node_name.contains("bob") {
-				log::info!("CBC DVF: Using deterministic key for Bob");
+				log::info!("Cerulea DVF: Using deterministic key for Bob");
 				Some("//Bob")
 			} else if node_name.contains("charlie") {
-				log::info!("CBC DVF: Using deterministic key for Charlie");
+				log::info!("Cerulea DVF: Using deterministic key for Charlie");
 				Some("//Charlie")
 			} else if node_name.contains("dave") {
-				log::info!("CBC DVF: Using deterministic key for Dave");
+				log::info!("Cerulea DVF: Using deterministic key for Dave");
 				Some("//Dave")
 			} else if node_name.contains("eve") {
-				log::info!("CBC DVF: Using deterministic key for Eve");
+				log::info!("Cerulea DVF: Using deterministic key for Eve");
 				Some("//Eve")
 			} else if node_name.contains("ferdie") {
-				log::info!("CBC DVF: Using deterministic key for Ferdie");
+				log::info!("Cerulea DVF: Using deterministic key for Ferdie");
 				Some("//Ferdie")
 			} else {
 				None
@@ -466,13 +466,13 @@ where
 			match deterministic_seed {
 				Some(seed) => {
 					let pair = ed25519::Pair::from_string(seed, None)
-						.expect("CBC DVF: Failed to derive ed25519 pair from well-known seed");
+						.expect("Cerulea DVF: Failed to derive ed25519 pair from well-known seed");
 					keystore.insert(
-						cerulea_consensus::CBC_DVF_KEY_TYPE,
+						cerulea_consensus::CERULEA_KEY_TYPE,
 						seed,
 						pair.public().as_ref(),
-					).expect("CBC DVF: Failed to insert deterministic ed25519 key into keystore");
-					log::info!("CBC DVF: Inserted deterministic ed25519 key: {}", pair.public().to_ss58check());
+					).expect("Cerulea DVF: Failed to insert deterministic ed25519 key into keystore");
+					log::info!("Cerulea DVF: Inserted deterministic ed25519 key: {}", pair.public().to_ss58check());
 				}
 				None => {
 					// Unknown node name — generate a fresh random ed25519 keypair.
@@ -481,23 +481,23 @@ where
 					// uses for GRANDPA keys when you run `key generate` and insert them.
 					let (pair, seed_phrase, _) = ed25519::Pair::generate_with_phrase(None);
 					keystore.insert(
-						cerulea_consensus::CBC_DVF_KEY_TYPE,
+						cerulea_consensus::CERULEA_KEY_TYPE,
 						&seed_phrase,
 						pair.public().as_ref(),
-					).expect("CBC DVF: Failed to insert generated ed25519 key into keystore");
+					).expect("Cerulea DVF: Failed to insert generated ed25519 key into keystore");
 					log::info!(
-						"CBC DVF: Auto-generated ed25519 key for new validator: {}",
+						"Cerulea DVF: Auto-generated ed25519 key for new validator: {}",
 						pair.public().to_ss58check()
 					);
 					log::warn!(
-						"CBC DVF: IMPORTANT — back up this seed phrase to recover your validator key: {}",
+						"Cerulea DVF: IMPORTANT — back up this seed phrase to recover your validator key: {}",
 						seed_phrase
 					);
 				}
 			}
 			
 			// Refresh after insertion
-			public_keys = keystore.ed25519_public_keys(cerulea_consensus::CBC_DVF_KEY_TYPE);
+			public_keys = keystore.ed25519_public_keys(cerulea_consensus::CERULEA_KEY_TYPE);
 		}
 		
 		if !public_keys.is_empty() {
@@ -623,7 +623,7 @@ where
     }
 
 
-    // --- CBC Custom Consensus Integration ---
+    // --- Cerulea Custom Consensus Integration ---
     // This integrates custom PoS/PoI consensus 
     // The DCF pallet provides validator selection based on PoS and PoI scores
     
@@ -703,16 +703,16 @@ where
         );
         
         task_manager.spawn_essential_handle().spawn(
-            "cbc-pos-poi-consensus",
+            "cerulea-pos-poi-consensus",
             None,
             async move {
-                log::info!("CBC: Starting real PoS+PoI consensus engine for block production");
+                log::info!("Cerulea: Starting real PoS+PoI consensus engine for block production");
                 // Run the consensus engine which will produce real blocks
                 dcf_consensus.run().await;
                 
                 let err = std::io::Error::new(std::io::ErrorKind::Other, "Consensus engine unexpectedly stopped");
                 LifecycleTracer::global().trace_error(23, "service.rs::new_full", &err, "PoS+PoI consensus engine unexpectedly stopped");
-                log::error!("CBC: PoS+PoI consensus engine unexpectedly stopped");
+                log::error!("Cerulea: PoS+PoI consensus engine unexpectedly stopped");
             },
         );
         
@@ -722,7 +722,7 @@ where
             "service.rs::new_full",
             "Consensus engine task started",
             Some(TraceMetadata::new()
-                .with_custom("task_name".to_string(), "cbc-pos-poi-consensus".to_string())
+                .with_custom("task_name".to_string(), "cerulea-pos-poi-consensus".to_string())
             ),
         );
     }
@@ -734,14 +734,14 @@ where
             "consensus-metrics-updater",
             None,
             async move {
-                log::info!("CBC: Starting consensus metrics updater");
+                log::info!("Cerulea: Starting consensus metrics updater");
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                 
                 loop {
                     interval.tick().await;
                     
                     if let Err(e) = metrics.update_from_runtime(&metrics_client) {
-                        log::warn!("CBC: Failed to update consensus metrics: {}", e);
+                        log::warn!("Cerulea: Failed to update consensus metrics: {}", e);
                     }
                 }
             },
@@ -765,7 +765,7 @@ where
             "block-authoring-tracker",
             None,
             async move {
-                log::info!("CBC: Starting block authoring tracking service");
+                log::info!("Cerulea: Starting block authoring tracking service");
                 
                 let tracker_config = BlockTrackerConfig {
                     monitoring_interval: std::time::Duration::from_secs(10),

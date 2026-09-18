@@ -1,6 +1,6 @@
 //! Multi-Node Integration Tests
 //! 
-//! This module contains integration tests that verify the CBC node operates correctly
+//! This module contains integration tests that verify the Cerulea node operates correctly
 //! in multi-node scenarios. These tests validate:
 //! - Multi-node network setup and peer connections
 //! - Block synchronization across nodes
@@ -25,8 +25,8 @@ pub struct MultiNodeTestConfig {
     pub base_ws_port: u16,
     /// Base port for P2P networking
     pub base_p2p_port: u16,
-    /// Whether to enable CBC extensions
-    pub enable_cbc_extensions: bool,
+    /// Whether to enable Cerulea extensions
+    pub enable_cerulea_extensions: bool,
     /// Maximum time to wait for node startup
     pub startup_timeout: Duration,
     /// Maximum time to wait for peer connections
@@ -46,7 +46,7 @@ impl Default for MultiNodeTestConfig {
             base_rpc_port: 9950,
             base_ws_port: 9960,
             base_p2p_port: 30350,
-            enable_cbc_extensions: true,
+            enable_cerulea_extensions: true,
             startup_timeout: Duration::from_secs(60),
             peer_connection_timeout: Duration::from_secs(30),
             sync_timeout: Duration::from_secs(60),
@@ -77,9 +77,9 @@ impl MultiNodeTestConfig {
         self
     }
     
-    /// Enable or disable CBC extensions
-    pub fn with_cbc_extensions(mut self, enabled: bool) -> Self {
-        self.enable_cbc_extensions = enabled;
+    /// Enable or disable Cerulea extensions
+    pub fn with_cerulea_extensions(mut self, enabled: bool) -> Self {
+        self.enable_cerulea_extensions = enabled;
         self
     }
     
@@ -334,7 +334,7 @@ async fn test_multi_node_startup_and_connections() {
     
     let config = MultiNodeTestConfig::new_with_unique_ports()
         .with_node_count(3)
-        .with_cbc_extensions(true);
+        .with_cerulea_extensions(true);
     
     let mut network = MockMultiNodeNetwork::new(config.clone());
     
@@ -376,7 +376,7 @@ async fn test_multi_node_block_synchronization() {
     
     let config = MultiNodeTestConfig::new_with_unique_ports()
         .with_node_count(3)
-        .with_cbc_extensions(true)
+        .with_cerulea_extensions(true)
         .with_consensus_params(15, 10);
     
     let mut network = MockMultiNodeNetwork::new(config.clone());
@@ -407,7 +407,7 @@ async fn test_multi_node_epoch_transitions() {
     
     let config = MultiNodeTestConfig::new_with_unique_ports()
         .with_node_count(3)
-        .with_cbc_extensions(true)
+        .with_cerulea_extensions(true)
         .with_consensus_params(25, 10);
     
     let mut network = MockMultiNodeNetwork::new(config.clone());
@@ -441,7 +441,7 @@ async fn test_multi_node_network_health() {
     
     let config = MultiNodeTestConfig::new_with_unique_ports()
         .with_node_count(3)
-        .with_cbc_extensions(true);
+        .with_cerulea_extensions(true);
     
     let mut network = MockMultiNodeNetwork::new(config.clone());
     
@@ -476,7 +476,7 @@ async fn test_comprehensive_multi_node_functionality() {
     
     let config = MultiNodeTestConfig::new_with_unique_ports()
         .with_node_count(3)
-        .with_cbc_extensions(true)
+        .with_cerulea_extensions(true)
         .with_consensus_params(20, 8);
     
     let mut network = MockMultiNodeNetwork::new(config.clone());
@@ -546,7 +546,7 @@ async fn test_comprehensive_multi_node_functionality() {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/// Check if the CBC node binary is available for testing
+/// Check if the Cerulea node binary is available for testing
 pub fn check_node_binary_available() -> bool {
     Command::new("cargo")
         .args(&["check", "--bin", "cerulea-node"])
@@ -590,11 +590,11 @@ mod helper_tests {
     fn test_config_builder() {
         let config = MultiNodeTestConfig::default()
             .with_node_count(5)
-            .with_cbc_extensions(false)
+            .with_cerulea_extensions(false)
             .with_consensus_params(30, 15);
         
         assert_eq!(config.node_count, 5);
-        assert!(!config.enable_cbc_extensions);
+        assert!(!config.enable_cerulea_extensions);
         assert_eq!(config.target_blocks, 30);
         assert_eq!(config.epoch_length, 15);
     }

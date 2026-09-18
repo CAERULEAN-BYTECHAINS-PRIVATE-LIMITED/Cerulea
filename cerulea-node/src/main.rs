@@ -39,8 +39,8 @@ fn main() -> sc_cli::Result<()> {
             extrinsic_count: None,
             custom: {
                 let mut map = std::collections::HashMap::new();
-                map.insert("cerulea_mode".to_string(), cli.cbc_mode.clone());
-                map.insert("enable_cbc_extensions".to_string(), cli.enable_cbc_extensions.to_string());
+                map.insert("cerulea_mode".to_string(), cli.cerulea_mode.clone());
+                map.insert("enable_cerulea_extensions".to_string(), cli.enable_cerulea_extensions.to_string());
                 map.insert("unsafe_rpc_expose".to_string(), cli.unsafe_rpc_expose.to_string());
                 map.insert("lifecycle_trace".to_string(), cli.lifecycle_trace.to_string());
                 map.insert("lifecycle_trace_format".to_string(), 
@@ -63,7 +63,7 @@ fn main() -> sc_cli::Result<()> {
     }
 
     // Configure RUST_LOG environment variable (but don't initialize logger)
-    let log_config = logging::init_cbc_logging_config(cli.cbc_log_only, cli.quiet);
+    let log_config = logging::init_cerulea_logging_config(cli.cerulea_log_only, cli.quiet);
     
     // STEP 3: Logging system configured
     if cli.lifecycle_trace {
@@ -75,7 +75,7 @@ fn main() -> sc_cli::Result<()> {
             custom: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("log_level".to_string(), log_config.clone());
-                map.insert("cerulea_log_only".to_string(), cli.cbc_log_only.to_string());
+                map.insert("cerulea_log_only".to_string(), cli.cerulea_log_only.to_string());
                 map.insert("quiet".to_string(), cli.quiet.to_string());
                 map
             },

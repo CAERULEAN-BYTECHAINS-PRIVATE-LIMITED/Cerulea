@@ -16,7 +16,7 @@ use sp_core::crypto::AccountId32;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
-        "CBC CHAIN".into()
+        "Cerulea Chain".into()
     }
 
     fn impl_version() -> String {
@@ -41,7 +41,7 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            "dev" | "development" | "CBC" => Box::new(chain_spec::development_chain_spec()?),
+            "dev" | "development" | "Cerulea" => Box::new(chain_spec::development_chain_spec()?),
             "" | "local" | "local_testnet" => Box::new(chain_spec::local_chain_spec()?),
             "multi_validator" => Box::new(chain_spec::multi_validator_chain_spec()?),
             "high_stake" => Box::new(chain_spec::high_stake_chain_spec()?),
@@ -55,9 +55,9 @@ pub fn run() -> sc_cli::Result<()> {
 
     // Log node startup information
     crate::logging::log_consensus_event(&format!(
-        "Starting CBC node version {} in {} mode", 
+        "Starting Cerulea node version {} in {} mode", 
         env!("CARGO_PKG_VERSION"),
-        if cli.cbc_mode == "production" { "production" } else { &cli.cbc_mode }
+        if cli.cerulea_mode == "production" { "production" } else { &cli.cerulea_mode }
     ));
 
     match &cli.subcommand {
@@ -102,7 +102,7 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Block(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cbc_extensions: cli.enable_cbc_extensions,
+                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
                                 expose_unsafe_methods: cli.unsafe_rpc_expose,
                                 rate_limit_window: cli.rpc_rate_limit_window,
                                 rate_limit_requests: cli.rpc_rate_limit_requests,
@@ -118,7 +118,7 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Storage(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cbc_extensions: cli.enable_cbc_extensions,
+                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
                                 expose_unsafe_methods: cli.unsafe_rpc_expose,
                                 rate_limit_window: cli.rpc_rate_limit_window,
                                 rate_limit_requests: cli.rpc_rate_limit_requests,
@@ -133,7 +133,7 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Overhead(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cbc_extensions: cli.enable_cbc_extensions,
+                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
                                 expose_unsafe_methods: cli.unsafe_rpc_expose,
                                 rate_limit_window: cli.rpc_rate_limit_window,
                                 rate_limit_requests: cli.rpc_rate_limit_requests,
@@ -147,7 +147,7 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Extrinsic(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cbc_extensions: cli.enable_cbc_extensions,
+                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
                                 expose_unsafe_methods: cli.unsafe_rpc_expose,
                                 rate_limit_window: cli.rpc_rate_limit_window,
                                 rate_limit_requests: cli.rpc_rate_limit_requests,
@@ -208,7 +208,7 @@ pub fn run() -> sc_cli::Result<()> {
 
                 let node_config = crate::service::NodeConfig {
                     rpc_config: crate::rpc::RpcSecurityConfig {
-                        enable_cbc_extensions: cli.enable_cbc_extensions,
+                        enable_cerulea_extensions: cli.enable_cerulea_extensions,
                         expose_unsafe_methods: cli.unsafe_rpc_expose,
                         rate_limit_window: cli.rpc_rate_limit_window,
                         rate_limit_requests: cli.rpc_rate_limit_requests,
@@ -256,8 +256,8 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
                 "author": author,
                 "support_url": support_url,
                 "uptime_seconds": uptime,
-                "cerulea_mode": cli.cbc_mode,
-                "cerulea_extensions_enabled": cli.enable_cbc_extensions,
+                "cerulea_mode": cli.cerulea_mode,
+                "cerulea_extensions_enabled": cli.enable_cerulea_extensions,
                 "unsafe_rpc_exposed": cli.unsafe_rpc_expose,
                 "rate_limit_window": cli.rpc_rate_limit_window,
                 "rate_limit_requests": cli.rpc_rate_limit_requests
@@ -265,7 +265,7 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
             println!("{}", serde_json::to_string_pretty(&info).unwrap());
         },
         OutputFormat::Plain => {
-            println!("CBC Node Information");
+            println!("Cerulea Node Information");
             println!("====================");
             println!("Name: {}", impl_name);
             println!("Version: {}", version);
@@ -274,8 +274,8 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
             println!("Author: {}", author);
             println!("Support URL: {}", support_url);
             println!("Uptime: {} seconds", uptime);
-            println!("CBC Mode: {}", cli.cbc_mode);
-            println!("CBC Extensions Enabled: {}", cli.enable_cbc_extensions);
+            println!("Cerulea Mode: {}", cli.cerulea_mode);
+            println!("Cerulea Extensions Enabled: {}", cli.enable_cerulea_extensions);
             println!("Unsafe RPC Exposed: {}", cli.unsafe_rpc_expose);
             println!("Rate Limit Window: {} seconds", cli.rpc_rate_limit_window);
             println!("Rate Limit Requests: {}", cli.rpc_rate_limit_requests);
@@ -654,7 +654,7 @@ fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
 
     // Skip dev — Substrate handles ephemeral keys internally.
     let raw_chain = match cli.run.shared_params.chain.as_deref() {
-        Some("dev") | Some("development") | Some("CBC") => return,
+        Some("dev") | Some("development") | Some("Cerulea") => return,
         None => return,
         Some(id) => id,
     };
@@ -690,7 +690,7 @@ fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
 
     if let Some(parent) = net_key_path.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
-            log::warn!("CBC: Could not create network key directory {:?}: {}", parent, e);
+            log::warn!("Cerulea: Could not create network key directory {:?}: {}", parent, e);
             return;
         }
     }
@@ -703,11 +703,11 @@ fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
 
     match fs::write(&net_key_path, secret_hex.as_bytes()) {
         Ok(_) => log::info!(
-            "CBC: Auto-generated P2P network key at {:?}",
+            "Cerulea: Auto-generated P2P network key at {:?}",
             net_key_path
         ),
         Err(e) => log::warn!(
-            "CBC: Failed to write network key to {:?}: {}",
+            "Cerulea: Failed to write network key to {:?}: {}",
             net_key_path, e
         ),
     }

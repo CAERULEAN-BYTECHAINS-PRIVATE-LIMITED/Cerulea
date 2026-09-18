@@ -28,22 +28,22 @@ fn dcf_pos_integration_validator_lifecycle() {
         assert!(validator_stake > 0);
         
         // Test PoS registration integration
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
         // Verify PoS state
-        assert_eq!(PalletCbcPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
         
         // Test score submission affects both pallets
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             validator,
             85
         ));
         
         // Verify score is recorded in PoS
-        assert_eq!(PalletCbcPos::validator_scores(&validator), Some(85));
+        assert_eq!(PalletCeruleaPos::validator_scores(&validator), Some(85));
         
         // Test DCF score update integration
         assert_ok!(DcfPallet::update_validator_stake_score(
@@ -69,14 +69,14 @@ fn dcf_poi_integration_inference_tracking() {
         assert!(DcfPallet::is_validator_active(&validator));
         
         // Test PoI inference submission
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             inference_result,
             confidence
         ));
         
         // Verify inference is recorded in PoI
-        let (result, epoch) = PalletCbcPoi::inference_results(&validator).unwrap();
+        let (result, epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
         assert_eq!(result, inference_result);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
@@ -115,34 +115,34 @@ fn three_way_pallet_integration() {
         ));
         
         // 2. Register in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(challenger)
         ));
         
         // 3. Submit PoS scores
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             validator,
             90
         ));
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(1),
             challenger,
             85
         ));
         
         // 4. Submit PoI inference
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             88
         ));
         
         // 5. Challenge inference
-        assert_ok!(PalletCbcPoi::challenge_inference(
+        assert_ok!(PalletCeruleaPoi::challenge_inference(
             RuntimeOrigin::signed(challenger),
             validator,
             42
@@ -161,10 +161,10 @@ fn three_way_pallet_integration() {
         // Verify all pallets have consistent state
         assert!(DcfPallet::is_validator_active(&validator));
         assert!(DcfPallet::is_validator_active(&challenger));
-        assert_eq!(PalletCbcPos::validators(&validator), Some(true));
-        assert_eq!(PalletCbcPos::validators(&challenger), Some(true));
-        assert!(PalletCbcPoi::inference_results(&validator).is_some());
-        assert!(PalletCbcPoi::challenges(&challenger).is_some());
+        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(&challenger), Some(true));
+        assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
+        assert!(PalletCeruleaPoi::challenges(&challenger).is_some());
     });
 }
 
@@ -176,22 +176,22 @@ fn cross_pallet_validator_slashing() {
         let initial_stake = DcfPallet::validator_stake(&validator);
         
         // Register in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
         // Submit initial score
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
             75
         ));
         
         // Test PoS slashing
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
         
         // Verify slashing count increased
-        assert_eq!(PalletCbcPos::slashing_count(&validator), Some(1));
+        assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // Test DCF slashing integration
         let slash_amount = 1000u128;
@@ -206,11 +206,11 @@ fn cross_pallet_validator_slashing() {
         assert!(new_stake < initial_stake);
         
         // Test that excessive slashing removes validator from PoS
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCbcPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
         
         // After 3 slashes, validator should be removed from PoS
-        assert_eq!(PalletCbcPos::validators(&validator), None);
+        assert_eq!(PalletCeruleaPos::validators(&validator), None);
     });
 }
 
@@ -222,15 +222,15 @@ fn cross_pallet_validator_rewards() {
         let initial_stake = DcfPallet::validator_stake(&validator);
         
         // Register in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
         // Test PoS reward
-        assert_ok!(PalletCbcPos::reward_validator(&validator, 500));
+        assert_ok!(PalletCeruleaPos::reward_validator(&validator, 500));
         
         // Submit high-quality inference in PoI
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             95 // High confidence
@@ -272,15 +272,15 @@ fn cross_pallet_epoch_transitions() {
         
         // Record initial states
         let initial_dcf_epoch = DcfPallet::current_epoch();
-        let _initial_poi_epoch = PalletCbcPoi::current_epoch();
+        let _initial_poi_epoch = PalletCeruleaPoi::current_epoch();
         
         // Register validator in PoS
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
         
         // Submit inference in PoI
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             85
@@ -295,14 +295,14 @@ fn cross_pallet_epoch_transitions() {
         
         // Verify epoch advanced in all pallets
         let new_dcf_epoch = DcfPallet::current_epoch();
-        let new_poi_epoch = PalletCbcPoi::current_epoch();
+        let new_poi_epoch = PalletCeruleaPoi::current_epoch();
         
         assert!(new_dcf_epoch > initial_dcf_epoch);
         assert_eq!(new_dcf_epoch, new_poi_epoch); // Epochs should be synchronized
         
         // Verify validator states persist across epoch
         assert!(DcfPallet::is_validator_active(&validator));
-        assert_eq!(PalletCbcPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
     });
 }
 
@@ -316,15 +316,15 @@ fn cross_pallet_consensus_weight_updates() {
         let (initial_pos_weight, initial_poi_weight) = DcfPallet::consensus_weights();
         
         // Register validator and submit scores
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
             80
         ));
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             90
@@ -374,7 +374,7 @@ fn cross_pallet_error_propagation() {
         
         // Test that PoS errors don't affect DCF
         assert_noop!(
-            PalletCbcPos::submit_score(
+            PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 non_validator,
                 75
@@ -388,7 +388,7 @@ fn cross_pallet_error_propagation() {
         
         // Test that PoI errors don't affect other pallets
         assert_noop!(
-            PalletCbcPoi::challenge_inference(
+            PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(1),
                 non_validator,
                 42
@@ -407,10 +407,10 @@ fn cross_pallet_error_propagation() {
         
         // PoS and PoI should still function
         let validator = 1u64;
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             85
@@ -433,17 +433,17 @@ fn cross_pallet_concurrent_operations() {
             ));
             
             // PoS operations
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(*validator)
             ));
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 *validator,
                 75 + (*validator as u32 * 5)
             ));
             
             // PoI operations
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 40 + *validator as u32,
                 80 + (*validator as u32 * 2)
@@ -453,19 +453,19 @@ fn cross_pallet_concurrent_operations() {
         // Verify all operations completed successfully
         for validator in &validators {
             assert!(DcfPallet::is_validator_active(validator));
-            assert_eq!(PalletCbcPos::validators(validator), Some(true));
-            assert!(PalletCbcPoi::inference_results(validator).is_some());
+            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+            assert!(PalletCeruleaPoi::inference_results(validator).is_some());
         }
         
         // Test cross-pallet challenges
-        assert_ok!(PalletCbcPoi::challenge_inference(
+        assert_ok!(PalletCeruleaPoi::challenge_inference(
             RuntimeOrigin::signed(validators[1]),
             validators[0],
             40 + validators[0] as u32
         ));
         
         // Verify challenge was recorded
-        assert!(PalletCbcPoi::challenges(&validators[1]).is_some());
+        assert!(PalletCeruleaPoi::challenges(&validators[1]).is_some());
     });
 }
 
@@ -478,20 +478,20 @@ fn cross_pallet_data_consistency() {
         // Verify initial consistency
         let dcf_active = DcfPallet::is_validator_active(&validator);
         let dcf_epoch = DcfPallet::current_epoch();
-        let poi_epoch = PalletCbcPoi::current_epoch();
+        let poi_epoch = PalletCeruleaPoi::current_epoch();
         
         assert_eq!(dcf_epoch, poi_epoch);
         
         // Register in PoS and submit data
-        assert_ok!(PalletCbcPos::register_validator(
+        assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_ok!(PalletCbcPos::submit_score(
+        assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
             85
         ));
-        assert_ok!(PalletCbcPoi::submit_inference(
+        assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
             90
@@ -508,8 +508,8 @@ fn cross_pallet_data_consistency() {
         ));
         
         // Verify data consistency
-        let pos_score = PalletCbcPos::validator_scores(&validator).unwrap_or(0);
-        let (poi_result, poi_epoch) = PalletCbcPoi::inference_results(&validator).unwrap();
+        let pos_score = PalletCeruleaPos::validator_scores(&validator).unwrap_or(0);
+        let (poi_result, poi_epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
         let dcf_stake_score = DcfPallet::validator_stake_score(&validator);
         let dcf_inference_score = DcfPallet::validator_inference_score(&validator);
         
@@ -522,7 +522,7 @@ fn cross_pallet_data_consistency() {
         
         // Verify validator is consistently active
         if dcf_active {
-            assert_eq!(PalletCbcPos::validators(&validator), Some(true));
+            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
         }
     });
 }
@@ -545,19 +545,19 @@ fn cross_pallet_stress_test() {
             ));
             
             // Register in PoS
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
             
             // Submit PoS score
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 validator,
                 70 + (i as u32 * 2)
             ));
             
             // Submit PoI inference
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 30 + i as u32,
                 75 + (i as u32)
@@ -586,8 +586,8 @@ fn cross_pallet_stress_test() {
         // Verify all pallets maintain consistency
         for validator in &active_validators {
             if *validator <= num_validators {
-                assert_eq!(PalletCbcPos::validators(validator), Some(true));
-                assert!(PalletCbcPoi::inference_results(validator).is_some());
+                assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+                assert!(PalletCeruleaPoi::inference_results(validator).is_some());
             }
         }
     });

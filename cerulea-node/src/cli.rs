@@ -17,17 +17,17 @@ pub struct Cli {
     #[clap(flatten)]
     pub run: RunCmd,
 
-    #[clap(long, default_value = "production", help = "CBC custom mode (e.g., testing, production)")]
-    pub cbc_mode: String,
+    #[clap(long, default_value = "production", help = "Cerulea custom mode (e.g., testing, production)")]
+    pub cerulea_mode: String,
 
-    #[clap(long, help = "Enable CBC custom RPC extensions")]
-    pub enable_cbc_extensions: bool,
+    #[clap(long, help = "Enable Cerulea custom RPC extensions")]
+    pub enable_cerulea_extensions: bool,
     
     #[clap(long, help = "Write logs to the given file instead of stdout")]
     pub log_file: Option<String>,
 
-    #[clap(long, help = "Show only CBC-related logs")]
-    pub cbc_log_only: bool,
+    #[clap(long, help = "Show only Cerulea-related logs")]
+    pub cerulea_log_only: bool,
 
     #[clap(long, help = "Minimal output - suppress startup info and reduce logging")]
     pub quiet: bool,

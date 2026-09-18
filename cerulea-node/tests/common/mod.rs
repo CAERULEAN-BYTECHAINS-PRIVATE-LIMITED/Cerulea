@@ -1,6 +1,6 @@
-// Common test utilities for CBC API testing
+// Common test utilities for Cerulea API testing
 //
-// This module provides shared infrastructure for testing CBC Runtime APIs and RPC endpoints:
+// This module provides shared infrastructure for testing Cerulea Runtime APIs and RPC endpoints:
 // - Test data generators for property-based testing
 // - Test runtime builder for integration testing
 // - Mock client builder for unit testing

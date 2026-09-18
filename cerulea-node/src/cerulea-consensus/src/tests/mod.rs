@@ -1,6 +1,6 @@
-//! Test modules for CBC Consensus Engine
+//! Test modules for Cerulea Consensus Engine
 //!
-//! This module organizes all test files for the CBC consensus implementation.
+//! This module organizes all test files for the Cerulea consensus implementation.
 //! Tests are organized by functionality to improve maintainability and debugging.
 
 /// Epoch manager functionality tests

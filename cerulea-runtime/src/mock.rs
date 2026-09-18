@@ -1,7 +1,7 @@
-//! Mock runtime for CBC Runtime testing
+//! Mock runtime for Cerulea Runtime testing
 //! 
 //! This module provides a comprehensive mock runtime that can be used for testing
-//! the entire CBC system including all pallets and their interactions.
+//! the entire Cerulea system including all pallets and their interactions.
 
 use crate::{
     AccountId, Balance, BlockNumber, RuntimeOrigin,

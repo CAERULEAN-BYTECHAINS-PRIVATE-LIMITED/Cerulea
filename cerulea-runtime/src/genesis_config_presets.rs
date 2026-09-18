@@ -1,8 +1,8 @@
-// This file is part of the CBC Runtime.
+// This file is part of the Cerulea Runtime.
 // It defines functions for generating JSON-based genesis configurations used by the blockchain node
 // when starting a development or local testnet chain.
 
-use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, CBC}; // Runtime-specific types
+use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, Cerulea}; // Runtime-specific types
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
 use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
@@ -51,16 +51,16 @@ fn testnet_genesis_with_stakes_and_names(
 	// Create initial validator scores
 	let validator_scores = vec![80; initial_validators.len()]; // 80% initial score
 
-	// Create validator stakes - use provided stakes or defaults in CBC
+	// Create validator stakes - use provided stakes or defaults in Cerulea
 	let stakes = validator_stakes.unwrap_or_else(|| {
-		// Default stakes: 10M, 8M, 6M, 5M, 3M CBC
+		// Default stakes: 10M, 8M, 6M, 5M, 3M Cerulea
 		initial_validators.iter().enumerate().map(|(i, _)| {
 			match i {
-				0 => 10_000_000 * CBC, // Alice: 10M CBC
-				1 => 8_000_000 * CBC,  // Bob: 8M CBC
-				2 => 6_000_000 * CBC,  // Charlie: 6M CBC
-				3 => 5_000_000 * CBC,  // Dave: 5M CBC
-				_ => 3_000_000 * CBC,  // Others: 3M CBC
+				0 => 10_000_000 * Cerulea, // Alice: 10M Cerulea
+				1 => 8_000_000 * Cerulea,  // Bob: 8M Cerulea
+				2 => 6_000_000 * Cerulea,  // Charlie: 6M Cerulea
+				3 => 5_000_000 * Cerulea,  // Dave: 5M Cerulea
+				_ => 3_000_000 * Cerulea,  // Others: 3M Cerulea
 			}
 		}).collect()
 	});
@@ -91,7 +91,7 @@ fn testnet_genesis_with_stakes_and_names(
 			balances: endowed_accounts
 				.iter()
 				.cloned()
-				.map(|k| (k, 100_000_000 * CBC)) // Each gets 100M units
+				.map(|k| (k, 100_000_000 * Cerulea)) // Each gets 100M units
 				.collect::<Vec<_>>(),
 		},
 		// Assign the sudo (root) key to the provided account

@@ -1,4 +1,4 @@
-//! Inherent data provider system for CBC consensus
+//! Inherent data provider system for Cerulea consensus
 //!
 //! This module provides a centralized system for managing inherent data providers
 //! that generate system-required data like timestamps for block production.
@@ -9,7 +9,7 @@ use crate::error::{ConsensusError, ConsensusResult};
 use log::{debug, trace};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Central manager for all inherent data providers used in CBC consensus
+/// Central manager for all inherent data providers used in Cerulea consensus
 pub struct CeruleaInherentDataProviders {
     // We don't store the provider directly since it doesn't implement Clone
     // Instead we'll create it fresh each time

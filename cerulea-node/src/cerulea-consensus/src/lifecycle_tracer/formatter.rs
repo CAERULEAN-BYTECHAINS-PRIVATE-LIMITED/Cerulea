@@ -106,7 +106,7 @@ impl TraceFormatter for HumanReadableFormatter {
             TraceEntryType::Step => {
                 let step = entry.step.map(|s| s.to_string()).unwrap_or_else(|| "?".to_string());
                 format!(
-                    "[{}] {}============== [CBC-TRACE] {}. [{}] {} ==============",
+                    "[{}] {}============== [Cerulea-TRACE] {}. [{}] {} ==============",
                     timestamp, thread_info, step, entry.location, entry.message
                 )
             }
@@ -233,7 +233,7 @@ mod tests {
         };
         
         let formatted = formatter.format(&entry);
-        assert!(formatted.contains("[CBC-TRACE]"));
+        assert!(formatted.contains("[Cerulea-TRACE]"));
         assert!(formatted.contains("5."));
         assert!(formatted.contains("[service.rs]"));
         assert!(formatted.contains("Service initialized"));

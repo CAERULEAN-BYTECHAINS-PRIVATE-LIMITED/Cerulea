@@ -14,7 +14,7 @@ use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
 use crate::metrics::DvfMetrics;
 
 /// The protocol ID for DVF Vote Gossiping.
-pub const DVF_PROTOCOL_NAME: &str = "/cbc/dvf/1";
+pub const DVF_PROTOCOL_NAME: &str = "/cerulea/dvf/1";
 
 /// The structure of a DVF Vote gossiped over the P2P network.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -211,7 +211,7 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
 }
 
 /// Validator for DVF gossip messages.
-/// Filters, validates, and manages routing of `/cbc/dvf/1` messages across peers.
+/// Filters, validates, and manages routing of `/cerulea/dvf/1` messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     pool: Arc<DvfVotePool<B::Hash, AccountId>>,
     known_messages: RwLock<HashSet<B::Hash>>,

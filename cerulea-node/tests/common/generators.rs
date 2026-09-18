@@ -1,7 +1,7 @@
 // Test data generators for property-based testing
 //
 // This module provides proptest strategies for generating valid test data
-// that covers the full input space for CBC Runtime APIs and RPC endpoints.
+// that covers the full input space for Cerulea Runtime APIs and RPC endpoints.
 
 use proptest::prelude::*;
 use proptest::strategy::{Strategy, ValueTree};

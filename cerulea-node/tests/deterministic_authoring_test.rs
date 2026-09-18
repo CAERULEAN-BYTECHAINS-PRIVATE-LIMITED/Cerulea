@@ -1,7 +1,7 @@
 //! Deterministic Authoring Tests
 //! 
 //! This module contains tests that verify the deterministic block authoring functionality
-//! of the CBC consensus mechanism. These tests validate:
+//! of the Cerulea consensus mechanism. These tests validate:
 //! - Querying expected authors for future blocks
 //! - Verifying actual authors match expected authors
 //! - Author mismatch detection and logging
@@ -204,7 +204,7 @@ impl MockDeterministicAuthoring {
         self.author_mismatches.push(mismatch);
         
         // Log the mismatch (this tests the logging requirement)
-        log::warn!("[CBC-CONSENSUS] Author mismatch at block {}: expected {:?}, actual {:?}", 
+        log::warn!("[Cerulea-CONSENSUS] Author mismatch at block {}: expected {:?}, actual {:?}", 
                   block_number, expected_author, actual_author);
     }
     

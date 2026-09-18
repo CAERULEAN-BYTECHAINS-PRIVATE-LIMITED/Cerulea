@@ -1,9 +1,14 @@
+# Build settings for the 32 GB build machine.
+# Four jobs keep peak memory near 16 GB. sccache keeps rebuilds warm.
+# The compiler flag works around a header defect in the storage library
+# under modern compilers.
 [build]
-jobs = 1
+jobs = 4
+rustc-wrapper = "sccache"
 
-# Fix: librocksdb-sys v0.11.0+8.1.1 (RocksDB 8.1.1) uses uint64_t/uint32_t in
-# headers without including <cstdint>. With gcc-15 / clang-18 these types are
-# no longer available via transitive includes. Force-including <cstdint> fixes it.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
 [env]
 CXXFLAGS = "-include cstdint"
 

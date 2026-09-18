@@ -21,8 +21,8 @@ frame_support::construct_runtime!(
         Balances: pallet_balances,
         Timestamp: pallet_timestamp,
         DcfPallet: crate,
-        PalletCbcPos: pallet_cerulea_pos,
-        PalletCbcPoi: pallet_cerulea_poi,
+        PalletCeruleaPos: pallet_cerulea_pos,
+        PalletCeruleaPoi: pallet_cerulea_poi,
     }
 );
 

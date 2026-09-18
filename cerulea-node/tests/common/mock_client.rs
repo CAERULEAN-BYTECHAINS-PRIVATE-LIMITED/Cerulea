@@ -279,9 +279,9 @@ impl MockClient {
         &self.security_config
     }
     
-    /// Check if CBC extensions are enabled
-    pub fn cbc_extensions_enabled(&self) -> bool {
-        self.security_config.enable_cbc_extensions
+    /// Check if Cerulea extensions are enabled
+    pub fn cerulea_extensions_enabled(&self) -> bool {
+        self.security_config.enable_cerulea_extensions
     }
 }
 
@@ -357,7 +357,7 @@ impl MockClientBuilder {
         self
     }
     
-    /// Disable CBC extensions
+    /// Disable Cerulea extensions
     pub fn with_disabled_extensions(mut self) -> Self {
         self.security_config = RpcSecurityConfig::disabled_extensions();
         self
@@ -443,7 +443,7 @@ pub fn create_failing_mock() -> Arc<MockClient> {
         .build()
 }
 
-/// Create a mock client with disabled CBC extensions
+/// Create a mock client with disabled Cerulea extensions
 pub fn create_disabled_extensions_mock() -> Arc<MockClient> {
     MockClientBuilder::new()
         .with_disabled_extensions()
@@ -522,7 +522,7 @@ mod tests {
             client.runtime_api().get_validator_pos_score(&validator).unwrap(),
             Some(85)
         );
-        assert!(client.cbc_extensions_enabled());
+        assert!(client.cerulea_extensions_enabled());
     }
 
     #[test]
@@ -531,7 +531,7 @@ mod tests {
             .with_disabled_extensions()
             .build();
         
-        assert!(!client.cbc_extensions_enabled());
+        assert!(!client.cerulea_extensions_enabled());
     }
 
     #[test]
@@ -550,6 +550,6 @@ mod tests {
         assert!(failing.runtime_api().get_current_epoch().is_err());
         
         let disabled = create_disabled_extensions_mock();
-        assert!(!disabled.cbc_extensions_enabled());
+        assert!(!disabled.cerulea_extensions_enabled());
     }
 }

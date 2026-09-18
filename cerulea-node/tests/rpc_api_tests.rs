@@ -363,7 +363,7 @@ fn test_production_validator_status_determination() {
 
 #[derive(Clone, Debug)]
 pub struct TestRpcSecurityConfig {
-    pub enable_cbc_extensions: bool,
+    pub enable_cerulea_extensions: bool,
     pub expose_unsafe_methods: bool,
     pub rate_limit_window: u64,
     pub rate_limit_requests: u32,
@@ -372,7 +372,7 @@ pub struct TestRpcSecurityConfig {
 impl Default for TestRpcSecurityConfig {
     fn default() -> Self {
         Self {
-            enable_cbc_extensions: false,
+            enable_cerulea_extensions: false,
             expose_unsafe_methods: false,
             rate_limit_window: 60,
             rate_limit_requests: 100,
@@ -381,9 +381,9 @@ impl Default for TestRpcSecurityConfig {
 }
 
 impl TestRpcSecurityConfig {
-    fn check_cbc_extensions_enabled(&self) -> Result<(), String> {
-        if !self.enable_cbc_extensions {
-            return Err("CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string());
+    fn check_cerulea_extensions_enabled(&self) -> Result<(), String> {
+        if !self.enable_cerulea_extensions {
+            return Err("Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string());
         }
         Ok(())
     }
@@ -393,22 +393,22 @@ impl TestRpcSecurityConfig {
 fn test_production_security_config() {
     // Test default security configuration
     let default_config = TestRpcSecurityConfig::default();
-    assert!(!default_config.enable_cbc_extensions);
+    assert!(!default_config.enable_cerulea_extensions);
     assert!(!default_config.expose_unsafe_methods);
     assert_eq!(default_config.rate_limit_window, 60);
     assert_eq!(default_config.rate_limit_requests, 100);
     
-    // Test that CBC extensions are disabled by default
-    assert!(default_config.check_cbc_extensions_enabled().is_err());
+    // Test that Cerulea extensions are disabled by default
+    assert!(default_config.check_cerulea_extensions_enabled().is_err());
     
     // Test enabled configuration
     let enabled_config = TestRpcSecurityConfig {
-        enable_cbc_extensions: true,
+        enable_cerulea_extensions: true,
         expose_unsafe_methods: false,
         rate_limit_window: 60,
         rate_limit_requests: 100,
     };
-    assert!(enabled_config.check_cbc_extensions_enabled().is_ok());
+    assert!(enabled_config.check_cerulea_extensions_enabled().is_ok());
     
     println!("✓ Production security config test passed");
 }
@@ -432,12 +432,12 @@ fn test_production_rpc_error_creation() {
     
     let security_error = jsonrpsee::types::ErrorObjectOwned::owned(
         -32001,
-        "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+        "Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string(),
         None::<()>
     );
     
     assert_eq!(security_error.code(), -32001);
-    assert!(security_error.message().contains("CBC RPC extensions are disabled"));
+    assert!(security_error.message().contains("Cerulea RPC extensions are disabled"));
     
     println!("✓ Production RPC error creation test passed");
 }
@@ -555,7 +555,7 @@ fn test_comprehensive_production_rpc_functionality() {
     
     // Test 2: Security configuration (access control)
     let security_config = TestRpcSecurityConfig::default();
-    assert!(security_config.check_cbc_extensions_enabled().is_err());
+    assert!(security_config.check_cerulea_extensions_enabled().is_err());
     println!("  ✓ Security configuration verified");
     
     // Test 3: Type serialization (API responses)
@@ -936,7 +936,7 @@ fn test_production_block_tracking_rpc_response_format() {
     let single_json = serde_json::to_string(&single_stats).unwrap();
     assert!(single_json.contains("\"participationRate\":95"));
     
-    // Multiple validators stats response (as returned by cbc_getAllBlockAuthoringStats)
+    // Multiple validators stats response (as returned by cerulea_getAllBlockAuthoringStats)
     let multiple_stats = vec![
         (test_account.clone(), single_stats.clone()),
         (AccountId32::from([2u8; 32]), TestBlockAuthoringStats {
@@ -1050,7 +1050,7 @@ fn test_final_comprehensive_production_rpc_suite() {
     assert!(rate_limiter.check_rate_limit("production_client"));
     
     let security_config = TestRpcSecurityConfig::default();
-    assert!(security_config.check_cbc_extensions_enabled().is_err());
+    assert!(security_config.check_cerulea_extensions_enabled().is_err());
     println!("  Rate limiting and security controls: PASSED");
     
     // 2. Core RPC Types

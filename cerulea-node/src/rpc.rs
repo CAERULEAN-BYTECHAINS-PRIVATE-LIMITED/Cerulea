@@ -104,7 +104,7 @@ pub struct ConsensusWeights {
     pub poi_weight: u64,
 }
 
-// CBC Unified RPC Types
+// Cerulea Unified RPC Types
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidatorProfile {
@@ -173,7 +173,7 @@ pub struct BlockAuthoringStats {
 
 #[derive(Clone, Debug)]
 pub struct RpcSecurityConfig {
-    pub enable_cbc_extensions: bool,
+    pub enable_cerulea_extensions: bool,
     pub expose_unsafe_methods: bool,
     pub rate_limit_window: u64,
     pub rate_limit_requests: u32,
@@ -182,7 +182,7 @@ pub struct RpcSecurityConfig {
 impl Default for RpcSecurityConfig {
     fn default() -> Self {
         Self {
-            enable_cbc_extensions: false,
+            enable_cerulea_extensions: false,
             expose_unsafe_methods: false,
             rate_limit_window: 60,
             rate_limit_requests: 100,
@@ -472,11 +472,11 @@ impl<C> DcfRpcApiImpl<C> {
         Self { client, security_config }
     }
     
-    fn check_cbc_extensions_enabled(&self) -> RpcResult<()> {
-        if !self.security_config.enable_cbc_extensions {
+    fn check_cerulea_extensions_enabled(&self) -> RpcResult<()> {
+        if !self.security_config.enable_cerulea_extensions {
             return Err(jsonrpsee::types::ErrorObjectOwned::owned(
                 -32001,
-                "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+                "Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string(),
                 None::<()>
             ));
         }
@@ -490,7 +490,7 @@ where
     C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
 {
     fn get_current_author(&self) -> RpcResult<Option<AccountId>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -507,7 +507,7 @@ where
     }
     
     fn get_expected_author(&self, block_number: u32) -> RpcResult<Option<AccountId>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -521,7 +521,7 @@ where
     }
     
     fn get_validator_scores(&self) -> RpcResult<Vec<(AccountId, u64)>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -535,7 +535,7 @@ where
     }
     
     fn get_consensus_weights(&self) -> RpcResult<ConsensusWeights> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -551,9 +551,9 @@ where
     }
 }
 
-// CBC Unified RPC API
+// Cerulea Unified RPC API
 #[rpc(server)]
-pub trait CbcRpcApi {
+pub trait CeruleaRpcApi {
     #[method(name = "cerulea_getCurrentEpoch")]
     fn get_current_epoch(&self) -> RpcResult<u32>;
     
@@ -582,21 +582,21 @@ pub trait CbcRpcApi {
     fn get_all_block_authoring_stats(&self) -> RpcResult<Vec<(AccountId, BlockAuthoringStats)>>;
 }
 
-pub struct CbcRpcApiImpl<C> {
+pub struct CeruleaRpcApiImpl<C> {
     client: Arc<C>,
     security_config: RpcSecurityConfig,
 }
 
-impl<C> CbcRpcApiImpl<C> {
+impl<C> CeruleaRpcApiImpl<C> {
     pub fn new(client: Arc<C>, security_config: RpcSecurityConfig) -> Self {
         Self { client, security_config }
     }
     
-    fn check_cbc_extensions_enabled(&self) -> RpcResult<()> {
-        if !self.security_config.enable_cbc_extensions {
+    fn check_cerulea_extensions_enabled(&self) -> RpcResult<()> {
+        if !self.security_config.enable_cerulea_extensions {
             return Err(jsonrpsee::types::ErrorObjectOwned::owned(
                 -32001,
-                "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+                "Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string(),
                 None::<()>
             ));
         }
@@ -604,7 +604,7 @@ impl<C> CbcRpcApiImpl<C> {
     }
 }
 
-impl<C> CbcRpcApiServer for CbcRpcApiImpl<C>
+impl<C> CeruleaRpcApiServer for CeruleaRpcApiImpl<C>
 where
     C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
@@ -612,7 +612,7 @@ where
     C::Api: cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>,
 {
     fn get_current_epoch(&self) -> RpcResult<u32> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -626,7 +626,7 @@ where
     }
     
     fn get_validator_profile(&self, validator: AccountId) -> RpcResult<ValidatorProfile> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -711,7 +711,7 @@ where
     }
     
     fn get_trust_score(&self, validator: AccountId) -> RpcResult<TrustScore> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -755,7 +755,7 @@ where
     }
     
     fn list_validators(&self) -> RpcResult<Vec<AccountId>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -772,7 +772,7 @@ where
     }
     
     fn get_status(&self) -> RpcResult<SystemStatus> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -825,10 +825,10 @@ where
     }
     
     fn describe(&self) -> RpcResult<Vec<RpcMethodDescription>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let methods = vec![
-            // CBC Unified methods
+            // Cerulea Unified methods
             RpcMethodDescription {
                 name: "cerulea_getCurrentEpoch".to_string(),
                 description: "Get the current epoch number".to_string(),
@@ -861,7 +861,7 @@ where
             },
             RpcMethodDescription {
                 name: "cerulea_describe".to_string(),
-                description: "List all available CBC RPC methods".to_string(),
+                description: "List all available Cerulea RPC methods".to_string(),
                 params: vec![],
                 returns: "Vec<RpcMethodDescription>".to_string(),
             },
@@ -1020,7 +1020,7 @@ where
     }
     
     fn health(&self) -> RpcResult<HealthStatus> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let mut issues = Vec::new();
         let mut is_healthy = true;
@@ -1071,7 +1071,7 @@ where
     }
     
     fn get_block_authoring_stats(&self, validator: AccountId) -> RpcResult<BlockAuthoringStats> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1124,7 +1124,7 @@ where
     }
     
     fn get_all_block_authoring_stats(&self) -> RpcResult<Vec<(AccountId, BlockAuthoringStats)>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1161,25 +1161,25 @@ where
 // DVF RPC API
 #[rpc(server)]
 pub trait DvfRpcApi {
-    #[method(name = "dvf_getFinalizedHead")]
+    #[method(name = "cerulea_getFinalizedHead")]
     fn get_finalized_head(&self) -> RpcResult<u32>;
     
-    #[method(name = "dvf_getFinalizedHash")]
+    #[method(name = "cerulea_getFinalizedHash")]
     fn get_finalized_hash(&self) -> RpcResult<String>;
     
-    #[method(name = "dvf_isBlockFinalized")]
+    #[method(name = "cerulea_isBlockFinalized")]
     fn is_block_finalized(&self, block_number: u32) -> RpcResult<bool>;
     
-    #[method(name = "dvf_getCurrentRound")]
+    #[method(name = "cerulea_getCurrentRound")]
     fn get_current_round(&self) -> RpcResult<u32>;
     
-    #[method(name = "dvf_getAccumulatedWeight")]
+    #[method(name = "cerulea_getAccumulatedWeight")]
     fn get_accumulated_weight(&self, block_hash: String) -> RpcResult<u128>;
     
-    #[method(name = "dvf_getValidatorSetId")]
+    #[method(name = "cerulea_getValidatorSetId")]
     fn get_validator_set_id(&self) -> RpcResult<u32>;
     
-    #[method(name = "dvf_getValidatorWeights")]
+    #[method(name = "cerulea_getValidatorWeights")]
     fn get_validator_weights(&self) -> RpcResult<Vec<(AccountId, u128)>>;
 }
 
@@ -1203,11 +1203,11 @@ impl<C> DvfRpcApiImpl<C> {
         Self { client, security_config }
     }
     
-    fn check_cbc_extensions_enabled(&self) -> RpcResult<()> {
-        if !self.security_config.enable_cbc_extensions {
+    fn check_cerulea_extensions_enabled(&self) -> RpcResult<()> {
+        if !self.security_config.enable_cerulea_extensions {
             return Err(jsonrpsee::types::ErrorObjectOwned::owned(
                 -32001,
-                "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+                "Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string(),
                 None::<()>
             ));
         }
@@ -1221,7 +1221,7 @@ where
     C::Api: pallet_cerulea_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
 {
     fn get_finalized_head(&self) -> RpcResult<u32> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1235,7 +1235,7 @@ where
     }
     
     fn get_finalized_hash(&self) -> RpcResult<String> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1268,7 +1268,7 @@ where
     }
     
     fn is_block_finalized(&self, block_number: u32) -> RpcResult<bool> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1284,7 +1284,7 @@ where
     }
     
     fn get_current_round(&self) -> RpcResult<u32> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1298,7 +1298,7 @@ where
     }
     
     fn get_accumulated_weight(&self, block_hash: String) -> RpcResult<u128> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         // Parse the block hash from hex string
         let hash_str = block_hash.trim_start_matches("0x");
@@ -1339,7 +1339,7 @@ where
     }
     
     fn get_validator_set_id(&self) -> RpcResult<u32> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1353,7 +1353,7 @@ where
     }
     
     fn get_validator_weights(&self) -> RpcResult<Vec<(AccountId, u128)>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -1382,11 +1382,11 @@ impl<C, B> ForkDetectionRpcApiImpl<C, B> {
         }
     }
     
-    fn check_cbc_extensions_enabled(&self) -> RpcResult<()> {
-        if !self.security_config.enable_cbc_extensions {
+    fn check_cerulea_extensions_enabled(&self) -> RpcResult<()> {
+        if !self.security_config.enable_cerulea_extensions {
             return Err(jsonrpsee::types::ErrorObjectOwned::owned(
                 -32001,
-                "CBC RPC extensions are disabled. Use --enable-cbc-extensions flag.".to_string(),
+                "Cerulea RPC extensions are disabled. Use --enable-cerulea-extensions flag.".to_string(),
                 None::<()>
             ));
         }
@@ -1401,7 +1401,7 @@ where
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 {
     async fn check_peers(&self, peer_endpoints: Vec<String>, threshold: u32) -> RpcResult<Vec<ForkReport>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         if peer_endpoints.is_empty() {
             return Err(jsonrpsee::types::ErrorObjectOwned::owned(
@@ -1481,7 +1481,7 @@ where
     }
     
     async fn get_status(&self) -> RpcResult<std::collections::HashMap<String, serde_json::Value>> {
-        self.check_cbc_extensions_enabled()?;
+        self.check_cerulea_extensions_enabled()?;
         
         let mut status = std::collections::HashMap::new();
         status.insert("service".to_string(), serde_json::Value::String("fork-detection".to_string()));
@@ -1528,7 +1528,7 @@ where
     module.merge(System::new(client.clone(), pool).into_rpc())?;
     module.merge(TransactionPayment::new(client.clone()).into_rpc())?;
 
-    if rpc_config.enable_cbc_extensions {
+    if rpc_config.enable_cerulea_extensions {
         let chain_api = ChainApiImpl { client: client.clone() };
         module.merge(ChainApiServer::into_rpc(chain_api))?;
         
@@ -1548,9 +1548,9 @@ where
         let dcf_api = DcfRpcApiImpl::new(client.clone(), rpc_config.clone());
         module.merge(DcfRpcApiServer::into_rpc(dcf_api))?;
         
-        // Register CBC Unified RPC handler
-        let cbc_api = CbcRpcApiImpl::new(client.clone(), rpc_config.clone());
-        module.merge(CbcRpcApiServer::into_rpc(cbc_api))?;
+        // Register Cerulea Unified RPC handler
+        let cerulea_api = CeruleaRpcApiImpl::new(client.clone(), rpc_config.clone());
+        module.merge(CeruleaRpcApiServer::into_rpc(cerulea_api))?;
         
         // Register DVF RPC handler
         let dvf_api = DvfRpcApiImpl::new(client.clone(), rpc_config.clone());

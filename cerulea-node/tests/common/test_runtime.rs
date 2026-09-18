@@ -60,9 +60,9 @@ impl TestRuntimeBuilder {
         self
     }
     
-    /// Enable or disable CBC RPC extensions
-    pub fn with_cbc_extensions(mut self, enabled: bool) -> Self {
-        self.config.enable_cbc_extensions = enabled;
+    /// Enable or disable Cerulea RPC extensions
+    pub fn with_cerulea_extensions(mut self, enabled: bool) -> Self {
+        self.config.enable_cerulea_extensions = enabled;
         self
     }
     
@@ -180,9 +180,9 @@ impl TestClient {
         self.config.consensus_weights
     }
     
-    /// Check if CBC extensions are enabled
-    pub fn cbc_extensions_enabled(&self) -> bool {
-        self.config.enable_cbc_extensions
+    /// Check if Cerulea extensions are enabled
+    pub fn cerulea_extensions_enabled(&self) -> bool {
+        self.config.enable_cerulea_extensions
     }
 }
 

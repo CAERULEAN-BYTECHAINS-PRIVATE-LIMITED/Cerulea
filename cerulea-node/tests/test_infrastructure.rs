@@ -110,7 +110,7 @@ fn test_infrastructure_mock_client() {
         client.runtime_api().get_validator_stake(&validator).unwrap(),
         Some(1000)
     );
-    assert!(client.cbc_extensions_enabled());
+    assert!(client.cerulea_extensions_enabled());
 }
 
 #[test]
@@ -172,5 +172,5 @@ fn test_infrastructure_mock_helpers() {
     assert!(failing.runtime_api().get_current_epoch().is_err());
     
     let disabled = create_disabled_extensions_mock();
-    assert!(!disabled.cbc_extensions_enabled());
+    assert!(!disabled.cerulea_extensions_enabled());
 }

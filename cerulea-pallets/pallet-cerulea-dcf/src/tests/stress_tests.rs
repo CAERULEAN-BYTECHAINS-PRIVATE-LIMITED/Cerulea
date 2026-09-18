@@ -58,19 +58,19 @@ fn stress_test_concurrent_validator_lifecycle() {
             let validator = 1000 + i;
             
             // Register in PoS
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
             
             // Submit PoS score
-            assert_ok!(PalletCbcPos::submit_score(
+            assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 validator,
                 70 + (i % 30) as u32
             ));
             
             // Submit PoI inference
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 (40 + i % 50) as u32,
                 (75 + i % 20) as u32
@@ -120,7 +120,7 @@ fn stress_test_rapid_epoch_transitions() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("BaseValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -139,7 +139,7 @@ fn stress_test_rapid_epoch_transitions() {
                     RuntimeOrigin::signed(validator as u64),
                     Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
                 ));
-                assert_ok!(PalletCbcPos::register_validator(
+                assert_ok!(PalletCeruleaPos::register_validator(
                     RuntimeOrigin::signed(validator as u64)
                 ));
             }
@@ -157,7 +157,7 @@ fn stress_test_rapid_epoch_transitions() {
                     for (idx, validator) in active_validators.iter().enumerate() {
                         if idx % 3 == 0 { // Every 3rd validator
                             let score = 70 + ((block_offset + idx as u32) % 25);
-                            let _ = PalletCbcPos::submit_score(
+                            let _ = PalletCeruleaPos::submit_score(
                                 RuntimeOrigin::signed(1),
                                 *validator,
                                 score
@@ -165,7 +165,7 @@ fn stress_test_rapid_epoch_transitions() {
                             
                             let result = (block_offset + idx as u32) % 80 + 20;
                             let confidence = 80 + ((block_offset + idx as u32) % 15);
-                            let _ = PalletCbcPoi::submit_inference(
+                            let _ = PalletCeruleaPoi::submit_inference(
                                 RuntimeOrigin::signed(*validator),
                                 result,
                                 confidence
@@ -229,7 +229,7 @@ fn stress_test_concurrent_score_updates() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("ScoreValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -241,7 +241,7 @@ fn stress_test_concurrent_score_updates() {
                 
                 // PoS score update
                 let pos_score = 60 + ((i + update_round) % 35) as u32;
-                assert_ok!(PalletCbcPos::submit_score(
+                assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
                     pos_score
@@ -250,7 +250,7 @@ fn stress_test_concurrent_score_updates() {
                 // PoI inference update
                 let inference_result = ((i * update_round) % 90 + 10) as u32;
                 let confidence = (75 + ((i + update_round) % 20)) as u32;
-                assert_ok!(PalletCbcPoi::submit_inference(
+                assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(validator),
                     inference_result,
                     confidence
@@ -288,8 +288,8 @@ fn stress_test_concurrent_score_updates() {
         for i in 1..=num_validators {
             let validator = 3000 + i;
             assert!(DcfPallet::is_validator_active(&validator));
-            assert_eq!(PalletCbcPos::validators(&validator), Some(true));
-            assert!(PalletCbcPoi::inference_results(&validator).is_some());
+            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+            assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
         }
         
         // Verify system-wide consistency
@@ -316,7 +316,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("ChallengeValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -324,7 +324,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
         // Initial inference submissions
         for i in 1..=num_validators {
             let validator = 4000 + i;
-            assert_ok!(PalletCbcPoi::submit_inference(
+            assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 (40 + i % 50) as u32,
                 (80 + i % 15) as u32
@@ -343,7 +343,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
                 
                 if challenger != target {
                     let target_result = (40 + target % 50) as u32;
-                    let challenge_result = PalletCbcPoi::challenge_inference(
+                    let challenge_result = PalletCeruleaPoi::challenge_inference(
                         RuntimeOrigin::signed(challenger),
                         target,
                         target_result
@@ -358,8 +358,8 @@ fn stress_test_concurrent_challenges_and_slashing() {
             // PoS slashing for poor performance
             for i in 1..=num_validators / 4 {
                 let validator = 4000 + i;
-                if PalletCbcPos::validators(&validator).is_some() {
-                    let slash_result = PalletCbcPos::slash_validator(&validator, 50);
+                if PalletCeruleaPos::validators(&validator).is_some() {
+                    let slash_result = PalletCeruleaPos::slash_validator(&validator, 50);
                     if slash_result.is_ok() {
                         slashing_events += 1;
                     }
@@ -396,7 +396,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
                 if *validator >= 4000 {
                     let result = (30 + (*validator - 4000) % 60 + round) as u32;
                     let confidence = (75 + ((*validator - 4000) + round) % 20) as u32;
-                    let _ = PalletCbcPoi::submit_inference(
+                    let _ = PalletCeruleaPoi::submit_inference(
                         RuntimeOrigin::signed(*validator),
                         result,
                         confidence
@@ -545,7 +545,7 @@ fn stress_test_storage_limits() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("StorageValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -559,7 +559,7 @@ fn stress_test_storage_limits() {
             for i in 1..=test_validators.min(10) { // Limit to first 10 for performance
                 let validator = 6000 + i;
                 
-                assert_ok!(PalletCbcPos::submit_score(
+                assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
                     (70 + (round % 25)) as u32
@@ -626,7 +626,7 @@ fn stress_test_maximum_system_load() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("MaxLoadValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCbcPos::register_validator(
+            assert_ok!(PalletCeruleaPos::register_validator(
                 RuntimeOrigin::signed(validator)
             ));
         }
@@ -647,7 +647,7 @@ fn stress_test_maximum_system_load() {
                     0 => {
                         // PoS score update
                         let score = 60 + ((block_num + op) % 35) as u32;
-                        let _ = PalletCbcPos::submit_score(
+                        let _ = PalletCeruleaPos::submit_score(
                             RuntimeOrigin::signed(1),
                             validator,
                             score
@@ -657,7 +657,7 @@ fn stress_test_maximum_system_load() {
                         // PoI inference
                         let result = ((block_num + op) % 80 + 20) as u32;
                         let confidence = (75 + ((block_num + op) % 20)) as u32;
-                        let _ = PalletCbcPoi::submit_inference(
+                        let _ = PalletCeruleaPoi::submit_inference(
                             RuntimeOrigin::signed(validator),
                             result,
                             confidence
@@ -704,7 +704,7 @@ fn stress_test_maximum_system_load() {
                             let target_idx = ((validator_idx + 1) % max_validators) + 1;
                             let target = 7000 + target_idx as u64;
                             let result = ((block_num + op) % 80 + 20) as u32;
-                            let _ = PalletCbcPoi::challenge_inference(
+                            let _ = PalletCeruleaPoi::challenge_inference(
                                 RuntimeOrigin::signed(validator),
                                 target,
                                 result

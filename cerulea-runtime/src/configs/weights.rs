@@ -7,9 +7,9 @@ pub const TIMESTAMP_WEIGHT: Weight = Weight::from_parts(10_000, 0);
 pub const SUDO_WEIGHT: Weight = Weight::from_parts(10_000, 0);
 
 // Custom pallet weights
-pub const CBC_DCF_WEIGHT: Weight = Weight::from_parts(50_000, 0);
-pub const CBC_POI_WEIGHT: Weight = Weight::from_parts(20_000, 0);
-pub const CBC_POS_WEIGHT: Weight = Weight::from_parts(15_000, 0);
+pub const CERULEA_DCF_WEIGHT: Weight = Weight::from_parts(50_000, 0);
+pub const CERULEA_POI_WEIGHT: Weight = Weight::from_parts(20_000, 0);
+pub const CERULEA_POS_WEIGHT: Weight = Weight::from_parts(15_000, 0);
 
 // DCF-specific operation weights
 pub const DCF_JOIN_VALIDATORS_WEIGHT: Weight = Weight::from_parts(50_000, 0);

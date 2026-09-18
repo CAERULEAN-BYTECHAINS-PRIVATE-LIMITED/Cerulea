@@ -20,7 +20,7 @@ frame_support::construct_runtime!(
     {
         System: frame_system,
         Balances: pallet_balances,
-        PalletCbcPos: pallet_cerulea_pos,
+        PalletCeruleaPos: pallet_cerulea_pos,
         Dvf: pallet_cerulea_dvf,
     }
 );

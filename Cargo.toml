@@ -12,7 +12,6 @@ members = [
     "cerulea-pallets/pallet-cerulea-poi",
     "cerulea-pallets/pallet-cerulea-pos",
     "cerulea-pallets/pallet-cerulea-dcf",
-    "cerulea-pallets/pallet-todo",
     "tools",
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
 ]
@@ -24,7 +23,6 @@ pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-feat
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
 pallet-cerulea-dvf = {path="./cerulea-pallets/pallet-cerulea-dvf", default-features = false}
-pallet-todo = { path = "./cerulea-pallets/pallet-todo", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.8.0", default-features = false }

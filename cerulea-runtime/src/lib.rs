@@ -23,17 +23,17 @@ use sp_runtime::{
     MultiAddress, MultiSignature,
 };
 
-/// CBC DVF consensus key type ID — analogous to Substrate's GRANDPA (`b"gran"`).
+/// Cerulea DVF consensus key type ID — analogous to Substrate's GRANDPA (`b"gran"`).
 /// All DVF validator signing uses ed25519 keys stored under this type ID.
-pub mod cbc_dvf_crypto {
+pub mod cerulea_key_crypto {
     use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
-    /// Key type ID for CBC DVF consensus keys.
-    pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cdvf");
+    /// Key type ID for Cerulea DVF consensus keys.
+    pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cerk");
     app_crypto!(ed25519, KEY_TYPE);
 }
 
-/// The CBC DVF public key type used in SessionKeys and for validator identification.
-pub type DcfPublic = cbc_dvf_crypto::Public;
+/// The Cerulea DVF public key type used in SessionKeys and for validator identification.
+pub type DcfPublic = cerulea_key_crypto::Public;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion; // Used for native runtime versioning.
 use sp_version::RuntimeVersion; // Defines the runtime version.
@@ -121,7 +121,7 @@ pub const UNIT: Balance = 1_000_000_000_000; // Base unit for balances.
 pub const MILLI_UNIT: Balance = 1_000_000_000; // Milli unit for balances.
 pub const MICRO_UNIT: Balance = 1_000_000; // Micro unit for balances.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT; // Minimum balance required to keep an account alive.
-pub const CBC: Balance = UNIT; // 1 CBC token equals 1 UNIT (10^12 subunits)
+pub const Cerulea: Balance = UNIT; // 1 Cerulea token equals 1 UNIT (10^12 subunits)
 
 // Define the native runtime version for native execution.
 #[cfg(feature = "std")]
@@ -221,10 +221,6 @@ mod runtime {
     #[runtime::pallet_index(8)]
     pub type Dcf = pallet_cerulea_dcf::Pallet<Runtime>;
 
-    /// Simple on-chain Todo list pallet
-    #[runtime::pallet_index(9)]
-    pub type Todo = pallet_todo;
-
     #[runtime::pallet_index(10)]
     pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
 }
@@ -232,9 +228,9 @@ use sp_runtime::traits::parameter_types;
 
 parameter_types! {
 	pub const EnterDuration: BlockNumber = 4 * HOURS;
-	pub const EnterDepositAmount: Balance = 2_000_000 * CBC;
+	pub const EnterDepositAmount: Balance = 2_000_000 * Cerulea;
 	pub const ExtendDuration: BlockNumber = 2 * HOURS;
-	pub const ExtendDepositAmount: Balance = 1_000_000 * CBC;
+	pub const ExtendDepositAmount: Balance = 1_000_000 * Cerulea;
 	pub const ReleaseDelay: u32 = 2 * DAYS;
 
     // Validator parameters
@@ -260,7 +256,7 @@ parameter_types! {
     // relative to pure PoS. When PoI goes live, raise poi_weight via update_consensus_weights.
     pub const DefaultPosWeight: u64 = 10000; // 100% PoS — pure PoS until PoI integration complete
     pub const DefaultPoiWeight: u64 = 0;     // 0% PoI — AI inference not yet integrated
-    pub const MinStake: Balance = 1000 * CBC; // Minimum stake required
+    pub const MinStake: Balance = 1000 * Cerulea; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;
 
@@ -321,7 +317,6 @@ parameter_types! {
 
 pub use pallet_cerulea_poi;
 pub use pallet_cerulea_pos;
-pub use pallet_todo;
 
 parameter_types! {
     pub const StakeWeightFactor: u128 = 1;

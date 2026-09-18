@@ -1,6 +1,6 @@
 //! Dev Mode Integration Tests
 //! 
-//! This module contains integration tests that verify the CBC node operates correctly
+//! This module contains integration tests that verify the Cerulea node operates correctly
 //! in development mode. These tests validate:
 //! - Node configuration for dev mode
 //! - RPC client setup and configuration
@@ -20,8 +20,8 @@ pub struct DevModeTestConfig {
     pub ws_port: u16,
     /// Temporary directory path for node data
     pub temp_dir_path: Option<String>,
-    /// Whether to enable CBC extensions
-    pub enable_cbc_extensions: bool,
+    /// Whether to enable Cerulea extensions
+    pub enable_cerulea_extensions: bool,
     /// Maximum time to wait for node startup
     pub startup_timeout: Duration,
     /// Maximum time to wait for block production
@@ -36,7 +36,7 @@ impl Default for DevModeTestConfig {
             rpc_port: 9944,
             ws_port: 9945,
             temp_dir_path: None,
-            enable_cbc_extensions: true,
+            enable_cerulea_extensions: true,
             startup_timeout: Duration::from_secs(30),
             block_timeout: Duration::from_secs(60),
             target_blocks: 5,
@@ -66,9 +66,9 @@ impl DevModeTestConfig {
         Ok(self)
     }
     
-    /// Enable or disable CBC extensions
-    pub fn with_cbc_extensions(mut self, enabled: bool) -> Self {
-        self.enable_cbc_extensions = enabled;
+    /// Enable or disable Cerulea extensions
+    pub fn with_cerulea_extensions(mut self, enabled: bool) -> Self {
+        self.enable_cerulea_extensions = enabled;
         self
     }
     
@@ -105,8 +105,8 @@ impl DevModeTestConfig {
             "--log=info,cerulea_node=debug,cerulea_consensus=debug,pallet_cerulea_dcf=debug".to_string(),
         ]);
         
-        if self.enable_cbc_extensions {
-            args.push("--enable-cbc-extensions".to_string());
+        if self.enable_cerulea_extensions {
+            args.push("--enable-cerulea-extensions".to_string());
         }
         
         args
@@ -144,7 +144,7 @@ impl MockDevModeNode {
     
     /// Simulate starting the node
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Mock: Starting CBC node in dev mode");
+        log::info!("Mock: Starting Cerulea node in dev mode");
         log::info!("Mock: Node configuration: {:?}", self.config);
         
         // Simulate startup delay
@@ -201,21 +201,21 @@ impl MockDevModeNode {
             results.push(format!("✓ {}: SUCCESS", endpoint));
         }
         
-        // Simulate CBC RPC endpoints if enabled
-        if self.config.enable_cbc_extensions {
-            let cbc_endpoints = vec![
+        // Simulate Cerulea RPC endpoints if enabled
+        if self.config.enable_cerulea_extensions {
+            let cerulea_endpoints = vec![
                 "cerulea_getCurrentEpoch",
                 "cerulea_getStatus",
                 "cerulea_describe",
                 "cerulea_health",
             ];
             
-            for endpoint in cbc_endpoints {
+            for endpoint in cerulea_endpoints {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 results.push(format!("✓ {}: SUCCESS", endpoint));
             }
         } else {
-            results.push("ℹ CBC RPC endpoints skipped (extensions disabled)".to_string());
+            results.push("ℹ Cerulea RPC endpoints skipped (extensions disabled)".to_string());
         }
         
         Ok(results)
@@ -238,7 +238,7 @@ impl MockDevModeNode {
     
     /// Stop the mock node
     pub fn stop(&mut self) {
-        log::info!("Mock: Stopping CBC node");
+        log::info!("Mock: Stopping Cerulea node");
         self.is_running = false;
     }
 }
@@ -254,7 +254,7 @@ async fn test_dev_mode_node_startup() {
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cbc_extensions(true);
+        .with_cerulea_extensions(true);
     
     let mut node = MockDevModeNode::new(config);
     
@@ -336,7 +336,7 @@ async fn test_dev_mode_rpc_endpoints() {
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cbc_extensions(true);
+        .with_cerulea_extensions(true);
     
     let mut node = MockDevModeNode::new(config);
     
@@ -361,7 +361,7 @@ async fn test_dev_mode_rpc_endpoints() {
                 log::info!("  {}", result);
             }
             
-            // Should have both basic and CBC RPC endpoints working
+            // Should have both basic and Cerulea RPC endpoints working
             assert!(success_count >= 6, "Should have at least 6 working RPC endpoints, got {}", success_count);
             log::info!("✓ RPC endpoints test PASSED - {}/{} endpoints working", success_count, total_count);
         }
@@ -374,13 +374,13 @@ async fn test_dev_mode_rpc_endpoints() {
 }
 
 #[tokio::test]
-async fn test_dev_mode_without_cbc_extensions() {
+async fn test_dev_mode_without_cerulea_extensions() {
     env_logger::try_init().ok();
     
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cbc_extensions(false)  // Disable CBC extensions
+        .with_cerulea_extensions(false)  // Disable Cerulea extensions
         .with_target_blocks(3);
     
     let mut node = MockDevModeNode::new(config.clone());
@@ -388,23 +388,23 @@ async fn test_dev_mode_without_cbc_extensions() {
     // Start node
     node.start().await.expect("Failed to start node");
     
-    // Test: Node works without CBC extensions
+    // Test: Node works without Cerulea extensions
     match node.produce_blocks(config.target_blocks).await {
         Ok(final_block) => {
-            log::info!("✓ Node without CBC extensions test PASSED - reached block #{}", final_block);
+            log::info!("✓ Node without Cerulea extensions test PASSED - reached block #{}", final_block);
         }
         Err(e) => {
-            panic!("✗ Node without CBC extensions test FAILED: {}", e);
+            panic!("✗ Node without Cerulea extensions test FAILED: {}", e);
         }
     }
     
-    // Test: CBC RPC endpoints should not be available
+    // Test: Cerulea RPC endpoints should not be available
     let results = node.test_rpc_endpoints().await.expect("Failed to test RPC endpoints");
-    let has_cbc_skip_message = results.iter()
-        .any(|r| r.contains("CBC RPC endpoints skipped"));
+    let has_cerulea_skip_message = results.iter()
+        .any(|r| r.contains("Cerulea RPC endpoints skipped"));
     
-    assert!(has_cbc_skip_message, "Should indicate CBC endpoints are skipped");
-    log::info!("✓ CBC RPC endpoints correctly unavailable when extensions disabled");
+    assert!(has_cerulea_skip_message, "Should indicate Cerulea endpoints are skipped");
+    log::info!("✓ Cerulea RPC endpoints correctly unavailable when extensions disabled");
     
     node.stop();
 }
@@ -418,13 +418,13 @@ async fn test_comprehensive_dev_mode_functionality() {
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cbc_extensions(true)
+        .with_cerulea_extensions(true)
         .with_target_blocks(12); // Enough for epoch transitions
     
     let mut node = MockDevModeNode::new(config.clone());
     
     // Step 1: Start node
-    log::info!("Step 1: Starting CBC node in dev mode...");
+    log::info!("Step 1: Starting Cerulea node in dev mode...");
     node.start().await.expect("Failed to start node");
     assert!(node.is_running());
     log::info!("✓ Node started successfully");
@@ -489,7 +489,7 @@ async fn test_dev_mode_configuration_validation() {
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cbc_extensions(true)
+        .with_cerulea_extensions(true)
         .with_timeouts(Duration::from_secs(45), Duration::from_secs(90))
         .with_target_blocks(8);
     
@@ -497,7 +497,7 @@ async fn test_dev_mode_configuration_validation() {
     assert!(config.rpc_port > 0);
     assert!(config.ws_port > 0);
     assert_ne!(config.rpc_port, config.ws_port);
-    assert!(config.enable_cbc_extensions);
+    assert!(config.enable_cerulea_extensions);
     assert_eq!(config.target_blocks, 8);
     assert!(config.temp_dir_path.is_some());
     
@@ -505,7 +505,7 @@ async fn test_dev_mode_configuration_validation() {
     let args = config.generate_node_args();
     assert!(args.contains(&"--dev".to_string()));
     assert!(args.contains(&"--tmp".to_string()));
-    assert!(args.contains(&"--enable-cbc-extensions".to_string()));
+    assert!(args.contains(&"--enable-cerulea-extensions".to_string()));
     assert!(args.iter().any(|arg| arg.starts_with("--rpc-port=")));
     assert!(args.iter().any(|arg| arg.starts_with("--ws-port=")));
     
@@ -525,7 +525,7 @@ async fn test_dev_mode_configuration_validation() {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/// Check if the CBC node binary is available
+/// Check if the Cerulea node binary is available
 pub fn check_node_binary() -> bool {
     Command::new("cargo")
         .args(&["check", "--bin", "cerulea-node"])
@@ -558,10 +558,10 @@ mod helper_tests {
     #[test]
     fn test_config_builder() {
         let config = DevModeTestConfig::default()
-            .with_cbc_extensions(false)
+            .with_cerulea_extensions(false)
             .with_target_blocks(10);
         
-        assert!(!config.enable_cbc_extensions);
+        assert!(!config.enable_cerulea_extensions);
         assert_eq!(config.target_blocks, 10);
     }
     
@@ -575,11 +575,11 @@ mod helper_tests {
     #[test]
     fn test_command_args_generation() {
         let config = DevModeTestConfig::default()
-            .with_cbc_extensions(true);
+            .with_cerulea_extensions(true);
         
         let args = config.generate_node_args();
         assert!(args.contains(&"--dev".to_string()));
-        assert!(args.contains(&"--enable-cbc-extensions".to_string()));
+        assert!(args.contains(&"--enable-cerulea-extensions".to_string()));
     }
     
     #[test]

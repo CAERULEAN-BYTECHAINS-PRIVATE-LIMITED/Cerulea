@@ -42,9 +42,9 @@ impl ExpectedRpcError {
         Self::new(-32000, message_contains)
     }
     
-    /// Create an expected error for disabled CBC extensions
+    /// Create an expected error for disabled Cerulea extensions
     pub fn disabled_extensions() -> Self {
-        Self::new(-32001, "CBC RPC extensions are disabled")
+        Self::new(-32001, "Cerulea RPC extensions are disabled")
     }
     
     /// Add expected error data

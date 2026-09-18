@@ -1,6 +1,6 @@
 //! Runtime API Tests for Cerulea
 //! 
-//! This module contains comprehensive tests for all Runtime APIs exposed by the CBC runtime.
+//! This module contains comprehensive tests for all Runtime APIs exposed by the Cerulea runtime.
 //! Tests cover DCF, PoS, and PoI APIs to ensure they function correctly and return expected data types.
 
 #[cfg(test)]

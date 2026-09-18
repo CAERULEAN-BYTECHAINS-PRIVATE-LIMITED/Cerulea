@@ -1,4 +1,4 @@
-// This file is part of the CBC Runtime.
+// This file is part of the Cerulea Runtime.
 // It defines the benchmarking configuration for various FRAME pallets used in the runtime.
 
 // The macro `frame_benchmarking::define_benchmarks!` is used to register all the benchmarking
@@ -35,10 +35,10 @@ frame_benchmarking::define_benchmarks!(
     // Benchmarks for the `pallet_cerulea_poi`, which handles Proof-of-Inference functionality.
     // It includes performance tests for inference submission, challenge mechanisms,
     // and inference validation operations.
-    [pallet_cerulea_poi, PalletCbcPoi]
+    [pallet_cerulea_poi, PalletCeruleaPoi]
 
     // Benchmarks for the `pallet_cerulea_pos`, which handles Proof-of-Stake functionality.
     // It includes performance tests for validator registration, score submission,
     // slashing operations, and stake management.
-    [pallet_cerulea_pos, PalletCbcPos]
+    [pallet_cerulea_pos, PalletCeruleaPos]
 );
