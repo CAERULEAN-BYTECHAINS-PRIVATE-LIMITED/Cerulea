@@ -48,8 +48,8 @@ pub mod authoring;
 pub mod execution;
 
 pub use authoring::{
-    draw, draw_from_keystore, draw_value, verify_draw, verify_result, DrawInput, DrawProof,
-    DrawResult,
+    draw, draw_from_keystore, draw_value, verify_draw, verify_result, weighted_draw, CommitteeDraw,
+    DrawInput, DrawProof, DrawResult, SlotCommittee,
 };
 
 pub use execution::{
@@ -545,13 +545,13 @@ pub trait AuthoringEngine: Engine {
     /// Draw the committee for one slot.
     ///
     /// Every eligible validator evaluates a verifiable random function over the
-    /// slot seed and its own key. The five lowest outputs after scaling by
-    /// standing form the committee in rank order.
+    /// slot number and the slot seed, and publishes the result with its proof.
+    /// The five lowest outputs after scaling by standing form the committee in
+    /// rank order.
     fn committee(
         &self,
-        slot: Slot,
-        seed: &SlotSeed,
-        eligible: &[(Self::ValidatorId, TrustScore)],
+        input: &authoring::DrawInput,
+        entries: &[(authoring::DrawResult, TrustScore)],
     ) -> Result<Committee<Self::ValidatorId>, EngineError>;
 
     /// The validator scheduled to author at the given rank.
