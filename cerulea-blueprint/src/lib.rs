@@ -32,6 +32,8 @@ pub mod identities;
 pub mod integrations;
 pub mod permissions;
 pub mod rules;
+#[cfg(feature = "std")]
+pub mod schema_export;
 pub mod types;
 pub mod views;
 pub mod workflows;
