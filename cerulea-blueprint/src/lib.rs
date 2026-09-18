@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+pub mod actions;
 pub mod collections;
 pub mod expression;
 pub mod fold;
@@ -37,8 +38,8 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    collections::Collection, identities::Identities, permissions::Permissions, rules::Rules,
-    types::TypeDef,
+    actions::Action, collections::Collection, identities::Identities, permissions::Permissions,
+    rules::Rules, types::TypeDef,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -198,6 +199,8 @@ pub struct Blueprint {
     pub permissions: Permissions,
     /// Section five. The invariants and the preconditions.
     pub rules: Rules,
+    /// Section six. The actions a caller runs.
+    pub actions: Vec<Action>,
 }
 
 impl Blueprint {
@@ -210,6 +213,7 @@ impl Blueprint {
             identities: Identities::default(),
             permissions: Permissions::default(),
             rules: Rules::default(),
+            actions: Vec::new(),
         }
     }
 
@@ -266,6 +270,28 @@ impl Blueprint {
             &collection_registry,
             &root.field("rules"),
         ));
+
+        let actions_path = root.field("actions");
+        report.merge(crate::actions::validate_actions(
+            &self.actions,
+            &type_registry,
+            &collection_registry,
+            &self.identities,
+            &self.rules,
+            &actions_path,
+        ));
+
+        let action_registry = crate::actions::ActionRegistry::build(&self.actions);
+        for (action, location) in self.identities.action_refs(&identities_path) {
+            if !action_registry.contains(&action) {
+                report.push(action_registry.missing(&action, location));
+            }
+        }
+        for (action, location) in self.permissions.action_refs(&root.field("permissions")) {
+            if !action_registry.contains(&action) {
+                report.push(action_registry.missing(&action, location));
+            }
+        }
 
         report.into_result()
     }

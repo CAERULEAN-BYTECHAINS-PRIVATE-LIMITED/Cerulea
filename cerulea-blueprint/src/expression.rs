@@ -487,6 +487,99 @@ impl Expr {
         }
     }
 
+    /// Visit this expression and every expression inside it.
+    ///
+    /// The visit runs on the outer expression first.
+    pub fn walk(&self, visit: &mut dyn FnMut(&Expr)) {
+        visit(self);
+        match self {
+            Expr::Literal(_) | Expr::Bound(_) | Expr::MakeEnumeration { .. } => {}
+            Expr::Field { base, .. } => base.walk(visit),
+            Expr::Unary { operand, .. } => operand.walk(visit),
+            Expr::Binary { left, right, .. } => {
+                left.walk(visit);
+                right.walk(visit);
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                condition.walk(visit);
+                then_branch.walk(visit);
+                else_branch.walk(visit);
+            }
+            Expr::Match {
+                scrutinee,
+                arms,
+                fallback,
+            } => {
+                scrutinee.walk(visit);
+                for arm in arms {
+                    arm.body.walk(visit);
+                }
+                if let Some(fallback) = fallback {
+                    fallback.walk(visit);
+                }
+            }
+            Expr::Let { value, body, .. } => {
+                value.walk(visit);
+                body.walk(visit);
+            }
+            Expr::MakeRecord { fields, .. } => {
+                for (_, value) in fields {
+                    value.walk(visit);
+                }
+            }
+            Expr::MakeSum { payload, .. } => {
+                if let Some(payload) = payload {
+                    payload.walk(visit);
+                }
+            }
+            Expr::MakeList { items, .. } => {
+                for item in items {
+                    item.walk(visit);
+                }
+            }
+            Expr::MakeMap { entries, .. } => {
+                for entry in entries {
+                    entry.0.walk(visit);
+                    entry.1.walk(visit);
+                }
+            }
+            Expr::MakeOptional { item, .. } => {
+                if let Some(item) = item {
+                    item.walk(visit);
+                }
+            }
+            Expr::MakeReference { key, .. } => key.walk(visit),
+            Expr::UnwrapOr { optional, fallback } => {
+                optional.walk(visit);
+                fallback.walk(visit);
+            }
+            Expr::IsPresent(inner) | Expr::Length(inner) => inner.walk(visit),
+            Expr::Contains { list, item } => {
+                list.walk(visit);
+                item.walk(visit);
+            }
+            Expr::Lookup { map, key } => {
+                map.walk(visit);
+                key.walk(visit);
+            }
+            Expr::Rescale { value, .. } => value.walk(visit),
+            Expr::Call { args, .. } => {
+                for arg in args {
+                    arg.walk(visit);
+                }
+            }
+            Expr::Fold(fold) => fold.walk(visit),
+            Expr::Attempt { body, compensation } => {
+                body.walk(visit);
+                compensation.walk(visit);
+            }
+        }
+    }
+
     /// Collect every collection this expression names.
     pub fn collection_refs(&self, out: &mut Vec<CollectionId>) {
         match self {

@@ -416,6 +416,20 @@ impl FoldExpr {
         Ok(running)
     }
 
+    /// Visit every expression inside this fold.
+    pub fn walk(&self, visit: &mut dyn FnMut(&Expr)) {
+        match &self.source {
+            FoldSource::List(list) => list.walk(visit),
+            FoldSource::Collection { keys, .. } => {
+                if let Some(expr) = keys.expression() {
+                    expr.walk(visit);
+                }
+            }
+        }
+        self.initial.walk(visit);
+        self.step.walk(visit);
+    }
+
     /// Collect every collection this fold names.
     pub fn collection_refs(&self, out: &mut Vec<CollectionId>) {
         match &self.source {
