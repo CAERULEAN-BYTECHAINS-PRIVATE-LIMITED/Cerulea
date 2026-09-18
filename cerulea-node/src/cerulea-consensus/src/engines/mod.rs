@@ -46,7 +46,7 @@ pub mod manifest_guard;
 
 pub mod execution;
 
-pub use execution::{DisjointSet, DomainPartitioner};
+pub use execution::{order_domains, order_members, DisjointSet, DomainPartitioner, OrderKey};
 
 pub use manifest_guard::{
     run_under_manifest, AccessTally, ManifestGuard, MemoryStateStore, StateAccess, StoredRecord,
@@ -512,20 +512,18 @@ pub trait Engine {
 
 /// The engine that groups transactions into domains and runs them.
 pub trait ExecutionEngine: Engine {
-    /// The pending transaction this engine reads.
-    type Transaction;
-
     /// Group the pending transactions into conflict domains.
     ///
-    /// Two transactions join one domain where their written state overlaps.
-    /// The pass runs in time proportional to the transaction count.
-    fn partition(&self, pending: &[Self::Transaction]) -> Vec<ConflictDomain>;
+    /// Two transactions join one domain where a write of one meets a write or a
+    /// read of the other. The pass runs in time proportional to the number of
+    /// declared accesses plus the number of true conflicts.
+    fn partition<T: DeclaresAccess>(&self, pending: &[T]) -> Vec<ConflictDomain>;
 
     /// Settle the execution order inside one domain.
     ///
     /// The order runs class descending, then arrival sequence ascending, then
     /// transaction hash ascending. Every validator reproduces the same order.
-    fn order(&self, pending: &[Self::Transaction], members: &[usize]) -> Vec<usize>;
+    fn order<T: DeclaresAccess>(&self, pending: &[T], members: &[usize]) -> Vec<usize>;
 }
 
 /// The engine that selects the slot committee and the block author.

@@ -6,6 +6,8 @@
 //! and storage. A transaction that crosses a limit aborts on its own and the
 //! rest of the domain carries on.
 
+pub mod ordering;
 pub mod partition;
 
+pub use ordering::{order_domains, order_members, OrderKey};
 pub use partition::{DisjointSet, DomainPartitioner};

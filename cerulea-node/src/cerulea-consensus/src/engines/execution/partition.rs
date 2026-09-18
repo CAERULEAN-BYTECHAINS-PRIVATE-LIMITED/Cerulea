@@ -116,7 +116,7 @@ impl DomainPartitioner {
     /// The returned domains appear in the order of their lowest member
     /// position. Members inside a domain appear in position order. The
     /// ordering step settles the execution order afterwards.
-    pub fn partition<T: DeclaresAccess>(&self, pending: &[T]) -> Vec<ConflictDomain> {
+    pub fn partition_domains<T: DeclaresAccess>(&self, pending: &[T]) -> Vec<ConflictDomain> {
         let mut set = DisjointSet::new(pending.len());
         let reaches = collect_reaches(pending);
         for collection in reaches.values() {
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn two_transactions_writing_one_key_share_a_domain() {
         let pending = vec![writes_key(1, b"parcel-1"), writes_key(2, b"parcel-1")];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 1);
         assert_eq!(domains[0].members, vec![0, 1]);
     }
@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn two_transactions_writing_two_keys_take_two_domains() {
         let pending = vec![writes_key(1, b"parcel-1"), writes_key(2, b"parcel-2")];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].members, vec![0]);
         assert_eq!(domains[1].members, vec![1]);
@@ -350,7 +350,7 @@ mod tests {
                 vec![CollectionAccess::exact(holder(), b"row-1")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
     }
 
@@ -370,7 +370,7 @@ mod tests {
             writes_key(3, b"b"),
             writes_key(4, b"z"),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].members, vec![0, 1, 2]);
         assert_eq!(domains[1].members, vec![3]);
@@ -387,7 +387,7 @@ mod tests {
                 vec![CollectionAccess::exact(holder(), b"holder-9")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 1);
     }
 
@@ -402,7 +402,7 @@ mod tests {
             )
         };
         let pending = vec![read_only(1), read_only(2)];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
     }
 
@@ -419,7 +419,7 @@ mod tests {
             writes_key(3, b"north-2"),
             writes_key(4, b"south-1"),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].members, vec![0, 1, 2]);
         assert_eq!(domains[1].members, vec![3]);
@@ -447,7 +447,7 @@ mod tests {
                 vec![CollectionAccess::prefix(parcel(), b"south-")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].members, vec![0, 1]);
         assert_eq!(domains[1].members, vec![2]);
@@ -471,7 +471,7 @@ mod tests {
                 vec![CollectionAccess::exact(holder(), b"holder-1")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].members, vec![0, 1, 2]);
         assert_eq!(domains[1].members, vec![3]);
@@ -489,7 +489,7 @@ mod tests {
                 vec![CollectionAccess::exact(holder(), b"holder-2")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 1);
     }
 
@@ -509,7 +509,7 @@ mod tests {
                 vec![CollectionAccess::exact(parcel(), b"k")],
             ),
         ];
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 1);
         assert_eq!(domains[0].highest_class, TransactionClass::Constitutional);
     }
@@ -517,7 +517,9 @@ mod tests {
     #[test]
     fn an_empty_pending_list_produces_no_domain() {
         let pending: Vec<PendingTransaction> = Vec::new();
-        assert!(DomainPartitioner::new().partition(&pending).is_empty());
+        assert!(DomainPartitioner::new()
+            .partition_domains(&pending)
+            .is_empty());
     }
 
     #[test]
@@ -525,7 +527,7 @@ mod tests {
         let pending: Vec<PendingTransaction> = (0..64u8)
             .map(|index| writes_key(index, format!("key-{}", index % 16).as_bytes()))
             .collect();
-        let domains = DomainPartitioner::new().partition(&pending);
+        let domains = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(domains.len(), 16);
         let mut seen: Vec<usize> = domains
             .iter()
@@ -552,8 +554,8 @@ mod tests {
                 vec![CollectionAccess::prefix(holder(), b"h-")],
             ),
         ];
-        let first = DomainPartitioner::new().partition(&pending);
-        let second = DomainPartitioner::new().partition(&pending);
+        let first = DomainPartitioner::new().partition_domains(&pending);
+        let second = DomainPartitioner::new().partition_domains(&pending);
         assert_eq!(first, second);
         assert_eq!(first[0].members, vec![0, 2]);
         assert_eq!(first[1].members, vec![1, 3]);
