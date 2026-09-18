@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+pub mod collections;
 pub mod expression;
 pub mod types;
 
@@ -31,7 +32,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
-use crate::types::TypeDef;
+use crate::{collections::Collection, types::TypeDef};
 
 /// The schema version of the Blueprint type set carried by this crate.
 pub const BLUEPRINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion {
@@ -181,6 +182,8 @@ pub struct Blueprint {
     pub meta: BlueprintMeta,
     /// Section one. The declared record, enumeration and sum types.
     pub types: Vec<TypeDef>,
+    /// Section two. The collections holding records.
+    pub collections: Vec<Collection>,
 }
 
 impl Blueprint {
@@ -189,6 +192,7 @@ impl Blueprint {
         Blueprint {
             meta,
             types: Vec::new(),
+            collections: Vec::new(),
         }
     }
 
