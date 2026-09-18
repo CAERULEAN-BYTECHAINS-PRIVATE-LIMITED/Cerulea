@@ -21,6 +21,7 @@ extern crate alloc;
 
 pub mod actions;
 pub mod collections;
+pub mod events;
 pub mod expression;
 pub mod fold;
 pub mod identities;
@@ -39,8 +40,8 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    actions::Action, collections::Collection, identities::Identities, permissions::Permissions,
-    rules::Rules, types::TypeDef, workflows::Workflow,
+    actions::Action, collections::Collection, events::EventDef, identities::Identities,
+    permissions::Permissions, rules::Rules, types::TypeDef, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -204,6 +205,8 @@ pub struct Blueprint {
     pub actions: Vec<Action>,
     /// Section seven. The workflows driving records through states.
     pub workflows: Vec<Workflow>,
+    /// Section eight. The typed events written to the audit log.
+    pub events: Vec<EventDef>,
 }
 
 impl Blueprint {
@@ -218,6 +221,7 @@ impl Blueprint {
             rules: Rules::default(),
             actions: Vec::new(),
             workflows: Vec::new(),
+            events: Vec::new(),
         }
     }
 
@@ -325,6 +329,30 @@ impl Blueprint {
                         }
                     }
                     None => report.push(workflow_registry.missing(&workflow, location)),
+                }
+            }
+        }
+
+        let events_path = root.field("events");
+        report.merge(crate::events::validate_events(
+            &self.events,
+            &type_registry,
+            &workflow_registry,
+            &events_path,
+        ));
+
+        let event_registry = crate::events::EventRegistry::build(&self.events);
+        for (position, action) in self.actions.iter().enumerate() {
+            for (event, location) in action.event_refs(&actions_path.index(position)) {
+                if !event_registry.contains(&event) {
+                    report.push(event_registry.missing(&event, location));
+                }
+            }
+        }
+        for (position, workflow) in self.workflows.iter().enumerate() {
+            for (event, location) in workflow.event_refs(&workflows_path.index(position)) {
+                if !event_registry.contains(&event) {
+                    report.push(event_registry.missing(&event, location));
                 }
             }
         }
