@@ -40,6 +40,13 @@
 //! bound. Safety holds at every moment. Progress resumes once message delay
 //! settles under that bound.
 
+pub mod manifest;
+
+pub use manifest::{
+    AccessManifest, CollectionAccess, DeclaresAccess, MaxAccess, PendingTransaction, MAX_ACCESS,
+    MAX_KEY_BYTES,
+};
+
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use thiserror::Error;
