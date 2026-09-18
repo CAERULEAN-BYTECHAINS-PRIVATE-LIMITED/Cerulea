@@ -752,6 +752,66 @@ pub enum EngineError {
         slot: u64,
     },
 
+    /// A block header carried no Cerulea seal.
+    #[error(
+        "The block header carries no Cerulea seal.          Fix: produce the block through a node that holds the author key."
+    )]
+    SealAbsent,
+
+    /// A seal named a slot other than the one under check.
+    #[error(
+        "The block seal names slot {claimed} and the block sits in slot {expected}.          Fix: seal the block with the slot it belongs to."
+    )]
+    SealSlotMismatch {
+        /// The slot the seal named.
+        claimed: u64,
+        /// The slot the block sits in.
+        expected: u64,
+    },
+
+    /// The named author sits outside the committee for that slot.
+    #[error(
+        "The named author sits outside the committee drawn for slot {slot}.          Fix: produce the block on a node holding a committee seat for that slot."
+    )]
+    AuthorOutsideCommittee {
+        /// The slot the block served.
+        slot: u64,
+    },
+
+    /// The claimed rank differs from the committee position.
+    #[error(
+        "The block claims rank {claimed} and the committee holds that author at rank {held}.          Fix: claim the rank the committee gives the author."
+    )]
+    RankMismatch {
+        /// The rank the block claimed.
+        claimed: u8,
+        /// The rank the committee holds.
+        held: u8,
+    },
+
+    /// The claimed rank held no window at that moment.
+    #[error(
+        "Rank {rank} holds no authoring window at {moment_ms} milliseconds.          Fix: author inside the window the rank timeout gives that rank."
+    )]
+    RankTimingRejected {
+        /// The rank the block claimed.
+        rank: u8,
+        /// The moment the block carried, in milliseconds.
+        moment_ms: u64,
+    },
+
+    /// The validator key pair sits outside the registry.
+    #[error(
+        "The validator key pair sits outside the registry.          Fix: admit the validator through the Admission Engine before it authors."
+    )]
+    ValidatorKeysUnrecorded,
+
+    /// The seal key named differs from the recorded key of that validator.
+    #[error(
+        "The seal key named differs from the key recorded for that validator.          Fix: seal the block with the ed25519 key recorded against the draw key."
+    )]
+    ValidatorKeysMismatch,
+
     /// The eligible validator set held no members.
     #[error(
         "The eligible validator set holds no members. \
