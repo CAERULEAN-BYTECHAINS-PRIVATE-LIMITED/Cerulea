@@ -44,6 +44,10 @@ pub mod manifest;
 pub mod manifest_derive;
 pub mod manifest_guard;
 
+pub mod execution;
+
+pub use execution::{DisjointSet, DomainPartitioner};
+
 pub use manifest_guard::{
     run_under_manifest, AccessTally, ManifestGuard, MemoryStateStore, StateAccess, StoredRecord,
 };
