@@ -9,7 +9,7 @@
 //! declared action.
 
 use crate::{
-    expression::Expr,
+    expression::{Env, Expr, Meter},
     types::{
         CollectionId, FieldPath, IndexName, PurposeTag, RoleId, TypeExpr, TypeId, TypeRegistry,
         Value,
@@ -420,6 +420,26 @@ impl KeySelector {
         match self {
             KeySelector::Exact(expr) | KeySelector::Prefix(expr) => Some(expr),
             KeySelector::Full => None,
+        }
+    }
+
+    /// Evaluate the key expression and produce the range it reaches.
+    pub fn resolve(
+        &self,
+        env: &Env,
+        meter: &mut Meter,
+        path: &Path,
+    ) -> Result<KeyRange, Diagnostic> {
+        match self {
+            KeySelector::Exact(expr) => {
+                let key = expr.evaluate(env, meter, path)?;
+                Ok(KeyRange::Exact(key.canonical_bytes()))
+            }
+            KeySelector::Prefix(expr) => {
+                let key = expr.evaluate(env, meter, path)?;
+                Ok(KeyRange::Prefix(key.canonical_bytes()))
+            }
+            KeySelector::Full => Ok(KeyRange::Full),
         }
     }
 }

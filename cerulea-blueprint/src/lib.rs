@@ -21,6 +21,7 @@ extern crate alloc;
 
 pub mod collections;
 pub mod expression;
+pub mod fold;
 pub mod types;
 
 use alloc::{

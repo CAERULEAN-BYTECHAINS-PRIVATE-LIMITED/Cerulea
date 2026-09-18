@@ -13,6 +13,7 @@
 //! running the same expression over the same bindings reach the same value.
 
 use crate::{
+    fold::{CollectionView, DetachedView, FoldExpr},
     types::{
         ArithmeticFault, CollectionId, Decimal, FieldName, Hash32, Identity, ParamName, RecordRef,
         Timestamp, TypeExpr, TypeId, TypeRegistry, Value, VariantName, MAX_DECIMAL_SCALE,
@@ -418,6 +419,9 @@ pub enum Expr {
         /// The arguments, in order.
         args: Vec<Expr>,
     },
+    /// Walk every element of a list or a collection range and accumulate
+    /// one result. The element count is known before the fold runs.
+    Fold(Box<FoldExpr>),
     /// Run an expression and fall back to a compensation on a recoverable
     /// fault.
     ///
@@ -582,6 +586,7 @@ impl Expr {
                     arg.collection_refs(out);
                 }
             }
+            Expr::Fold(fold) => fold.collection_refs(out),
             Expr::Attempt { body, compensation } => {
                 body.collection_refs(out);
                 compensation.collection_refs(out);
@@ -690,6 +695,7 @@ impl Expr {
                     arg.free_names(bound, out);
                 }
             }
+            Expr::Fold(fold) => fold.free_names(bound, out),
             Expr::Attempt { body, compensation } => {
                 body.free_names(bound, out);
                 compensation.free_names(bound, out);
@@ -854,6 +860,7 @@ impl Expr {
                     .map(|arg| arg.substitute(replacements))
                     .collect(),
             },
+            Expr::Fold(fold) => Expr::Fold(Box::new(fold.substitute(replacements))),
             Expr::Attempt { body, compensation } => Expr::Attempt {
                 body: Box::new(body.substitute(replacements)),
                 compensation: Box::new(compensation.substitute(replacements)),
@@ -902,22 +909,54 @@ impl<'a> TypeContext<'a> {
     }
 }
 
+/// A view holding zero records. Every detached environment reads this one.
+static DETACHED_VIEW: DetachedView = DetachedView;
+
 /// The values in scope while the evaluator walks an expression.
-#[derive(Clone, Debug, Default)]
-pub struct Env {
+///
+/// The environment carries the bound names, the caller, the block time and
+/// a view over loaded Blockchain state. A fold over a collection reads the
+/// view.
+#[derive(Clone, Debug)]
+pub struct Env<'a> {
     bindings: BTreeMap<String, Value>,
     caller: Identity,
     now: Timestamp,
+    view: &'a dyn CollectionView,
 }
 
-impl Env {
-    /// Start an environment holding the caller and the block time.
-    pub fn new(caller: Identity, now: Timestamp) -> Self {
+impl Default for Env<'static> {
+    fn default() -> Self {
+        Env::new(Identity::default(), Timestamp::default())
+    }
+}
+
+impl Env<'static> {
+    /// Start an environment over no loaded state.
+    pub fn new(caller: Identity, now: Timestamp) -> Env<'static> {
         Env {
             bindings: BTreeMap::new(),
             caller,
             now,
+            view: &DETACHED_VIEW,
         }
+    }
+}
+
+impl<'a> Env<'a> {
+    /// Start an environment over a view of loaded state.
+    pub fn with_view(caller: Identity, now: Timestamp, view: &'a dyn CollectionView) -> Env<'a> {
+        Env {
+            bindings: BTreeMap::new(),
+            caller,
+            now,
+            view,
+        }
+    }
+
+    /// The view over loaded state.
+    pub fn view(&self) -> &'a dyn CollectionView {
+        self.view
     }
 
     /// Add one name and its value.
@@ -926,7 +965,7 @@ impl Env {
     }
 
     /// A copy of this environment carrying one more name.
-    pub fn with(&self, name: &ParamName, value: Value) -> Env {
+    pub fn with(&self, name: &ParamName, value: Value) -> Env<'a> {
         let mut next = self.clone();
         next.bind(name, value);
         next
@@ -1469,6 +1508,7 @@ impl Expr {
                 }
             }
             Expr::Call { function, args } => check_call(ctx, path, *function, args),
+            Expr::Fold(fold) => fold.check(ctx, &path.field("fold")),
             Expr::Attempt { body, compensation } => {
                 let body_type = body.check(ctx, &path.field("body"))?;
                 let compensation_type = compensation.check(ctx, &path.field("compensation"))?;
@@ -1750,6 +1790,7 @@ impl Expr {
                 }
                 apply_call(*function, values, env, path)
             }
+            Expr::Fold(fold) => fold.evaluate(env, meter, &path.field("fold")),
             Expr::Attempt { body, compensation } => {
                 match body.evaluate(env, meter, &path.field("body")) {
                     Ok(value) => Ok(value),
@@ -1772,7 +1813,7 @@ impl Expr {
     }
 }
 
-fn match_arm(subject: &Value, arm: &MatchArm, env: &Env) -> Option<Env> {
+fn match_arm<'a>(subject: &Value, arm: &MatchArm, env: &Env<'a>) -> Option<Env<'a>> {
     match (&arm.pattern, subject) {
         (Pattern::Variant { variant, binding }, Value::Sum(value)) => {
             if &value.variant != variant {
@@ -2463,7 +2504,7 @@ mod tests {
         ]
     }
 
-    fn env() -> Env {
+    fn env() -> Env<'static> {
         Env::new(
             Identity([9u8; 32]),
             Timestamp::from_millis(1_700_000_000_000),
