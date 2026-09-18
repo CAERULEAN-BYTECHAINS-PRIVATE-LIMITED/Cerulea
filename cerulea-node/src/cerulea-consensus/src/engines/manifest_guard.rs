@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 
+use super::execution::meter::{ResourceLimits, ResourceMeter};
 use super::manifest::AccessManifest;
 use super::{CollectionId, EngineError};
 
@@ -129,17 +130,60 @@ pub struct ManifestGuard<'a, S: StateAccess> {
     store: &'a mut S,
     abort: Option<EngineError>,
     tally: AccessTally,
+    meter: ResourceMeter,
 }
 
 impl<'a, S: StateAccess> ManifestGuard<'a, S> {
-    /// Wrap a store for one transaction.
+    /// Wrap a store for one transaction under the standard resource limits.
     pub fn new(manifest: &'a AccessManifest, store: &'a mut S) -> Self {
+        ManifestGuard::with_limits(manifest, store, ResourceLimits::standard())
+    }
+
+    /// Wrap a store for one transaction under the given resource limits.
+    pub fn with_limits(
+        manifest: &'a AccessManifest,
+        store: &'a mut S,
+        limits: ResourceLimits,
+    ) -> Self {
         ManifestGuard {
             manifest,
             store,
             abort: None,
             tally: AccessTally::default(),
+            meter: ResourceMeter::new(limits),
         }
+    }
+
+    /// The resource meter of this transaction.
+    pub fn meter(&self) -> &ResourceMeter {
+        &self.meter
+    }
+
+    /// Charge computation units for work the transaction body did.
+    ///
+    /// A charge past the computation limit aborts the transaction.
+    pub fn charge_work(&mut self, units: u64) -> Result<(), EngineError> {
+        self.still_running()?;
+        match self.meter.charge_work(units) {
+            Ok(()) => Ok(()),
+            Err(reason) => Err(self.abort_with(reason)),
+        }
+    }
+
+    /// Take memory for bytes the transaction body now holds.
+    ///
+    /// A take past the memory limit aborts the transaction.
+    pub fn take_memory(&mut self, bytes: u64) -> Result<(), EngineError> {
+        self.still_running()?;
+        match self.meter.take_memory(bytes) {
+            Ok(()) => Ok(()),
+            Err(reason) => Err(self.abort_with(reason)),
+        }
+    }
+
+    /// Give back memory for bytes the transaction body dropped.
+    pub fn give_memory(&mut self, bytes: u64) {
+        self.meter.give_memory(bytes);
     }
 
     /// Read one record.
@@ -158,8 +202,13 @@ impl<'a, S: StateAccess> ManifestGuard<'a, S> {
                 key: readable_key(key),
             }));
         }
+        let value = self.store.read(collection, key);
+        let length = value.as_ref().map(|body| body.len()).unwrap_or(0) as u64;
+        if let Err(reason) = self.meter.charge_read(length) {
+            return Err(self.abort_with(reason));
+        }
         self.tally.reads = self.tally.reads.saturating_add(1);
-        Ok(self.store.read(collection, key))
+        Ok(value)
     }
 
     /// Write one record.
@@ -175,6 +224,12 @@ impl<'a, S: StateAccess> ManifestGuard<'a, S> {
                 collection: readable(collection),
                 key: readable_key(key),
             }));
+        }
+        if let Err(reason) = self
+            .meter
+            .charge_write(key.len() as u64, value.len() as u64)
+        {
+            return Err(self.abort_with(reason));
         }
         self.tally.writes = self.tally.writes.saturating_add(1);
         self.store.write(collection, key, value);
@@ -192,6 +247,9 @@ impl<'a, S: StateAccess> ManifestGuard<'a, S> {
                 collection: readable(collection),
                 key: readable_key(key),
             }));
+        }
+        if let Err(reason) = self.meter.charge_removal(key.len() as u64) {
+            return Err(self.abort_with(reason));
         }
         self.tally.removals = self.tally.removals.saturating_add(1);
         self.store.remove(collection, key);

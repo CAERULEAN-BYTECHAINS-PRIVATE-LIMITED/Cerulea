@@ -49,7 +49,8 @@ pub mod execution;
 pub use execution::{
     domain_root, empty_root, leaf_hash, merkle_root, node_hash, order_domains, order_members,
     DisjointSet, DomainOutcome, DomainPartitioner, DomainRunner, DomainStore, ExecutionReport,
-    OrderKey, StateRoot, StateRoots, TransactionOutcome, TransactionRunner,
+    OrderKey, ResourceLimits, ResourceMeter, ResourceUse, StateRoot, StateRoots,
+    TransactionOutcome, TransactionRunner,
 };
 
 pub use manifest_guard::{
@@ -645,6 +646,42 @@ pub enum EngineError {
         collection: String,
         /// The key the access named.
         key: String,
+    },
+
+    /// A transaction spent more computation than its limit allows.
+    #[error(
+        "The transaction spent {used} computation units and the limit is {limit}. \
+         Fix: split the Blueprint action into smaller actions."
+    )]
+    ComputationLimitCrossed {
+        /// The units the transaction spent.
+        used: u64,
+        /// The highest number of units one transaction spends.
+        limit: u64,
+    },
+
+    /// A transaction held more memory than its limit allows.
+    #[error(
+        "The transaction held {used} bytes of memory and the limit is {limit}. \
+         Fix: read fewer records in one Blueprint action."
+    )]
+    MemoryLimitCrossed {
+        /// The bytes the transaction held at its highest moment.
+        used: u64,
+        /// The highest number of bytes one transaction holds.
+        limit: u64,
+    },
+
+    /// A transaction wrote more bytes than its limit allows.
+    #[error(
+        "The transaction wrote {used} bytes and the limit is {limit}. \
+         Fix: write fewer records in one Blueprint action."
+    )]
+    StorageLimitCrossed {
+        /// The bytes the transaction wrote.
+        used: u64,
+        /// The highest number of bytes one transaction writes.
+        limit: u64,
     },
 
     /// The eligible validator set held no members.

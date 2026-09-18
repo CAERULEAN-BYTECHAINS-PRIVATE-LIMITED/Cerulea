@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
+use crate::engines::execution::meter::ResourceLimits;
 use crate::engines::manifest::DeclaresAccess;
 use crate::engines::manifest_guard::{
     AccessTally, ManifestGuard, MemoryStateStore, StateAccess, StoredRecord,
@@ -288,6 +289,25 @@ impl DomainRunner {
         T: DeclaresAccess + Sync,
         R: TransactionRunner<T>,
     {
+        self.run_with_limits(pending, domains, state, runner, ResourceLimits::standard())
+    }
+
+    /// Run every domain under the given resource limits.
+    ///
+    /// A transaction that crosses a limit aborts on its own. The rest of the
+    /// domain carries on.
+    pub fn run_with_limits<T, R>(
+        &self,
+        pending: &[T],
+        domains: &[ConflictDomain],
+        state: &mut MemoryStateStore,
+        runner: &R,
+        limits: ResourceLimits,
+    ) -> ExecutionReport
+    where
+        T: DeclaresAccess + Sync,
+        R: TransactionRunner<T>,
+    {
         if domains.is_empty() {
             return ExecutionReport {
                 domains: Vec::new(),
@@ -305,7 +325,8 @@ impl DomainRunner {
                     if index >= domains.len() {
                         break;
                     }
-                    let outcome = run_one_domain(index, &domains[index], pending, base, runner);
+                    let outcome =
+                        run_one_domain(index, &domains[index], pending, base, runner, limits);
                     collected
                         .lock()
                         .expect("the result list stays available")
@@ -336,6 +357,7 @@ fn run_one_domain<T, R>(
     pending: &[T],
     base: &MemoryStateStore,
     runner: &R,
+    limits: ResourceLimits,
 ) -> DomainOutcome
 where
     T: DeclaresAccess + Sync,
@@ -347,7 +369,7 @@ where
         let transaction = &pending[*member];
         store.start_transaction();
         let (result, tally) = {
-            let mut guard = ManifestGuard::new(transaction.manifest(), &mut store);
+            let mut guard = ManifestGuard::with_limits(transaction.manifest(), &mut store, limits);
             let result = runner.run(transaction, &mut guard);
             let tally = guard.tally();
             (result, tally)
