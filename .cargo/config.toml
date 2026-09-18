@@ -11,6 +11,9 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [env]
 CXXFLAGS = "-include cstdint"
+# The target directory lives on the Linux volume, outside the workspace.
+# The runtime builder needs the workspace path to find the lock file.
+WASM_BUILD_WORKSPACE_HINT = { value = "", relative = true }
 
 [profile.dev]
 debug = 1
