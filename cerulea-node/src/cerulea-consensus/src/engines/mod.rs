@@ -42,6 +42,11 @@
 
 pub mod manifest;
 pub mod manifest_derive;
+pub mod manifest_guard;
+
+pub use manifest_guard::{
+    run_under_manifest, AccessTally, ManifestGuard, MemoryStateStore, StateAccess, StoredRecord,
+};
 
 pub use manifest_derive::{
     derive_manifest, derive_manifest_from, AccessSpec, ActionDescription, DescribesAccess,
@@ -612,6 +617,28 @@ pub enum EngineError {
         action: String,
         /// The collection the expression names.
         collection: String,
+    },
+
+    /// Execution reached a record the manifest leaves out of its read side.
+    #[error(
+        "The transaction read the key {key} of collection {collection} and the Access Manifest          leaves that key out. Fix: declare the key in the Blueprint action read list."
+    )]
+    ReadOutsideManifest {
+        /// The collection the access named.
+        collection: String,
+        /// The key the access named.
+        key: String,
+    },
+
+    /// Execution reached a record the manifest leaves out of its write side.
+    #[error(
+        "The transaction wrote the key {key} of collection {collection} and the Access Manifest          leaves that key out. Fix: declare the key in the Blueprint action write list."
+    )]
+    WriteOutsideManifest {
+        /// The collection the access named.
+        collection: String,
+        /// The key the access named.
+        key: String,
     },
 
     /// The eligible validator set held no members.
