@@ -21,6 +21,7 @@ extern crate alloc;
 
 pub mod actions;
 pub mod collections;
+pub mod economics;
 pub mod events;
 pub mod expression;
 pub mod fold;
@@ -43,9 +44,9 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    actions::Action, collections::Collection, events::EventDef, governance::Governance,
-    identities::Identities, integrations::Integrations, permissions::Permissions, rules::Rules,
-    types::TypeDef, views::View, workflows::Workflow,
+    actions::Action, collections::Collection, economics::Economics, events::EventDef,
+    governance::Governance, identities::Identities, integrations::Integrations,
+    permissions::Permissions, rules::Rules, types::TypeDef, views::View, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -219,6 +220,9 @@ pub struct Blueprint {
     /// Section eleven. The upgrade authority, the quorum rules and the
     /// change process.
     pub governance: Governance,
+    /// Section twelve. The unit of account. A deployment that records no
+    /// amounts leaves this section out.
+    pub economics: Option<Economics>,
 }
 
 impl Blueprint {
@@ -237,6 +241,7 @@ impl Blueprint {
             views: Vec::new(),
             integrations: Integrations::default(),
             governance: Governance::default(),
+            economics: None,
         }
     }
 
@@ -410,6 +415,16 @@ impl Blueprint {
             self.governance
                 .validate(&self.identities, &root.field("governance")),
         );
+
+        if let Some(economics) = &self.economics {
+            report.merge(economics.validate(
+                &type_registry,
+                &collection_registry,
+                &self.identities,
+                &action_registry,
+                &root.field("economics"),
+            ));
+        }
 
         report.into_result()
     }
