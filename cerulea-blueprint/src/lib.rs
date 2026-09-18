@@ -28,6 +28,7 @@ pub mod identities;
 pub mod permissions;
 pub mod rules;
 pub mod types;
+pub mod views;
 pub mod workflows;
 
 use alloc::{
@@ -41,7 +42,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     actions::Action, collections::Collection, events::EventDef, identities::Identities,
-    permissions::Permissions, rules::Rules, types::TypeDef, workflows::Workflow,
+    permissions::Permissions, rules::Rules, types::TypeDef, views::View, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -207,6 +208,8 @@ pub struct Blueprint {
     pub workflows: Vec<Workflow>,
     /// Section eight. The typed events written to the audit log.
     pub events: Vec<EventDef>,
+    /// Section nine. The declarative queries.
+    pub views: Vec<View>,
 }
 
 impl Blueprint {
@@ -222,6 +225,7 @@ impl Blueprint {
             actions: Vec::new(),
             workflows: Vec::new(),
             events: Vec::new(),
+            views: Vec::new(),
         }
     }
 
@@ -353,6 +357,24 @@ impl Blueprint {
             for (event, location) in workflow.event_refs(&workflows_path.index(position)) {
                 if !event_registry.contains(&event) {
                     report.push(event_registry.missing(&event, location));
+                }
+            }
+        }
+
+        let views_path = root.field("views");
+        report.merge(crate::views::validate_views(
+            &self.views,
+            &type_registry,
+            &collection_registry,
+            &self.identities,
+            &views_path,
+        ));
+
+        let view_registry = crate::views::ViewRegistry::build(&self.views);
+        for (position, event) in self.events.iter().enumerate() {
+            for (view, location) in event.view_refs(&events_path.index(position)) {
+                if !view_registry.contains(&view) {
+                    report.push(view_registry.missing(&view, location));
                 }
             }
         }
