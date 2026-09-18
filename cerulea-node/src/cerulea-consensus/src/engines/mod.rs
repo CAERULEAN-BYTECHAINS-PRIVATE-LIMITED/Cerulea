@@ -737,6 +737,21 @@ pub enum EngineError {
         detail: String,
     },
 
+    /// The node keystore holds no seal key for this author.
+    #[error(
+        "The node keystore holds no block seal key for this author.          Fix: insert the validator ed25519 key under the key type cerk."
+    )]
+    SealKeyAbsent,
+
+    /// A block seal failed the signature check.
+    #[error(
+        "The block seal for slot {slot} failed the signature check.          Fix: seal the block with the validator key named as the author."
+    )]
+    SealSignatureRejected {
+        /// The slot the block served.
+        slot: u64,
+    },
+
     /// The eligible validator set held no members.
     #[error(
         "The eligible validator set holds no members. \

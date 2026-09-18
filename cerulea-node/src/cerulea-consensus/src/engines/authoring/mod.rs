@@ -8,10 +8,16 @@
 pub mod committee;
 pub mod draw;
 pub mod fallback;
+pub mod seal;
 
 pub use committee::{weighted_draw, CommitteeDraw, SlotCommittee, STANDING_FLOOR};
 pub use fallback::{
     AuthoringPolicy, FallbackTracker, RankWindow, SlotSchedule, DEFAULT_RANK_TIMEOUT_MS,
+};
+
+pub use seal::{
+    check_seal_signature, extract_seal, header_hash, is_cerulea_seal, pre_seal_hash,
+    seal_and_apply, seal_header, seal_payload, strip_seal, BlockSeal, SealClaim, ValidatorKeys,
 };
 
 pub use draw::{
