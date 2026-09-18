@@ -25,6 +25,7 @@ pub mod events;
 pub mod expression;
 pub mod fold;
 pub mod identities;
+pub mod integrations;
 pub mod permissions;
 pub mod rules;
 pub mod types;
@@ -42,7 +43,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     actions::Action, collections::Collection, events::EventDef, identities::Identities,
-    permissions::Permissions, rules::Rules, types::TypeDef, views::View, workflows::Workflow,
+    integrations::Integrations, permissions::Permissions, rules::Rules, types::TypeDef,
+    views::View, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -210,6 +212,9 @@ pub struct Blueprint {
     pub events: Vec<EventDef>,
     /// Section nine. The declarative queries.
     pub views: Vec<View>,
+    /// Section ten. The feeds, the bridge endpoints and the external
+    /// triggers.
+    pub integrations: Integrations,
 }
 
 impl Blueprint {
@@ -226,6 +231,7 @@ impl Blueprint {
             workflows: Vec::new(),
             events: Vec::new(),
             views: Vec::new(),
+            integrations: Integrations::default(),
         }
     }
 
@@ -375,6 +381,22 @@ impl Blueprint {
             for (view, location) in event.view_refs(&events_path.index(position)) {
                 if !view_registry.contains(&view) {
                     report.push(view_registry.missing(&view, location));
+                }
+            }
+        }
+
+        report.merge(self.integrations.validate(
+            &type_registry,
+            &collection_registry,
+            &self.identities,
+            &action_registry,
+            &root.field("integrations"),
+        ));
+
+        for (position, event) in self.events.iter().enumerate() {
+            for (integration, location) in event.integration_refs(&events_path.index(position)) {
+                if !self.integrations.contains(&integration) {
+                    report.push(self.integrations.missing(&integration, location));
                 }
             }
         }
