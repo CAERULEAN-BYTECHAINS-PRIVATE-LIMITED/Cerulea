@@ -701,6 +701,45 @@ impl<T: Config> Pallet<T> {
         )
     }
 
+    /// Run the planning pass of one migration plan and produce the
+    /// definitions the plan yields.
+    ///
+    /// The Studio shows a user those definitions before the user commits
+    /// the plan. A plan carrying a problem yields the report instead, with
+    /// every diagnostic naming its location and its fix.
+    pub fn preview_migration(
+        deployment: &DeploymentId,
+        plan: &MigrationPlan,
+    ) -> Result<migrate::MigrationPreview, Report> {
+        let entry = match Self::collection_entry(deployment, &plan.collection) {
+            Some(found) => found,
+            None => {
+                let mut missing = Report::new();
+                missing.push(cerulea_blueprint::Diagnostic::at(
+                    cerulea_blueprint::DiagnosticCode::DanglingReference,
+                    Path::root()
+                        .field("migration")
+                        .field("collection")
+                        .location(),
+                    alloc::format!("The registry lacks the collection `{}`.", plan.collection),
+                    alloc::string::String::from(
+                        "Register the collection before planning a migration.",
+                    ),
+                ));
+                return Err(missing);
+            }
+        };
+        let defs = Self::type_defs(deployment);
+        let (types, _) = TypeRegistry::build(&defs, &Path::root().field("types"));
+        migrate::preview(
+            plan,
+            &entry.definition,
+            entry.version,
+            &types,
+            &Path::root().field("migration"),
+        )
+    }
+
     /// The registered type names of one deployment, in name order.
     pub fn type_names(deployment: &DeploymentId) -> Vec<BoundedName> {
         TypeNames::<T>::get(deployment).into_inner()

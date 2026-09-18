@@ -180,6 +180,11 @@ impl MigrationPlan {
     pub fn touches_records(&self) -> bool {
         self.steps.iter().any(MigrationStep::touches_records)
     }
+
+    /// Report whether any step changes the declared indexes.
+    pub fn touches_indexes(&self) -> bool {
+        self.steps.iter().any(MigrationStep::touches_indexes)
+    }
 }
 
 /// The status of one migration plan.
@@ -829,4 +834,77 @@ pub fn with_replaced_record(defs: &[TypeDef], replacement: RecordDef) -> Vec<Typ
     produced.push(TypeDef::Record(replacement));
     produced.sort_by(|left, right| left.id().cmp(right.id()));
     produced
+}
+
+/// The outcome of a planning pass, ready for the interface layer.
+///
+/// The Studio shows a user the definitions a plan produces before the
+/// user commits the plan. The preview carries those definitions together
+/// with the two facts that drive the cost estimate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MigrationPreview {
+    /// The record type the plan produces.
+    pub produced_type: RecordDef,
+    /// The collection definition the plan produces.
+    pub produced_collection: Collection,
+    /// The plan rewrites every stored record.
+    pub rewrites_records: bool,
+    /// The plan rebuilds the secondary indexes.
+    pub rebuilds_indexes: bool,
+    /// The plan carries a reverse.
+    pub reversible: bool,
+}
+
+/// Run the planning pass and produce the preview.
+///
+/// A clean plan yields the definitions it produces. A plan carrying a
+/// problem yields the report instead, with every diagnostic naming its
+/// location and its fix.
+pub fn preview(
+    plan: &MigrationPlan,
+    collection: &Collection,
+    version: u32,
+    types: &TypeRegistry,
+    path: &Path,
+) -> Result<MigrationPreview, Report> {
+    let report = check_plan(plan, collection, version, types, path);
+    if !report.is_clean() {
+        return Err(report);
+    }
+
+    let present = match types.record(&collection.record_type) {
+        Some(found) => found,
+        None => {
+            let mut missing = Report::new();
+            missing.push(problem(
+                DiagnosticCode::DanglingReference,
+                &path.field("collection"),
+                format!(
+                    "The registry lacks the record type `{}`.",
+                    collection.record_type
+                ),
+                "Register the record type before planning a migration.".to_string(),
+            ));
+            return Err(missing);
+        }
+    };
+
+    let produced_type = plan_record_type(plan, present, path).map_err(|diagnostic| {
+        let mut held = Report::new();
+        held.push(diagnostic);
+        held
+    })?;
+    let produced_collection = plan_collection(plan, collection, path).map_err(|diagnostic| {
+        let mut held = Report::new();
+        held.push(diagnostic);
+        held
+    })?;
+
+    Ok(MigrationPreview {
+        produced_type,
+        produced_collection,
+        rewrites_records: plan.touches_records(),
+        rebuilds_indexes: plan.touches_indexes() || plan.touches_records(),
+        reversible: inverse_plan(plan, collection, path).is_ok(),
+    })
 }

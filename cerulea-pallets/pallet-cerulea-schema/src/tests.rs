@@ -540,3 +540,132 @@ fn the_stored_entry_carries_the_registration_block() {
         assert!(!entry.retired);
     });
 }
+
+#[test]
+fn a_plan_starting_from_the_wrong_version_names_its_location() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("parcel", 7, "The register gains the parcel area.").with(
+            MigrationStep::AddField {
+                field: FieldName::new("area"),
+                ty: TypeExpr::Integer,
+                default: Value::Integer(0),
+                summary: "The area in square metres.".to_string(),
+            },
+        );
+        let report = Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan)
+            .expect_err("a wrong start version raises a diagnostic");
+        let found = report
+            .find("migration.from_version")
+            .expect("the diagnostic sits on the start version");
+        assert!(found.fix.contains("version 1"));
+    });
+}
+
+#[test]
+fn a_plan_adding_a_present_field_names_the_duplicate() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("parcel", 1, "The register repeats the holder field.").with(
+            MigrationStep::AddField {
+                field: FieldName::new("holder"),
+                ty: TypeExpr::Text,
+                default: Value::Text(String::new()),
+                summary: "The present holder.".to_string(),
+            },
+        );
+        let report = Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan)
+            .expect_err("a repeated field raises a diagnostic");
+        let found = report
+            .find("migration.steps[0].field")
+            .expect("the diagnostic sits on the field");
+        assert_eq!(found.code, cerulea_blueprint::DiagnosticCode::DuplicateName);
+    });
+}
+
+#[test]
+fn a_plan_indexing_an_absent_field_names_the_location() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("parcel", 1, "The register gains an index.").with(
+            MigrationStep::AddIndex {
+                index: Index {
+                    name: IndexName::new("by_ward"),
+                    fields: vec![FieldPath::parse("ward")],
+                    unique: false,
+                },
+            },
+        );
+        let report = Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan)
+            .expect_err("an absent field raises a diagnostic");
+        assert!(report.find("migration.steps[0].index.fields[0]").is_some());
+    });
+}
+
+#[test]
+fn a_conversion_producing_the_wrong_type_names_the_location() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("parcel", 1, "The register retypes the holder field.").with(
+            MigrationStep::RetypeField {
+                field: FieldName::new("holder"),
+                ty: TypeExpr::Integer,
+                convert: Expr::bound(crate::migrate::OLD_VALUE_BINDING),
+            },
+        );
+        let report = Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan)
+            .expect_err("a wrong conversion type raises a diagnostic");
+        let found = report
+            .find("migration.steps[0].convert")
+            .expect("the diagnostic sits on the conversion");
+        assert_eq!(found.code, cerulea_blueprint::DiagnosticCode::TypeMismatch);
+    });
+}
+
+#[test]
+fn a_clean_plan_previews_the_definitions_it_produces() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let preview = Pallet::<Test>::preview_migration(&DEPLOYMENT, &add_area_plan())
+            .expect("the plan previews");
+        assert_eq!(preview.produced_type.fields.len(), 3);
+        assert!(preview.rewrites_records);
+        assert!(preview.rebuilds_indexes);
+        assert!(preview.reversible);
+        assert_eq!(preview.produced_collection.id, parcel_collection().id);
+    });
+}
+
+#[test]
+fn a_plan_removing_a_field_previews_as_one_way() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("parcel", 1, "The register drops the holder field.").with(
+            MigrationStep::RemoveField {
+                field: FieldName::new("holder"),
+            },
+        );
+        let preview =
+            Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan).expect("the plan previews");
+        assert!(!preview.reversible);
+        assert_eq!(preview.produced_type.fields.len(), 1);
+    });
+}
+
+#[test]
+fn a_plan_naming_an_absent_collection_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        register_parcel();
+        let plan = MigrationPlan::new("ward", 1, "The plan names an absent collection.").with(
+            MigrationStep::RemoveField {
+                field: FieldName::new("holder"),
+            },
+        );
+        let report = Pallet::<Test>::preview_migration(&DEPLOYMENT, &plan)
+            .expect_err("an absent collection raises a diagnostic");
+        let found = report
+            .find("migration.collection")
+            .expect("the diagnostic sits on the collection");
+        assert!(found.fix.contains("Register the collection"));
+    });
+}
