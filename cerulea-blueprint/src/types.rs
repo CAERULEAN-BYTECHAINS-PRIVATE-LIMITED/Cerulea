@@ -181,6 +181,11 @@ declare_identifier!(
 );
 declare_identifier!(IndexName, "index", "The name of a secondary index.");
 declare_identifier!(PurposeTag, "purpose", "The name of a declared purpose.");
+declare_identifier!(
+    StageId,
+    "stage",
+    "The name of one stage of a change process."
+);
 
 /// A path to a field inside a record.
 ///

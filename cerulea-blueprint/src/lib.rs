@@ -24,6 +24,7 @@ pub mod collections;
 pub mod events;
 pub mod expression;
 pub mod fold;
+pub mod governance;
 pub mod identities;
 pub mod integrations;
 pub mod permissions;
@@ -42,9 +43,9 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    actions::Action, collections::Collection, events::EventDef, identities::Identities,
-    integrations::Integrations, permissions::Permissions, rules::Rules, types::TypeDef,
-    views::View, workflows::Workflow,
+    actions::Action, collections::Collection, events::EventDef, governance::Governance,
+    identities::Identities, integrations::Integrations, permissions::Permissions, rules::Rules,
+    types::TypeDef, views::View, workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -215,6 +216,9 @@ pub struct Blueprint {
     /// Section ten. The feeds, the bridge endpoints and the external
     /// triggers.
     pub integrations: Integrations,
+    /// Section eleven. The upgrade authority, the quorum rules and the
+    /// change process.
+    pub governance: Governance,
 }
 
 impl Blueprint {
@@ -232,6 +236,7 @@ impl Blueprint {
             events: Vec::new(),
             views: Vec::new(),
             integrations: Integrations::default(),
+            governance: Governance::default(),
         }
     }
 
@@ -400,6 +405,11 @@ impl Blueprint {
                 }
             }
         }
+
+        report.merge(
+            self.governance
+                .validate(&self.identities, &root.field("governance")),
+        );
 
         report.into_result()
     }
