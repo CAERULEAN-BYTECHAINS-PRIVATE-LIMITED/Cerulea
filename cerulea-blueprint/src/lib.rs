@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+pub mod expression;
 pub mod types;
 
 use alloc::{
