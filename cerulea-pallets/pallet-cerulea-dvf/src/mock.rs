@@ -149,7 +149,7 @@ impl pallet_cerulea_dvf::Config for Test {
     type VoteRetentionRounds = VoteRetentionRounds;
     type MaxValidators = ConstU32<100>;
     type MaxInactiveEpochs = ConstU32<5>;
-    type UnderperformanceCheckInterval = ConstU32<50>;
+    type UnderperformanceCheckInterval = frame_support::traits::ConstU64<50>;
     type MaxValidatorHistorySize = ConstU32<100>;
     type MaxValidatorNameSize = ConstU32<32>;
 }
@@ -182,3 +182,26 @@ pub fn account_key(s: &str) -> AccountId {
     let pair = sr25519::Pair::from_string(&format!("//{}", s), None).unwrap();
     AccountPublic::from(pair.public()).into_account()
 }
+
+// Compile-time contract check.
+// The block below names every trait the mock runtime claims to satisfy.
+// A trait that gains an item stops this crate from compiling here first, so a
+// mock can never drift behind its trait again. The check runs on every build
+// of the test target, which every commit gate runs.
+const _: fn() = || {
+    fn settings_hold<T: crate::Config>() {}
+    settings_hold::<Test>();
+
+    fn stake_settings_hold<T: pallet_cerulea_pos::Config>() {}
+    stake_settings_hold::<Test>();
+
+    fn registry_holds<
+        T: pallet_cerulea_dcf::traits::ValidatorRegistryProvider<
+            <Test as frame_system::Config>::AccountId,
+            u128,
+            u64,
+        >,
+    >() {
+    }
+    registry_holds::<crate::Pallet<Test>>();
+};

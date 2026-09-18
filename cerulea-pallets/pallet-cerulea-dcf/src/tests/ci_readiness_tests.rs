@@ -19,7 +19,7 @@ fn ci_basic_functionality_check() {
         // All validators should be properly initialized
         for validator in &active_validators {
             assert!(DcfPallet::is_validator_active(validator));
-            assert!(DcfPallet::validator_stake(validator) > 0);
+            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
             assert!(crate::PoiWeight::<Test>::get() >= 0);
         }
     });
@@ -42,13 +42,13 @@ fn ci_initialization_no_panic() {
         // Test per-validator operations
         let active_validators = DcfPallet::active_validators();
         for validator in &active_validators {
-            let _ = DcfPallet::validator_stake(validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let _ = crate::PoiWeight::<Test>::get();
             let _ = DcfPallet::is_validator_active(validator);
             let _ = DcfPallet::validator_states(validator);
-            let _ = DcfPallet::validator_stake(validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let _ = DcfPallet::validator_set();
-            let _ = DcfPallet::validator_stake(validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
         }
         
         assert!(true); // All operations completed without panic
@@ -85,13 +85,13 @@ fn ci_error_handling_graceful() {
         
         for invalid_validator in invalid_validators {
             // These should not panic, should return defaults
-            let stake_score = DcfPallet::validator_stake(&invalid_validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
             let inference_score = crate::PoiWeight::<Test>::get();
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
             let participation = DcfPallet::validator_states(&invalid_validator);
-            let last_active = DcfPallet::validator_stake(&invalid_validator);
+            let last_active = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
             let score_history = DcfPallet::validator_set();
-            let stake = DcfPallet::validator_stake(&invalid_validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
             
             // Should return reasonable defaults
             assert!(stake_score >= 0);
@@ -139,7 +139,7 @@ fn ci_performance_benchmarks() {
         // Test per-validator query performance
         for _ in 0..50 {
             for validator in &active_validators {
-                let _ = DcfPallet::validator_stake(validator);
+                let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 let _ = DcfPallet::is_validator_active(validator);
             }
         }
@@ -160,11 +160,11 @@ fn ci_performance_benchmarks() {
 fn ci_configuration_validation() {
     new_test_ext().execute_with(|| {
         // Validate all configuration parameters
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         
         // Basic validation
         assert!(max_validators > 0);
@@ -188,8 +188,8 @@ fn ci_configuration_validation() {
         assert!(max_trust > min_trust);
         
         // Economic parameters
-        let validator_reward: u128 = <Test as crate::Config>::ValidatorReward::get();
-        let slash_percent: u32 = <Test as crate::Config>::SlashPercent::get();
+        let validator_reward: u128 = <Test as pallet_cerulea_pos::Config>::ValidatorReward::get();
+        let slash_percent: u32 = <<Test as pallet_cerulea_pos::Config>::SlashPercent as frame_support::traits::Get<u32>>::get();
         assert!(validator_reward > 0);
         assert!(slash_percent > 0);
         assert!(slash_percent <= 100);
@@ -201,7 +201,7 @@ fn ci_configuration_validation() {
 fn ci_storage_limits_validation() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         
         // Validator set size should not exceed limits
@@ -323,7 +323,7 @@ fn ci_public_api_coverage() {
         
         // Per-validator APIs
         for validator in &active_validators {
-            assert!(DcfPallet::validator_stake(validator) > 0);
+            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
             assert!(crate::PoiWeight::<Test>::get() >= 0);
             assert!(DcfPallet::is_validator_active(validator));
             
@@ -335,8 +335,8 @@ fn ci_public_api_coverage() {
             assert!(authored >= 0);
             assert!(missed >= 0);
             
-            assert!(DcfPallet::validator_stake(validator) >= 0);
-            assert!(DcfPallet::validator_stake(validator) > 0);
+            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) >= 0);
+            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
         }
     });
 }
@@ -381,7 +381,7 @@ fn ci_multi_epoch_validation() {
                 // Test validator consistency
                 for validator in &active_validators {
                     assert!(DcfPallet::is_validator_active(validator));
-                    assert!(DcfPallet::validator_stake(validator) > 0);
+                    assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
                 }
             }
         }
@@ -407,7 +407,7 @@ fn ci_comprehensive_invariant_validation() {
         let mut total_stake = 0u128;
         
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             total_stake = total_stake.saturating_add(stake);
             
             // Test trust score bounds
@@ -418,7 +418,7 @@ fn ci_comprehensive_invariant_validation() {
             // Test stake score bounds
             let stake_score = DcfPallet::validator_stake_score(validator);
             assert!(stake_score >= 0);
-            let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
             assert!(stake_score <= max_score.into());
         }
         
@@ -472,7 +472,7 @@ fn ci_stress_test_readiness() {
             
             // Per-validator operations
             for validator in &active_validators {
-                let _ = DcfPallet::validator_stake(validator);
+                let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 let _ = DcfPallet::is_validator_active(validator);
                 let _ = DcfPallet::validator_trust_scores(validator);
             }
@@ -499,7 +499,7 @@ fn ci_error_recovery_test() {
         
         for invalid_validator in invalid_validators {
             // These should not panic
-            let _ = DcfPallet::validator_stake(&invalid_validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
             let _ = DcfPallet::is_validator_active(&invalid_validator);
             let _ = DcfPallet::validator_trust_scores(&invalid_validator);
         }
@@ -549,7 +549,7 @@ fn ci_performance_regression_test() {
         
         for _ in 0..100 {
             for validator in &active_validators {
-                let _ = DcfPallet::validator_stake(validator);
+                let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 let _ = DcfPallet::is_validator_active(validator);
             }
         }
@@ -576,7 +576,7 @@ fn ci_performance_regression_test() {
 fn ci_memory_usage_test() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         // Test that we don't exceed memory limits
         assert!(active_validators.len() <= max_validators as usize);

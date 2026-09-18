@@ -8,6 +8,7 @@ use crate::{
     RuntimeOrigin, System, Balances, Runtime,
 };
 type DcfPallet = pallet_cerulea_dcf::Pallet<Runtime>;
+type DvfPallet = pallet_cerulea_dvf::Pallet<Runtime>;
 type PalletCeruleaPos = pallet_cerulea_pos::Pallet<Runtime>;
 type PalletCeruleaPoi = pallet_cerulea_poi::Pallet<Runtime>;
 use frame_support::{assert_ok, assert_noop, traits::Get};
@@ -39,7 +40,7 @@ mod runtime_integration_tests {
                 let state = DcfPallet::validator_states(validator);
                 assert!(state.is_some());
                 
-                let stake = DcfPallet::validator_stake(validator);
+                let stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert!(stake > 0);
             }
         });
@@ -60,7 +61,7 @@ mod runtime_integration_tests {
             assert_eq!(reserved, stake_amount);
             
             // Verify DCF recorded the stake
-            let dcf_stake = DcfPallet::validator_stake(&validator);
+            let dcf_stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert_eq!(dcf_stake, stake_amount);
             
             // Test PoS integration
@@ -151,7 +152,7 @@ mod runtime_integration_tests {
                 let state = DcfPallet::validator_states(validator);
                 assert!(state.is_some());
                 
-                let stake = DcfPallet::validator_stake(validator);
+                let stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert!(stake > 0);
                 
                 let balance = Balances::free_balance(validator);
@@ -230,14 +231,14 @@ mod runtime_integration_tests {
             
             // Test slashing
             let slash_amount = 1000u128;
-            assert_ok!(DcfPallet::slash_validator(
+            assert_ok!(PalletCeruleaPos::slash_validator(
                 RuntimeOrigin::root(),
                 validator.clone(),
                 slash_amount
             ));
             
             // Verify stake was reduced
-            let new_stake = DcfPallet::validator_stake(&validator);
+            let new_stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert!(new_stake < stake_amount);
             
             // Test reward distribution
@@ -259,12 +260,12 @@ mod runtime_integration_tests {
     fn test_system_limits() {
         new_test_ext().execute_with(|| {
             // Test maximum validators limit
-            let max_validators = <Runtime as pallet_cerulea_dcf::Config>::MaxValidators::get();
+            let max_validators = <Runtime as pallet_cerulea_pos::Config>::MaxValidators::get();
             let current_validators = DcfPallet::validator_set();
             assert!(current_validators.len() <= max_validators as usize);
             
             // Test minimum active validators
-            let min_active = <Runtime as pallet_cerulea_dcf::Config>::MinActiveValidators::get();
+            let min_active = <Runtime as pallet_cerulea_pos::Config>::MinActiveValidators::get();
             let active_validators = DcfPallet::active_validators();
             assert!(active_validators.len() >= min_active as usize);
             
@@ -282,7 +283,7 @@ mod runtime_integration_tests {
             
             // Test invalid validator operations
             assert_noop!(
-                DcfPallet::leave_validators(RuntimeOrigin::signed(non_validator.clone())),
+                DvfPallet::leave_validators(RuntimeOrigin::signed(non_validator.clone())),
                 pallet_cerulea_dcf::Error::<Runtime>::ValidatorNotFound
             );
             
@@ -354,7 +355,7 @@ mod runtime_integration_tests {
             // All validators should have states
             for validator in validators.iter() {
                 assert!(DcfPallet::validator_states(validator).is_some());
-                assert!(DcfPallet::validator_stake(validator) > 0);
+                assert!(pallet_cerulea_pos::Stake::<Runtime>::get(validator) > 0);
             }
             
             // Test storage consistency
@@ -379,7 +380,7 @@ mod runtime_benchmark_tests {
             let validator = funded_account_id(1);
             
             // These should not panic and should complete quickly
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator.clone()), None);
+            let _ = DvfPallet::join_validators(RuntimeOrigin::signed(validator.clone()), None);
             let _ = PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator.clone()));
             let _ = PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator.clone()), 42, 80);
         });
@@ -431,7 +432,7 @@ mod runtime_mock_tests {
             // Test validator setup
             setup_validator_with_stake(test_account.clone(), 10000);
             assert_eq!(Balances::reserved_balance(&test_account), 10000);
-            assert_eq!(DcfPallet::validator_stake(&test_account), 10000);
+            assert_eq!(pallet_cerulea_pos::Stake::<Runtime>::get(&test_account), 10000);
         });
     }
 }
@@ -467,7 +468,7 @@ mod runtime_api_tests {
             let validator = funded_account_id(1);
             
             // Test getting validator stake
-            let _stake = DcfPallet::validator_stake(&validator);
+            let _stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             // stake is u128, always >= 0
             
             // Test getting active validators
@@ -535,7 +536,7 @@ mod runtime_api_tests {
             assert!(is_active == true || is_active == false);
             
             // Test getting validator stake
-            let stake = DcfPallet::validator_stake(&validator);
+            let stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert!(stake >= 0);
             
             // Test getting validator participation
@@ -622,7 +623,7 @@ mod runtime_api_tests {
             let invalid_validator = funded_account_id(999999);
             
             // Test that APIs handle invalid validators gracefully
-            let stake = DcfPallet::validator_stake(&invalid_validator);
+            let stake = pallet_cerulea_pos::Stake::<Runtime>::get(&invalid_validator);
             assert_eq!(stake, 0);
             
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
@@ -656,7 +657,7 @@ mod runtime_api_tests {
             
             // Test that getting scores for all validators doesn't panic
             for validator in validators.iter().take(10) { // Limit to 10 for test performance
-                let _ = DcfPallet::validator_stake(validator);
+                let _ = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 let _ = DcfPallet::validator_participation(validator);
             }
             

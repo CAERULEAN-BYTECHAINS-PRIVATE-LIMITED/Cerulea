@@ -36,7 +36,7 @@ fn runtime_api_cross_pallet_consistency() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -86,7 +86,7 @@ fn runtime_api_data_flow_integration() {
             Balances::make_free_balance_be(validator, 50000);
             
             // DCF
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("DataFlowValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -132,7 +132,7 @@ fn runtime_api_data_flow_integration() {
         
         // Test individual validator APIs
         for validator in &validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let (authored, missed) = DcfPallet::validator_participation(validator);
             let last_active = DcfPallet::validator_last_active(validator);
             
@@ -163,7 +163,7 @@ fn runtime_api_performance_integration() {
             let validator = 100 + i;
             Balances::make_free_balance_be(&validator, 100000);
             
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("PerfValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -199,7 +199,7 @@ fn runtime_api_performance_integration() {
         let start = Instant::now();
         for i in 1..=num_validators {
             let validator = 100 + i;
-            let _ = DcfPallet::validator_stake(&validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             let stake_score = DcfPallet::validator_stake_score(&validator);
             let inference_score = DcfPallet::validator_inference_score(&validator);
             let _ = (stake_score, inference_score);
@@ -239,7 +239,7 @@ fn runtime_api_error_handling_integration() {
         // Test APIs with invalid validator
         
         // DCF APIs should handle gracefully
-        let stake = DcfPallet::validator_stake(&invalid_validator);
+        let stake = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
         assert_eq!(stake, 0);
         
         let is_active = DcfPallet::is_validator_active(&invalid_validator);
@@ -267,7 +267,7 @@ fn runtime_api_error_handling_integration() {
         assert_eq!(poi_challenge, None);
         
         // Test with valid validator for comparison
-        let valid_stake = DcfPallet::validator_stake(&valid_validator);
+        let valid_stake = pallet_cerulea_pos::Stake::<Test>::get(&valid_validator);
         assert!(valid_stake > 0);
         
         let valid_active = DcfPallet::is_validator_active(&valid_validator);
@@ -294,13 +294,13 @@ fn runtime_api_state_transitions_integration() {
         assert_eq!(PalletCeruleaPoi::inference_results(&validator), None);
         
         // Phase 2: Join DCF
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"StateTransitionValidator".to_vec().try_into().unwrap())
         ));
         
         assert_eq!(DcfPallet::is_validator_active(&validator), true);
-        assert!(DcfPallet::validator_stake(&validator) > 0);
+        assert!(pallet_cerulea_pos::Stake::<Test>::get(&validator) > 0);
         assert_eq!(PalletCeruleaPos::validators(&validator), None); // Still not in PoS
         
         // Phase 3: Register in PoS
@@ -337,7 +337,7 @@ fn runtime_api_state_transitions_integration() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -352,12 +352,12 @@ fn runtime_api_state_transitions_integration() {
         assert!(combined_score > 0);
         
         // Phase 7: Slashing in PoS
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // Multiple slashes to remove from PoS
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         
         assert_eq!(PalletCeruleaPos::validators(&validator), None);
         let pos_active_after_slash = PalletCeruleaPos::get_active_validators();
@@ -367,13 +367,13 @@ fn runtime_api_state_transitions_integration() {
         assert_eq!(DcfPallet::is_validator_active(&validator), true);
         
         // Phase 8: Leave DCF
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // During cooldown, still shows as active
         assert_eq!(DcfPallet::is_validator_active(&validator), true);
         
         // After cooldown period
-        let cooldown_period: u32 = <Test as crate::Config>::LeaveCooldown::get();
+        let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         for block in 1..=cooldown_period + 1 {
             System::set_block_number(block as u64);
             DcfPallet::on_initialize(block as u64);
@@ -398,7 +398,7 @@ fn runtime_api_finality_integration() {
         
         // Setup validator
         Balances::make_free_balance_be(&validator, 50000);
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"FinalityValidator".to_vec().try_into().unwrap())
         ));
@@ -466,7 +466,7 @@ fn runtime_api_epoch_synchronization() {
         // Setup validators in all pallets
         for validator in &validators {
             Balances::make_free_balance_be(validator, 50000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -542,10 +542,10 @@ fn runtime_api_configuration_consistency() {
         assert!(poi_weight > 0);
         
         // Test configuration parameters
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         assert!(max_validators > 0);
         assert!(min_active > 0);
@@ -554,9 +554,9 @@ fn runtime_api_configuration_consistency() {
         assert!(min_active <= max_validators);
         
         // Test PoS configuration
-        let pos_min_score: u32 = <Test as pallet_cerulea_pos::Config>::MinValidatorScore::get();
-        let pos_max_validators = <Test as pallet_cerulea_pos::Config>::MaxValidators::get();
-        let pos_min_active = <Test as pallet_cerulea_pos::Config>::MinActiveValidators::get();
+        let pos_min_score: u32 = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get();
+        let pos_max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let pos_min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         assert!(pos_min_score > 0);
         assert!(pos_max_validators > 0);

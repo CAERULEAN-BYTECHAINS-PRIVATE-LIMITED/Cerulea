@@ -123,3 +123,16 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     storage.into()
 } 
+
+// Compile-time contract check.
+// The block below names every trait the mock runtime claims to satisfy.
+// A trait that gains an item stops this crate from compiling here first, so a
+// mock can never drift behind its trait again. The check runs on every build
+// of the test target, which every commit gate runs.
+const _: fn() = || {
+    fn settings_hold<T: crate::Config>() {}
+    settings_hold::<Test>();
+
+    fn validator_handler_holds<T: crate::ValidatorHandler<u64, u64>>() {}
+    validator_handler_holds::<<Test as crate::Config>::ValidatorHandler>();
+};

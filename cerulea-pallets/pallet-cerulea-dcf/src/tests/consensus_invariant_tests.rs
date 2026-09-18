@@ -20,7 +20,7 @@ fn property_total_stake_bounded_by_supply() {
             let mut total_supply = 0u128;
             
             for validator in &active_validators {
-                total_staked += DcfPallet::validator_stake(validator);
+                total_staked += pallet_cerulea_pos::Stake::<Test>::get(validator);
                 total_supply += Balances::free_balance(validator);
                 total_supply += Balances::reserved_balance(validator);
             }
@@ -73,8 +73,8 @@ fn property_consensus_weights_mathematical_consistency() {
 #[test]
 fn property_validator_economic_bounds() {
     new_test_ext().execute_with(|| {
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         for block_num in 1..=15 {
             System::set_block_number(block_num);
@@ -87,7 +87,7 @@ fn property_validator_economic_bounds() {
             assert!(active_validators.len() <= max_validators as usize);
             
             for validator in &active_validators {
-                let stake = DcfPallet::validator_stake(validator);
+                let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 let free_balance = Balances::free_balance(validator);
                 let reserved_balance = Balances::reserved_balance(validator);
                 
@@ -112,8 +112,8 @@ fn property_validator_economic_bounds() {
 #[test]
 fn property_score_mathematical_bounds() {
     new_test_ext().execute_with(|| {
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
-        let min_score = <Test as crate::Config>::MinValidatorScore::get() as u64;
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
         
         for block_num in 1..=10 {
             System::set_block_number(block_num);
@@ -154,7 +154,7 @@ fn property_score_mathematical_bounds() {
 fn property_epoch_transitions_preserve_invariants() {
     new_test_ext().execute_with(|| {
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         let mut previous_epoch = DcfPallet::current_epoch();
         let mut previous_validators = DcfPallet::active_validators();
@@ -196,24 +196,24 @@ fn property_epoch_transitions_preserve_invariants() {
 fn property_slashing_economic_security() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let _initial_stake = DcfPallet::validator_stake(&validator);
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let _initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // Test various slashing amounts
         let slash_amounts = vec![100u128, 500u128, 1000u128, 2000u128];
         
         for slash_amount in slash_amounts {
-            let pre_slash_stake = DcfPallet::validator_stake(&validator);
+            let pre_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             let pre_slash_balance = Balances::reserved_balance(&validator);
             
             if slash_amount < pre_slash_stake {
-                assert_ok!(DcfPallet::slash_validator(
+                assert_ok!(PalletCeruleaPos::slash_validator(
                     RuntimeOrigin::root(),
                     validator,
                     slash_amount
                 ));
                 
-                let post_slash_stake = DcfPallet::validator_stake(&validator);
+                let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
                 let post_slash_balance = Balances::reserved_balance(&validator);
                 
                 // Property: slashing reduces stake by exact amount
@@ -239,7 +239,7 @@ fn property_slashing_economic_security() {
 fn property_reward_distribution_bounds() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = DcfPallet::validator_stake(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         // Enable governance for rewards
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
@@ -247,7 +247,7 @@ fn property_reward_distribution_bounds() {
         let reward_amounts = vec![100u128, 500u128, 1000u128, 2000u128];
         
         for (i, reward_amount) in reward_amounts.iter().enumerate() {
-            let pre_reward_stake = DcfPallet::validator_stake(&validator);
+            let pre_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             
             // Create and execute reward proposal
             assert_ok!(DcfPallet::propose_reward_validator(
@@ -268,7 +268,7 @@ fn property_reward_distribution_bounds() {
                 i as u32
             ));
             
-            let post_reward_stake = DcfPallet::validator_stake(&validator);
+            let post_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             
             // Property: rewards increase stake by exact amount
             assert_eq!(post_reward_stake - pre_reward_stake, *reward_amount);
@@ -383,7 +383,7 @@ fn property_governance_system_integrity() {
 #[test]
 fn property_system_liveness() {
     new_test_ext().execute_with(|| {
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Test system liveness under various stress conditions
         for scenario in 1..=5 {
@@ -392,7 +392,7 @@ fn property_system_liveness() {
                     // Scenario: Multiple validator operations
                     for i in 10..15 {
                         Balances::make_free_balance_be(&i, 50000);
-                        assert_ok!(DcfPallet::join_validators(
+                        assert_ok!(mock_join_validators(
                             RuntimeOrigin::signed(i),
                             Some(b"TestValidator".to_vec().try_into().unwrap())
                         ));
@@ -450,7 +450,7 @@ fn property_system_liveness() {
             // Property: all active validators have valid states
             for validator in &active_validators {
                 assert!(DcfPallet::is_validator_active(validator));
-                assert!(DcfPallet::validator_stake(validator) > 0);
+                assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
             }
         }
     });
@@ -462,12 +462,12 @@ fn property_economic_security_alignment() {
     new_test_ext().execute_with(|| {
         let validators = DcfPallet::active_validators();
         let total_stake: u128 = validators.iter()
-            .map(|v| DcfPallet::validator_stake(v))
+            .map(|v| pallet_cerulea_pos::Stake::<Test>::get(v))
             .sum();
         
         // Property: higher stake validators have higher influence
         let mut validator_stakes: Vec<_> = validators.iter()
-            .map(|v| (*v, DcfPallet::validator_stake(v)))
+            .map(|v| (*v, pallet_cerulea_pos::Stake::<Test>::get(v)))
             .collect();
         validator_stakes.sort_by(|a, b| b.1.cmp(&a.1));
         
@@ -484,7 +484,7 @@ fn property_economic_security_alignment() {
         assert!(max_stake < total_stake / 2);
         
         // Property: stake distribution is reasonable
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         let stake_ratio = max_stake / min_stake;
         assert!(stake_ratio <= 100); // No validator has more than 100x minimum
     });
@@ -495,14 +495,14 @@ fn property_economic_security_alignment() {
 fn property_edge_case_handling() {
     new_test_ext().execute_with(|| {
         // Test edge case: minimum validator count
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::active_validators();
         
         // Try to make validators leave until minimum
         let mut leave_attempts = 0;
         for validator in &active_validators {
             if active_validators.len() - leave_attempts > min_active as usize {
-                let result = DcfPallet::leave_validators(RuntimeOrigin::signed(*validator));
+                let result = mock_leave_validators(RuntimeOrigin::signed(*validator));
                 if result.is_ok() {
                     leave_attempts += 1;
                 }

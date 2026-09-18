@@ -217,3 +217,19 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     });
     ext
 }
+
+// Compile-time contract check.
+// The block below names every trait the mock runtime claims to satisfy.
+// A trait that gains an item stops this crate from compiling here first, so a
+// mock can never drift behind its trait again. The check runs on every build
+// of the test target, which every commit gate runs.
+const _: fn() = || {
+    fn settings_hold<T: crate::Config>() {}
+    settings_hold::<Test>();
+
+    fn stake_interface_holds<T: crate::PosInterface<u64>>() {}
+    stake_interface_holds::<<Test as crate::Config>::PosInterface>();
+
+    fn framework_interface_holds<T: crate::DcfInterface<u64>>() {}
+    framework_interface_holds::<<Test as crate::Config>::DcfInterface>();
+};

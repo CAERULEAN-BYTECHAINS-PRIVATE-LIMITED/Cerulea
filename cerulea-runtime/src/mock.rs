@@ -17,7 +17,7 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
-use sp_core::{H256, Ed25519};
+use sp_core::H256;
 use sp_runtime::AccountId32;
 
 /// Helper function to create AccountId from u64
@@ -227,7 +227,7 @@ pub fn create_funded_account(account_id: AccountId, balance: Balance) {
 pub fn setup_validator_with_stake(validator: AccountId, stake: Balance) {
     create_funded_account(validator.clone(), stake * 2);
     let _ = Balances::reserve(&validator, stake);
-    pallet_cerulea_dcf::ValidatorStake::<Runtime>::insert(&validator, stake);
+    pallet_cerulea_pos::Stake::<Runtime>::insert(&validator, stake);
 }
 
 /// Helper function to create multiple test validators

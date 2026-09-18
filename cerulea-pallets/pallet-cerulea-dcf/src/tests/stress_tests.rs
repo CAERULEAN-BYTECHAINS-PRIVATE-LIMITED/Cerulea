@@ -29,14 +29,14 @@ fn stress_test_concurrent_validator_lifecycle() {
                 let validator = 1000 + i;
                 let _stake_amount = 5000 + (i * 100);
                 
-                assert_ok!(DcfPallet::join_validators(
+                assert_ok!(mock_join_validators(
                     RuntimeOrigin::signed(validator),
                     Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
                 ));
                 
                 // Verify immediate state
                 assert!(DcfPallet::is_validator_active(&validator));
-                let validator_stake = DcfPallet::validator_stake(&validator);
+                let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
                 assert!(validator_stake > 0);
             }
             
@@ -81,7 +81,7 @@ fn stress_test_concurrent_validator_lifecycle() {
                 RuntimeOrigin::signed(validator),
                 validator
             ));
-            assert_ok!(DcfPallet::update_validator_inference_score(
+            assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                 RuntimeOrigin::signed(validator),
                 validator
             ));
@@ -92,13 +92,13 @@ fn stress_test_concurrent_validator_lifecycle() {
         for i in 1..=validators_to_leave {
             let validator = 1000 + i;
             
-            assert_ok!(DcfPallet::leave_validators(
+            assert_ok!(mock_leave_validators(
                 RuntimeOrigin::signed(validator)
             ));
         }
         
         // Verify system maintains minimum validators
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let remaining_validators = DcfPallet::active_validators();
         assert!(remaining_validators.len() >= min_active as usize);
     });
@@ -116,7 +116,7 @@ fn stress_test_rapid_epoch_transitions() {
         for i in 1..=20 {
             let validator = 2000 + i;
             Balances::make_free_balance_be(&validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("BaseValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -135,7 +135,7 @@ fn stress_test_rapid_epoch_transitions() {
             for i in 1..=validators_per_epoch {
                 let validator = 2000 + 20 + (epoch - 1) * validators_per_epoch + i;
                 Balances::make_free_balance_be(&(validator as u64), 100000);
-                assert_ok!(DcfPallet::join_validators(
+                assert_ok!(mock_join_validators(
                     RuntimeOrigin::signed(validator as u64),
                     Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
                 ));
@@ -175,7 +175,7 @@ fn stress_test_rapid_epoch_transitions() {
                                 RuntimeOrigin::signed(*validator),
                                 *validator
                             );
-                            let _ = DcfPallet::update_validator_inference_score(
+                            let _ = PalletCeruleaPoi::update_validator_inference_score(
                                 RuntimeOrigin::signed(*validator),
                                 *validator
                             );
@@ -205,7 +205,7 @@ fn stress_test_rapid_epoch_transitions() {
         
         // Verify system stability after all epochs
         let final_validators = DcfPallet::active_validators();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         assert!(final_validators.len() >= min_active as usize);
         
         // Verify consensus weights maintained
@@ -225,7 +225,7 @@ fn stress_test_concurrent_score_updates() {
         for i in 1..=num_validators {
             let validator = 3000 + i;
             Balances::make_free_balance_be(&validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("ScoreValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -261,7 +261,7 @@ fn stress_test_concurrent_score_updates() {
                     RuntimeOrigin::signed(validator),
                     validator
                 ));
-                assert_ok!(DcfPallet::update_validator_inference_score(
+                assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                     RuntimeOrigin::signed(validator),
                     validator
                 ));
@@ -312,7 +312,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
         for i in 1..=num_validators {
             let validator = 4000 + i;
             Balances::make_free_balance_be(&validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("ChallengeValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -359,7 +359,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
             for i in 1..=num_validators / 4 {
                 let validator = 4000 + i;
                 if PalletCeruleaPos::validators(&validator).is_some() {
-                    let slash_result = PalletCeruleaPos::slash_validator(&validator, 50);
+                    let slash_result = mock_slash_validator(&validator, 50);
                     if slash_result.is_ok() {
                         slashing_events += 1;
                     }
@@ -371,7 +371,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
                 let validator = 4000 + i;
                 if DcfPallet::is_validator_active(&validator) {
                     let slash_amount = 500u128;
-                    let slash_result = DcfPallet::slash_validator(
+                    let slash_result = PalletCeruleaPos::slash_validator(
                         RuntimeOrigin::root(),
                         validator,
                         slash_amount
@@ -407,7 +407,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
         
         // Verify system survived stress test
         let final_validators = DcfPallet::active_validators();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         assert!(final_validators.len() >= min_active as usize);
         
         // Verify some events occurred (system was active)
@@ -434,7 +434,7 @@ fn stress_test_governance_under_load() {
         for i in 1..=num_validators {
             let validator = 5000 + i;
             Balances::make_free_balance_be(&validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("GovernanceValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -531,7 +531,7 @@ fn stress_test_governance_under_load() {
 #[test]
 fn stress_test_storage_limits() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         
         // Test approaching maximum validators
@@ -541,7 +541,7 @@ fn stress_test_storage_limits() {
             let validator = 6000 + i;
             Balances::make_free_balance_be(&validator, 100000);
             
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("StorageValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -613,7 +613,7 @@ fn stress_test_storage_limits() {
 #[test]
 fn stress_test_maximum_system_load() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get().min(50); // Cap for test performance
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get().min(50); // Cap for test performance
         let operations_per_block = 20;
         let test_blocks = 20;
         
@@ -622,7 +622,7 @@ fn stress_test_maximum_system_load() {
             let validator = 7000 + i as u64;
             Balances::make_free_balance_be(&validator, 200000);
             
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("MaxLoadValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -672,7 +672,7 @@ fn stress_test_maximum_system_load() {
                     },
                     3 => {
                         // DCF inference score update
-                        let _ = DcfPallet::update_validator_inference_score(
+                        let _ = PalletCeruleaPoi::update_validator_inference_score(
                             RuntimeOrigin::signed(validator),
                             validator
                         );
@@ -747,7 +747,7 @@ fn stress_test_maximum_system_load() {
         // Verify validators maintained reasonable state
         for validator in final_validators.iter().take(10) { // Check first 10
             assert!(DcfPallet::is_validator_active(validator));
-            assert!(DcfPallet::validator_stake(validator) > 0);
+            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
         }
     });
 }

@@ -313,11 +313,11 @@ mod tests {
             assert_ok!(DcfPallet::enable_private_chain_mode(vec![1u64], false));
             
             // Allowed validator can join
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(1), None));
+            assert_ok!(mock_join_validators(RuntimeOrigin::signed(1), None));
             
             // Non-allowed validator cannot join
             assert_noop!(
-                DcfPallet::join_validators(RuntimeOrigin::signed(2), None),
+                mock_join_validators(RuntimeOrigin::signed(2), None),
                 Error::<Test>::NotInAllowlist
             );
         });
@@ -331,8 +331,8 @@ mod tests {
             let _ = Balances::make_free_balance_be(&2, 100_000_000);
             let _ = Balances::make_free_balance_be(&3, 100_000_000);
             
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(1), None));
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(2), None));
+            assert_ok!(mock_join_validators(RuntimeOrigin::signed(1), None));
+            assert_ok!(mock_join_validators(RuntimeOrigin::signed(2), None));
             
             // Enable private mode
             assert_ok!(DcfPallet::enable_private_chain_mode(vec![1u64, 2u64], true));

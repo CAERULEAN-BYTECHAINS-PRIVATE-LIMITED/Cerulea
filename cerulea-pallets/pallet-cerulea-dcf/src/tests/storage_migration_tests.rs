@@ -41,7 +41,7 @@ fn storage_consistency_after_initialization_works() {
         // Validator storage consistency
         for validator in &active_validators {
             let is_active = DcfPallet::is_validator_active(validator);
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let participation = DcfPallet::validator_participation(validator);
             
             assert!(is_active);
@@ -123,7 +123,7 @@ fn data_integrity_during_migrations_works() {
                 *v,
                 DcfPallet::validator_stake_score(v),
                 DcfPallet::validator_inference_score(v),
-                DcfPallet::validator_stake(v),
+                pallet_cerulea_pos::Stake::<Test>::get(v),
                 DcfPallet::is_validator_active(v),
                 DcfPallet::validator_participation(v),
             ))
@@ -140,7 +140,7 @@ fn data_integrity_during_migrations_works() {
         for (validator, orig_stake_score, orig_inf_score, orig_stake, orig_active, orig_participation) in validator_data {
             let current_stake_score = DcfPallet::validator_stake_score(&validator);
             let current_inf_score = DcfPallet::validator_inference_score(&validator);
-            let current_stake = DcfPallet::validator_stake(&validator);
+            let current_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             let current_active = DcfPallet::is_validator_active(&validator);
             let current_participation = DcfPallet::validator_participation(&validator);
             
@@ -190,7 +190,7 @@ fn migration_rollback_capabilities_work() {
 fn storage_limits_and_bounds_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         
         // Verify storage limits are respected
@@ -203,7 +203,7 @@ fn storage_limits_and_bounds_work() {
             // Scores should be within bounds
             let stake_score = DcfPallet::validator_stake_score(validator);
             let inference_score = DcfPallet::validator_inference_score(validator);
-            let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
             
             assert!(stake_score <= max_score.into());
             assert!(inference_score <= max_score);
@@ -252,7 +252,7 @@ fn cross_version_compatibility_works() {
                 *v,
                 DcfPallet::validator_stake_score(v),
                 DcfPallet::validator_inference_score(v),
-                DcfPallet::validator_stake(v),
+                pallet_cerulea_pos::Stake::<Test>::get(v),
             ))
             .collect::<Vec<_>>();
         

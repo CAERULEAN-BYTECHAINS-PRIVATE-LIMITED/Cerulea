@@ -8,8 +8,8 @@ use frame_support::traits::{Get, OnFinalize, OnInitialize};
 fn basic_system_invariants_hold() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Validator set size invariants
         assert!(active_validators.len() <= max_validators as usize);
@@ -28,10 +28,10 @@ fn basic_system_invariants_hold() {
 fn economic_invariants_hold() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let free_balance = Balances::free_balance(validator);
             let reserved_balance = Balances::reserved_balance(validator);
             
@@ -49,11 +49,11 @@ fn economic_invariants_hold() {
 fn scoring_invariants_hold() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
-        let min_score = <Test as crate::Config>::MinValidatorScore::get() as u64;
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
         
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let inference_score = crate::PoiWeight::<Test>::get();
             
             // Score bounds invariants
@@ -112,7 +112,7 @@ fn validator_activity_invariants_hold() {
             } else {
                 (0, 0)
             };
-            let last_active = DcfPallet::validator_stake(validator);
+            let last_active = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let is_active = DcfPallet::is_validator_active(validator);
             
             // Activity invariants
@@ -149,7 +149,7 @@ fn storage_consistency_invariants_hold() {
         
         // All active validators should have consistent data
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let inference_score = crate::PoiWeight::<Test>::get();
             let is_active = DcfPallet::is_validator_active(validator);
             
@@ -164,11 +164,11 @@ fn storage_consistency_invariants_hold() {
 #[test]
 fn configuration_invariants_hold() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         
         // Configuration invariants
         assert!(min_active > 0); // Must have minimum validators
@@ -194,7 +194,7 @@ fn system_health_metrics_work() {
         
         // Check validator distribution
         let total_stake: u128 = active_validators.iter()
-            .map(|v| DcfPallet::validator_stake(v))
+            .map(|v| pallet_cerulea_pos::Stake::<Test>::get(v))
             .sum();
         assert!(total_stake > 0); // Total stake is positive
     });
@@ -235,7 +235,7 @@ fn invariant_preservation_across_blocks_works() {
 #[test]
 fn boundary_condition_invariants_hold() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::active_validators();
         
         // Test at capacity boundaries
@@ -248,9 +248,9 @@ fn boundary_condition_invariants_hold() {
         }
         
         // Test score boundaries
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         for validator in &active_validators {
-            let score = DcfPallet::validator_stake(validator);
+            let score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(score <= max_score as u128);
         }
     });

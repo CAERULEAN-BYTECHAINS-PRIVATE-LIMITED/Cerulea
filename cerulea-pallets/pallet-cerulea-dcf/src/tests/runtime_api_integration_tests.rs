@@ -13,7 +13,7 @@ fn runtime_api_basic_queries_work() {
         
         // Test score queries for active validators
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             assert!(stake_score >= 0);
         }
@@ -60,7 +60,7 @@ fn runtime_api_validator_activity_works() {
             assert!(is_active);
             
             // Test basic validator data
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= 0);
         }
     });
@@ -97,7 +97,7 @@ fn runtime_api_score_history_works() {
         
         for validator in &active_validators {
             // Test basic score access via storage
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // History should be accessible (simplified)
             assert!(stake >= 0);
@@ -155,8 +155,8 @@ fn runtime_api_validator_set_info_works() {
         assert!(total_count >= 3); // From genesis config
         
         // Test basic validator set information
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         assert!(total_count >= min_validators);
         assert!(total_count <= max_validators);
@@ -171,7 +171,7 @@ fn runtime_api_validators_by_score_works() {
         
         // Create a simple ranking based on available data
         let mut validators_with_scores: Vec<_> = active_validators.iter()
-            .map(|v| (*v, DcfPallet::validator_stake(v)))
+            .map(|v| (*v, pallet_cerulea_pos::Stake::<Test>::get(v)))
             .collect();
         
         // Sort by score (descending)
@@ -210,7 +210,7 @@ fn runtime_api_error_handling_works() {
         let non_existent_validator = 999u64;
         
         // These queries should handle non-existent validators gracefully
-        let stake_score = DcfPallet::validator_stake(&non_existent_validator);
+        let stake_score = pallet_cerulea_pos::Stake::<Test>::get(&non_existent_validator);
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
         
         // Should return default/empty values without panicking

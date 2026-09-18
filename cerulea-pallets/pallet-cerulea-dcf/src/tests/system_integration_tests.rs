@@ -68,7 +68,7 @@ fn validator_state_persistence_works() {
     new_test_ext().execute_with(|| {
         let initial_validators = DcfPallet::validator_set();
         let initial_scores: Vec<_> = initial_validators.iter()
-            .map(|v| (*v, DcfPallet::validator_stake(v)))
+            .map(|v| (*v, pallet_cerulea_pos::Stake::<Test>::get(v)))
             .collect();
         
         // Advance a few blocks
@@ -84,7 +84,7 @@ fn validator_state_persistence_works() {
         
         // Scores should remain stable (or change predictably)
         for (validator, initial_score) in initial_scores {
-            let current_score = DcfPallet::validator_stake(&validator);
+            let current_score = pallet_cerulea_pos::Stake::<Test>::get(&validator);
             // Score should not change dramatically without explicit updates
             assert!(current_score > 0);
         }
@@ -133,7 +133,7 @@ fn storage_consistency_works() {
         
         // Each active validator should have associated data
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Scores should be non-negative
             assert!(stake_score >= 0);
@@ -149,10 +149,10 @@ fn storage_consistency_works() {
 fn configuration_parameters_work() {
     new_test_ext().execute_with(|| {
         // Test that configuration parameters are accessible and reasonable
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         assert!(max_validators > 0);
         assert!(min_active > 0);
@@ -190,7 +190,7 @@ fn error_handling_works() {
         let non_existent_validator = 999u64;
         
         // These should return default values or handle gracefully
-        let score = DcfPallet::validator_stake(&non_existent_validator);
+        let score = pallet_cerulea_pos::Stake::<Test>::get(&non_existent_validator);
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
         
         // Should handle gracefully without panicking
@@ -222,7 +222,7 @@ fn balance_integration_for_validator_joining_works() {
     new_test_ext().execute_with(|| {
         let new_validator = 10;
         let initial_balance = 100000;
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // Set up balance for new validator
         Balances::make_free_balance_be(&new_validator, initial_balance);
@@ -231,7 +231,7 @@ fn balance_integration_for_validator_joining_works() {
         let reserved_before = Balances::reserved_balance(&new_validator);
         
         // Join validators - should reserve the minimum stake
-        assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(new_validator), None));
+        assert_ok!(mock_join_validators(RuntimeOrigin::signed(new_validator), None));
         
         let free_after = Balances::free_balance(&new_validator);
         let reserved_after = Balances::reserved_balance(&new_validator);
@@ -277,12 +277,12 @@ fn epoch_transition_system_integration_works() {
 fn balance_integration_for_validator_leaving_works() {
     new_test_ext().execute_with(|| {
         let validator = 1;
-        let cooldown_period: u32 = <Test as crate::Config>::LeaveCooldown::get();
+        let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         
         let reserved_before = Balances::reserved_balance(&validator);
         
         // Request to leave
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // During cooldown, balance should still be reserved
         let reserved_during = Balances::reserved_balance(&validator);
@@ -308,7 +308,7 @@ fn multi_validator_system_interaction_works() {
         
         for validator in &new_validators {
             Balances::make_free_balance_be(validator, 100000);
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(*validator), None));
+            assert_ok!(mock_join_validators(RuntimeOrigin::signed(*validator), None));
         }
         
         // Verify all are active
@@ -328,7 +328,7 @@ fn multi_validator_system_interaction_works() {
         
         // Verify scores are accessible via storage
         for validator in new_validators.iter() {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake > 0);
         }
     });
@@ -398,7 +398,7 @@ fn runtime_api_integration_works() {
         // Test individual validator queries
         for validator in &active_validators {
             assert!(DcfPallet::is_validator_active(validator));
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Scores should be reasonable
             assert!(stake_score > 0);
@@ -415,7 +415,7 @@ fn cross_pallet_interaction_works() {
         let initial_reserved = Balances::reserved_balance(&validator);
         
         // DCF operations should affect balances appropriately
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Balance state should be consistent
         let current_free = Balances::free_balance(&validator);
@@ -447,7 +447,7 @@ fn system_consistency_across_blocks_works() {
             assert!(!active_validators.is_empty());
             
             // System should maintain minimum validator count
-            let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+            let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
             assert!(active_validators.len() as u32 >= min_validators);
             
             previous_epoch = current_epoch;
@@ -460,11 +460,11 @@ fn system_recovery_from_edge_cases_works() {
     new_test_ext().execute_with(|| {
         // Test system behavior when all validators try to leave
         let active_validators = DcfPallet::validator_set();
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Try to make validators leave (should be prevented to maintain minimum)
         for validator in &active_validators {
-            let _result = DcfPallet::leave_validators(RuntimeOrigin::signed(*validator));
+            let _result = mock_leave_validators(RuntimeOrigin::signed(*validator));
             
             // System should prevent leaving if it would violate minimum
             let remaining_count = DcfPallet::validator_set().len() as u32;
@@ -493,7 +493,7 @@ fn concurrent_operations_handling_works() {
                 *validator
             ));
             
-            assert_ok!(DcfPallet::update_validator_inference_score(
+            assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                 RuntimeOrigin::signed(*validator),
                 *validator
             ));
@@ -501,7 +501,7 @@ fn concurrent_operations_handling_works() {
         
         // Verify all updates were processed correctly
         for validator in validators.iter() {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake_score > 0);
         }
     });
@@ -520,7 +520,7 @@ fn validator_status_changed_events_work() {
         let validator = 1; // Use existing validator
         
         // Leave validators should emit ValidatorStatusChanged event
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Check that ValidatorStatusChanged event was emitted
         let events = System::events();
@@ -620,7 +620,7 @@ fn validator_leave_status_change_events_work() {
         let validator = 1;
         
         // Leave validators (this should emit ValidatorStatusChanged event)
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Check that ValidatorStatusChanged event was emitted
         let events = System::events();

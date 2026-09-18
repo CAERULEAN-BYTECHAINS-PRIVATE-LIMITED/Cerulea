@@ -168,8 +168,8 @@ fn trust_score_bounds_during_extreme_conditions_work() {
             let current_inf_score = DcfPallet::validator_inference_score(validator);
             
             // Scores should always be within bounds
-            assert!(current_stake_score <= <Test as crate::Config>::MaxValidatorScore::get().into());
-            assert!(current_inf_score <= <Test as crate::Config>::MaxValidatorScore::get());
+            assert!(current_stake_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get().into());
+            assert!(current_inf_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get());
             
             // Trust score bounds should be enforced
             // (In a real implementation, trust scores would be calculated and bounded)
@@ -221,7 +221,7 @@ fn trust_score_growth_limitations_work() {
         // Test current validator states
         for validator in &active_validators {
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
             
             // Scores should not exceed maximum
             assert!(stake_score <= max_score.into());
@@ -250,7 +250,7 @@ fn trust_score_anti_gaming_mechanisms_work() {
             assert!(stake_score > 1000); // Not too low
             assert!(stake_score < 9000); // Not too high (from genesis)
             assert!(inference_score >= 0);
-            assert!(inference_score <= <Test as crate::Config>::MaxValidatorScore::get());
+            assert!(inference_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get());
         }
     });
 }

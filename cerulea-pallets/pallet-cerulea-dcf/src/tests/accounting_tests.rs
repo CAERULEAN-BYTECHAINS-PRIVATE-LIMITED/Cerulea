@@ -25,10 +25,10 @@ fn basic_balance_tracking_works() {
 fn stake_accounting_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         for validator in &active_validators {
-            let validator_stake = DcfPallet::validator_stake(validator);
+            let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Active validators should meet minimum stake
             assert!(validator_stake >= min_stake);
@@ -97,14 +97,14 @@ fn economic_invariants_hold() {
         let mut total_reserved = 0u128;
         
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let reserved = Balances::reserved_balance(validator);
             
             total_staked += stake;
             total_reserved += reserved;
             
             // Individual validator invariants
-            assert!(stake >= <Test as crate::Config>::MinStake::get());
+            assert!(stake >= <Test as pallet_cerulea_pos::Config>::MinStake::get());
             assert!(reserved >= 0);
         }
         
@@ -156,7 +156,7 @@ fn slashing_protection_works() {
         
         for validator in &active_validators {
             let reserved = Balances::reserved_balance(validator);
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Reserved balance should cover stake
             assert!(reserved >= stake || (reserved == 0 && stake <= Balances::free_balance(validator)));
@@ -188,7 +188,7 @@ fn balance_updates_during_score_changes_work() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
         let initial_balance = Balances::free_balance(&validator);
-        let initial_stake = DcfPallet::validator_stake(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         // Get current scores
         let initial_stake_score = DcfPallet::validator_stake_score(&validator);
@@ -203,7 +203,7 @@ fn balance_updates_during_score_changes_work() {
         
         // Check that accounting remains consistent
         let final_balance = Balances::free_balance(&validator);
-        let final_stake = DcfPallet::validator_stake(&validator);
+        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         assert!(final_balance >= 0);
         assert!(final_stake >= 0);
@@ -215,10 +215,10 @@ fn balance_updates_during_score_changes_work() {
 fn economic_bounds_enforcement_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let free_balance = Balances::free_balance(validator);
             let reserved_balance = Balances::reserved_balance(validator);
             

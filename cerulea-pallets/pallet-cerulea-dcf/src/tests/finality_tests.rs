@@ -210,15 +210,15 @@ fn consensus_efficiency_metrics_work() {
 fn consensus_algorithm_correctness_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Should have sufficient validators for consensus
         assert!(active_validators.len() >= min_validators as usize);
         
         // All validators should be properly configured
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
-            let min_stake = <Test as crate::Config>::MinStake::get();
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
+            let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
             
             assert!(stake >= min_stake);
             assert!(DcfPallet::is_validator_active(validator));

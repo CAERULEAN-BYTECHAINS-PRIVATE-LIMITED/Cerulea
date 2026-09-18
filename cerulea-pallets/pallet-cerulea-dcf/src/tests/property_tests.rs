@@ -7,7 +7,7 @@ use frame_support::traits::{Get, OnFinalize, OnInitialize};
 #[test]
 fn property_validator_set_size_bounded() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         // Test property across multiple blocks
         for block_num in 1..=20 {
@@ -45,7 +45,7 @@ fn property_consensus_weights_sum_to_hundred_percent() {
 #[test]
 fn property_active_validators_have_positive_stakes() {
     new_test_ext().execute_with(|| {
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // Test property across multiple states
         for block_num in 1..=10 {
@@ -56,7 +56,7 @@ fn property_active_validators_have_positive_stakes() {
             let active_validators = DcfPallet::active_validators();
             
             for validator in &active_validators {
-                let stake = DcfPallet::validator_stake(validator);
+                let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 
                 // Property: stake >= min_stake for all active validators
                 assert!(stake >= min_stake);
@@ -69,8 +69,8 @@ fn property_active_validators_have_positive_stakes() {
 #[test]
 fn property_validator_scores_within_bounds() {
     new_test_ext().execute_with(|| {
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
-        let min_score = <Test as crate::Config>::MinValidatorScore::get() as u64;
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
         
         for block_num in 1..=8 {
             System::set_block_number(block_num);
@@ -117,7 +117,7 @@ fn property_epoch_never_decreases() {
 #[test]
 fn property_system_maintains_minimum_validators() {
     new_test_ext().execute_with(|| {
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         for block_num in 1..=12 {
             System::set_block_number(block_num);
@@ -301,7 +301,7 @@ fn property_deterministic_behavior() {
 #[test]
 fn property_resource_bounds_respected() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         
         for block_num in 1..=5 {

@@ -70,11 +70,11 @@ fn genesis_consensus_weights_work() {
 fn genesis_stake_configuration_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // All genesis validators should meet minimum stake
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= min_stake);
             
             // Check that validator has sufficient balance
@@ -101,8 +101,8 @@ fn genesis_governance_mode_works() {
 fn genesis_validator_set_constraints_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Should satisfy constraints
         assert!(active_validators.len() <= max_validators as usize);
@@ -199,11 +199,11 @@ fn genesis_state_consistency_works() {
             
             let stake_score = DcfPallet::validator_stake_score(validator);
             let inference_score = DcfPallet::validator_inference_score(validator);
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             assert!(stake_score > 0);
             assert!(inference_score >= 0);
-            assert!(stake >= <Test as crate::Config>::MinStake::get());
+            assert!(stake >= <Test as pallet_cerulea_pos::Config>::MinStake::get());
         }
     });
 }
@@ -213,11 +213,11 @@ fn genesis_state_consistency_works() {
 fn genesis_configuration_parameter_validation_works() {
     new_test_ext().execute_with(|| {
         // Validate that all configuration parameters are reasonable
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         
         // Parameter validation
         assert!(max_validators > 0);

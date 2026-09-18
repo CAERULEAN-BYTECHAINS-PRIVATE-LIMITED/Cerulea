@@ -17,14 +17,14 @@ fn dcf_pos_integration_validator_lifecycle() {
         Balances::make_free_balance_be(&validator, 50000);
         
         // Test DCF validator joining
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"TestValidator".to_vec().try_into().unwrap())
         ));
         
         // Verify DCF state
         assert!(DcfPallet::is_validator_active(&validator));
-        let validator_stake = DcfPallet::validator_stake(&validator);
+        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert!(validator_stake > 0);
         
         // Test PoS registration integration
@@ -52,7 +52,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         ));
         
         // Verify DCF reflects the update
-        let updated_stake = DcfPallet::validator_stake(&validator);
+        let updated_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert!(updated_stake > 0);
     });
 }
@@ -81,7 +81,7 @@ fn dcf_poi_integration_inference_tracking() {
         assert_eq!(epoch, DcfPallet::current_epoch());
         
         // Test DCF inference score update
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -105,11 +105,11 @@ fn three_way_pallet_integration() {
         Balances::make_free_balance_be(&challenger, 50000);
         
         // 1. Join DCF as validator
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"Validator".to_vec().try_into().unwrap())
         ));
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(challenger),
             Some(b"Challenger".to_vec().try_into().unwrap())
         ));
@@ -153,7 +153,7 @@ fn three_way_pallet_integration() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -173,7 +173,7 @@ fn three_way_pallet_integration() {
 fn cross_pallet_validator_slashing() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = DcfPallet::validator_stake(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         // Register in PoS
         assert_ok!(PalletCeruleaPos::register_validator(
@@ -188,26 +188,26 @@ fn cross_pallet_validator_slashing() {
         ));
         
         // Test PoS slashing
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         
         // Verify slashing count increased
         assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // Test DCF slashing integration
         let slash_amount = 1000u128;
-        assert_ok!(DcfPallet::slash_validator(
+        assert_ok!(PalletCeruleaPos::slash_validator(
             RuntimeOrigin::root(),
             validator,
             slash_amount
         ));
         
         // Verify DCF stake was reduced
-        let new_stake = DcfPallet::validator_stake(&validator);
+        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert!(new_stake < initial_stake);
         
         // Test that excessive slashing removes validator from PoS
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         
         // After 3 slashes, validator should be removed from PoS
         assert_eq!(PalletCeruleaPos::validators(&validator), None);
@@ -219,7 +219,7 @@ fn cross_pallet_validator_slashing() {
 fn cross_pallet_validator_rewards() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = DcfPallet::validator_stake(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         // Register in PoS
         assert_ok!(PalletCeruleaPos::register_validator(
@@ -258,7 +258,7 @@ fn cross_pallet_validator_rewards() {
         ));
         
         // Verify reward was applied
-        let new_stake = DcfPallet::validator_stake(&validator);
+        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert!(new_stake > initial_stake);
     });
 }
@@ -352,7 +352,7 @@ fn cross_pallet_consensus_weight_updates() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -401,7 +401,7 @@ fn cross_pallet_error_propagation() {
         
         // Test DCF error handling
         assert_noop!(
-            DcfPallet::leave_validators(RuntimeOrigin::signed(non_validator)),
+            mock_leave_validators(RuntimeOrigin::signed(non_validator)),
             Error::<Test>::ValidatorNotFound
         );
         
@@ -502,7 +502,7 @@ fn cross_pallet_data_consistency() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -539,7 +539,7 @@ fn cross_pallet_stress_test() {
             Balances::make_free_balance_be(&validator, 100000);
             
             // Join DCF
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -573,7 +573,7 @@ fn cross_pallet_stress_test() {
                 RuntimeOrigin::signed(validator),
                 validator
             ));
-            assert_ok!(DcfPallet::update_validator_inference_score(
+            assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                 RuntimeOrigin::signed(validator),
                 validator
             ));

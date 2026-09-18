@@ -68,7 +68,7 @@ fn memory_usage_limits_work() {
     new_test_ext().execute_with(|| {
         // Test that large result sets are handled properly
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         // Should not exceed configured limits
         assert!(active_validators.len() <= max_validators as usize);
@@ -244,7 +244,7 @@ fn system_stability_under_load_works() {
 fn graceful_degradation_works() {
     new_test_ext().execute_with(|| {
         // Test system behavior at capacity limits
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::active_validators();
         
         // Should handle maximum capacity gracefully
@@ -253,7 +253,7 @@ fn graceful_degradation_works() {
         // Test maximum score queries
         for validator in &active_validators {
             let score = DcfPallet::validator_stake_score(validator);
-            let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
             
             assert!(score <= max_score.into());
         }

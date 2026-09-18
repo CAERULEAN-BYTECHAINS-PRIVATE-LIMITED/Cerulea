@@ -15,19 +15,19 @@ fn prop_validator_set_invariants() {
         // Setup validators
         for &validator_id in &validator_ids {
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
         }
 
         let active_validators = DcfPallet::active_validators();
         
         // Property: Active validators should not exceed max validators
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         assert!(active_validators.len() <= max_validators as usize);
         
         // Property: All active validators should have valid stake scores
         for validator in &active_validators {
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
             assert!(stake_score >= 0);
             assert!(stake_score <= max_score.into());
         }
@@ -72,7 +72,7 @@ fn prop_trust_score_bounds() {
         
         // Setup validator
         let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-        let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+        let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
         
         // Property: Trust scores should be within bounds
         let trust_score = DcfPallet::validator_trust_scores(&validator_id);
@@ -148,9 +148,9 @@ fn prop_validator_lifecycle_consistency() {
             System::set_block_number((i as u64) + 1);
             
             if should_join {
-                let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+                let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
             } else {
-                let _ = DcfPallet::leave_validators(RuntimeOrigin::signed(validator_id));
+                let _ = mock_leave_validators(RuntimeOrigin::signed(validator_id));
             }
             
             let is_active = DcfPallet::is_validator_active(&validator_id);
@@ -173,7 +173,7 @@ fn fuzz_extreme_input_values() {
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
             
             // Should handle extreme IDs gracefully
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
             let _ = DcfPallet::validator_stake_score(&validator_id);
             let _ = DcfPallet::validator_trust_scores(&validator_id);
         }
@@ -217,10 +217,10 @@ fn fuzz_randomized_operation_sequences() {
                 
                 match operation {
                     0 => {
-                        let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+                        let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
                     },
                     1 => {
-                        let _ = DcfPallet::leave_validators(RuntimeOrigin::signed(validator_id));
+                        let _ = mock_leave_validators(RuntimeOrigin::signed(validator_id));
                     },
                     2 => {
                         // Test with a simple proposal action
@@ -261,7 +261,7 @@ fn fuzz_concurrent_access_patterns() {
         // Setup validators
         for &validator_id in &validator_ids {
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
         }
         
         // Simulate concurrent reads
@@ -296,7 +296,7 @@ fn prop_storage_consistency() {
             
             // Setup validator
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
             
             // Verify storage consistency
             let is_active = DcfPallet::is_validator_active(&validator_id);
@@ -343,7 +343,7 @@ fn prop_deterministic_behavior() {
         // Setup validators
         for &validator_id in &validator_ids {
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
         }
         
         // Run the same sequence twice
@@ -384,11 +384,11 @@ fn prop_memory_usage_bounds() {
         for i in 0..num_validators {
             let validator_id = i as u64 + 1;
             let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator_id), None);
+            let _ = mock_join_validators(RuntimeOrigin::signed(validator_id), None);
         }
         
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         // Property: Should not exceed maximum validators
         assert!(active_validators.len() <= max_validators as usize);

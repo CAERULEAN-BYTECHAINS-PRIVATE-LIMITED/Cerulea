@@ -107,7 +107,7 @@
 //! ### Example Genesis Preset Values
 //!
 //! **Development Preset:**
-//! ```rust
+//! ```text
 //! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice],
 //!     validator_stakes: vec![10_000_000],
@@ -121,7 +121,7 @@
 //! ```
 //!
 //! **Multi-Validator Preset:**
-//! ```rust
+//! ```text
 //! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice, Bob, Charlie, Dave, Eve],
 //!     validator_stakes: vec![15_000_000, 12_000_000, 8_000_000, 5_000_000, 3_000_000],
@@ -317,7 +317,7 @@ sp_api::decl_runtime_apis! {
         /// - `u32`: Current API version number
         /// 
         /// # Example Usage
-        /// ```rust
+        /// ```text
         /// let api_version = runtime_api.get_api_version();
         /// if api_version != expected_version {
         ///     // Handle version mismatch
@@ -456,7 +456,7 @@ pub mod pallet {
     /// determine how much each component contributes to the final trust score.
     ///
     /// Trust score calculation formula with bounded growth and decay:
-    /// ```
+    /// ```text
     /// weighted_score = (uptime_score * uptime_weight + inference_score * inference_weight) / (uptime_weight + inference_weight)
     /// bounded_score = clamp(weighted_score, min_trust_score, max_trust_score)
     /// decay_factor = calculate_decay_factor(epochs_inactive, decay_rate)
@@ -12657,7 +12657,7 @@ pub mod pallet {
         /// - **Clamping**: Final safety net against out-of-bounds values
         ///
         /// # Calculation Formula with Bounds
-        /// ```
+        /// ```text
         /// // Base calculation
         /// weighted_score = (uptime_score * uptime_weight + inference_score * inference_weight) / total_weight
         /// base_score = weighted_score - (slashing_penalty * slashing_weight / 100)

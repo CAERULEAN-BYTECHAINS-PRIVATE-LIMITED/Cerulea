@@ -20,8 +20,8 @@ mod benchmark_integration_tests {
             create_funded_account(validator, 100000);
             
             // These calls should not panic when benchmarking is enabled
-            let _ = DcfPallet::join_validators(RuntimeOrigin::signed(validator), None);
-            let _ = DcfPallet::leave_validators(RuntimeOrigin::signed(validator));
+            let _ = DvfPallet::join_validators(RuntimeOrigin::signed(validator), None);
+            let _ = DvfPallet::leave_validators(RuntimeOrigin::signed(validator));
         });
     }
 
@@ -104,7 +104,7 @@ mod benchmark_disabled_tests {
             let validator = 1u64;
             
             // Basic operations should work
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(validator), None));
+            assert_ok!(DvfPallet::join_validators(RuntimeOrigin::signed(validator), None));
             assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator)));
             assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
         });

@@ -115,7 +115,7 @@ mod tests {
             
             // Verify stakes
             for validator in validators.iter() {
-                let stake = DcfPallet::validator_stake(validator);
+                let stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert_eq!(stake, 10000);
             }
             
@@ -255,7 +255,7 @@ mod tests {
             
             // DCF errors
             assert_noop!(
-                DcfPallet::leave_validators(RuntimeOrigin::signed(invalid_validator)),
+                DvfPallet::leave_validators(RuntimeOrigin::signed(invalid_validator)),
                 pallet_cerulea_dcf::Error::<Runtime>::ValidatorNotFound
             );
             
@@ -299,13 +299,13 @@ mod tests {
             
             // Slashing should reduce reserved balance
             let slash_amount = 1000u128;
-            assert_ok!(DcfPallet::slash_validator(
+            assert_ok!(PalletCeruleaPos::slash_validator(
                 RuntimeOrigin::root(),
                 validator,
                 slash_amount
             ));
             
-            let new_stake = DcfPallet::validator_stake(&validator);
+            let new_stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert_eq!(new_stake, stake_amount - slash_amount);
             
             // Test that economic model is consistent
@@ -363,7 +363,7 @@ mod tests {
                 let dcf_state = DcfPallet::validator_states(validator);
                 assert!(dcf_state.is_some());
                 
-                let dcf_stake = DcfPallet::validator_stake(validator);
+                let dcf_stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert!(dcf_stake > 0);
                 
                 // Balance storage should match DCF stake
@@ -430,7 +430,7 @@ mod tests {
             // Perform operations that should emit events
             assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator)));
             assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator), 42, 80));
-            assert_ok!(DcfPallet::join_validators(RuntimeOrigin::signed(validator), None));
+            assert_ok!(DvfPallet::join_validators(RuntimeOrigin::signed(validator), None));
             
             // Verify events were emitted
             let events = System::events();

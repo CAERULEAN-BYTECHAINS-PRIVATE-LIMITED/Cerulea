@@ -79,13 +79,13 @@ fn pallet_functions_dont_panic() {
 fn validator_set_constraints_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::validator_set();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
         // Validator set should not exceed maximum
         assert!(active_validators.len() <= max_validators as usize);
         
         // Should have minimum required validators
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         assert!(active_validators.len() >= min_validators as usize);
     });
 }
@@ -340,10 +340,10 @@ fn validator_set_management_basic() {
         }
         
         // Test validator set size constraints
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         assert!(validator_set.len() <= max_validators as usize);
         
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         assert!(validator_set.len() >= min_validators as usize);
     });
 }
@@ -370,10 +370,10 @@ fn epoch_management_basic() {
 fn configuration_constants_validation() {
     new_test_ext().execute_with(|| {
         // Test that configuration constants have reasonable values
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_validators = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // Basic sanity checks
         assert!(max_validators > 0);
@@ -401,7 +401,7 @@ fn storage_access_patterns() {
             let _validator_state = crate::ValidatorStates::<Test>::get(validator);
             
             // Test that storage access doesn't panic
-            let _ = DcfPallet::validator_stake(validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
         }
         
         // Test governance mode storage

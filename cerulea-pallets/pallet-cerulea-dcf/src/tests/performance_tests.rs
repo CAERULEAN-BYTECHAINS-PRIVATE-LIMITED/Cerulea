@@ -76,7 +76,7 @@ fn performance_during_epoch_transitions_works() {
 fn memory_usage_patterns_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         
         // Check memory bounds are respected
@@ -231,7 +231,7 @@ fn cache_performance_works() {
 #[test]
 fn scaling_with_configuration_limits_works() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         

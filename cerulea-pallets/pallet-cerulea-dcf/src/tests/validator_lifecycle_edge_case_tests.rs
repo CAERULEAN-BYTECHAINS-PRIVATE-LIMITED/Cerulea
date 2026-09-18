@@ -12,7 +12,7 @@ fn validator_join_process_works() {
         
         // Ensure we have initial validators
         assert!(initial_count > 0);
-        assert!(initial_count <= <Test as crate::Config>::MaxValidators::get() as usize);
+        assert!(initial_count <= <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get() as usize);
     });
 }
 
@@ -29,7 +29,7 @@ fn validator_leave_process_works() {
             assert!(is_active);
             
             // Check basic validator data
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake > 0);
         }
     });
@@ -48,7 +48,7 @@ fn validator_cooldown_works() {
             assert!(is_active);
             
             // Check validator stake
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake > 0);
         }
     });
@@ -58,12 +58,12 @@ fn validator_cooldown_works() {
 #[test]
 fn validator_stake_requirements_work() {
     new_test_ext().execute_with(|| {
-        let min_stake = <Test as crate::Config>::MinStake::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         let active_validators = DcfPallet::validator_set();
         
         // All active validators should meet minimum stake requirements
         for validator in &active_validators {
-            let validator_stake = DcfPallet::validator_stake(validator);
+            let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(validator_stake >= min_stake);
         }
     });
@@ -76,7 +76,7 @@ fn validator_scoring_boundaries_work() {
         let active_validators = DcfPallet::validator_set();
         
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake(validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Scores should be within bounds
             assert!(stake_score >= 0);
@@ -89,8 +89,8 @@ fn validator_scoring_boundaries_work() {
 fn validator_set_size_constraints_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::validator_set();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Constraints should be satisfied
         assert!(active_validators.len() <= max_validators as usize);
@@ -109,7 +109,7 @@ fn validator_activity_tracking_works() {
             assert!(DcfPallet::is_validator_active(validator));
             
             // Test basic validator data
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= 0);
         }
     });
@@ -123,7 +123,7 @@ fn validator_score_history_works() {
         
         for validator in &active_validators {
             // Test basic validator score info
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= 0);
         }
     });
@@ -157,7 +157,7 @@ fn validator_profile_information_works() {
 #[test]
 fn maximum_validators_edge_case_works() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::validator_set();
         
         // Current validator count should not exceed maximum
@@ -175,7 +175,7 @@ fn maximum_validators_edge_case_works() {
 #[test]
 fn minimum_validators_edge_case_works() {
     new_test_ext().execute_with(|| {
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::validator_set();
         
         // Must maintain minimum validator count
@@ -191,7 +191,7 @@ fn validator_score_update_edge_cases_work() {
         
         for validator in &active_validators {
             // Test score boundaries using available functions
-            let current_stake_score = DcfPallet::validator_stake(validator);
+            let current_stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Scores should be within valid ranges
             assert!(current_stake_score >= 0);

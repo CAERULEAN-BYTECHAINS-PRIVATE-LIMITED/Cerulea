@@ -42,8 +42,8 @@ fn consensus_weight_parameters_work() {
 #[test]
 fn validator_score_parameter_bounds_work() {
     new_test_ext().execute_with(|| {
-        let min_score = <Test as crate::Config>::MinValidatorScore::get() as u64;
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
+        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         
         // Bounds should be logical
         assert!(min_score < max_score);
@@ -85,8 +85,8 @@ fn epoch_configuration_parameters_work() {
 #[test]
 fn validator_set_size_parameters_work() {
     new_test_ext().execute_with(|| {
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         
         // Size parameters should be logical
         assert!(min_active > 0);
@@ -103,9 +103,9 @@ fn validator_set_size_parameters_work() {
 #[test]
 fn economic_parameters_work() {
     new_test_ext().execute_with(|| {
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let validator_reward: u128 = <Test as crate::Config>::ValidatorReward::get();
-        let slash_percent: u32 = <Test as crate::Config>::SlashPercent::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let validator_reward: u128 = <Test as pallet_cerulea_pos::Config>::ValidatorReward::get();
+        let slash_percent: u32 = <<Test as pallet_cerulea_pos::Config>::SlashPercent as frame_support::traits::Get<u32>>::get();
         
         // Economic parameters should be reasonable
         assert!(min_stake > 0);
@@ -116,7 +116,7 @@ fn economic_parameters_work() {
         // Check against active validator stakes
         let active_validators = DcfPallet::active_validators();
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= min_stake);
         }
     });
@@ -148,7 +148,7 @@ fn trust_score_configuration_parameters_work() {
 fn performance_threshold_parameters_work() {
     new_test_ext().execute_with(|| {
         let min_perf_score: u64 = <Test as crate::Config>::MinPerformanceScore::get();
-        let high_perf_score: u64 = <Test as crate::Config>::HighPerformanceScore::get();
+        let high_perf_score: u64 = <<Test as pallet_cerulea_pos::Config>::HighPerformanceScore as frame_support::traits::Get<u64>>::get();
         let min_participation: u32 = <Test as crate::Config>::MinParticipationRate::get();
         let high_participation: u32 = <Test as crate::Config>::HighParticipationRate::get();
         
@@ -169,7 +169,7 @@ fn performance_threshold_parameters_work() {
 #[test]
 fn cooldown_period_parameters_work() {
     new_test_ext().execute_with(|| {
-        let leave_cooldown: u32 = <Test as crate::Config>::LeaveCooldown::get();
+        let leave_cooldown: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         let max_inactive_epochs: u32 = <Test as crate::Config>::MaxInactiveEpochs::get();
         
         // Cooldown parameters should be reasonable
@@ -223,9 +223,9 @@ fn interval_timing_parameters_work() {
 fn parameter_consistency_across_configuration_works() {
     new_test_ext().execute_with(|| {
         // Test that related parameters are consistent
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         
         // Logical relationships should hold
@@ -245,7 +245,7 @@ fn parameter_consistency_across_configuration_works() {
 fn parameter_bounds_and_limits_work() {
     new_test_ext().execute_with(|| {
         // Test various parameter bounds
-        let percentage_precision: u32 = <Test as crate::Config>::PercentagePrecision::get();
+        let percentage_precision: u32 = <<Test as pallet_cerulea_poi::Config>::PercentagePrecision as frame_support::traits::Get<u32>>::get();
         let max_validator_name_length: u32 = <Test as crate::Config>::MaxValidatorNameLength::get();
         let max_evidence_length: u32 = <Test as crate::Config>::MaxEvidenceLength::get();
         

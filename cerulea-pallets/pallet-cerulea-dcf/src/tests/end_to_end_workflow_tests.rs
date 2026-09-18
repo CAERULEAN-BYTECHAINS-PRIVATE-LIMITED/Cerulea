@@ -18,14 +18,14 @@ fn end_to_end_validator_complete_lifecycle() {
         let initial_balance = Balances::free_balance(&validator);
         
         // Phase 1: Join as validator
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"TestValidator".to_vec().try_into().unwrap())
         ));
         
         // Verify joining
         assert!(DcfPallet::is_validator_active(&validator));
-        let validator_stake = DcfPallet::validator_stake(&validator);
+        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert!(validator_stake > 0);
         assert_eq!(Balances::reserved_balance(&validator), validator_stake);
         assert_eq!(Balances::free_balance(&validator), initial_balance - stake_amount);
@@ -59,7 +59,7 @@ fn end_to_end_validator_complete_lifecycle() {
             RuntimeOrigin::signed(validator),
             validator
         ));
-        assert_ok!(DcfPallet::update_validator_inference_score(
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
             RuntimeOrigin::signed(validator),
             validator
         ));
@@ -96,11 +96,11 @@ fn end_to_end_validator_complete_lifecycle() {
         assert!(DcfPallet::current_epoch() > 0);
         
         // Phase 8: Leave validator set
-        let _pre_leave_stake = DcfPallet::validator_stake(&validator);
-        assert_ok!(DcfPallet::leave_validators(RuntimeOrigin::signed(validator)));
+        let _pre_leave_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Phase 9: Wait for cooldown period
-        let cooldown_period: u32 = <Test as crate::Config>::LeaveCooldown::get();
+        let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         for block in 1..=cooldown_period + 1 {
             System::set_block_number((epoch_length + 5 + block) as u64);
             DcfPallet::on_initialize((epoch_length + 5 + block) as u64);
@@ -127,11 +127,11 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         Balances::make_free_balance_be(&challenger, 50000);
         
         // Both join as validators
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
             Some(b"Validator".to_vec().try_into().unwrap())
         ));
-        assert_ok!(DcfPallet::join_validators(
+        assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(challenger),
             Some(b"Challenger".to_vec().try_into().unwrap())
         ));
@@ -177,26 +177,26 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         assert_eq!(epoch, DcfPallet::current_epoch());
         
         // Simulate poor performance leading to slashing
-        let initial_stake = DcfPallet::validator_stake(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         
         // PoS slashing for poor performance
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
         
         // DCF slashing for misbehavior
         let slash_amount = 1000u128;
-        assert_ok!(DcfPallet::slash_validator(
+        assert_ok!(PalletCeruleaPos::slash_validator(
             RuntimeOrigin::root(),
             validator,
             slash_amount
         ));
         
-        let post_slash_stake = DcfPallet::validator_stake(&validator);
+        let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
         assert_eq!(initial_stake - post_slash_stake, slash_amount);
         
         // Multiple slashes in PoS lead to removal
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
-        assert_ok!(PalletCeruleaPos::slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
+        assert_ok!(mock_slash_validator(&validator, 100));
         
         // Validator should be removed from PoS after 3 slashes
         assert_eq!(PalletCeruleaPos::validators(&validator), None);
@@ -228,7 +228,7 @@ fn end_to_end_multi_validator_competition() {
             Balances::make_free_balance_be(validator, 50000);
             
             // Join with different stake amounts
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -279,7 +279,7 @@ fn end_to_end_multi_validator_competition() {
                     RuntimeOrigin::signed(*validator),
                     *validator
                 ));
-                assert_ok!(DcfPallet::update_validator_inference_score(
+                assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                     RuntimeOrigin::signed(*validator),
                     *validator
                 ));
@@ -308,7 +308,7 @@ fn end_to_end_multi_validator_competition() {
         
         // Verify ranking makes sense (higher stake + better performance = higher score)
         let top_validator = validator_scores[0].0;
-        let top_stake = DcfPallet::validator_stake(&top_validator);
+        let top_stake = pallet_cerulea_pos::Stake::<Test>::get(&top_validator);
         
         // Top validator should have significant stake
         assert!(top_stake >= 7000u128);
@@ -332,7 +332,7 @@ fn end_to_end_governance_driven_workflow() {
         // Setup validators
         for validator in [proposer, beneficiary, voter1, voter2].iter() {
             Balances::make_free_balance_be(validator, 50000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -382,13 +382,13 @@ fn end_to_end_governance_driven_workflow() {
         assert_eq!(voted_proposal.votes_against, 0);
         
         // Phase 3: Proposal execution
-        let pre_execution_stake = DcfPallet::validator_stake(&beneficiary);
+        let pre_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
         assert_ok!(DcfPallet::execute_proposal(
             RuntimeOrigin::root(),
             0
         ));
         
-        let post_execution_stake = DcfPallet::validator_stake(&beneficiary);
+        let post_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
         assert_eq!(post_execution_stake - pre_execution_stake, reward_amount);
         
         let executed_proposal = crate::Proposals::<Test>::get(0).unwrap();
@@ -460,7 +460,7 @@ fn end_to_end_governance_driven_workflow() {
         }
         
         // Verify governance outcomes
-        let final_stake = DcfPallet::validator_stake(&beneficiary);
+        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
         let expected_total_rewards = reward_amount + 500u128 + 1000u128; // Rounds 0, 1, 2 approved
         assert_eq!(final_stake - 7000u128, expected_total_rewards);
     });
@@ -478,7 +478,7 @@ fn end_to_end_high_frequency_operations() {
             let validator = 400 + i;
             Balances::make_free_balance_be(&validator, 100000);
             
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -515,7 +515,7 @@ fn end_to_end_high_frequency_operations() {
                     RuntimeOrigin::signed(validator),
                     validator
                 ));
-                assert_ok!(DcfPallet::update_validator_inference_score(
+                assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
                     RuntimeOrigin::signed(validator),
                     validator
                 ));
@@ -561,7 +561,7 @@ fn end_to_end_system_recovery_workflow() {
         // Setup critical validators
         for validator in &critical_validators {
             Balances::make_free_balance_be(validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("CriticalValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -573,7 +573,7 @@ fn end_to_end_system_recovery_workflow() {
         // Setup backup validators
         for validator in &backup_validators {
             Balances::make_free_balance_be(validator, 50000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("BackupValidator{}", validator).into_bytes().try_into().unwrap())
             ));
@@ -600,11 +600,11 @@ fn end_to_end_system_recovery_workflow() {
         for validator in &critical_validators {
             // Severe slashing leading to removal
             for _ in 0..3 {
-                assert_ok!(PalletCeruleaPos::slash_validator(validator, 100));
+                assert_ok!(mock_slash_validator(validator, 100));
             }
             
             // DCF slashing
-            assert_ok!(DcfPallet::slash_validator(
+            assert_ok!(PalletCeruleaPos::slash_validator(
                 RuntimeOrigin::root(),
                 *validator,
                 10000 // Slash most of stake
@@ -617,7 +617,7 @@ fn end_to_end_system_recovery_workflow() {
         }
         
         // System should still maintain minimum validators
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::active_validators();
         assert!(active_validators.len() >= min_active as usize);
         
@@ -631,7 +631,7 @@ fn end_to_end_system_recovery_workflow() {
         let replacement_validators = vec![508u64, 509u64, 510u64];
         for validator in &replacement_validators {
             Balances::make_free_balance_be(validator, 100000);
-            assert_ok!(DcfPallet::join_validators(
+            assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
                 Some(format!("ReplacementValidator{}", validator).into_bytes().try_into().unwrap())
             ));
