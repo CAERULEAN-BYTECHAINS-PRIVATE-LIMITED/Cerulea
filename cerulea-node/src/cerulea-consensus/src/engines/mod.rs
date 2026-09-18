@@ -44,7 +44,13 @@ pub mod manifest;
 pub mod manifest_derive;
 pub mod manifest_guard;
 
+pub mod authoring;
 pub mod execution;
+
+pub use authoring::{
+    draw, draw_from_keystore, draw_value, verify_draw, verify_result, DrawInput, DrawProof,
+    DrawResult,
+};
 
 pub use execution::{
     domain_root, empty_root, leaf_hash, merkle_root, node_hash, order_domains, order_members,
@@ -682,6 +688,53 @@ pub enum EngineError {
         used: u64,
         /// The highest number of bytes one transaction writes.
         limit: u64,
+    },
+
+    /// The node keystore refused the signing request.
+    #[error(
+        "The node keystore refused the signing request. Detail: {detail}. \
+         Fix: check that the keystore path stays readable by the node process."
+    )]
+    KeystoreRefused {
+        /// The detail the keystore reported.
+        detail: String,
+    },
+
+    /// The node keystore holds no draw key for this validator.
+    #[error(
+        "The node keystore holds no slot draw key for this validator. \
+         Fix: insert the validator sr25519 key under the key type cerk."
+    )]
+    DrawKeyAbsent,
+
+    /// A draw proof failed the check.
+    #[error(
+        "The slot draw proof for slot {slot} failed the check. \
+         Fix: send the draw proof produced by the validator key named in the claim."
+    )]
+    DrawProofRejected {
+        /// The slot the draw served.
+        slot: u64,
+    },
+
+    /// A claimed draw output differs from the proof.
+    #[error(
+        "The claimed draw output for slot {slot} differs from the proof. \
+         Fix: send the output the proof produces."
+    )]
+    DrawOutputMismatch {
+        /// The slot the draw served.
+        slot: u64,
+    },
+
+    /// A draw output failed to read back.
+    #[error(
+        "The slot draw output failed to read back. Detail: {detail}. \
+         Fix: send a draw proof built by the sr25519 draw of this release."
+    )]
+    DrawOutputUnreadable {
+        /// The detail the reader reported.
+        detail: String,
     },
 
     /// The eligible validator set held no members.
