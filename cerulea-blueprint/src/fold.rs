@@ -430,6 +430,20 @@ impl FoldExpr {
         self.step.walk(visit);
     }
 
+    /// Visit every expression inside this fold, with the power to change
+    /// each one.
+    pub fn walk_mut(&mut self, visit: &mut dyn FnMut(&mut Expr)) {
+        match &mut self.source {
+            FoldSource::List(list) => list.walk_mut(visit),
+            FoldSource::Collection { keys, .. } => match keys {
+                KeySelector::Exact(expr) | KeySelector::Prefix(expr) => expr.walk_mut(visit),
+                KeySelector::Full => {}
+            },
+        }
+        self.initial.walk_mut(visit);
+        self.step.walk_mut(visit);
+    }
+
     /// Collect every collection this fold names.
     pub fn collection_refs(&self, out: &mut Vec<CollectionId>) {
         match &self.source {

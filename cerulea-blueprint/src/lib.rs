@@ -20,6 +20,7 @@
 extern crate alloc;
 
 pub mod actions;
+pub mod address;
 pub mod collections;
 pub mod economics;
 pub mod events;

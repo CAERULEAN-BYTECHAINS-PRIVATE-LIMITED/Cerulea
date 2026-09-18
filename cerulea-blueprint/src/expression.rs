@@ -580,6 +580,107 @@ impl Expr {
         }
     }
 
+    /// Visit this expression and every expression inside it, with the power
+    /// to change each one.
+    pub fn walk_mut(&mut self, visit: &mut dyn FnMut(&mut Expr)) {
+        visit(self);
+        match self {
+            Expr::Literal(_) | Expr::Bound(_) | Expr::MakeEnumeration { .. } => {}
+            Expr::Field { base, .. } => base.walk_mut(visit),
+            Expr::Unary { operand, .. } => operand.walk_mut(visit),
+            Expr::Binary { left, right, .. } => {
+                left.walk_mut(visit);
+                right.walk_mut(visit);
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                condition.walk_mut(visit);
+                then_branch.walk_mut(visit);
+                else_branch.walk_mut(visit);
+            }
+            Expr::Match {
+                scrutinee,
+                arms,
+                fallback,
+            } => {
+                scrutinee.walk_mut(visit);
+                for arm in arms.iter_mut() {
+                    arm.body.walk_mut(visit);
+                }
+                if let Some(fallback) = fallback {
+                    fallback.walk_mut(visit);
+                }
+            }
+            Expr::Let { value, body, .. } => {
+                value.walk_mut(visit);
+                body.walk_mut(visit);
+            }
+            Expr::MakeRecord { fields, .. } => {
+                for (_, value) in fields.iter_mut() {
+                    value.walk_mut(visit);
+                }
+            }
+            Expr::MakeSum { payload, .. } => {
+                if let Some(payload) = payload {
+                    payload.walk_mut(visit);
+                }
+            }
+            Expr::MakeList { items, .. } => {
+                for item in items.iter_mut() {
+                    item.walk_mut(visit);
+                }
+            }
+            Expr::MakeMap { entries, .. } => {
+                for entry in entries.iter_mut() {
+                    entry.0.walk_mut(visit);
+                    entry.1.walk_mut(visit);
+                }
+            }
+            Expr::MakeOptional { item, .. } => {
+                if let Some(item) = item {
+                    item.walk_mut(visit);
+                }
+            }
+            Expr::MakeReference { key, .. } => key.walk_mut(visit),
+            Expr::UnwrapOr { optional, fallback } => {
+                optional.walk_mut(visit);
+                fallback.walk_mut(visit);
+            }
+            Expr::IsPresent(inner) | Expr::Length(inner) => inner.walk_mut(visit),
+            Expr::Contains { list, item } => {
+                list.walk_mut(visit);
+                item.walk_mut(visit);
+            }
+            Expr::Lookup { map, key } => {
+                map.walk_mut(visit);
+                key.walk_mut(visit);
+            }
+            Expr::Rescale { value, .. } => value.walk_mut(visit),
+            Expr::Call { args, .. } => {
+                for arg in args.iter_mut() {
+                    arg.walk_mut(visit);
+                }
+            }
+            Expr::Fold(fold) => fold.walk_mut(visit),
+            Expr::Attempt { body, compensation } => {
+                body.walk_mut(visit);
+                compensation.walk_mut(visit);
+            }
+        }
+    }
+
+    /// Sort every literal inside this expression into canonical order.
+    pub fn canonicalise(&mut self) {
+        self.walk_mut(&mut |expr| {
+            if let Expr::Literal(value) = expr {
+                value.canonicalise();
+            }
+        });
+    }
+
     /// Collect every collection this expression names.
     pub fn collection_refs(&self, out: &mut Vec<CollectionId>) {
         match self {
