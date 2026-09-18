@@ -1,13 +1,13 @@
 //! Finality tracking implementation
-//! 
+//!
 //! This module handles block finality and confirmation tracking.
 
+use crate::error::{ConsensusError, ConsensusResult};
+use log::{debug, info, warn};
 use sp_runtime::traits::{Block as BlockTrait, NumberFor};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use log::{debug, info, warn};
-use crate::error::{ConsensusError, ConsensusResult};
 
 /// Tracks block finality and confirmations
 pub struct FinalityEngine<B: BlockTrait> {
@@ -43,7 +43,7 @@ impl<B: BlockTrait> FinalityEngine<B> {
     pub fn is_finalized(&self, block_hash: &B::Hash) -> bool {
         self.confirmations
             .get(block_hash)
-            .map_or(false, |&c| c >= self.finality_threshold)
+            .is_some_and(|&c| c >= self.finality_threshold)
     }
 
     /// Get the number of confirmations for a block
@@ -85,7 +85,7 @@ pub struct FinalityNotifier<Block: BlockTrait> {
 impl<Block: BlockTrait> FinalityNotifier<Block> {
     /// Creates a new finality notifier
     pub fn new() -> Self {
-        info!("DVF Finality Notifier: Initializing");
+        info!("Commit Engine Finality Notifier: Initializing");
         Self {
             subscribers: Arc::new(tokio::sync::RwLock::new(Vec::new())),
         }
@@ -98,7 +98,10 @@ impl<Block: BlockTrait> FinalityNotifier<Block> {
         let (tx, rx) = mpsc::unbounded_channel();
         let mut subscribers = self.subscribers.write().await;
         subscribers.push(tx);
-        debug!("DVF Finality Notifier: New subscriber added (total: {})", subscribers.len());
+        debug!(
+            "Commit Engine Finality Notifier: New subscriber added (total: {})",
+            subscribers.len()
+        );
         rx
     }
 
@@ -108,13 +111,16 @@ impl<Block: BlockTrait> FinalityNotifier<Block> {
     pub async fn notify(&self, notification: FinalityNotification<Block>) {
         let subscribers = self.subscribers.read().await;
         debug!(
-            "DVF Finality Notifier: Broadcasting finality notification for block #{} to {} subscribers",
+            "Commit Engine Finality Notifier: Broadcasting finality notification for block #{} to {} subscribers",
             notification.block_number, subscribers.len()
         );
 
         for subscriber in subscribers.iter() {
             if let Err(e) = subscriber.send(notification.clone()) {
-                warn!("DVF Finality Notifier: Failed to send notification to subscriber: {:?}", e);
+                warn!(
+                    "Commit Engine Finality Notifier: Failed to send notification to subscriber: {:?}",
+                    e
+                );
             }
         }
     }

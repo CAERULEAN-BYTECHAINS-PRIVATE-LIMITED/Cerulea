@@ -1,5 +1,5 @@
 //! Error types for the consensus engine
-//! 
+//!
 //! This module defines error types used throughout the consensus engine.
 
 use thiserror::Error;
@@ -63,7 +63,9 @@ pub enum ConsensusError {
     BlockProduction(String),
 
     /// Block author mismatch detected
-    #[error("Block author mismatch: expected {expected:?}, got {actual:?} for block {block_number}")]
+    #[error(
+        "Block author mismatch: expected {expected:?}, got {actual:?} for block {block_number}"
+    )]
     AuthorMismatch {
         /// Block number where the mismatch occurred
         block_number: u32,

@@ -1,25 +1,25 @@
-// DVF Configuration Validation Module
+// Commit Engine Policy Validation Module
 //
-// This module validates DVF configuration parameters at node startup to ensure
+// This module validates Commit Engine policy parameters at node startup to ensure
 // they meet the requirements for correct operation of the finality system.
 
 use sp_runtime::Perbill;
 use std::fmt;
 
-/// Configuration validation error
+/// Policy validation error
 #[derive(Debug, Clone)]
 pub struct ConfigValidationError {
-    /// The name of the configuration parameter that failed validation
+    /// The name of the policy parameter that failed validation
     pub parameter: String,
     /// The reason why the validation failed
     pub reason: String,
-    /// Optional recommendation for fixing the configuration
+    /// Optional recommendation for fixing the policy
     pub recommendation: Option<String>,
 }
 
 impl fmt::Display for ConfigValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Invalid configuration for {}: {}", self.parameter, self.reason)?;
+        write!(f, "Invalid policy for {}: {}", self.parameter, self.reason)?;
         if let Some(ref rec) = self.recommendation {
             write!(f, " Recommendation: {}", rec)?;
         }
@@ -29,7 +29,7 @@ impl fmt::Display for ConfigValidationError {
 
 impl std::error::Error for ConfigValidationError {}
 
-/// DVF configuration parameters to validate
+/// Commit Engine policy parameters to validate
 #[derive(Debug, Clone)]
 pub struct DvfConfig {
     /// Interval between checkpoint blocks (in block numbers)
@@ -45,7 +45,7 @@ pub struct DvfConfig {
 }
 
 impl DvfConfig {
-    /// Validate all configuration parameters
+    /// Validate all policy parameters
     ///
     /// Returns Ok(()) if all parameters are valid, or Err with the first validation error found.
     pub fn validate(&self) -> Result<(), ConfigValidationError> {
@@ -109,9 +109,9 @@ impl DvfConfig {
         }
 
         // Log recommendation if not using 67%
-        if threshold_percent < 66.0 || threshold_percent > 68.0 {
+        if !(66.0..=68.0).contains(&threshold_percent) {
             log::warn!(
-                "DVF Config: FinalityThreshold is set to {}%. \
+                "Commit Engine Config: FinalityThreshold is set to {}%. \
                  For Byzantine fault tolerance (tolerating up to 1/3 Byzantine validators), \
                  67% (2/3 threshold) is recommended.",
                 threshold_percent
@@ -168,7 +168,7 @@ impl DvfConfig {
         // Log recommendation if set to 1
         if self.vote_retention_rounds == 1 {
             log::warn!(
-                "DVF Config: VoteRetentionRounds is set to 1. \
+                "Commit Engine Config: VoteRetentionRounds is set to 1. \
                  For better debugging capabilities, a value of 2 or more is recommended."
             );
         }
@@ -176,13 +176,13 @@ impl DvfConfig {
         Ok(())
     }
 
-    /// Log all configuration parameters at info level
+    /// Log all policy parameters at info level
     ///
-    /// Log all DVF configuration values at startup
+    /// Log all Commit Engine policy values at startup
     pub fn log_configuration(&self) {
         let threshold_percent = self.finality_threshold.deconstruct() as f64 / 10_000_000.0;
 
-        log::info!("=== DVF Configuration ===");
+        log::info!("=== Commit Engine Policy ===");
         log::info!(
             "  FinalityCheckpointInterval: {} blocks",
             self.finality_checkpoint_interval

@@ -1,7 +1,7 @@
 //! Vote Creator Service
 //!
 //! This module implements the Vote Creator Service which monitors imported checkpoint blocks
-//! and creates signed DVF votes for them when the node is an active validator.
+//! and creates signed Commit Engine votes for them when the node is an active validator.
 
 use codec::{Decode, Encode};
 use futures::StreamExt;
@@ -45,8 +45,18 @@ where
         + Send
         + Sync
         + 'static,
-    Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>> + RuntimeDvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::hash::Hash + std::fmt::Debug + Send + Sync + 'static,
+    Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
+        + RuntimeDvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + 'static,
 {
     /// Creates a new Vote Creator Service
     pub fn new(
@@ -56,7 +66,10 @@ where
         vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>,
         validator_account: AccountId,
     ) -> Self {
-        info!("DVF Vote Creator: Initializing service for validator {:?}", validator_account);
+        info!(
+            "Commit Engine Vote Creator: Initializing service for validator {:?}",
+            validator_account
+        );
         Self {
             client,
             keystore,
@@ -75,7 +88,7 @@ where
 
     /// Starts the service as a background task
     pub async fn run(self) {
-        info!("DVF Vote Creator: Starting service");
+        info!("Commit Engine Vote Creator: Starting service");
 
         // Subscribe to block import notifications
         let mut import_notifications = self.client.import_notification_stream();
@@ -85,20 +98,20 @@ where
             let block_hash = notification.hash;
 
             debug!(
-                "DVF Vote Creator: Processing imported block #{} ({:?})",
+                "Commit Engine Vote Creator: Processing imported block #{} ({:?})",
                 block_number, block_hash
             );
 
             // Process the block
             if let Err(e) = self.process_block(block_number, block_hash).await {
                 warn!(
-                    "DVF Vote Creator: Failed to process block #{}: {:?}",
+                    "Commit Engine Vote Creator: Failed to process block #{}: {:?}",
                     block_number, e
                 );
             }
         }
 
-        warn!("DVF Vote Creator: Import notification stream ended");
+        warn!("Commit Engine Vote Creator: Import notification stream ended");
     }
 
     /// Processes a single imported block
@@ -110,21 +123,21 @@ where
         // Check if this is a checkpoint block
         if !self.is_checkpoint_block(block_number)? {
             debug!(
-                "DVF Vote Creator: Block #{} is not a checkpoint, skipping",
+                "Commit Engine Vote Creator: Block #{} is not a checkpoint, skipping",
                 block_number
             );
             return Ok(());
         }
 
         debug!(
-            "DVF Vote Creator: Block #{} is a checkpoint block",
+            "Commit Engine Vote Creator: Block #{} is a checkpoint block",
             block_number
         );
 
         // Check if block is already finalized
         if self.is_already_finalized(block_number)? {
             debug!(
-                "DVF Vote Creator: Block #{} is already finalized, skipping",
+                "Commit Engine Vote Creator: Block #{} is already finalized, skipping",
                 block_number
             );
             return Ok(());
@@ -132,7 +145,7 @@ where
 
         // Check if node is an active validator
         if !self.is_active_validator()? {
-            debug!("DVF Vote Creator: Node is not an active validator, skipping");
+            debug!("Commit Engine Vote Creator: Node is not an active validator, skipping");
             return Ok(());
         }
 
@@ -145,7 +158,7 @@ where
 
     /// Checks if a block is a checkpoint block
     fn is_checkpoint_block(&self, block_number: NumberFor<Block>) -> Result<bool, String> {
-        // Read FinalityCheckpointInterval from the DVF pallet runtime API so that
+        // Read FinalityCheckpointInterval from the Commit Engine pallet runtime API so that
         // the Vote_Creator and the DVF_Pallet always use the same value.
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
@@ -167,7 +180,10 @@ where
 
     /// Checks if a block is already finalized
     fn is_already_finalized(&self, block_number: NumberFor<Block>) -> Result<bool, String> {
-        Ok(crate::types::utils::is_block_finalized(&*self.client, block_number))
+        Ok(crate::types::utils::is_block_finalized(
+            &*self.client,
+            block_number,
+        ))
     }
 
     /// Checks if the node is an active validator
@@ -189,7 +205,7 @@ where
         block_hash: Block::Hash,
     ) -> Result<(), String> {
         info!(
-            "DVF Vote Creator: Creating vote for block #{} ({:?})",
+            "Commit Engine Vote Creator: Creating vote for block #{} ({:?})",
             block_number, block_hash
         );
 
@@ -197,8 +213,13 @@ where
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
 
-        let epoch_id = <Client::Api as RuntimeDvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>>::get_current_epoch(&api, best_hash)
-            .map_err(|e| format!("Failed to get current epoch: {:?}", e))?;
+        let epoch_id = <Client::Api as RuntimeDvfApi<
+            Block,
+            NumberFor<Block>,
+            AccountId,
+            Block::Hash,
+        >>::get_current_epoch(&api, best_hash)
+        .map_err(|e| format!("Failed to get current epoch: {:?}", e))?;
 
         // Get current validator set ID from runtime
         let validator_set_id = api
@@ -241,11 +262,11 @@ where
 
     /// Gets the validator's public key from the keystore
     fn get_validator_public_key(&self) -> Result<ed25519::Public, String> {
-        // Get all ed25519 public keys from keystore using the Cerulea DVF key type
+        // Get all ed25519 public keys from keystore using the Cerulea Commit Engine key type
         let public_keys = Keystore::ed25519_public_keys(&*self.keystore, crate::CERULEA_KEY_TYPE);
 
         if public_keys.is_empty() {
-            return Err("No Cerulea DVF ed25519 keys found in keystore. Ensure the node started with --validator and key auto-generation ran.".to_string());
+            return Err("No Cerulea Commit Engine ed25519 keys found in keystore. Ensure the node started with --validator and key auto-generation ran.".to_string());
         }
 
         // Use the first key (in production, this should match validator_account)
@@ -253,7 +274,10 @@ where
     }
 
     /// Signs a vote using the validator's private key
-    fn sign_vote(&self, vote: &DvfVoteMessage<Block::Hash, AccountId>) -> Result<ed25519::Signature, String> {
+    fn sign_vote(
+        &self,
+        vote: &DvfVoteMessage<Block::Hash, AccountId>,
+    ) -> Result<ed25519::Signature, String> {
         // Construct the signed payload
         let mut payload = Vec::new();
         vote.epoch_id.encode_to(&mut payload);
@@ -264,28 +288,31 @@ where
         vote.validator_account_id.encode_to(&mut payload);
 
         debug!(
-            "DVF Vote Creator: Signing payload of {} bytes for block #{}",
+            "Commit Engine Vote Creator: Signing payload of {} bytes for block #{}",
             payload.len(),
             vote.block_number
         );
 
         // Sign using keystore
         let signature = Keystore::ed25519_sign(
-                &*self.keystore,
-                crate::CERULEA_KEY_TYPE,
-                &vote.validator_public_key,
-                &payload,
-            )
-            .map_err(|e| format!("Failed to sign vote: {:?}", e))?
-            .ok_or_else(|| "Keystore returned no signature".to_string())?;
+            &*self.keystore,
+            crate::CERULEA_KEY_TYPE,
+            &vote.validator_public_key,
+            &payload,
+        )
+        .map_err(|e| format!("Failed to sign vote: {:?}", e))?
+        .ok_or_else(|| "Keystore returned no signature".to_string())?;
 
         Ok(signature)
     }
 
     /// Broadcasts a vote via the gossip protocol
-    async fn broadcast_vote(&self, vote: DvfVoteMessage<Block::Hash, AccountId>) -> Result<(), String> {
+    async fn broadcast_vote(
+        &self,
+        vote: DvfVoteMessage<Block::Hash, AccountId>,
+    ) -> Result<(), String> {
         debug!(
-            "DVF Vote Creator: Broadcasting vote for block #{} to gossip network",
+            "Commit Engine Vote Creator: Broadcasting vote for block #{} to gossip network",
             vote.block_number
         );
 
@@ -293,13 +320,9 @@ where
         // This ensures our own vote is counted even if gossip network has issues
         let inserted = self.vote_pool.insert_vote(vote.clone());
         if inserted {
-            info!(
-                "DVF Vote Creator: Vote inserted into local pool successfully"
-            );
+            info!("Commit Engine Vote Creator: Vote inserted into local pool successfully");
         } else {
-            warn!(
-                "DVF Vote Creator: Failed to insert vote into local pool (possible double vote)"
-            );
+            warn!("Commit Engine Vote Creator: Failed to insert vote into local pool (possible double vote)");
         }
 
         // Encode the vote
@@ -311,7 +334,9 @@ where
             .map_err(|e| format!("Failed to decode message hash: {:?}", e))?;
 
         // Broadcast via gossip engine
-        let mut gossip_engine = self.gossip_engine.lock()
+        let mut gossip_engine = self
+            .gossip_engine
+            .lock()
             .map_err(|e| format!("Failed to lock gossip engine: {:?}", e))?;
         gossip_engine.gossip_message(
             topic,
@@ -320,7 +345,7 @@ where
         );
 
         info!(
-            "DVF Vote Creator: Successfully broadcast vote for block #{} (epoch: {}, round: {}, validator_set: {}, validator: {:?})",
+            "Commit Engine Vote Creator: Successfully broadcast vote for block #{} (epoch: {}, round: {}, validator_set: {}, validator: {:?})",
             vote.block_number, vote.epoch_id, vote.round_number, vote.validator_set_id, vote.validator_account_id
         );
 

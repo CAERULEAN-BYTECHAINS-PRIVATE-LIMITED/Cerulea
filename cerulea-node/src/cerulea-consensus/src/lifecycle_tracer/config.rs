@@ -1,9 +1,9 @@
-// Configuration module for lifecycle tracer
+// Policy module for lifecycle tracer
 
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-/// Tracer configuration
+/// Tracer policy
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TracerConfig {
     /// Whether tracing is enabled
@@ -40,18 +40,18 @@ impl Default for TracerConfig {
 }
 
 impl TracerConfig {
-    /// Parse configuration from TOML file
+    /// Parse policy from TOML file
     pub fn from_toml_file(path: &PathBuf) -> Result<Self, String> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| format!("Failed to read config file: {}", e))?;
-        
-        let config: Self = toml::from_str(&contents)
-            .map_err(|e| format!("Failed to parse TOML config: {}", e))?;
-        
+
+        let config: Self =
+            toml::from_str(&contents).map_err(|e| format!("Failed to parse TOML config: {}", e))?;
+
         Ok(config)
     }
 
-    /// Parse configuration from CLI flags
+    /// Parse policy from node interface flags
     pub fn from_cli_flags(
         enabled: bool,
         format: Option<String>,

@@ -4,20 +4,20 @@
 //! vote accumulation in the vote pool and triggers justification construction when
 //! the finality threshold is reached.
 
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use log::{debug, info, warn};
-use sc_client_api::{HeaderBackend, backend::{Finalizer, LockImportRun}};
+use sc_client_api::{
+    backend::{Finalizer, LockImportRun},
+    HeaderBackend,
+};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor, SaturatedConversion};
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    dvf_gossip::DvfVotePool,
-    finality::FinalityNotifier,
-    DVF_ENGINE_ID,
-    justification_builder::JustificationBuilder,
-    metrics::DvfMetrics,
+    dvf_gossip::DvfVotePool, finality::FinalityNotifier,
+    justification_builder::JustificationBuilder, metrics::DvfMetrics, CERULEA_COMMIT_ENGINE_ID,
 };
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::DvfApi;
@@ -46,14 +46,30 @@ where
     _phantom: std::marker::PhantomData<Backend>,
 }
 
-impl<Block, Backend, Client, AccountId, TP> VoteAggregatorService<Block, Backend, Client, AccountId, TP>
+impl<Block, Backend, Client, AccountId, TP>
+    VoteAggregatorService<Block, Backend, Client, AccountId, TP>
 where
     Block: BlockT,
     Backend: sc_client_api::backend::Backend<Block>,
-    Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Finalizer<Block, Backend> + LockImportRun<Block, Backend> + Send + Sync + 'static,
+    Client: ProvideRuntimeApi<Block>
+        + HeaderBackend<Block>
+        + Finalizer<Block, Backend>
+        + LockImportRun<Block, Backend>
+        + Send
+        + Sync
+        + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
     TP: sc_transaction_pool_api::TransactionPool<Block = Block> + 'static,
 {
     /// Creates a new Vote Aggregator Service
@@ -71,7 +87,7 @@ where
         check_interval: Duration,
     ) -> Self {
         info!(
-            "DVF Vote Aggregator: Initializing service with check interval {:?}",
+            "Commit Engine Vote Aggregator: Initializing service with check interval {:?}",
             check_interval
         );
         Self {
@@ -102,59 +118,59 @@ where
     /// and triggering justification construction when the finality threshold is reached.
     /// The task will run until the tokio runtime is shut down.
     pub async fn run(self) {
-        info!("DVF Vote Aggregator: Starting service");
+        info!("Commit Engine Vote Aggregator: Starting service");
 
         // Create a cancellation token for graceful shutdown
         let mut interval = tokio::time::interval(self.check_interval);
-        
+
         loop {
             // Wait for the next tick
             interval.tick().await;
-            
+
             // Check for validator set changes and clear pool if needed
             if let Err(e) = self.check_validator_set_changes() {
                 warn!(
-                    "DVF Vote Aggregator: Error checking validator set changes: {:?}",
+                    "Commit Engine Vote Aggregator: Error checking validator set changes: {:?}",
                     e
                 );
             }
-            
+
             // Check vote accumulation
             if let Err(e) = self.check_vote_accumulation().await {
                 warn!(
-                    "DVF Vote Aggregator: Error checking vote accumulation: {:?}",
+                    "Commit Engine Vote Aggregator: Error checking vote accumulation: {:?}",
                     e
                 );
             }
         }
     }
-    
+
     /// Checks for validator set changes and clears the vote pool if the set has changed
     fn check_validator_set_changes(&self) -> Result<(), String> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         // Get current validator set ID
         let current_validator_set_id = api
             .get_validator_set_id(best_hash)
             .map_err(|e| format!("Failed to get validator set ID: {:?}", e))?;
-        
+
         // Update last known validator set ID without clearing the pool.
         // The validator_set_id increments at every epoch transition (every 100 blocks),
         // but checkpoint blocks occur every 10 blocks. Clearing the pool on every epoch
         // transition wipes votes that were just cast for the current checkpoint block,
-        // starving DVF finality. Round-based and block-based pruning handle cleanup.
+        // starving Commit Engine finality. Round-based and block-based pruning handle cleanup.
         let mut last_id = self.last_validator_set_id.write().unwrap();
         if *last_id != 0 && *last_id != current_validator_set_id {
             info!(
-                "DVF Vote Aggregator: Validator set ID changed from {} to {} (pool retained for in-flight votes).",
+                "Commit Engine Vote Aggregator: Validator set ID changed from {} to {} (pool retained for in-flight votes).",
                 *last_id, current_validator_set_id
             );
             // Do NOT clear the pool here — votes for the current checkpoint block
             // may have just been inserted and must survive until the aggregator acts.
         }
         *last_id = current_validator_set_id;
-        
+
         Ok(())
     }
 
@@ -180,30 +196,30 @@ where
 
         // Filter out blocks we have already triggered justification for locally
         let last_triggered = *self.last_triggered_block.read().unwrap();
-        
+
         // Also query the actual pallet finalized head to avoid re-justifying what others already finalized
         let dvf_finalized = api
             .get_dvf_finalized_block(best_hash)
-            .map_err(|e| format!("Failed to get DVF finalized block: {:?}", e))?
+            .map_err(|e| format!("Failed to get Commit Engine finalized block: {:?}", e))?
             .saturated_into::<u32>();
 
         candidate_blocks.retain(|hash| {
             if let Ok(Some(header)) = self.client.header(*hash) {
-                let num = header.number().clone().saturated_into::<u32>();
+                let num = (*header.number()).saturated_into::<u32>();
                 num > last_triggered && num > dvf_finalized
             } else {
                 false
             }
         });
 
-        // Fast-path: If there are no candidate blocks (or all are already triggered/finalized), 
+        // Fast-path: If there are no candidate blocks (or all are already triggered/finalized),
         // skip the heavy runtime API queries and log spam.
         if candidate_blocks.is_empty() {
             return Ok(());
         }
 
         info!(
-            "DVF Vote Aggregator: ===== Checking vote accumulation for round {} =====",
+            "Commit Engine Vote Aggregator: ===== Checking vote accumulation for round {} =====",
             current_round
         );
 
@@ -221,19 +237,19 @@ where
         let finality_threshold = finality_threshold_perbill * total_weight;
 
         info!(
-            "DVF Vote Aggregator: Total weight: {}, Finality threshold: {} ({:?} of total)",
+            "Commit Engine Vote Aggregator: Total weight: {}, Finality threshold: {} ({:?} of total)",
             total_weight, finality_threshold, finality_threshold_perbill
         );
 
         info!(
-            "DVF Vote Aggregator: Found {} candidate blocks for round {}",
+            "Commit Engine Vote Aggregator: Found {} candidate blocks for round {}",
             candidate_blocks.len(),
             current_round
         );
-        
+
         // Log vote pool statistics
         info!(
-            "DVF Vote Aggregator: Vote pool size: {} votes total",
+            "Commit Engine Vote Aggregator: Vote pool size: {} votes total",
             self.vote_pool.total_votes()
         );
 
@@ -243,10 +259,11 @@ where
 
         // Check each candidate block
         for block_hash in candidate_blocks {
-            let accumulated_weight = self.calculate_accumulated_weight(current_round, &block_hash)?;
+            let accumulated_weight =
+                self.calculate_accumulated_weight(current_round, &block_hash)?;
 
             info!(
-                "DVF Vote Aggregator: Block {:?} has accumulated weight {} (threshold: {}, reached: {})",
+                "Commit Engine Vote Aggregator: Block {:?} has accumulated weight {} (threshold: {}, reached: {})",
                 block_hash, accumulated_weight, finality_threshold, accumulated_weight >= finality_threshold
             );
 
@@ -267,29 +284,30 @@ where
 
         // If we found a candidate that reached threshold, trigger justification
         if let Some(block_hash) = best_candidate {
-            // Check if this block is already DVF-finalized to avoid re-finalization attempts.
-            // We use the DVF finalized block number (not Substrate client finalized) because
-            // DCF progressive finality advances the Substrate finalized head before DVF acts,
-            // which would cause the aggregator to skip blocks that DVF hasn't finalized yet.
-            let block_number: NumberFor<Block> = self.client
+            // Check if this block is already committed to avoid re-finalization attempts.
+            // We use the Commit Engine finalized block number (not Substrate client finalized) because
+            // DCF progressive finality advances the Substrate finalized head before Commit Engine acts,
+            // which would cause the aggregator to skip blocks that Commit Engine hasn't finalized yet.
+            let block_number: NumberFor<Block> = *self
+                .client
                 .header(block_hash)
                 .map_err(|e| format!("Failed to get header: {:?}", e))?
                 .ok_or_else(|| "Block header not found".to_string())?
-                .number()
-                .clone();
+                .number();
 
             let dvf_finalized: NumberFor<Block> = {
                 let api = self.client.runtime_api();
                 let bh = self.client.info().best_hash;
-                api.get_dvf_finalized_block(bh).unwrap_or_else(|_| 0u32.into())
+                api.get_dvf_finalized_block(bh)
+                    .unwrap_or_else(|_| 0u32.into())
             };
 
-            let block_num_u32 = block_number.clone().saturated_into::<u32>();
+            let block_num_u32 = block_number.saturated_into::<u32>();
             let last_triggered = *self.last_triggered_block.read().unwrap();
-            
+
             if block_num_u32 <= last_triggered {
                 debug!(
-                    "DVF Vote Aggregator: Block #{} already had justification triggered by this node recently, skipping",
+                    "Commit Engine Vote Aggregator: Block #{} already had justification triggered by this node recently, skipping",
                     block_number
                 );
                 return Ok(());
@@ -297,19 +315,19 @@ where
 
             if block_number <= dvf_finalized {
                 debug!(
-                    "DVF Vote Aggregator: Block #{} ({:?}) is already DVF-finalized (dvf finalized: #{}), skipping",
+                    "Commit Engine Vote Aggregator: Block #{} ({:?}) is already committed (commit finalized: #{}), skipping",
                     block_number, block_hash, dvf_finalized
                 );
                 return Ok(());
             }
-            
+
             // Record that we triggered it to prevent duplicates
             if let Ok(mut triggered) = self.last_triggered_block.write() {
                 *triggered = block_num_u32.max(*triggered);
             }
-            
+
             info!(
-                "DVF Vote Aggregator: Block {:?} reached finality threshold! Weight: {}, Threshold: {}",
+                "Commit Engine Vote Aggregator: Block {:?} reached finality threshold! Weight: {}, Threshold: {}",
                 block_hash, best_weight, finality_threshold
             );
 
@@ -320,7 +338,10 @@ where
             }
 
             // Trigger justification construction with retry logic
-            match self.trigger_justification_construction(current_round, block_hash, best_weight).await {
+            match self
+                .trigger_justification_construction(current_round, block_hash, best_weight)
+                .await
+            {
                 Ok(_) => {
                     // Update last finalized round
                     if let Ok(mut last_round) = self.last_finalized_round.write() {
@@ -335,7 +356,7 @@ where
                                 metrics.record_finality_latency(latency);
                             }
                             info!(
-                                "DVF Vote Aggregator: Finality latency for round {}: {:.2}s",
+                                "Commit Engine Vote Aggregator: Finality latency for round {}: {:.2}s",
                                 current_round, latency
                             );
                         }
@@ -343,7 +364,7 @@ where
                 }
                 Err(e) => {
                     warn!(
-                        "DVF Vote Aggregator: Failed to trigger justification construction: {:?}. Will retry on next check.",
+                        "Commit Engine Vote Aggregator: Failed to trigger justification construction: {:?}. Will retry on next check.",
                         e
                     );
                     // Don't return error - we'll retry on the next interval
@@ -358,10 +379,10 @@ where
     fn check_finality_stall(&self, current_round: u32) {
         if let Ok(last_finalized) = self.last_finalized_round.read() {
             let rounds_since_finality = current_round.saturating_sub(*last_finalized);
-            
+
             if rounds_since_finality >= self.stall_warning_threshold {
                 warn!(
-                    "DVF Vote Aggregator: Finality stalled! No blocks finalized for {} rounds (current: {}, last finalized: {})",
+                    "Commit Engine Vote Aggregator: Finality stalled! No blocks finalized for {} rounds (current: {}, last finalized: {})",
                     rounds_since_finality, current_round, *last_finalized
                 );
             }
@@ -381,17 +402,18 @@ where
         accumulated_weight: u128,
     ) -> Result<(), String> {
         info!(
-            "DVF Vote Aggregator: Triggering justification construction for block {:?} (round: {}, weight: {})",
+            "Commit Engine Vote Aggregator: Triggering justification construction for block {:?} (round: {}, weight: {})",
             block_hash, round, accumulated_weight
         );
 
         // Construct justification using the justification builder
-        let justification = self.justification_builder
+        let justification = self
+            .justification_builder
             .construct_justification(round, block_hash)
             .map_err(|e| format!("Failed to construct justification: {}", e))?;
 
         info!(
-            "DVF Vote Aggregator: Successfully constructed justification with {} votes",
+            "Commit Engine Vote Aggregator: Successfully constructed justification with {} votes",
             justification.votes.len()
         );
 
@@ -403,55 +425,63 @@ where
         };
 
         info!(
-            "DVF Vote Aggregator: Justification constructed for block #{} ({:?}) with {} votes, weight: {}",
+            "Commit Engine Vote Aggregator: Justification constructed for block #{} ({:?}) with {} votes, weight: {}",
             block_number, block_hash, justification.votes.len(), accumulated_weight
         );
 
         // Encode the justification for attachment to the block
         let encoded_justification = justification.encode();
-        
+
         info!(
-            "DVF Vote Aggregator: Encoded justification ({} bytes) for block #{} ({:?})",
-            encoded_justification.len(), block_number, block_hash
+            "Commit Engine Vote Aggregator: Encoded justification ({} bytes) for block #{} ({:?})",
+            encoded_justification.len(),
+            block_number,
+            block_hash
         );
-        
+
         // Finalize the block with the justification attached
         // This will:
         // 1. Mark the block as finalized in the client
         // 2. Attach the justification to the block
         // 3. Trigger finality notifications automatically
-        let justification_data = Some((DVF_ENGINE_ID, encoded_justification));
-        
+        let justification_data = Some((CERULEA_COMMIT_ENGINE_ID, encoded_justification));
+
         let result = self.client.lock_import_and_run(|import_op| {
-            self.client.apply_finality(import_op, block_hash, justification_data, true)
+            self.client
+                .apply_finality(import_op, block_hash, justification_data, true)
         });
-        
+
         match result {
             Ok(()) => {
                 info!(
-                    "DVF Vote Aggregator: Successfully finalized block #{} ({:?}) with justification",
+                    "Commit Engine Vote Aggregator: Successfully finalized block #{} ({:?}) with justification",
                     block_number, block_hash
                 );
 
-                // Update DVF pallet's FinalizedBlockNumber so get_dvf_finalized_block()
+                // Update Commit Engine pallet's FinalizedBlockNumber so get_dvf_finalized_block()
                 // returns the correct value and DCF progressive finality is properly capped.
                 // Convert local DvfJustification<Hash, AccountId> to the pallet's
                 // DvfJustification<Hash, AccountId, MultiSignature>.
                 let _ = self.client.runtime_api();
                 let best_hash = self.client.info().best_hash;
-                let pallet_votes: Vec<pallet_cerulea_dvf::DvfVote<Block::Hash, AccountId, sp_runtime::MultiSignature>> =
-                    justification.votes.iter().map(|v| pallet_cerulea_dvf::DvfVote {
+                let pallet_votes: Vec<
+                    pallet_cerulea_dvf::DvfVote<Block::Hash, AccountId, sp_runtime::MultiSignature>,
+                > = justification
+                    .votes
+                    .iter()
+                    .map(|v| pallet_cerulea_dvf::DvfVote {
                         epoch_id: v.epoch_id,
                         validator_set_id: v.validator_set_id,
                         round_id: v.round_number,
                         block_number: v.block_number,
-                        block_hash: v.block_hash.clone(),
+                        block_hash: v.block_hash,
                         validator_account: v.validator_account_id.clone(),
                         signature: sp_runtime::MultiSignature::Ed25519(v.signature),
-                    }).collect();
+                    })
+                    .collect();
                 let pallet_justification = pallet_cerulea_dvf::DvfJustification {
                     round_number: justification.round_number,
-                    block_hash: justification.block_hash.clone(),
+                    block_hash: justification.block_hash,
                     votes: pallet_votes,
                 };
                 // Convert generic justification to concrete runtime justification via SCALE codec
@@ -459,42 +489,54 @@ where
                 let concrete_justification: pallet_cerulea_dvf::DvfJustification<
                     sp_core::H256,
                     cerulea_runtime::AccountId,
-                    sp_runtime::MultiSignature
+                    sp_runtime::MultiSignature,
                 > = Decode::decode(&mut &enc_justification[..])
                     .expect("Failed to decode generic justification to concrete type");
 
                 // Construct the unsigned extrinsic call
-                let encoded_call = cerulea_runtime::RuntimeCall::Dvf(
-                    pallet_cerulea_dvf::Call::submit_justification {
-                        justification: concrete_justification,
-                    }
-                );
-                
+                // The runtime carries one call variant per pallet. The conversion
+                // reaches that variant without naming it here.
+                let encoded_call = cerulea_runtime::RuntimeCall::from(pallet_cerulea_dvf::Call::<
+                    cerulea_runtime::Runtime,
+                >::submit_justification {
+                    justification: concrete_justification,
+                });
+
                 let tx = cerulea_runtime::UncheckedExtrinsic::new_bare(encoded_call);
                 let encoded_tx = tx.encode();
-                
+
                 match <Block as BlockT>::Extrinsic::decode(&mut &encoded_tx[..]) {
                     Ok(ext) => {
                         let tp = self.transaction_pool.clone();
                         // Submit the transaction to the local pool
-                        match tp.submit_one(best_hash, sc_transaction_pool_api::TransactionSource::Local, ext).await {
+                        match tp
+                            .submit_one(
+                                best_hash,
+                                sc_transaction_pool_api::TransactionSource::Local,
+                                ext,
+                            )
+                            .await
+                        {
                             Ok(hash) => {
                                 info!(
-                                    "DVF Vote Aggregator: Submitted justification extrinsic for block #{}, tx hash: {:?}",
+                                    "Commit Engine Vote Aggregator: Submitted justification extrinsic for block #{}, tx hash: {:?}",
                                     block_number, hash
                                 );
                             }
                             Err(e) => {
                                 let err_str = format!("{:?}", e);
                                 // Silence expected noise in a multi-validator environment
-                                if err_str.contains("AlreadyImported") || err_str.contains("TemporarilyBanned") || err_str.contains("TooLowPriority") {
+                                if err_str.contains("AlreadyImported")
+                                    || err_str.contains("TemporarilyBanned")
+                                    || err_str.contains("TooLowPriority")
+                                {
                                     debug!(
-                                        "DVF Vote Aggregator: Justification for block #{} was already submitted by another node.",
+                                        "Commit Engine Vote Aggregator: Justification for block #{} was already submitted by another node.",
                                         block_number
                                     );
                                 } else {
                                     warn!(
-                                        "DVF Vote Aggregator: Failed to submit justification extrinsic for block #{}: {}",
+                                        "Commit Engine Vote Aggregator: Failed to submit justification extrinsic for block #{}: {}",
                                         block_number, err_str
                                     );
                                 }
@@ -502,13 +544,16 @@ where
                         }
                     }
                     Err(e) => {
-                        warn!("DVF Vote Aggregator: Failed to decode Extrinsic for block #{}: {:?}", block_number, e);
+                        warn!(
+                            "Commit Engine Vote Aggregator: Failed to decode Extrinsic for block #{}: {:?}",
+                            block_number, e
+                        );
                     }
                 }
             }
             Err(e) => {
                 warn!(
-                    "DVF Vote Aggregator: Failed to finalize block #{} ({:?}): {:?}",
+                    "Commit Engine Vote Aggregator: Failed to finalize block #{} ({:?}): {:?}",
                     block_number, block_hash, e
                 );
                 return Err(format!("Failed to finalize block: {:?}", e));
@@ -535,7 +580,7 @@ where
         let votes = self.vote_pool.get_votes(round, block_hash);
 
         info!(
-            "DVF Vote Aggregator: Found {} votes for block {:?} in round {}",
+            "Commit Engine Vote Aggregator: Found {} votes for block {:?} in round {}",
             votes.len(),
             block_hash,
             round
@@ -550,8 +595,7 @@ where
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
         // Create a map for quick weight lookup
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         // Calculate accumulated weight
         let mut accumulated_weight = 0u128;
@@ -559,20 +603,22 @@ where
             if let Some(weight) = weight_map.get(&vote.validator_account_id) {
                 accumulated_weight = accumulated_weight.saturating_add(*weight);
                 info!(
-                    "DVF Vote Aggregator:   - Validator {:?} voted with weight {}",
+                    "Commit Engine Vote Aggregator:   - Validator {:?} voted with weight {}",
                     vote.validator_account_id, weight
                 );
             } else {
                 warn!(
-                    "DVF Vote Aggregator:   - Validator {:?} has no weight (not in validator set?)",
+                    "Commit Engine Vote Aggregator:   - Validator {:?} has no weight (not in validator set?)",
                     vote.validator_account_id
                 );
             }
         }
 
         info!(
-            "DVF Vote Aggregator: Total accumulated weight for block {:?}: {} (from {} votes)",
-            block_hash, accumulated_weight, votes.len()
+            "Commit Engine Vote Aggregator: Total accumulated weight for block {:?}: {} (from {} votes)",
+            block_hash,
+            accumulated_weight,
+            votes.len()
         );
 
         Ok(accumulated_weight)
@@ -599,7 +645,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Creates a new Vote Pool Pruning Service
     ///
@@ -612,7 +667,7 @@ where
         vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>,
         finality_notifier: Arc<FinalityNotifier<Block>>,
     ) -> Self {
-        info!("DVF Vote Pool Pruning Service: Initializing");
+        info!("Commit Engine Vote Pool Pruning Service: Initializing");
         Self {
             client,
             vote_pool,
@@ -626,7 +681,7 @@ where
     /// after each block finalization. The task will run until the tokio runtime
     /// is shut down.
     pub async fn run(self) {
-        info!("DVF Vote Pool Pruning Service: Starting service");
+        info!("Commit Engine Vote Pool Pruning Service: Starting service");
 
         // Subscribe to finality notifications
         let mut finality_receiver = self.finality_notifier.subscribe().await;
@@ -636,7 +691,7 @@ where
             match finality_receiver.recv().await {
                 Some(notification) => {
                     debug!(
-                        "DVF Vote Pool Pruning Service: Received finality notification for block #{}",
+                        "Commit Engine Vote Pool Pruning Service: Received finality notification for block #{}",
                         notification.block_number
                     );
 
@@ -647,13 +702,13 @@ where
                     );
                 }
                 None => {
-                    warn!("DVF Vote Pool Pruning Service: Finality notification channel closed");
+                    warn!("Commit Engine Vote Pool Pruning Service: Finality notification channel closed");
                     break;
                 }
             }
         }
 
-        info!("DVF Vote Pool Pruning Service: Service stopped");
+        info!("Commit Engine Vote Pool Pruning Service: Service stopped");
     }
 
     /// Prunes the vote pool after finalization
@@ -664,7 +719,7 @@ where
     /// the aggregator can still act on them.
     ///
     /// # Arguments
-    /// * `finalized_block_number` - The DVF-finalized block number
+    /// * `finalized_block_number` - The committed block number
     /// * `current_round` - The current round number
     fn prune_after_finalization(&self, finalized_block_number: u32, current_round: u32) {
         // Get checkpoint interval from runtime
@@ -675,7 +730,7 @@ where
             Ok(interval) => interval.saturated_into::<u32>(),
             Err(e) => {
                 warn!(
-                    "DVF Vote Pool Pruning Service: Failed to get FinalityCheckpointInterval: {:?}. Using default of 10.",
+                    "Commit Engine Vote Pool Pruning Service: Failed to get FinalityCheckpointInterval: {:?}. Using default of 10.",
                     e
                 );
                 10
@@ -685,14 +740,14 @@ where
         // Guard: only prune at checkpoint boundaries
         if checkpoint_interval == 0 || finalized_block_number % checkpoint_interval != 0 {
             debug!(
-                "DVF Vote Pool Pruning Service: Skipping pruning — block {} is not a checkpoint boundary (interval: {})",
+                "Commit Engine Vote Pool Pruning Service: Skipping pruning — block {} is not a checkpoint boundary (interval: {})",
                 finalized_block_number, checkpoint_interval
             );
             return;
         }
 
         debug!(
-            "DVF Vote Pool Pruning Service: Pruning vote pool at checkpoint boundary (finalized block: {}, current round: {})",
+            "Commit Engine Vote Pool Pruning Service: Pruning vote pool at checkpoint boundary (finalized block: {}, current round: {})",
             finalized_block_number, current_round
         );
 
@@ -703,7 +758,7 @@ where
             Ok(rounds) => rounds,
             Err(e) => {
                 warn!(
-                    "DVF Vote Pool Pruning Service: Failed to get VoteRetentionRounds: {:?}. Using default of 20.",
+                    "Commit Engine Vote Pool Pruning Service: Failed to get VoteRetentionRounds: {:?}. Using default of 20.",
                     e
                 );
                 20
@@ -711,10 +766,12 @@ where
         };
 
         // 1. Round-based pruning
-        let rounds_removed = self.vote_pool.prune_by_round_age(current_round, retention_rounds);
+        let rounds_removed = self
+            .vote_pool
+            .prune_by_round_age(current_round, retention_rounds);
         if rounds_removed > 0 {
             debug!(
-                "DVF Vote Pool Pruning Service: Pruned {} vote entries by round age (retention: {} rounds)",
+                "Commit Engine Vote Pool Pruning Service: Pruned {} vote entries by round age (retention: {} rounds)",
                 rounds_removed, retention_rounds
             );
         }
@@ -722,10 +779,12 @@ where
         // 2. Finalized block pruning — retain votes for the finalized checkpoint block
         //    itself (block_number >= finalized_block_number) so the aggregator can still
         //    act on them during this cycle. Only votes strictly below are removed.
-        let finalized_removed = self.vote_pool.prune_by_finalized_block(finalized_block_number);
+        let finalized_removed = self
+            .vote_pool
+            .prune_by_finalized_block(finalized_block_number);
         if finalized_removed > 0 {
             debug!(
-                "DVF Vote Pool Pruning Service: Pruned {} vote entries for blocks strictly below checkpoint {}",
+                "Commit Engine Vote Pool Pruning Service: Pruned {} vote entries for blocks strictly below checkpoint {}",
                 finalized_removed, finalized_block_number
             );
         }
@@ -735,7 +794,7 @@ where
         let size_removed = self.vote_pool.enforce_max_size(MAX_VOTE_POOL_SIZE);
         if size_removed > 0 {
             warn!(
-                "DVF Vote Pool Pruning Service: Vote pool exceeded max size. Pruned {} oldest entries.",
+                "Commit Engine Vote Pool Pruning Service: Vote pool exceeded max size. Pruned {} oldest entries.",
                 size_removed
             );
         }
@@ -744,7 +803,7 @@ where
         let final_votes = self.vote_pool.total_votes();
 
         debug!(
-            "DVF Vote Pool Pruning Service: Pruning complete. Entries: {} -> {} (removed {}), Total votes: {} -> {} (removed {})",
+            "Commit Engine Vote Pool Pruning Service: Pruning complete. Entries: {} -> {} (removed {}), Total votes: {} -> {} (removed {})",
             initial_size, final_size, initial_size - final_size,
             initial_votes, final_votes, initial_votes - final_votes
         );

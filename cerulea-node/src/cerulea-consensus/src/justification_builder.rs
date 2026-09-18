@@ -1,7 +1,7 @@
 //! Justification Builder
 //!
 //! This module implements the JustificationBuilder component that constructs and verifies
-//! DVF justifications containing threshold-reaching votes.
+//! Commit Engine justifications containing threshold-reaching votes.
 
 use codec::Encode;
 use log::{debug, info};
@@ -21,7 +21,7 @@ const MAX_JUSTIFICATION_SIZE: usize = 1_048_576;
 
 /// Justification Builder
 ///
-/// Constructs and verifies DVF justifications containing threshold-reaching votes.
+/// Constructs and verifies Commit Engine justifications containing threshold-reaching votes.
 pub struct JustificationBuilder<Block, Client, AccountId>
 where
     Block: BlockT,
@@ -37,20 +37,26 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Creates a new justification builder
     ///
     /// # Arguments
     /// * `client` - The blockchain client for querying runtime state
     /// * `vote_pool` - The vote pool containing accumulated votes
-    pub fn new(
-        client: Arc<Client>,
-        vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>,
-    ) -> Self {
-        info!("DVF Justification Builder: Initializing");
-        Self { 
-            client, 
+    pub fn new(client: Arc<Client>, vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>) -> Self {
+        info!("Commit Engine Justification Builder: Initializing");
+        Self {
+            client,
             vote_pool,
             metrics: None,
         }
@@ -69,7 +75,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Selects minimum votes needed to reach threshold
     ///
@@ -89,7 +104,7 @@ where
         block_hash: &Block::Hash,
     ) -> Result<Vec<DvfVoteMessage<Block::Hash, AccountId>>, String> {
         debug!(
-            "DVF Justification Builder: Selecting votes for block {:?} in round {}",
+            "Commit Engine Justification Builder: Selecting votes for block {:?} in round {}",
             block_hash, round
         );
 
@@ -101,7 +116,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Found {} votes for block",
+            "Commit Engine Justification Builder: Found {} votes for block",
             votes.len()
         );
 
@@ -114,8 +129,7 @@ where
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
         // Create a map for quick weight lookup
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         // 3. Create weighted votes (vote, weight) pairs
         let mut weighted_votes: Vec<(DvfVoteMessage<Block::Hash, AccountId>, u128)> = votes
@@ -135,7 +149,7 @@ where
         weighted_votes.sort_by(|a, b| b.1.cmp(&a.1));
 
         debug!(
-            "DVF Justification Builder: Sorted {} weighted votes",
+            "Commit Engine Justification Builder: Sorted {} weighted votes",
             weighted_votes.len()
         );
 
@@ -148,7 +162,7 @@ where
         let threshold = finality_threshold_perbill * total_weight;
 
         debug!(
-            "DVF Justification Builder: Total weight: {}, Threshold: {}",
+            "Commit Engine Justification Builder: Total weight: {}, Threshold: {}",
             total_weight, threshold
         );
 
@@ -166,7 +180,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Selected {} votes with accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Selected {} votes with accumulated weight {} (threshold: {})",
             selected_votes.len(),
             accumulated_weight,
             threshold
@@ -182,7 +196,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Constructs a justification for a block
     ///
@@ -202,7 +225,7 @@ where
         block_hash: Block::Hash,
     ) -> Result<DvfJustification<Block::Hash, AccountId>, String> {
         info!(
-            "DVF Justification Builder: Constructing justification for block {:?} in round {}",
+            "Commit Engine Justification Builder: Constructing justification for block {:?} in round {}",
             block_hash, round
         );
 
@@ -221,14 +244,14 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Verified no duplicate validators ({} unique)",
+            "Commit Engine Justification Builder: Verified no duplicate validators ({} unique)",
             seen_validators.len()
         );
 
         // 3. Construct justification
         let justification = DvfJustification {
             round_number: round,
-            block_hash: block_hash.clone(),
+            block_hash,
             votes: selected_votes,
         };
 
@@ -240,8 +263,7 @@ where
             .get_validator_weights(best_hash)
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         let mut accumulated_weight = 0u128;
         for vote in &justification.votes {
@@ -265,7 +287,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Constructed justification with {} votes, accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Constructed justification with {} votes, accumulated weight {} (threshold: {})",
             justification.votes.len(),
             accumulated_weight,
             threshold
@@ -273,7 +295,7 @@ where
 
         // Log justification construction at info level
         info!(
-            "DVF Justification Builder: Justification constructed for block {:?}, round {}, {} votes, weight {}",
+            "Commit Engine Justification Builder: Justification constructed for block {:?}, round {}, {} votes, weight {}",
             block_hash, round, justification.votes.len(), accumulated_weight
         );
 
@@ -309,7 +331,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Justification encoded size: {} bytes",
+            "Commit Engine Justification Builder: Justification encoded size: {} bytes",
             encoded_size
         );
 
@@ -330,7 +352,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Size limits satisfied ({} votes, {} bytes)",
+            "Commit Engine Justification Builder: Size limits satisfied ({} votes, {} bytes)",
             justification.votes.len(),
             encoded_size
         );
@@ -345,7 +367,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Verifies a justification is valid
     ///
@@ -363,7 +394,7 @@ where
         justification: &DvfJustification<Block::Hash, AccountId>,
     ) -> Result<(), String> {
         info!(
-            "DVF Justification Builder: Verifying justification for block {:?} in round {}",
+            "Commit Engine Justification Builder: Verifying justification for block {:?} in round {}",
             justification.block_hash, justification.round_number
         );
 
@@ -384,8 +415,7 @@ where
             .get_validator_weights(best_hash)
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         // 3. Verify all votes
         let mut seen_validators = HashSet::new();
@@ -484,7 +514,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Justification verified successfully - {} votes, accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Justification verified successfully - {} votes, accumulated weight {} (threshold: {})",
             justification.votes.len(),
             accumulated_weight,
             threshold
@@ -492,7 +522,7 @@ where
 
         // Log justification verification at info level
         info!(
-            "DVF Justification Builder: Justification verified for block {:?}, round {}, {} votes, weight {}",
+            "Commit Engine Justification Builder: Justification verified for block {:?}, round {}, {} votes, weight {}",
             justification.block_hash, justification.round_number, justification.votes.len(), accumulated_weight
         );
 

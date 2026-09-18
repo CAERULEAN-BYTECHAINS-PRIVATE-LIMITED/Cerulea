@@ -7,16 +7,16 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     types::{EpochConfig, ValidatorInfo},
 };
-use std::sync::Arc;
-use sp_runtime::traits::NumberFor;
-use log::{info, warn, error, debug};
-use sp_runtime::traits::{Block as BlockTrait, SaturatedConversion};
+use cerulea_runtime::AccountId;
+use log::{debug, error, info, warn};
+use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
-use cerulea_runtime::AccountId;
+use sp_runtime::traits::NumberFor;
+use sp_runtime::traits::{Block as BlockTrait, SaturatedConversion};
+use std::sync::Arc;
 
-/// Configuration constants from the runtime
+/// Policy constants from the runtime
 #[derive(Debug, Clone)]
 pub struct EpochManagerRuntimeConfig {
     /// Minimum score for good performance
@@ -41,6 +41,23 @@ pub struct EpochManagerRuntimeConfig {
     pub leave_cooldown: u32,
     /// Number of top validators to display in logs
     pub top_validators_display_count: u32,
+}
+
+/// One proposal the epoch boundary raises about one validator.
+///
+/// The Admission Engine reads these proposals at the epoch boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatorManagementProposal {
+    /// The validator the proposal names.
+    pub validator: AccountId,
+    /// One sentence stating why the proposal was raised.
+    pub reason: String,
+    /// The combined standing score of the validator.
+    pub combined_score: u64,
+    /// The stake part of the score.
+    pub stake_score: u64,
+    /// The measured contribution part of the score.
+    pub contribution_score: u64,
 }
 
 /// Epoch manager for handling epoch transitions and validator set updates
@@ -74,11 +91,14 @@ where
     fn get_pos_score(&self, validator: &AccountId) -> u64 {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         match api.get_validator_stake_score(best_hash, validator.clone()) {
-            Ok(score) => score as u64,
+            Ok(score) => score,
             Err(e) => {
-                debug!("Failed to get PoS score for validator {:?}: {:?}", validator, e);
+                debug!(
+                    "Failed to get PoS score for validator {:?}: {:?}",
+                    validator, e
+                );
                 0u64
             }
         }
@@ -88,7 +108,7 @@ where
     fn calculate_validator_uptime(&self, validator: &AccountId) -> u32 {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         // Get validator uptime from DCF pallet
         match api.get_validator_uptime(best_hash, validator.clone()) {
             Ok(Some(uptime_stats)) => {
@@ -106,7 +126,7 @@ where
     fn get_validator_participation_metrics(&self, validator: &AccountId) -> (u32, u32) {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         match api.get_validator_participation(best_hash, validator.clone()) {
             Ok((authored, missed)) => {
                 let total_blocks = authored + missed;
@@ -118,20 +138,24 @@ where
                 (participation_rate, missed)
             }
             Err(e) => {
-                debug!("Failed to get participation metrics for validator {:?}: {:?}", validator, e);
+                debug!(
+                    "Failed to get participation metrics for validator {:?}: {:?}",
+                    validator, e
+                );
                 (0u32, 0u32)
             }
         }
     }
 
-    /// Get runtime configuration constants
+    /// Get runtime policy constants
     fn get_runtime_config(&self) -> ConsensusResult<EpochManagerRuntimeConfig> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let config_tuple = api.get_epoch_manager_config(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get epoch manager config: {:?}", e)))?;
-        
+
+        let config_tuple = api.get_epoch_manager_config(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get epoch manager config: {:?}", e))
+        })?;
+
         Ok(EpochManagerRuntimeConfig {
             min_performance_score: config_tuple.0,
             high_performance_score: config_tuple.1,
@@ -151,22 +175,24 @@ where
     pub fn should_transition_epoch(&self, current_block: u32) -> ConsensusResult<bool> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let current_epoch = api.get_current_epoch(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e)))?;
-        
-        // Get epoch length from runtime configuration (T::EpochLength)
-        let epoch_length = api.get_epoch_length(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get epoch length: {:?}", e)))?;
-        
+
+        let current_epoch = api.get_current_epoch(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e))
+        })?;
+
+        // Get epoch length from runtime policy (T::EpochLength)
+        let epoch_length = api.get_epoch_length(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get epoch length: {:?}", e))
+        })?;
+
         let epoch_start_block = current_epoch.saturating_mul(epoch_length);
         let should_transition = current_block >= epoch_start_block + epoch_length;
-        
+
         if should_transition {
             info!("DCF EpochManager: Epoch transition needed at block {} (epoch {} -> {}, length: {})", 
                   current_block, current_epoch, current_epoch + 1, epoch_length);
         }
-        
+
         Ok(should_transition)
     }
 
@@ -174,9 +200,10 @@ where
     pub fn handle_epoch_transition(&self) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let current_epoch = api.get_current_epoch(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e)))?;
+
+        let current_epoch = api.get_current_epoch(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e))
+        })?;
 
         // 1. Apply validator score decay for inactive validators
         self.apply_validator_score_decay(current_epoch)?;
@@ -201,29 +228,42 @@ where
     fn apply_validator_score_decay(&self, current_epoch: u32) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let all_validators = api.get_validator_scores(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e)))?;
-        
+
+        let all_validators = api.get_validator_scores(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e))
+        })?;
+
         let mut decayed_count = 0;
-        
+
         for (validator, _score) in all_validators {
-            let last_active = api.get_validator_last_active(best_hash, validator.clone())
-                .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get validator last active: {:?}", e)))?;
-            
+            let last_active = api
+                .get_validator_last_active(best_hash, validator.clone())
+                .map_err(|e| {
+                    ConsensusError::EpochTransition(format!(
+                        "Failed to get validator last active: {:?}",
+                        e
+                    ))
+                })?;
+
             let inactive_epochs = current_epoch.saturating_sub(last_active);
-            
+
             if inactive_epochs > 0 {
                 // Score decay is handled by the runtime pallet automatically
-                info!("DCF EpochManager: Validator {:?} inactive for {} epochs", validator, inactive_epochs);
+                info!(
+                    "DCF EpochManager: Validator {:?} inactive for {} epochs",
+                    validator, inactive_epochs
+                );
                 decayed_count += 1;
             }
         }
-        
+
         if decayed_count > 0 {
-            info!("DCF EpochManager: Applied score decay to {} inactive validators", decayed_count);
+            info!(
+                "DCF EpochManager: Applied score decay to {} inactive validators",
+                decayed_count
+            );
         }
-        
+
         Ok(())
     }
 
@@ -231,22 +271,24 @@ where
     fn update_active_validator_set(&self) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let current_active = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
-        let all_scores = api.get_validator_scores(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e)))?;
-        
+
+        let current_active = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
+        let all_scores = api.get_validator_scores(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e))
+        })?;
+
         // Filter validators that meet minimum requirements
         let mut eligible_validators: Vec<(AccountId, u64)> = Vec::new();
-        
+
         // Get current block number for cooldown check
         let current_block = self.client.info().best_number.saturated_into::<u32>();
-        
-        // Get runtime configuration
+
+        // Get runtime policy
         let config = self.get_runtime_config()?;
-        
+
         for (validator, score) in all_scores {
             // Check minimum score requirement
             if score >= config.healthy_validator_score {
@@ -255,7 +297,7 @@ where
                     Ok(Some(leave_block)) => {
                         let blocks_passed = current_block.saturating_sub(leave_block);
                         let cooldown_period = config.leave_cooldown;
-                        
+
                         if blocks_passed < cooldown_period {
                             // Validator is still in cooldown period, skip
                             debug!("DCF EpochManager: Validator {:?} still in cooldown period ({} blocks remaining)", 
@@ -271,51 +313,62 @@ where
                         // Continue with validator to avoid blocking the epoch transition
                     }
                 }
-                
+
                 // Check if validator has sufficient stake (this was checked via PoS pallet)
                 eligible_validators.push((validator, score));
             }
         }
-        
+
         // Sort by score (descending) and take top validators up to max limit
         eligible_validators.sort_by(|a, b| b.1.cmp(&a.1));
-        
+
         let max_validators = self.epoch_config.max_validators as usize;
         if eligible_validators.len() > max_validators {
             eligible_validators.truncate(max_validators);
         }
-        
+
         let new_active_count = eligible_validators.len();
         let old_active_count = current_active.len();
-        
-        info!("DCF EpochManager: Validator set update - {} -> {} active validators", 
-              old_active_count, new_active_count);
+
+        info!(
+            "DCF EpochManager: Validator set update - {} -> {} active validators",
+            old_active_count, new_active_count
+        );
         Ok(())
     }
 
     /// Process validator join/leave requests
-    fn process_validator_set_changes(&self) -> ConsensusResult<()> {        
+    fn process_validator_set_changes(&self) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let active_validators = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
+
+        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
         // Validate minimum validator count
         if active_validators.len() < self.epoch_config.min_validators as usize {
-            warn!("DCF EpochManager: Active validator count ({}) below minimum ({})", 
-                  active_validators.len(), self.epoch_config.min_validators);
+            warn!(
+                "DCF EpochManager: Active validator count ({}) below minimum ({})",
+                active_validators.len(),
+                self.epoch_config.min_validators
+            );
         }
-        
+
         // Validate maximum validator count
         if active_validators.len() > self.epoch_config.max_validators as usize {
-            error!("DCF EpochManager: Active validator count ({}) exceeds maximum ({})", 
-                   active_validators.len(), self.epoch_config.max_validators);
+            error!(
+                "DCF EpochManager: Active validator count ({}) exceeds maximum ({})",
+                active_validators.len(),
+                self.epoch_config.max_validators
+            );
         }
-        
-        info!("DCF EpochManager: Processed validator set changes - {} active validators", 
-              active_validators.len());
-        
+
+        info!(
+            "DCF EpochManager: Processed validator set changes - {} active validators",
+            active_validators.len()
+        );
+
         Ok(())
     }
 
@@ -324,40 +377,48 @@ where
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         let config = self.get_runtime_config()?;
-        
-        let active_validators = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
+
+        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
         let mut total_participation = 0u32;
         let mut validator_count = 0u32;
-        
+
         for validator in active_validators {
-            if let Ok((authored, missed)) = api.get_validator_participation(best_hash, validator.clone()) {
+            if let Ok((authored, missed)) =
+                api.get_validator_participation(best_hash, validator.clone())
+            {
                 let total_blocks = authored + missed;
                 let participation_rate = if total_blocks > 0 {
                     (authored * 100) / total_blocks
                 } else {
                     100 // New validators get full participation initially
                 };
-                
+
                 total_participation += participation_rate;
                 validator_count += 1;
-                
+
                 if participation_rate < config.healthy_participation_rate {
-                    warn!("DCF EpochManager: Low participation rate for validator {:?}: {}%", 
-                          validator, participation_rate);
+                    warn!(
+                        "DCF EpochManager: Low participation rate for validator {:?}: {}%",
+                        validator, participation_rate
+                    );
                 }
             }
         }
-        
+
         let average_participation = if validator_count > 0 {
             total_participation / validator_count
         } else {
             0
         };
-        
-        info!("DCF EpochManager: Average validator participation rate: {}%", average_participation);
-        
+
+        info!(
+            "DCF EpochManager: Average validator participation rate: {}%",
+            average_participation
+        );
+
         Ok(())
     }
 
@@ -366,38 +427,43 @@ where
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         let config = self.get_runtime_config()?;
-        
-        let active_validators = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
+
+        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
         let mut underperforming_count = 0;
-        
+
         for validator in active_validators {
             if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
                 let combined_score = profile.final_score;
                 let _trust_score = profile.trust_score;
                 let _inference_count = profile.inference_count;
-                let (participation_rate, missed_blocks) = self.get_validator_participation_metrics(&validator);
-                
+                let (participation_rate, missed_blocks) =
+                    self.get_validator_participation_metrics(&validator);
+
                 // Check for underperformance criteria
-                let is_underperforming = combined_score < config.min_performance_score as u64 || 
-                                        participation_rate < config.min_participation_rate || 
-                                        missed_blocks > config.max_missed_blocks;
-                
+                let is_underperforming = combined_score < config.min_performance_score
+                    || participation_rate < config.min_participation_rate
+                    || missed_blocks > config.max_missed_blocks;
+
                 if is_underperforming {
                     warn!("DCF EpochManager: Underperforming validator detected: {:?} - Combined Score: {}, Participation: {}%, Missed: {}", 
                           validator, combined_score, participation_rate, missed_blocks);
                     underperforming_count += 1;
-                    
+
                     // The runtime pallet will handle automatic ejection if score falls below threshold
                 }
             }
         }
-        
+
         if underperforming_count > 0 {
-            info!("DCF EpochManager: Found {} underperforming validators", underperforming_count);
+            info!(
+                "DCF EpochManager: Found {} underperforming validators",
+                underperforming_count
+            );
         }
-        
+
         Ok(())
     }
 
@@ -405,42 +471,49 @@ where
     pub fn get_current_epoch_info(&self) -> ConsensusResult<(u32, Vec<AccountId>)> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
-        let current_epoch = api.get_current_epoch(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e)))?;
-        
-        let active_validators = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
+
+        let current_epoch = api.get_current_epoch(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get current epoch: {:?}", e))
+        })?;
+
+        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
         Ok((current_epoch, active_validators))
     }
 
-    /// Generate validator management proposals based on combined PoS and PoI scores
-    pub fn generate_validator_management_proposals(&self) -> ConsensusResult<Vec<(AccountId, String, u64, u64, u64)>> {
+    /// Generate validator management proposals from the combined standing score
+    pub fn generate_validator_management_proposals(
+        &self,
+    ) -> ConsensusResult<Vec<ValidatorManagementProposal>> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         let config = self.get_runtime_config()?;
         let mut proposals = Vec::new();
-        
+
         // Get active validators and their scores
-        let active_validators = api.get_active_validators(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e)))?;
-        
-        let (_pos_weight, _poi_weight) = api.get_consensus_weights(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get consensus weights: {:?}", e)))?;
-        
+        let active_validators = api.get_active_validators(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get active validators: {:?}", e))
+        })?;
+
+        let (_pos_weight, _poi_weight) = api.get_consensus_weights(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get consensus weights: {:?}", e))
+        })?;
+
         for validator in active_validators.iter() {
             if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
                 let combined_score = profile.final_score;
-                let pos_score = self.get_pos_score(&validator);
+                let pos_score = self.get_pos_score(validator);
                 let poi_score = profile.poi_score as u64;
                 let _inference_count = profile.inference_count;
-                let (participation_rate, missed_blocks) = self.get_validator_participation_metrics(validator);
-                
+                let (participation_rate, missed_blocks) =
+                    self.get_validator_participation_metrics(validator);
+
                 let mut proposal_reason = String::new();
-                
+
                 // Check for underperformance
-                if combined_score < config.min_performance_score as u64 {
+                if combined_score < config.min_performance_score {
                     proposal_reason = format!("Low combined score: {}", combined_score);
                 } else if participation_rate < config.min_participation_rate {
                     proposal_reason = format!("Low participation: {}%", participation_rate);
@@ -448,34 +521,46 @@ where
                     proposal_reason = format!("Too many missed blocks: {}", missed_blocks);
                 } else if pos_score == 0u64 && poi_score == 0u64 {
                     proposal_reason = "No PoS or PoI contribution".to_string();
-                } else if combined_score >= config.high_performance_score as u64 {
-                    proposal_reason = format!("High performance reward candidate: {}", combined_score);
+                } else if combined_score >= config.high_performance_score {
+                    proposal_reason =
+                        format!("High performance reward candidate: {}", combined_score);
                 }
-                
+
                 if !proposal_reason.is_empty() {
-                    proposals.push((validator.clone(), proposal_reason, combined_score, pos_score, poi_score));
+                    proposals.push(ValidatorManagementProposal {
+                        validator: validator.clone(),
+                        reason: proposal_reason,
+                        combined_score,
+                        stake_score: pos_score,
+                        contribution_score: poi_score,
+                    });
                 }
             }
         }
-        
-        info!("EpochManager: Generated {} validator management proposals", proposals.len());
+
+        info!(
+            "EpochManager: Generated {} validator management proposals",
+            proposals.len()
+        );
         Ok(proposals)
     }
-    
+
     /// Update validator set based on combined PoS and PoI scores
     pub fn update_validator_set_by_combined_scores(&self) -> ConsensusResult<()> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         // Get all validators and their combined scores
-        let all_validators = api.get_validator_scores(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e)))?;
-        
-        let (pos_weight, poi_weight) = api.get_consensus_weights(best_hash)
-            .map_err(|e| ConsensusError::EpochTransition(format!("Failed to get consensus weights: {:?}", e)))?;
-        
+        let all_validators = api.get_validator_scores(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get validator scores: {:?}", e))
+        })?;
+
+        let (pos_weight, poi_weight) = api.get_consensus_weights(best_hash).map_err(|e| {
+            ConsensusError::EpochTransition(format!("Failed to get consensus weights: {:?}", e))
+        })?;
+
         let mut validator_performance: Vec<(AccountId, u64, u64, u64)> = Vec::new(); // (validator, combined, pos, poi)
-        
+
         for (validator, _stored_score) in all_validators {
             if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
                 let combined_score = profile.final_score;
@@ -484,36 +569,51 @@ where
                 validator_performance.push((validator, combined_score, pos_score, poi_score));
             }
         }
-        
+
         // Sort by combined score (descending)
         validator_performance.sort_by(|a, b| b.1.cmp(&a.1));
-        
-        // Get runtime configuration for display count
+
+        // Get runtime policy for display count
         let config = self.get_runtime_config()?;
-        
+
         // Log top performers
-        info!("EpochManager: Top validators by combined PoS/PoI score:");
-        for (i, (validator, combined, pos, poi)) in validator_performance.iter().take(config.top_validators_display_count as usize).enumerate() {
-            info!("  {}. {:?} - Combined: {}, PoS: {} ({}%), PoI: {} ({}%)", 
-                  i + 1, validator, combined, pos, pos_weight, poi, poi_weight);
+        info!("EpochManager: Top validators by combined PoS/contribution score:");
+        for (i, (validator, combined, pos, poi)) in validator_performance
+            .iter()
+            .take(config.top_validators_display_count as usize)
+            .enumerate()
+        {
+            info!(
+                "  {}. {:?} - Combined: {}, PoS: {} ({}%), PoI: {} ({}%)",
+                i + 1,
+                validator,
+                combined,
+                pos,
+                pos_weight,
+                poi,
+                poi_weight
+            );
         }
-        
+
         Ok(())
     }
-    
+
     /// Get validator information for a specific validator
-    pub fn get_validator_info(&self, validator: &AccountId) -> ConsensusResult<Option<ValidatorInfo>> {
+    pub fn get_validator_info(
+        &self,
+        validator: &AccountId,
+    ) -> ConsensusResult<Option<ValidatorInfo>> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
-        
+
         if let Ok(Some(profile)) = api.get_validator_profile(best_hash, validator.clone()) {
             let combined_score = profile.final_score;
             let pos_score = self.get_pos_score(validator);
             let uptime = self.calculate_validator_uptime(validator);
             let (_, missed_blocks) = self.get_validator_participation_metrics(validator);
-            
+
             let stake_score = pos_score; // Use the fresh PoS score from the profile
-            
+
             let validator_info = ValidatorInfo {
                 account_id: sp_core::ed25519::Public::from_raw(*validator.as_ref()),
                 stake: stake_score as u128,
@@ -521,7 +621,7 @@ where
                 blocks_produced: uptime, // Using uptime as blocks produced approximation
                 blocks_missed: missed_blocks,
             };
-            
+
             Ok(Some(validator_info))
         } else {
             Ok(None)

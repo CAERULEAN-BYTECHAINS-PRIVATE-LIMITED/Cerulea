@@ -1,22 +1,22 @@
+use crate::metrics::DvfMetrics;
 use codec::{Decode, Encode};
-use sc_network_gossip::{ValidatorContext, ValidationResult, MessageIntent};
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use sp_core::ed25519;
-use std::collections::{HashMap, HashSet};
-use parking_lot::RwLock;
-use std::sync::Arc;
-use sc_network::PeerId;
 use log::{debug, info, warn};
-use sp_api::ProvideRuntimeApi;
-use sp_blockchain::HeaderBackend;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
-use crate::metrics::DvfMetrics;
+use parking_lot::RwLock;
+use sc_network::PeerId;
+use sc_network_gossip::{MessageIntent, ValidationResult, ValidatorContext};
+use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
+use sp_core::ed25519;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-/// The protocol ID for DVF Vote Gossiping.
-pub const DVF_PROTOCOL_NAME: &str = "/cerulea/dvf/1";
+/// The protocol ID for Commit Engine Vote Gossiping.
+pub const DVF_PROTOCOL_NAME: &str = "/cerulea/commit/1";
 
-/// The structure of a DVF Vote gossiped over the P2P network.
+/// The structure of a Commit Engine Vote gossiped over the P2P network.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct DvfVoteMessage<Hash, AccountId> {
     /// Epoch ID
@@ -37,8 +37,7 @@ pub struct DvfVoteMessage<Hash, AccountId> {
     pub signature: ed25519::Signature,
 }
 
-
-/// The structure of a DVF Justification containing a threshold of votes
+/// The structure of a Commit Engine Justification containing a threshold of votes
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct DvfJustification<Hash, AccountId> {
     /// Round number for this justification
@@ -49,14 +48,21 @@ pub struct DvfJustification<Hash, AccountId> {
     pub votes: Vec<DvfVoteMessage<Hash, AccountId>>,
 }
 
-/// A thread-safe, in-memory pool storing DVF votes.
+/// A thread-safe, in-memory pool storing Commit Engine votes.
 pub struct DvfVotePool<Hash, AccountId> {
-    votes: RwLock<HashMap<(u32, Hash), Vec<DvfVoteMessage<Hash, AccountId>>>>,
+    votes: RwLock<VoteIndex<Hash, AccountId>>,
     participation: RwLock<HashMap<u32, HashSet<AccountId>>>,
 }
 
-impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std::hash::Hash + Clone> DvfVotePool<Hash, AccountId> {
-    /// Creates a new DVF Vote Pool.
+/// Votes held for one round and one candidate block.
+type VoteIndex<Hash, AccountId> = HashMap<(u32, Hash), Vec<DvfVoteMessage<Hash, AccountId>>>;
+
+impl<
+        Hash: std::cmp::Eq + std::hash::Hash + Clone,
+        AccountId: std::cmp::Eq + std::hash::Hash + Clone,
+    > DvfVotePool<Hash, AccountId>
+{
+    /// Creates a new Commit Engine Vote Pool.
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             votes: RwLock::new(HashMap::new()),
@@ -67,23 +73,28 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
     /// Inserts a vote into the pool.
     pub fn insert_vote(&self, vote: DvfVoteMessage<Hash, AccountId>) -> bool {
         let mut participation = self.participation.write();
-        let round_voters = participation.entry(vote.round_number).or_insert_with(HashSet::new);
-        
+        let round_voters = participation.entry(vote.round_number).or_default();
+
         if !round_voters.insert(vote.validator_account_id.clone()) {
             return false;
         }
-        
+
         let mut votes = self.votes.write();
-        let block_votes = votes.entry((vote.round_number, vote.block_hash.clone())).or_insert_with(Vec::new);
+        let block_votes = votes
+            .entry((vote.round_number, vote.block_hash.clone()))
+            .or_default();
         block_votes.push(vote);
-        
+
         true
     }
 
     /// Gets votes for a specific round and block hash.
     pub fn get_votes(&self, round: u32, block_hash: &Hash) -> Vec<DvfVoteMessage<Hash, AccountId>> {
         let votes = self.votes.read();
-        votes.get(&(round, block_hash.clone())).cloned().unwrap_or_default()
+        votes
+            .get(&(round, block_hash.clone()))
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Gets all candidate blocks (block hashes) for a specific round.
@@ -115,7 +126,7 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
     /// * `retention_rounds` - Number of rounds to retain
     pub fn prune_by_round_age(&self, current_round: u32, retention_rounds: u32) -> usize {
         let cutoff_round = current_round.saturating_sub(retention_rounds);
-        
+
         let mut votes = self.votes.write();
         let initial_count = votes.len();
         votes.retain(|&(round, _), _| round >= cutoff_round);
@@ -123,7 +134,7 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
 
         let mut participation = self.participation.write();
         participation.retain(|&round, _| round >= cutoff_round);
-        
+
         votes_removed
     }
 
@@ -140,7 +151,7 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
     pub fn prune_by_finalized_block(&self, finalized_block_number: u32) -> usize {
         let mut votes = self.votes.write();
         let initial_count = votes.len();
-        
+
         // Remove votes for blocks strictly below the finalized checkpoint.
         // Votes for the finalized checkpoint block itself (block_number == finalized_block_number)
         // are retained so the aggregator can still act on them during this pruning cycle.
@@ -148,9 +159,8 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
             vote_list.retain(|vote| vote.block_number >= finalized_block_number);
             !vote_list.is_empty()
         });
-        
-        let entries_removed = initial_count - votes.len();
-        entries_removed
+
+        initial_count - votes.len()
     }
 
     /// Enforces maximum pool size by pruning oldest votes first.
@@ -165,25 +175,28 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
     /// The number of vote entries removed
     pub fn enforce_max_size(&self, max_size: usize) -> usize {
         let mut votes = self.votes.write();
-        
+
         if votes.len() <= max_size {
             return 0;
         }
-        
+
         // Collect all entries with their rounds (for sorting by age)
-        let mut entries: Vec<_> = votes.iter().map(|((round, hash), _)| (*round, hash.clone())).collect();
-        
+        let mut entries: Vec<_> = votes
+            .iter()
+            .map(|((round, hash), _)| (*round, hash.clone()))
+            .collect();
+
         // Sort by round (oldest first)
         entries.sort_by_key(|(round, _)| *round);
-        
+
         // Calculate how many to remove
         let to_remove = votes.len() - max_size;
-        
+
         // Remove oldest entries
         for (round, hash) in entries.iter().take(to_remove) {
             votes.remove(&(*round, hash.clone()));
         }
-        
+
         to_remove
     }
 
@@ -207,11 +220,10 @@ impl<Hash: std::cmp::Eq + std::hash::Hash + Clone, AccountId: std::cmp::Eq + std
         let mut participation = self.participation.write();
         participation.clear();
     }
-
 }
 
-/// Validator for DVF gossip messages.
-/// Filters, validates, and manages routing of `/cerulea/dvf/1` messages across peers.
+/// Validator for Commit Engine gossip messages.
+/// Filters, validates, and manages routing of `/cerulea/commit/1` messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     pool: Arc<DvfVotePool<B::Hash, AccountId>>,
     known_messages: RwLock<HashSet<B::Hash>>,
@@ -224,9 +236,10 @@ where
     B: BlockT,
     AccountId: std::cmp::Eq + std::hash::Hash + Clone + Encode + Decode + std::fmt::Debug,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>,
 {
-    /// Creates a new DVF Gossip Validator.
+    /// Creates a new Commit Engine Gossip Validator.
     pub fn new(pool: Arc<DvfVotePool<B::Hash, AccountId>>, client: Arc<C>) -> Self {
         Self {
             pool,
@@ -243,14 +256,18 @@ where
     }
 
     /// Internal validation core.
-    fn validate_core(&self, message_data: &[u8]) -> Result<DvfVoteMessage<B::Hash, AccountId>, &'static str> {
-        let message = DvfVoteMessage::<B::Hash, AccountId>::decode(&mut &message_data[..]).map_err(|_| {
-            warn!("DVF Gossip: Failed to decode incoming DVF Vote Message");
-            if let Some(ref metrics) = self.metrics {
-                metrics.record_vote_rejection("invalid_encoding");
-            }
-            "invalid_encoding"
-        })?;
+    fn validate_core(
+        &self,
+        message_data: &[u8],
+    ) -> Result<DvfVoteMessage<B::Hash, AccountId>, &'static str> {
+        let message = DvfVoteMessage::<B::Hash, AccountId>::decode(&mut &message_data[..])
+            .map_err(|_| {
+                warn!("Commit Engine Gossip: Failed to decode incoming Commit Engine Vote Message");
+                if let Some(ref metrics) = self.metrics {
+                    metrics.record_vote_rejection("invalid_encoding");
+                }
+                "invalid_encoding"
+            })?;
 
         // 1. Verify Cryptographic Integrity
         let mut encoded_payload = Vec::new();
@@ -262,14 +279,21 @@ where
         message.validator_account_id.encode_to(&mut encoded_payload);
 
         // The SCALE decode process already validates the type for `ed25519::Public` bytes.
-        
+
         // For Ed25519 standard Substrate:
-        if !sp_io::crypto::ed25519_verify(&message.signature, &encoded_payload, &message.validator_public_key) {
-             warn!("DVF Gossip: Invalid signature on incoming DVF Vote from {:?}", message.validator_account_id);
-             if let Some(ref metrics) = self.metrics {
-                 metrics.record_vote_rejection("invalid_signature");
-             }
-             return Err("invalid_signature");
+        if !sp_io::crypto::ed25519_verify(
+            &message.signature,
+            &encoded_payload,
+            &message.validator_public_key,
+        ) {
+            warn!(
+                "Commit Engine Gossip: Invalid signature on incoming Commit Engine Vote from {:?}",
+                message.validator_account_id
+            );
+            if let Some(ref metrics) = self.metrics {
+                metrics.record_vote_rejection("invalid_signature");
+            }
+            return Err("invalid_signature");
         }
 
         // 2. Fetch Runtime APIs and verify active validators
@@ -279,76 +303,92 @@ where
         match api.get_active_validators(best_hash) {
             Ok(active_validators) => {
                 if !active_validators.contains(&message.validator_account_id) {
-                    warn!("DVF Gossip: DVF Vote from inactive validator {:?}", message.validator_account_id);
+                    warn!(
+                        "Commit Engine Gossip: Commit Engine Vote from inactive validator {:?}",
+                        message.validator_account_id
+                    );
                     if let Some(ref metrics) = self.metrics {
                         metrics.record_vote_rejection("inactive_validator");
                     }
                     return Err("inactive_validator");
                 }
-            },
+            }
             Err(e) => {
-                warn!("DVF Gossip: Failed to fetch active validators: {:?}", e);
+                warn!(
+                    "Commit Engine Gossip: Failed to fetch active validators: {:?}",
+                    e
+                );
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_rejection("runtime_api_error");
                 }
                 return Err("runtime_api_error");
             }
         }
-        
+
         // 3. Verify Epoch ID - allow current epoch or current_epoch+1 (grace period at epoch boundary)
-        match <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(&api, best_hash) {
+        match <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
+            &api, best_hash,
+        ) {
             Ok(current_epoch) => {
-                if message.epoch_id != current_epoch && message.epoch_id != current_epoch.saturating_add(1) {
-                    warn!("DVF Gossip: DVF Vote epoch mismatch. Expected {} (or {}), got {}", current_epoch, current_epoch.saturating_add(1), message.epoch_id);
+                if message.epoch_id != current_epoch
+                    && message.epoch_id != current_epoch.saturating_add(1)
+                {
+                    warn!(
+                        "Commit Engine Gossip: Commit Engine Vote epoch mismatch. Expected {} (or {}), got {}",
+                        current_epoch,
+                        current_epoch.saturating_add(1),
+                        message.epoch_id
+                    );
                     if let Some(ref metrics) = self.metrics {
                         metrics.record_vote_rejection("epoch_mismatch");
                     }
                     return Err("epoch_mismatch");
                 }
-            },
+            }
             Err(_) => {
-                warn!("DVF Gossip: Failed to fetch current epoch");
+                warn!("Commit Engine Gossip: Failed to fetch current epoch");
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_rejection("runtime_api_error");
                 }
                 return Err("runtime_api_error");
             }
         }
-        
+
         // 4. Verify Validator Set ID (with grace period)
         match api.get_validator_set_id(best_hash) {
             Ok(current_validator_set_id) => {
                 if message.validator_set_id != current_validator_set_id {
                     // Check if this is within the grace period (previous validator set ID)
-                    let is_grace_period = if message.validator_set_id == current_validator_set_id.saturating_sub(1) {
-                        // Check if we're within one block of the validator set change
-                        match api.get_validator_set_id_changed_at(best_hash) {
-                            Ok(Some(changed_at)) => {
-                                // Get current block number
-                                let current_block = self.client.info().best_number;
-                                // Allow if within one block of the change
-                                current_block <= changed_at + 1u32.into()
-                            },
-                            _ => false,
-                        }
-                    } else {
-                        false
-                    };
-                    
+                    let is_grace_period =
+                        if message.validator_set_id == current_validator_set_id.saturating_sub(1) {
+                            // Check if we're within one block of the validator set change
+                            match api.get_validator_set_id_changed_at(best_hash) {
+                                Ok(Some(changed_at)) => {
+                                    // Get current block number
+                                    let current_block = self.client.info().best_number;
+                                    // Allow if within one block of the change
+                                    current_block <= changed_at + 1u32.into()
+                                }
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+
                     if !is_grace_period {
-                        warn!("DVF Gossip: DVF Vote validator set ID mismatch. Expected {}, got {} from validator {:?}", 
+                        warn!("Commit Engine Gossip: Commit Engine Vote validator set ID mismatch. Expected {}, got {} from validator {:?}", 
                             current_validator_set_id, message.validator_set_id, message.validator_account_id);
                         if let Some(ref metrics) = self.metrics {
                             metrics.record_vote_rejection("validator_set_mismatch");
                         }
                         return Err("validator_set_mismatch");
                     } else {
-                        debug!("DVF Gossip: DVF Vote accepted with previous validator set ID {} during grace period", message.validator_set_id);
+                        debug!("Commit Engine Gossip: Commit Engine Vote accepted with previous validator set ID {} during grace period", message.validator_set_id);
                     }
                 }
-            },
+            }
             Err(_) => {
-                warn!("DVF Gossip: Failed to fetch current validator set ID");
+                warn!("Commit Engine Gossip: Failed to fetch current validator set ID");
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_rejection("runtime_api_error");
                 }
@@ -363,9 +403,18 @@ where
 impl<B, C, AccountId> sc_network_gossip::Validator<B> for DvfGossipValidator<B, C, AccountId>
 where
     B: BlockT + sp_runtime::traits::Block,
-    AccountId: std::cmp::Eq + std::hash::Hash + Clone + Encode + Decode + Send + Sync + std::fmt::Debug + 'static,
+    AccountId: std::cmp::Eq
+        + std::hash::Hash
+        + Clone
+        + Encode
+        + Decode
+        + Send
+        + Sync
+        + std::fmt::Debug
+        + 'static,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>,
 {
     fn validate(
         &self,
@@ -378,33 +427,31 @@ where
         let msg_hash_b = B::Hash::decode(&mut &msg_hash[..]).unwrap_or_default();
 
         let mut known = self.known_messages.write();
-        if !known.insert(msg_hash_b.clone()) {
+        if !known.insert(msg_hash_b) {
             return ValidationResult::ProcessAndDiscard(msg_hash_b); // Seen this message already
         }
 
         match self.validate_core(data) {
             Ok(msg) => {
                 info!(
-                    "DVF Gossip Validator: Accepted vote for block #{} ({:?}) from validator {:?} (round: {}, epoch: {}, validator_set: {})",
+                    "Commit Engine Gossip Validator: Accepted vote for block #{} ({:?}) from validator {:?} (round: {}, epoch: {}, validator_set: {})",
                     msg.block_number, msg.block_hash, msg.validator_account_id, msg.round_number, msg.epoch_id, msg.validator_set_id
                 );
-                
+
                 // Record vote reception metrics
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_received(msg.round_number);
                 }
-                
+
                 // Track internally and pass to pool
                 let inserted = self.pool.insert_vote(msg.clone());
                 if inserted {
-                    info!(
-                        "DVF Gossip Validator: Vote inserted into pool successfully"
-                    );
+                    info!("Commit Engine Gossip Validator: Vote inserted into pool successfully");
                     ValidationResult::ProcessAndKeep(msg_hash_b) // Broadcast to others
                 } else {
                     // Double vote detected
                     warn!(
-                        "DVF Gossip Validator: Double vote detected from validator {:?} in round {} - REJECTED",
+                        "Commit Engine Gossip Validator: Double vote detected from validator {:?} in round {} - REJECTED",
                         msg.validator_account_id, msg.round_number
                     );
                     if let Some(ref metrics) = self.metrics {
@@ -415,7 +462,10 @@ where
                 }
             }
             Err(reason) => {
-                warn!("DVF Gossip Validator: Vote rejected - reason: {}", reason);
+                warn!(
+                    "Commit Engine Gossip Validator: Vote rejected - reason: {}",
+                    reason
+                );
                 ValidationResult::Discard
             }
         }
