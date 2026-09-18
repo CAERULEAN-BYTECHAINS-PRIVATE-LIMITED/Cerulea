@@ -8,6 +8,7 @@
 pub mod committee;
 pub mod draw;
 pub mod fallback;
+pub mod gate;
 pub mod seal;
 pub mod verify;
 
@@ -24,6 +25,8 @@ pub use seal::{
 pub use verify::{
     verify_header, verify_seal, KeyRegistry, SlotContext, ValidatorRegistry, VerifiedSeal,
 };
+
+pub use gate::{AuthorGate, AuthorTicket, GateDecision, StandDown};
 
 pub use draw::{
     draw, draw_from_keystore, draw_value, verify_draw, verify_result, DrawInput, DrawProof,
