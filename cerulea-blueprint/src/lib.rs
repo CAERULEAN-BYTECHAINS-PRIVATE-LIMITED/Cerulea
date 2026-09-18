@@ -23,6 +23,7 @@ pub mod collections;
 pub mod expression;
 pub mod fold;
 pub mod identities;
+pub mod permissions;
 pub mod types;
 
 use alloc::{
@@ -34,7 +35,9 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
-use crate::{collections::Collection, identities::Identities, types::TypeDef};
+use crate::{
+    collections::Collection, identities::Identities, permissions::Permissions, types::TypeDef,
+};
 
 /// The schema version of the Blueprint type set carried by this crate.
 pub const BLUEPRINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion {
@@ -189,6 +192,8 @@ pub struct Blueprint {
     /// Section three. The organisation tree, the roles, the credentials and
     /// the delegation rules.
     pub identities: Identities,
+    /// Section four. The capability matrix.
+    pub permissions: Permissions,
 }
 
 impl Blueprint {
@@ -199,6 +204,7 @@ impl Blueprint {
             types: Vec::new(),
             collections: Vec::new(),
             identities: Identities::default(),
+            permissions: Permissions::default(),
         }
     }
 
@@ -242,6 +248,13 @@ impl Blueprint {
                 }
             }
         }
+
+        report.merge(self.permissions.validate(
+            &type_registry,
+            &collection_registry,
+            &self.identities,
+            &root.field("permissions"),
+        ));
 
         report.into_result()
     }
