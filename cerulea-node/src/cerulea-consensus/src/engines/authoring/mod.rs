@@ -7,8 +7,13 @@
 
 pub mod committee;
 pub mod draw;
+pub mod fallback;
 
 pub use committee::{weighted_draw, CommitteeDraw, SlotCommittee, STANDING_FLOOR};
+pub use fallback::{
+    AuthoringPolicy, FallbackTracker, RankWindow, SlotSchedule, DEFAULT_RANK_TIMEOUT_MS,
+};
+
 pub use draw::{
     draw, draw_from_keystore, draw_value, verify_draw, verify_result, DrawInput, DrawProof,
     DrawResult,
