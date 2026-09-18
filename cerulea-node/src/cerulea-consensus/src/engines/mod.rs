@@ -47,8 +47,9 @@ pub mod manifest_guard;
 pub mod execution;
 
 pub use execution::{
-    order_domains, order_members, DisjointSet, DomainOutcome, DomainPartitioner, DomainRunner,
-    DomainStore, ExecutionReport, OrderKey, TransactionOutcome, TransactionRunner,
+    domain_root, empty_root, leaf_hash, merkle_root, node_hash, order_domains, order_members,
+    DisjointSet, DomainOutcome, DomainPartitioner, DomainRunner, DomainStore, ExecutionReport,
+    OrderKey, StateRoot, StateRoots, TransactionOutcome, TransactionRunner,
 };
 
 pub use manifest_guard::{
