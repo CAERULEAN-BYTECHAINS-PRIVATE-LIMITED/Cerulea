@@ -24,6 +24,7 @@ pub mod expression;
 pub mod fold;
 pub mod identities;
 pub mod permissions;
+pub mod rules;
 pub mod types;
 
 use alloc::{
@@ -36,7 +37,8 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    collections::Collection, identities::Identities, permissions::Permissions, types::TypeDef,
+    collections::Collection, identities::Identities, permissions::Permissions, rules::Rules,
+    types::TypeDef,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -194,6 +196,8 @@ pub struct Blueprint {
     pub identities: Identities,
     /// Section four. The capability matrix.
     pub permissions: Permissions,
+    /// Section five. The invariants and the preconditions.
+    pub rules: Rules,
 }
 
 impl Blueprint {
@@ -205,6 +209,7 @@ impl Blueprint {
             collections: Vec::new(),
             identities: Identities::default(),
             permissions: Permissions::default(),
+            rules: Rules::default(),
         }
     }
 
@@ -254,6 +259,12 @@ impl Blueprint {
             &collection_registry,
             &self.identities,
             &root.field("permissions"),
+        ));
+
+        report.merge(self.rules.validate(
+            &type_registry,
+            &collection_registry,
+            &root.field("rules"),
         ));
 
         report.into_result()
