@@ -24,6 +24,7 @@ sp-api.workspace = true
 log = { version = "0.4", default-features = false }
 
 [dev-dependencies]
+pallet-balances = { default-features = true, workspace = true }
 sp-core = { default-features = true, workspace = true }
 sp-io = { default-features = true, workspace = true }
 sp-runtime = { default-features = true, workspace = true }

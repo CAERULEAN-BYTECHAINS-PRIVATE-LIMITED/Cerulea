@@ -432,7 +432,7 @@ pub mod pallet {
             let current_stake = Stake::<T>::get(&who);
             let new_stake = current_stake.checked_add(&amount).ok_or(Error::<T>::InvalidStakeAmount)?;
             
-            Stake::<T>::insert(&who, &new_stake);
+            Stake::<T>::insert(&who, new_stake);
             Self::deposit_event(Event::StakeBonded { validator: who.clone(), amount });
             Self::deposit_event(Event::StakeUpdated { 
                 validator: who, 
@@ -456,7 +456,7 @@ pub mod pallet {
             let new_stake = current_stake.checked_sub(&amount).ok_or(Error::<T>::InvalidStakeAmount)?;
             ensure!(new_stake >= T::MinStake::get(), Error::<T>::InsufficientStake);
             
-            Stake::<T>::insert(&who, &new_stake);
+            Stake::<T>::insert(&who, new_stake);
             Self::deposit_event(Event::StakeUnbonded { validator: who.clone(), amount });
             Self::deposit_event(Event::StakeUpdated { 
                 validator: who, 
@@ -786,9 +786,8 @@ pub mod pallet {
                 let slash_percent = T::SlashPercent::get();
                 let slash_numerator = pre_balance.checked_mul(&slash_percent.saturated_into())
                     .ok_or(Error::<T>::ArithmeticOverflow)?;
-                let slash_amount = slash_numerator.checked_div(&100u32.saturated_into())
-                    .ok_or(Error::<T>::ArithmeticUnderflow)?;
-                slash_amount
+                slash_numerator.checked_div(&100u32.saturated_into())
+                    .ok_or(Error::<T>::ArithmeticUnderflow)?
             } else {
                 amount
             };
@@ -921,7 +920,7 @@ pub mod pallet {
             let new_stake = current_stake.saturating_sub(amount);
             
             // Update stake
-            Stake::<T>::insert(validator, &new_stake);
+            Stake::<T>::insert(validator, new_stake);
             
             // Emit stake slashing event
             Self::deposit_event(Event::ValidatorStakeSlashed { 
@@ -961,7 +960,7 @@ pub mod pallet {
             let current_stake = Stake::<T>::get(validator);
             let new_stake = current_stake.saturating_add(amount);
             
-            Stake::<T>::insert(validator, &new_stake);
+            Stake::<T>::insert(validator, new_stake);
             
             Self::deposit_event(Event::StakeBonded { 
                 validator: validator.clone(), 

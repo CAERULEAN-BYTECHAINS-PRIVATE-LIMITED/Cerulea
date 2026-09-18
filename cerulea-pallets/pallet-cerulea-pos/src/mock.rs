@@ -1,7 +1,7 @@
 use crate as pallet_cerulea_pos;
 use frame_support::{
     parameter_types,
-    traits::{ConstU32, ConstU64, ConstU128},
+    traits::{ConstU32, ConstU64},
 };
 use frame_system as system;
 use sp_core::H256;
@@ -12,7 +12,8 @@ use sp_runtime::{
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// Configure a mock runtime to test the pallet.
+// The mock runtime below carries the system pallet, the balances pallet
+// and the stake pallet. Tests run against this runtime.
 frame_support::construct_runtime!(
     pub enum Test {
         System: frame_system,
@@ -103,7 +104,7 @@ impl pallet_cerulea_pos::Config for Test {
     type ValidatorHandler = ();
 }
 
-// Build genesis storage according to the mock runtime.
+// Build genesis storage for the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut storage = system::GenesisConfig::<Test>::default()
         .build_storage()
