@@ -3,6 +3,7 @@ mod tests {
     use crate::mock::*;
     use crate::Error;
     use frame_support::{assert_noop, assert_ok, traits::Get};
+    use crate::{DcfInterface, PosInterface};
     // use sp_runtime::traits::BadOrigin; // unused
 
     #[test]
@@ -676,4 +677,119 @@ mod tests {
             }
         });
     }
-} 
+
+    // The tests below hold the mock interfaces to their contract.
+    // A mock that drifts away from the pallet trait breaks these tests first.
+
+    #[test]
+    fn stake_interface_receives_the_confidence_boost() {
+        new_test_ext().execute_with(|| {
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(1),
+                42,
+                95
+            ));
+            // Confidence at or above ninety carries a boost of ten.
+            assert_eq!(mock_score(1), 10);
+
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(2),
+                7,
+                75
+            ));
+            // Confidence at or above seventy carries a boost of five.
+            assert_eq!(mock_score(2), 5);
+
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(3),
+                9,
+                55
+            ));
+            // Lower confidence carries a boost of two.
+            assert_eq!(mock_score(3), 2);
+        });
+    }
+
+    #[test]
+    fn framework_interface_records_inference_activity() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(mock_activity(1), 0);
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(1),
+                42,
+                80
+            ));
+            assert_eq!(mock_activity(1), 1);
+        });
+    }
+
+    #[test]
+    fn a_winning_challenge_lowers_the_stake_score() {
+        new_test_ext().execute_with(|| {
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(1),
+                42,
+                95
+            ));
+            assert_eq!(mock_score(1), 10);
+
+            assert_ok!(PalletCeruleaPoi::challenge_inference(
+                RuntimeOrigin::signed(2),
+                1,
+                42
+            ));
+            // The challenge carries a penalty of seven.
+            assert_eq!(mock_score(1), 3);
+        });
+    }
+
+    #[test]
+    fn the_active_validator_accessor_serves_the_seeded_set() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(mock_active_validators(), sp_std::vec![1u64, 2u64, 3u64]);
+            assert_eq!(
+                <Test as crate::Config>::PosInterface::get_active_validators(),
+                sp_std::vec![1u64, 2u64, 3u64]
+            );
+        });
+    }
+
+    #[test]
+    fn ejection_removes_a_validator_from_the_active_set() {
+        new_test_ext().execute_with(|| {
+            assert_ok!(<Test as crate::Config>::DcfInterface::eject_validator(
+                &2u64,
+                "licence lapsed"
+            ));
+            assert_eq!(mock_active_validators(), sp_std::vec![1u64, 3u64]);
+            assert_eq!(mock_ejected(), sp_std::vec![2u64]);
+        });
+    }
+
+    #[test]
+    fn a_valid_inference_settles_the_final_score() {
+        new_test_ext().execute_with(|| {
+            assert_ok!(PalletCeruleaPoi::handle_valid_inference(&1u64, 95));
+            // The boost is ten. One activity record adds one.
+            assert_eq!(mock_score(1), 10);
+            assert_eq!(mock_activity(1), 1);
+            assert_eq!(mock_final_score(1), 11);
+        });
+    }
+
+    #[test]
+    fn an_invalid_inference_lowers_the_score_by_severity() {
+        new_test_ext().execute_with(|| {
+            assert_ok!(PalletCeruleaPoi::handle_valid_inference(&1u64, 95));
+            assert_eq!(mock_score(1), 10);
+
+            assert_ok!(PalletCeruleaPoi::handle_invalid_inference(
+                &1u64,
+                crate::InferenceErrorSeverity::High
+            ));
+            // The high severity penalty is seven.
+            assert_eq!(mock_score(1), 3);
+            assert_eq!(mock_final_score(1), 4);
+        });
+    }
+}
