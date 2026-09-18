@@ -19,6 +19,8 @@
 
 extern crate alloc;
 
+pub mod types;
+
 use alloc::{
     format,
     string::{String, ToString},
@@ -27,6 +29,8 @@ use alloc::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
+
+use crate::types::TypeDef;
 
 /// The schema version of the Blueprint type set carried by this crate.
 pub const BLUEPRINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion {
@@ -174,12 +178,17 @@ impl BlueprintMeta {
 pub struct Blueprint {
     /// The descriptive header.
     pub meta: BlueprintMeta,
+    /// Section one. The declared record, enumeration and sum types.
+    pub types: Vec<TypeDef>,
 }
 
 impl Blueprint {
     /// Build an empty Blueprint carrying the given header.
     pub fn new(meta: BlueprintMeta) -> Self {
-        Blueprint { meta }
+        Blueprint {
+            meta,
+            types: Vec::new(),
+        }
     }
 
     /// Check the whole Blueprint and collect every diagnostic.
@@ -190,6 +199,10 @@ impl Blueprint {
         let mut report = Report::new();
         let root = Path::root();
         self.validate_meta(&root.field("meta"), &mut report);
+        report.merge(crate::types::validate_types(
+            &self.types,
+            &root.field("types"),
+        ));
         report.into_result()
     }
 
