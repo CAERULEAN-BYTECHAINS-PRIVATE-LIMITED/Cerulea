@@ -210,7 +210,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(dead_code)]
-#[warn(unused_comparisons)]
+#![warn(unused_comparisons)]
+// The runtime API returns tuples the interface layer reads directly, and one
+// genesis helper carries every genesis field. Both shapes are part of the
+// published surface, so they stay as they are.
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 
 // Traits module
 pub mod traits;
@@ -227,6 +232,9 @@ pub mod private_chain;
 // EVM compatibility module
 pub mod evm_compatibility;
 
+// The pallet-side engines of the Dynamic Consensus Framework
+pub mod engines;
+
 // --- Imports --- //
 use frame_support::{
     pallet_prelude::*,
@@ -239,7 +247,6 @@ use sp_runtime::{
     traits::{SaturatedConversion, AtLeast32BitUnsigned, Saturating},
     DigestItem,
 };
-use sp_io;
 use sp_std::prelude::*;
 use sp_std::fmt; 
 use pallet_cerulea_pos as pos;
@@ -2401,7 +2408,7 @@ pub mod pallet {
     impl<T: Config> ValidatorStates<T> {
         pub fn get(key: &T::AccountId) -> Option<ValidatorState<T>> {
             let trait_state = T::ValidatorRegistry::get_validator_state(key)?;
-            let name_bounded = trait_state.name.map(|n| BoundedVec::truncate_from(n));
+            let name_bounded = trait_state.name.map(BoundedVec::truncate_from);
             let history_bounded = BoundedVec::truncate_from(trait_state.history);
             Some(ValidatorState {
                 last_active_epoch: trait_state.last_active_epoch,
@@ -2908,7 +2915,7 @@ pub mod pallet {
     pub struct ValidatorNames<T>(sp_std::marker::PhantomData<T>);
     impl<T: Config> ValidatorNames<T> {
         pub fn get(key: &T::AccountId) -> Option<BoundedVec<u8, ConstU32<32>>> {
-            T::ValidatorRegistry::get_validator_name(key).map(|n| BoundedVec::truncate_from(n))
+            T::ValidatorRegistry::get_validator_name(key).map(BoundedVec::truncate_from)
         }
         pub fn insert(key: &T::AccountId, val: impl sp_std::borrow::Borrow<BoundedVec<u8, ConstU32<32>>>) {
             T::ValidatorRegistry::set_validator_name(key, val.borrow().to_vec());
@@ -2975,19 +2982,15 @@ pub mod pallet {
         }
     }
 
-    /// Total count of successful inference operations performed by each validator.
-    /// 
-    /// Tracks the cumulative number of successful AI/ML inference operations
-    /// completed by validators as part of the Proof-of-Inference (PoI) consensus.
-    /// This metric is fundamental to the Cerulea blockchain's AI-focused consensus mechanism.
-    /// 
-    /// The counter increments when validators:
-    /// - Successfully complete inference tasks
-    /// - Submit results that meet accuracy thresholds
-    /// - Participate in distributed AI computations
-    /// - Contribute to the network's AI capabilities
-    /// 
-
+    // Total count of successful inference operations performed by each validator.
+    // Tracks the cumulative number of successful AI/ML inference operations
+    // completed by validators as part of the Proof-of-Inference (PoI) consensus.
+    // This metric is fundamental to the Cerulea blockchain's AI-focused consensus mechanism.
+    // The counter increments when validators:
+    // - Successfully complete inference tasks
+    // - Submit results that meet accuracy thresholds
+    // - Participate in distributed AI computations
+    // - Contribute to the network's AI capabilities
     /// Extended metadata and contact information for validators.
     /// 
     /// Stores comprehensive information about validators beyond their basic
@@ -3213,25 +3216,21 @@ pub mod pallet {
         }
     }
 
-    /// Timestamp recording when each validator joined the network.
-    /// 
-    /// Stores the exact time (in milliseconds since Unix epoch) when each
-    /// validator successfully joined the validator set. This information
-    /// is used for various temporal calculations and historical analysis.
-    /// 
-    /// The timestamp is set when a validator:
-    /// - Successfully completes the `join_validator_set` process
-    /// - Meets all minimum requirements (stake, performance, etc.)
-    /// - Is officially added to the validator registry
-    /// 
-    /// Used for:
-    /// - Calculating validator tenure and experience
-    /// - Age-based reward calculations or bonuses
-    /// - Network growth analysis and statistics
-    /// - Validator lifecycle tracking
-    /// - API responses for validator information
-    /// 
-    /// The value is None for validators who joined before this tracking
+    // Timestamp recording when each validator joined the network.
+    // Stores the exact time (in milliseconds since Unix epoch) when each
+    // validator successfully joined the validator set. This information
+    // is used for various temporal calculations and historical analysis.
+    // The timestamp is set when a validator:
+    // - Successfully completes the `join_validator_set` process
+    // - Meets all minimum requirements (stake, performance, etc.)
+    // - Is officially added to the validator registry
+    // Used for:
+    // - Calculating validator tenure and experience
+    // - Age-based reward calculations or bonuses
+    // - Network growth analysis and statistics
+    // - Validator lifecycle tracking
+    // - API responses for validator information
+    // The value is None for validators who joined before this tracking
     // ValidatorJoinTime and ValidatorLeaveRequests moved to pallet-cerulea-pos.
 
     /// Block number of the most recently finalized block in the network.
@@ -3747,11 +3746,42 @@ pub mod pallet {
         ValueQuery,
     >;
 
-    /// Slashing history for validators.
+    /// The class table of the Assurance Engine.
     ///
-    /// This storage item maintains a complete history of slashing events
-    /// for each validator, including amounts, reasons, and timestamps.
+    /// The table names the share of aggregated Trust Score weight each
+    /// transaction class needs, and the delay window each class waits. A
+    /// deployment starts from the profile in
+    /// `engines::assurance::ClassTable::starting_profile`. The Amendment
+    /// Engine governs every later change.
+    #[pallet::storage]
+    #[pallet::getter(fn assurance_class_table)]
+    pub type AssuranceClassTable<T: Config> =
+        StorageValue<_, crate::engines::assurance::ClassTable, ValueQuery>;
+
+    /// The identifier the next scheduled change receives.
+    #[pallet::storage]
+    #[pallet::getter(fn next_scheduled_change_id)]
+    pub type NextScheduledChangeId<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// Changes waiting out the delay window their class carries.
     ///
+    /// A constitutional change commits at nine tenths of aggregated weight and
+    /// then waits. The chain releases the change at the first block at or after
+    /// the effective block. A release inside the window fails and names the
+    /// blocks remaining.
+    #[pallet::storage]
+    #[pallet::getter(fn scheduled_change)]
+    pub type ScheduledChanges<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u64,
+        crate::engines::assurance::ScheduledChange<BoundedVec<u8, ConstU32<512>>>,
+        OptionQuery,
+    >;
+
+    // Slashing history for validators.
+    // The slashing history moved to pallet-cerulea-pos. That pallet holds the
+    // amount, the reason and the block of every slashing event.
 
     // --- Events --- //
     /// Events emitted by the pallet for all state transitions and validator lifecycle changes.
@@ -5134,6 +5164,38 @@ pub mod pallet {
             uptime_percentage: u32,
         },
 
+    
+        /// The class table of the Assurance Engine changed.
+        AssuranceClassTableAmended {
+            /// The class whose row changed.
+            class: crate::engines::assurance::TransactionClass,
+            /// The share the class needed before the change, in percent.
+            previous_percent: u8,
+            /// The share the class needs now, in percent.
+            current_percent: u8,
+            /// The delay window the class waits now, in blocks.
+            delay_blocks: u32,
+        },
+        /// A change entered the delay window its class carries.
+        ScheduledChangeOpened {
+            /// The identifier of the change.
+            id: u64,
+            /// The class the change carries.
+            class: crate::engines::assurance::TransactionClass,
+            /// The block at which the change committed.
+            committed_at: u32,
+            /// The first block at which the change takes effect.
+            effective_at: u32,
+        },
+        /// A change waited out its window and took effect.
+        ScheduledChangeReleased {
+            /// The identifier of the change.
+            id: u64,
+            /// The class the change carried.
+            class: crate::engines::assurance::TransactionClass,
+            /// The block at which the change took effect.
+            released_at: u32,
+        },
     }
 
     /// Errors that can occur during replay validation.
@@ -5722,6 +5784,17 @@ pub mod pallet {
         /// 
         /// Resolution: Reduce the number of validators in the allowlist.
         TooManyValidators,
+    
+        /// The class table failed inspection, so the table stays unchanged.
+        AssuranceTableInvalid,
+        /// The delay window still holds, so the change stays scheduled.
+        DelayWindowOpen,
+        /// No change carries that identifier.
+        ScheduledChangeNotFound,
+        /// The change already took effect.
+        ScheduledChangeAlreadyReleased,
+        /// The queue of scheduled changes is full for this block.
+        ScheduledChangeQueueFull,
     }
 
     // --- Dispatchable Calls --- //
@@ -5745,7 +5818,7 @@ pub mod pallet {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.stake_score = stake_score;
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            }).map_err(sp_runtime::DispatchError::from)?;
             Self::update_final_score(&validator)?;
             Ok(())
         }
@@ -6556,19 +6629,19 @@ pub mod pallet {
             let bounded_name = BoundedVec::try_from(name)
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
             
-            let bounded_website = website.map(|w| BoundedVec::try_from(w))
+            let bounded_website = website.map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
             
-            let bounded_contact = contact.map(|c| BoundedVec::try_from(c))
+            let bounded_contact = contact.map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
             
-            let bounded_description = description.map(|d| BoundedVec::try_from(d))
+            let bounded_description = description.map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
             
-            let bounded_location = location.map(|l| BoundedVec::try_from(l))
+            let bounded_location = location.map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
             
@@ -6747,10 +6820,168 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Replace the share and the delay window one transaction class carries.
+        ///
+        /// The whole table passes inspection before it reaches storage. A table
+        /// that fails inspection leaves the stored table untouched.
+        #[pallet::call_index(38)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn set_assurance_class(
+            origin: OriginFor<T>,
+            class: crate::engines::assurance::TransactionClass,
+            threshold_percent: u8,
+            delay_blocks: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let mut table = AssuranceClassTable::<T>::get();
+            let previous_percent = table.threshold_percent(class);
+            table.set_threshold_percent(class, threshold_percent);
+            table.set_delay_blocks(class, delay_blocks);
+            table
+                .inspect()
+                .map_err(|_| Error::<T>::AssuranceTableInvalid)?;
+
+            AssuranceClassTable::<T>::put(table);
+            Self::deposit_event(Event::AssuranceClassTableAmended {
+                class,
+                previous_percent,
+                current_percent: threshold_percent,
+                delay_blocks,
+            });
+            Ok(())
+        }
+
+        /// Schedule a change under the delay window its class carries.
+        ///
+        /// A constitutional change waits the full window. A lighter class takes
+        /// effect at the block of commitment.
+        #[pallet::call_index(39)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_proposal())]
+        pub fn schedule_class_change(
+            origin: OriginFor<T>,
+            class: crate::engines::assurance::TransactionClass,
+            payload: BoundedVec<u8, ConstU32<512>>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let _ = Self::open_scheduled_change(class, payload)?;
+            Ok(())
+        }
+
+        /// Release a change that waited out its window.
+        ///
+        /// A release inside the window fails. The chain also releases a matured
+        /// change on its own at the start of every block.
+        #[pallet::call_index(40)]
+        #[pallet::weight(<T as Config>::WeightInfo::execute_proposal())]
+        pub fn release_scheduled_change(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            ensure_signed(origin)?;
+            Self::release_change(id)
+        }
+
     }
 
     // --- Internal Logic --- //
     impl<T: Config> Pallet<T> {
+        /// The share one domain needs, resolved from the classes present.
+        ///
+        /// A domain is one group of transactions that touch overlapping state.
+        /// A domain carrying several classes commits at the share of the
+        /// highest class present.
+        pub fn domain_assurance(
+            classes: sp_std::vec::Vec<crate::engines::assurance::TransactionClass>,
+            total_weight: u128,
+        ) -> Result<
+            crate::engines::assurance::DomainAssurance,
+            crate::engines::assurance::ThresholdError,
+        > {
+            let table = AssuranceClassTable::<T>::get();
+            crate::engines::assurance::resolve_domain(&table, classes, total_weight)
+        }
+
+        /// Report whether a domain commits at the aggregated weight given.
+        pub fn domain_reaches_threshold(
+            classes: sp_std::vec::Vec<crate::engines::assurance::TransactionClass>,
+            total_weight: u128,
+            aggregated_weight: u128,
+        ) -> bool {
+            match Self::domain_assurance(classes, total_weight) {
+                Ok(assurance) => assurance.reached(aggregated_weight),
+                Err(_) => false,
+            }
+        }
+
+        /// Open a delay window for one change and return its identifier.
+        pub fn open_scheduled_change(
+            class: crate::engines::assurance::TransactionClass,
+            payload: BoundedVec<u8, ConstU32<512>>,
+        ) -> Result<u64, DispatchError> {
+            let table = AssuranceClassTable::<T>::get();
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let change =
+                crate::engines::assurance::ScheduledChange::schedule(&table, class, payload, now);
+
+            let id = NextScheduledChangeId::<T>::get();
+            let next = id.checked_add(1).ok_or(Error::<T>::ScheduledChangeQueueFull)?;
+            NextScheduledChangeId::<T>::put(next);
+
+            let committed_at = change.window.committed_at;
+            let effective_at = change.window.effective_at;
+            ScheduledChanges::<T>::insert(id, change);
+
+            Self::deposit_event(Event::ScheduledChangeOpened {
+                id,
+                class,
+                committed_at,
+                effective_at,
+            });
+            Ok(id)
+        }
+
+        /// Release one scheduled change where its window has run out.
+        pub fn release_change(id: u64) -> DispatchResult {
+            let mut change =
+                ScheduledChanges::<T>::get(id).ok_or(Error::<T>::ScheduledChangeNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
+            match change.release(now) {
+                Ok(_) => {
+                    let class = change.class;
+                    ScheduledChanges::<T>::remove(id);
+                    Self::deposit_event(Event::ScheduledChangeReleased {
+                        id,
+                        class,
+                        released_at: now,
+                    });
+                    Ok(())
+                }
+                Err(crate::engines::assurance::DelayError::WindowOpen(_)) => {
+                    Err(Error::<T>::DelayWindowOpen.into())
+                }
+                Err(crate::engines::assurance::DelayError::AlreadyReleased) => {
+                    Err(Error::<T>::ScheduledChangeAlreadyReleased.into())
+                }
+            }
+        }
+
+        /// Release every scheduled change whose window has run out.
+        ///
+        /// The block initialisation hook calls this. A change therefore takes
+        /// effect without a person acting.
+        pub fn release_matured_changes(now: u32) -> u32 {
+            let mut released = 0u32;
+            let matured: sp_std::vec::Vec<u64> = ScheduledChanges::<T>::iter()
+                .filter(|(_, change)| change.is_ready(now))
+                .map(|(id, _)| id)
+                .collect();
+            for id in matured {
+                if Self::release_change(id).is_ok() {
+                    released = released.saturating_add(1);
+                }
+            }
+            released
+        }
+
         /// Emit event with EVM compatibility support.
         /// 
         /// This function wraps the standard event emission with EVM compatibility
@@ -7074,7 +7305,7 @@ pub mod pallet {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.missed_blocks = state.current.missed_blocks.saturating_add(1);
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            }).map_err(sp_runtime::DispatchError::from)?;
 
             Ok(())
         }
@@ -7091,7 +7322,7 @@ pub mod pallet {
                 // Update last active epoch
                 state.last_active_epoch = Self::current_epoch();
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            }).map_err(sp_runtime::DispatchError::from)?;
 
             // Update blocks authored counter
             ValidatorBlocksAuthored::<T>::mutate(validator, |count| {
@@ -8926,7 +9157,7 @@ pub mod pallet {
 
             // Test if stake reservation would succeed (without actually reserving)
             // This catches edge cases where currency system might reject the reservation
-            if T::Currency::can_reserve(who, min_stake) != true {
+            if !T::Currency::can_reserve(who, min_stake) {
                 return Err(Error::<T>::ValidatorRejoinStakeReservationFailed.into());
             }
 
@@ -9292,6 +9523,16 @@ pub mod pallet {
                 }
             }
             
+            // Release every change whose delay window has run out. A
+            // constitutional change takes effect with no person acting.
+            let released = Self::release_matured_changes(block_number);
+            if released > 0 {
+                weight = weight.saturating_add(Weight::from_parts(
+                    50_000u64.saturating_mul(released as u64),
+                    0,
+                ));
+            }
+
             // Reset per-block rate limiting counters at the beginning of each block
             Self::reset_block_counters();
             weight = weight.saturating_add(Weight::from_parts(10_000, 0)); // Small weight for counter reset
@@ -11207,7 +11448,7 @@ pub mod pallet {
             }
 
             // Fallback to first validator if something goes wrong
-            validators.get(0).cloned()
+            validators.first().cloned()
         }
 
         /// Generate validator proposals based on combined PoS and PoI scores
@@ -11944,17 +12185,20 @@ pub mod pallet {
             // Sort by score (highest first)
             all_validators_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
             
-            // Case 1: We have space for more validators
-            if active_validators.len() < max_validators {
-                Self::propose_add_high_scoring_validators(&active_validators, &all_validators_with_scores, max_validators);
-            }
-            // Case 2: We're at capacity, consider replacing low-scoring active validators
-            else if active_validators.len() == max_validators {
-                Self::propose_replace_low_scoring_validators(&active_validators, &all_validators_with_scores);
-            }
-            // Case 3: We have too many validators (shouldn't happen, but handle it)
-            else if active_validators.len() > max_validators {
-                Self::propose_remove_excess_validators(&active_validators, max_validators);
+            // Space remains for more validators, or the set sits at capacity and
+            // a low scoring member may give way to a higher scoring candidate.
+            match active_validators.len().cmp(&max_validators) {
+                sp_std::cmp::Ordering::Less => {
+                    Self::propose_add_high_scoring_validators(&active_validators, &all_validators_with_scores, max_validators);
+                }
+                sp_std::cmp::Ordering::Equal => {
+                    Self::propose_replace_low_scoring_validators(&active_validators, &all_validators_with_scores);
+                }
+                sp_std::cmp::Ordering::Greater => {
+                    // The set sits above capacity. Propose the removal of the
+                    // excess members.
+                    Self::propose_remove_excess_validators(&active_validators, max_validators);
+                }
             }
         }
 
@@ -12170,22 +12414,22 @@ pub mod pallet {
                     let proposal_id = NextProposalId::<T>::get();
                     let system_account = T::AccountId::decode(&mut &[0u8; 32][..]).unwrap_or_else(|_| {
                         // Fallback: use the first validator as proposer
-                        Self::active_validators().get(0).cloned().unwrap_or_else(|| {
+                        Self::active_validators().first().cloned().unwrap_or_else(|| {
                             // Ultimate fallback: decode from a known pattern
                             T::AccountId::decode(&mut &[1u8; 32][..])
                                 .unwrap_or_else(|_| {
                                     // If even the fallback fails, use first active validator
-                                    Self::active_validators().get(0).cloned()
+                                    Self::active_validators().first().cloned()
                                         .unwrap_or_else(|| {
                                             // Ultimate fallback: use first validator from set
-                                            Self::validator_set().get(0).cloned()
+                                            Self::validator_set().first().cloned()
                                                 .unwrap_or_else(|| {
                                                     // Last resort: decode from known pattern
                                                     T::AccountId::decode(&mut &[2u8; 32][..])
                                                         .unwrap_or_else(|_| {
                                                             // Create a zero account if decode fails
                                                             // Use the first validator as fallback
-                                                            Self::validator_set().get(0).cloned()
+                                                            Self::validator_set().first().cloned()
                                                                 .unwrap_or_else(|| {
                                                                     // If no validators exist, panic as this is a critical error
                                                                     panic!("No validators available and cannot create fallback account");
@@ -12299,10 +12543,10 @@ pub mod pallet {
                     state.current.stake_score = stake_score;
                     state.current.inference_score = inference_score;
                     Ok::<(), Error<T>>(())
-                }).map_err(|e| sp_runtime::DispatchError::from(e)) {
+                }).map_err(sp_runtime::DispatchError::from) {
                     // Recalculate final score
                     let _ = Self::update_final_score(validator);
-                    _=updated_count += 1;
+                    updated_count += 1;
                     weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
                 }
             }
@@ -12614,7 +12858,7 @@ pub mod pallet {
             let validators = Self::validator_set();
             
             for validator in validators.iter() {
-                if let Err(_) = Self::apply_score_decay(validator, current_epoch) {
+                if Self::apply_score_decay(validator, current_epoch).is_err() {
                     log::warn!("Failed to apply score decay for validator {:?}", validator);
                 }
                 weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
@@ -13948,13 +14192,10 @@ pub enum EjectionReason {
 }
 
 
-/// Reasons for slashing validator stakes as punishment for violations.
-/// 
-/// Slashing is a critical economic penalty that reduces validator stakes
-/// to maintain network security and incentive alignment. Different slash
-/// reasons may have different penalty amounts and recovery requirements.
-
-
+// Reasons for slashing validator stakes as punishment for violations.
+// Slashing is a critical economic penalty that reduces validator stakes
+// to maintain network security and incentive alignment. Different slash
+// reasons may have different penalty amounts and recovery requirements.
 /// Current status of a validator in the network lifecycle.
 /// 
 /// Validator status determines what actions are available to the validator

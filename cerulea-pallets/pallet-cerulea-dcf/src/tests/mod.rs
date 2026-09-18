@@ -57,3 +57,5 @@ pub mod consensus_invariant_tests;
 pub mod end_to_end_workflow_tests;
 pub mod stress_tests;
 pub mod runtime_api_cross_pallet_tests;
+// Assurance Engine tests
+pub mod assurance_engine_tests;

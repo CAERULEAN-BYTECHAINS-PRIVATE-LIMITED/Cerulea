@@ -395,11 +395,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 
 
-    /// Storage: MisbehaviorReports (r:1 w:1)
-    /// Storage: ValidatorStates (r:1 w:1)
-    /// Storage: Currency operations (r:2 w:2)
-
-
+    // Storage: MisbehaviorReports (r:1 w:1)
+    // Storage: ValidatorStates (r:1 w:1)
+    // Storage: Currency operations (r:2 w:2)
     /// Storage: ValidatorStates (r:1 w:1)
     /// Storage: Currency operations (r:2 w:2)
     fn increase_validator_stake() -> Weight {
