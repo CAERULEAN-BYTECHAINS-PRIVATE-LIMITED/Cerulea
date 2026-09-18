@@ -22,6 +22,7 @@ extern crate alloc;
 pub mod collections;
 pub mod expression;
 pub mod fold;
+pub mod identities;
 pub mod types;
 
 use alloc::{
@@ -33,7 +34,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
-use crate::{collections::Collection, types::TypeDef};
+use crate::{collections::Collection, identities::Identities, types::TypeDef};
 
 /// The schema version of the Blueprint type set carried by this crate.
 pub const BLUEPRINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion {
@@ -185,6 +186,9 @@ pub struct Blueprint {
     pub types: Vec<TypeDef>,
     /// Section two. The collections holding records.
     pub collections: Vec<Collection>,
+    /// Section three. The organisation tree, the roles, the credentials and
+    /// the delegation rules.
+    pub identities: Identities,
 }
 
 impl Blueprint {
@@ -194,6 +198,7 @@ impl Blueprint {
             meta,
             types: Vec::new(),
             collections: Vec::new(),
+            identities: Identities::default(),
         }
     }
 
@@ -205,10 +210,39 @@ impl Blueprint {
         let mut report = Report::new();
         let root = Path::root();
         self.validate_meta(&root.field("meta"), &mut report);
-        report.merge(crate::types::validate_types(
-            &self.types,
-            &root.field("types"),
+
+        // The registry pass and the section pass report the same repeated
+        // names. The section pass owns the report, so this copy stays quiet.
+        let types_path = root.field("types");
+        let (type_registry, _) = crate::types::TypeRegistry::build(&self.types, &types_path);
+        report.merge(crate::types::validate_types(&self.types, &types_path));
+
+        let collections_path = root.field("collections");
+        let (collection_registry, _) =
+            crate::collections::CollectionRegistry::build(&self.collections, &collections_path);
+        report.merge(crate::collections::validate_collections(
+            &self.collections,
+            &type_registry,
+            &collections_path,
         ));
+
+        let identities_path = root.field("identities");
+        report.merge(self.identities.validate(&identities_path));
+
+        for (position, collection) in self.collections.iter().enumerate() {
+            let here = collections_path.index(position);
+            for (target, location) in collection.collection_refs(&here) {
+                if !collection_registry.contains(&target) {
+                    report.push(collection_registry.missing(&target, location));
+                }
+            }
+            for (role, location) in collection.role_refs(&here) {
+                if !self.identities.has_role(&role) {
+                    report.push(self.identities.missing_role(&role, location));
+                }
+            }
+        }
+
         report.into_result()
     }
 
@@ -254,6 +288,74 @@ impl Blueprint {
             ));
         }
     }
+}
+
+/// Find one cycle in a directed graph, when a cycle is present.
+///
+/// The map holds one entry per node. The value lists the nodes that entry
+/// points at. The result names the nodes on the cycle in order, with the
+/// entry node repeated at the end.
+pub fn find_cycle(
+    edges: &alloc::collections::BTreeMap<String, Vec<String>>,
+) -> Option<Vec<String>> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Mark {
+        Fresh,
+        Open,
+        Done,
+    }
+
+    let mut marks: alloc::collections::BTreeMap<&str, Mark> = alloc::collections::BTreeMap::new();
+    for (node, targets) in edges.iter() {
+        marks.insert(node.as_str(), Mark::Fresh);
+        for target in targets {
+            marks.entry(target.as_str()).or_insert(Mark::Fresh);
+        }
+    }
+    let starts: Vec<&str> = marks.keys().copied().collect();
+
+    for start in starts {
+        if marks.get(start).copied() != Some(Mark::Fresh) {
+            continue;
+        }
+        marks.insert(start, Mark::Open);
+        let mut path: Vec<&str> = alloc::vec![start];
+        let mut stack: Vec<(&str, usize)> = alloc::vec![(start, 0)];
+        while let Some((node, position)) = stack.pop() {
+            let children: &[String] = match edges.get(node) {
+                Some(list) => list.as_slice(),
+                None => &[],
+            };
+            if position < children.len() {
+                stack.push((node, position + 1));
+                let child = children[position].as_str();
+                match marks.get(child).copied().unwrap_or(Mark::Fresh) {
+                    Mark::Open => {
+                        let at = path.iter().position(|held| *held == child).unwrap_or(0);
+                        let mut cycle: Vec<String> =
+                            path[at..].iter().map(|held| held.to_string()).collect();
+                        cycle.push(child.to_string());
+                        return Some(cycle);
+                    }
+                    Mark::Fresh => {
+                        marks.insert(child, Mark::Open);
+                        path.push(child);
+                        stack.push((child, 0));
+                    }
+                    Mark::Done => {}
+                }
+            } else {
+                marks.insert(node, Mark::Done);
+                path.pop();
+            }
+        }
+    }
+    None
+}
+
+/// Write a cycle as an arrow chain such as `a -> b -> a`.
+pub fn describe_cycle(cycle: &[String]) -> String {
+    cycle.join(" -> ")
 }
 
 /// A location inside a Blueprint, written as a path.
@@ -663,6 +765,74 @@ mod tests {
         let text = serde_json::to_string(&blueprint).expect("the header serialises");
         let back: Blueprint = serde_json::from_str(&text).expect("the text parses");
         assert_eq!(blueprint, back);
+    }
+
+    #[test]
+    fn a_blueprint_reports_a_dangling_collection_reference() {
+        use crate::collections::{Collection, PurposeDeclaration};
+        let mut blueprint = sample();
+        let mut collection =
+            Collection::new("parcel", "absent_record", "survey_number", "The register.");
+        collection.purpose =
+            PurposeDeclaration::new("The register records land.", &["registration"]);
+        blueprint.collections.push(collection);
+        let report = blueprint
+            .validate()
+            .expect_err("an absent record type raises a diagnostic");
+        let found = report
+            .find("collections[0].record_type")
+            .expect("the diagnostic sits on the record type");
+        assert_eq!(found.code, DiagnosticCode::DanglingReference);
+    }
+
+    #[test]
+    fn a_blueprint_reports_a_key_holder_role_the_identities_lack() {
+        use crate::{
+            collections::{Collection, PrivacyClass, PurposeDeclaration},
+            types::{FieldDef, RecordDef, RoleId, TypeDef, TypeExpr, TypeId},
+        };
+        let mut blueprint = sample();
+        blueprint.types.push(TypeDef::Record(RecordDef {
+            id: TypeId::new("parcel"),
+            fields: alloc::vec![FieldDef::new(
+                "survey_number",
+                TypeExpr::Text,
+                "The survey number."
+            )],
+            summary: "One land parcel.".to_string(),
+        }));
+        let mut collection = Collection::new("parcel", "parcel", "survey_number", "The register.");
+        collection.purpose =
+            PurposeDeclaration::new("The register records land.", &["registration"]);
+        collection.privacy = PrivacyClass::Encrypted {
+            key_holders: alloc::vec![RoleId::new("absent_role")],
+        };
+        blueprint.collections.push(collection);
+        let report = blueprint
+            .validate()
+            .expect_err("an absent role raises a diagnostic");
+        let found = report
+            .find("collections[0].privacy.key_holders[0]")
+            .expect("the diagnostic sits on the key holder");
+        assert_eq!(found.code, DiagnosticCode::DanglingReference);
+    }
+
+    #[test]
+    fn find_cycle_reports_the_loop_it_walks() {
+        let mut edges: alloc::collections::BTreeMap<String, Vec<String>> =
+            alloc::collections::BTreeMap::new();
+        edges.insert("a".to_string(), alloc::vec!["b".to_string()]);
+        edges.insert("b".to_string(), alloc::vec!["c".to_string()]);
+        edges.insert("c".to_string(), alloc::vec!["a".to_string()]);
+        let cycle = find_cycle(&edges).expect("the loop is found");
+        assert_eq!(describe_cycle(&cycle), "a -> b -> c -> a");
+
+        let mut straight: alloc::collections::BTreeMap<String, Vec<String>> =
+            alloc::collections::BTreeMap::new();
+        straight.insert("a".to_string(), alloc::vec!["b".to_string()]);
+        straight.insert("b".to_string(), alloc::vec!["c".to_string()]);
+        straight.insert("c".to_string(), Vec::new());
+        assert!(find_cycle(&straight).is_none());
     }
 
     #[test]
