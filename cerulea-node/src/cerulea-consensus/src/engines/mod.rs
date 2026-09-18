@@ -45,11 +45,16 @@ pub mod manifest_derive;
 pub mod manifest_guard;
 
 pub mod authoring;
+pub mod commit;
 pub mod execution;
 
 pub use authoring::{
     derive_slot_seed, draw, draw_from_keystore, draw_value, verify_draw, verify_result,
     weighted_draw, CommitteeDraw, DrawInput, DrawProof, DrawResult, SlotCommittee,
+};
+
+pub use commit::{
+    cast_vote, check_vote, vote_payload, CommitVote, SignatureCollector, VoteAdmission,
 };
 
 pub use execution::{
@@ -811,6 +816,49 @@ pub enum EngineError {
         "The seal key named differs from the key recorded for that validator.          Fix: seal the block with the ed25519 key recorded against the draw key."
     )]
     ValidatorKeysMismatch,
+
+    /// A commit vote failed the signature check.
+    #[error(
+        "The commit vote failed the signature check.          Fix: sign the vote with the validator key recorded for that seat."
+    )]
+    VoteSignatureRejected,
+
+    /// A commit vote came from a validator outside the set.
+    #[error(
+        "The commit vote came from a validator outside the active set.          Fix: admit the validator through the Admission Engine before it votes."
+    )]
+    VoterOutsideSet,
+
+    /// A commit vote named a slot other than the one under collection.
+    #[error(
+        "The commit vote names slot {claimed} and the collection serves slot {expected}.          Fix: vote on the slot the block belongs to."
+    )]
+    VoteSlotMismatch {
+        /// The slot the vote named.
+        claimed: u64,
+        /// The slot the collection serves.
+        expected: u64,
+    },
+
+    /// A commit vote named a block other than the one under collection.
+    #[error(
+        "The commit vote for slot {slot} names another block.          Fix: vote on the block hash the author published for that slot."
+    )]
+    VoteBlockMismatch {
+        /// The slot the collection serves.
+        slot: u64,
+    },
+
+    /// A commit vote arrived outside the collection window.
+    #[error(
+        "The commit vote for slot {slot} arrived at {moment_ms} milliseconds and the collection          window is closed. Fix: send the vote inside the slot window."
+    )]
+    CollectionWindowClosed {
+        /// The slot the collection serves.
+        slot: u64,
+        /// The moment the vote arrived, in milliseconds.
+        moment_ms: u64,
+    },
 
     /// The eligible validator set held no members.
     #[error(
