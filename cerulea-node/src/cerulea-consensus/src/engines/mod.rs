@@ -41,6 +41,12 @@
 //! settles under that bound.
 
 pub mod manifest;
+pub mod manifest_derive;
+
+pub use manifest_derive::{
+    derive_manifest, derive_manifest_from, AccessSpec, ActionDescription, DescribesAccess,
+    KeyExpression, KeyPart, ParameterValue, TransactionParameters,
+};
 
 pub use manifest::{
     AccessManifest, CollectionAccess, DeclaresAccess, MaxAccess, PendingTransaction, MAX_ACCESS,
@@ -584,6 +590,28 @@ pub enum EngineError {
         length: usize,
         /// The highest byte length a range carries.
         limit: usize,
+    },
+
+    /// A key expression named a parameter the transaction leaves unbound.
+    #[error(
+        "The action {action} names the parameter {parameter} and the transaction leaves it unbound.          Fix: supply a value for {parameter} when submitting the transaction."
+    )]
+    ParameterAbsent {
+        /// The parameter the key expression named.
+        parameter: String,
+        /// The action carrying the key expression.
+        action: String,
+    },
+
+    /// A key expression carried no parts.
+    #[error(
+        "The action {action} carries an empty key expression for the collection {collection}.          Fix: name a literal key or a parameter in that key expression."
+    )]
+    KeyExpressionEmpty {
+        /// The action carrying the empty expression.
+        action: String,
+        /// The collection the expression names.
+        collection: String,
     },
 
     /// The eligible validator set held no members.
