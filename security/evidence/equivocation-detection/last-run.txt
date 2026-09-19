@@ -1,0 +1,59 @@
+Cerulea chain, control evidence: equivocation detection and penalty
+Task P10-001. Run date 2026-09-19. Rust 1.85, release profile.
+Run from chain/ with CARGO_BUILD_JOBS=4.
+
+$ cargo test --release -p cerulea-primitives equivocation
+running 12 tests
+test equivocation::tests::a_broken_first_signature_fails_the_check ... ok
+test equivocation::tests::a_broken_second_signature_fails_the_check ... ok
+test equivocation::tests::a_head_reads_back_every_field_of_its_claim ... ok
+test equivocation::tests::a_proof_round_trips_through_the_encoding ... ok
+test equivocation::tests::a_signature_lifted_from_another_header_fails_the_check ... ok
+test equivocation::tests::every_fault_names_a_fix ... ok
+test equivocation::tests::one_header_reported_twice_proves_nothing ... ok
+test equivocation::tests::the_claim_offsets_hold_their_stated_places ... ok
+test equivocation::tests::the_payload_starts_with_the_cerulea_separator ... ok
+test equivocation::tests::two_headers_at_two_ranks_prove_nothing ... ok
+test equivocation::tests::two_headers_for_two_slots_prove_nothing ... ok
+test equivocation::tests::two_headers_from_two_authors_prove_nothing ... ok
+test equivocation::tests::two_sealed_headers_for_one_slot_prove_equivocation ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; finished in 0.00s
+
+$ cargo test --release -p cerulea-consensus
+test result: ok. 374 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+The whole crate suite runs, so the equivocation detection, the report path and
+every engine beside them are covered in one figure. The equivocation tests
+inside that figure are twenty three, across
+engines::authoring::equivocation and equivocation_gossip.
+
+$ cargo test --release -p pallet-cerulea-dcf equivocation
+running 18 tests
+test engines::standing::equivocation::tests::one_equivocation_sits_under_one_key ... ok
+test engines::standing::equivocation::tests::the_plain_sentence_states_the_penalty ... ok
+test engines::standing::equivocation::tests::the_record_carries_what_the_chain_proved ... ok
+test engines::standing::equivocation::tests::two_authors_take_two_keys ... ok
+test engines::standing::equivocation::tests::two_ranks_take_two_keys ... ok
+test engines::standing::equivocation::tests::two_slots_take_two_keys ... ok
+test tests::equivocation_tests::a_broken_signature_carries_no_penalty ... ok
+test tests::equivocation_tests::any_account_submits_the_evidence ... ok
+test tests::equivocation_tests::evidence_against_an_unregistered_key_carries_no_penalty ... ok
+test tests::equivocation_tests::evidence_naming_another_seal_key_carries_no_penalty ... ok
+test tests::equivocation_tests::one_equivocation_takes_one_penalty ... ok
+test tests::equivocation_tests::one_header_reported_twice_carries_no_penalty ... ok
+test tests::equivocation_tests::proven_equivocation_returns_standing_to_zero_inside_one_epoch ... ok
+test tests::equivocation_tests::the_chain_raises_the_equivocation_event ... ok
+test tests::equivocation_tests::the_chain_records_the_fault_against_the_validator ... ok
+test tests::equivocation_tests::the_penalty_leaves_every_other_validator_untouched ... ok
+test tests::equivocation_tests::two_headers_at_two_slots_carry_no_penalty ... ok
+test tests::equivocation_tests::two_slots_take_two_penalties ... ok
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 444 filtered out; finished in 0.01s
+
+$ cargo test --release -p cerulea-node --test equivocation_test
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+Design assertion 2 of the security domain holds.
+Equivocation is detected and penalised within one epoch. The proving test is
+tests::equivocation_tests::proven_equivocation_returns_standing_to_zero_inside_one_epoch.
+
+Controls implemented, certification not held.
