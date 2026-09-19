@@ -130,10 +130,14 @@ pub const UNIT: Balance = 1_000_000_000_000; // Base unit for balances.
 pub const MILLI_UNIT: Balance = 1_000_000_000; // Milli unit for balances.
 pub const MICRO_UNIT: Balance = 1_000_000; // Micro unit for balances.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT; // Minimum balance required to keep an account alive.
-/// The accounting unit the deposits read. One unit carries 10^12 subunits.
-/// Cerulea issues nothing to a user, so the figure serves the deposit
-/// arithmetic alone.
-pub const CERULEA: Balance = UNIT;
+/// The unit of account the runtime reckons in. One unit carries 10^12
+/// subunits.
+///
+/// Cerulea operates with no token. Nothing is issued, held, traded or paid
+/// here. The figure is the internal balance unit the framework crates ask for,
+/// and it exists so the deposit arithmetic, the stake arithmetic and the
+/// genesis endowments of a test chain have a scale to count in.
+pub const ACCOUNTING_UNIT: Balance = UNIT;
 
 // Define the native runtime version for native execution.
 #[cfg(feature = "std")]
@@ -292,9 +296,9 @@ use sp_runtime::traits::parameter_types;
 
 parameter_types! {
     pub const EnterDuration: BlockNumber = 4 * HOURS;
-    pub const EnterDepositAmount: Balance = 2_000_000 * CERULEA;
+    pub const EnterDepositAmount: Balance = 2_000_000 * ACCOUNTING_UNIT;
     pub const ExtendDuration: BlockNumber = 2 * HOURS;
-    pub const ExtendDepositAmount: Balance = 1_000_000 * CERULEA;
+    pub const ExtendDepositAmount: Balance = 1_000_000 * ACCOUNTING_UNIT;
     pub const ReleaseDelay: u32 = 2 * DAYS;
 
     // Validator parameters
@@ -319,7 +323,7 @@ parameter_types! {
     // 40 percent, performance at 30 percent, custody at 20 percent and sampling
     // at 10 percent. A private chain weighs role at 35 percent, attestation at
     // 25 percent, performance at 25 percent and custody at 15 percent.
-    pub const MinStake: Balance = 1000 * CERULEA; // Minimum stake required
+    pub const MinStake: Balance = 1000 * ACCOUNTING_UNIT; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;
 

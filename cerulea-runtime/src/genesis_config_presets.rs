@@ -2,7 +2,7 @@
 // It defines functions for generating JSON-based genesis settings used by the blockchain node
 // when starting a development or local testnet chain.
 
-use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, CERULEA}; // Runtime-specific types
+use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, ACCOUNTING_UNIT}; // Runtime-specific types
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
 use cerulea_blueprint::{Blueprint, BlueprintMeta};
 use codec::{Decode, Encode};
@@ -182,11 +182,11 @@ fn testnet_genesis_with_stakes_and_names(
             .enumerate()
             .map(|(i, _)| {
                 match i {
-                    0 => 10_000_000 * CERULEA, // Alice: 10M units
-                    1 => 8_000_000 * CERULEA,  // Bob: 8M units
-                    2 => 6_000_000 * CERULEA,  // Charlie: 6M units
-                    3 => 5_000_000 * CERULEA,  // Dave: 5M units
-                    _ => 3_000_000 * CERULEA,  // Others: 3M units
+                    0 => 10_000_000 * ACCOUNTING_UNIT, // Alice: 10M units
+                    1 => 8_000_000 * ACCOUNTING_UNIT,  // Bob: 8M units
+                    2 => 6_000_000 * ACCOUNTING_UNIT,  // Charlie: 6M units
+                    3 => 5_000_000 * ACCOUNTING_UNIT,  // Dave: 5M units
+                    _ => 3_000_000 * ACCOUNTING_UNIT,  // Others: 3M units
                 }
             })
             .collect()
@@ -240,7 +240,7 @@ fn testnet_genesis_with_stakes_and_names(
             balances: endowed_accounts
                 .iter()
                 .cloned()
-                .map(|k| (k, 100_000_000 * CERULEA)) // Each gets 100M units
+                .map(|k| (k, 100_000_000 * ACCOUNTING_UNIT)) // Each gets 100M units
                 .collect::<Vec<_>>(),
         },
         // Assign the sudo (root) key to the provided account
