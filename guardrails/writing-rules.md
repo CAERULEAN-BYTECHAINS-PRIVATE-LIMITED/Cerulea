@@ -22,7 +22,7 @@ Documents. Interface copy. Error messages. Generated application text.
 1. The word Blockchain is capitalised everywhere, in every artefact.
 2. Every term is explained immediately before or immediately after first
    use. Never introduce a word without explaining it.
-3. Never the words "configuration" or "configure" in Cerulea material.
+3. Never the words "start values" or "set" in Cerulea material.
    Describe the engineering workflow instead.
 4. No etymology and no name justification unless asked.
 

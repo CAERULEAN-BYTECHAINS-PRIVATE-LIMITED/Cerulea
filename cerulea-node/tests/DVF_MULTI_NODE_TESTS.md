@@ -1,8 +1,8 @@
-# DVF Multi-Node Integration Tests
+# validation Multi-Node Integration Tests
 
 ## Overview
 
-This document describes the comprehensive multi-node integration tests for the DVF (Dynamic Validator Finality) system implemented in `dvf_multi_node_test.rs`.
+This document describes the comprehensive multi-node integration tests for the validation (Dynamic Validator Finality) system implemented in `dvf_multi_node_test.rs`.
 
 ## Test File Location
 
@@ -10,7 +10,7 @@ This document describes the comprehensive multi-node integration tests for the D
 
 ## Test Coverage
 
-The test suite implements all requirements from Task 14 of the DVF weighted voting and finality spec:
+The test suite implements all requirements from Task 14 of the validation weighted voting and finality spec:
 
 ### Task 14.1: Three-Node Test Setup (Requirement 21.1)
 - **Test**: `test_three_node_setup()`
@@ -84,7 +84,7 @@ The test suite implements all requirements from Task 14 of the DVF weighted voti
 ### Mock Components
 
 #### DvfMultiNodeConfig
-Configuration structure for multi-node testing:
+Start values structure for multi-node testing:
 - Node count
 - Validator weights
 - Checkpoint interval
@@ -119,7 +119,7 @@ Network coordinator that:
 ## Running the Tests
 
 ```bash
-# Run all DVF multi-node tests
+# Run all validation multi-node tests
 cargo test --test dvf_multi_node_test -- --nocapture
 
 # Run specific test

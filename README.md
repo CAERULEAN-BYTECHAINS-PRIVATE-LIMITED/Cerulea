@@ -1,10 +1,10 @@
 # Cerulea - Caerulean ByteChains
 
-A production-ready Substrate-based blockchain implementing a sophisticated **Dynamic Consensus Framework (DCF)** that combines **Proof of Stake (PoS)** and **Proof of Inference (PoI)** for advanced validator selection and network security.
+A production-ready Substrate-based blockchain implementing a sophisticated **Dynamic Consensus Framework (DCF)** that combines **Proof of Stake (PoS)** and **the retired inference path (PoI)** for advanced validator selection and network security.
 
 ## Overview
 
-Cerulea represents a next-generation blockchain platform that extends traditional PoS consensus by incorporating **Proof of Inference (PoI)** - validators are selected and rewarded based on both their economic stake and their computational contributions to AI inference tasks. The system features comprehensive monitoring, advanced RPC APIs, and production-ready infrastructure.
+Cerulea represents a next-generation blockchain platform that extends traditional PoS consensus by incorporating **the retired inference path (PoI)** - validators are selected and rewarded based on both their economic stake and their computational contributions to AI inference tasks. The system features comprehensive monitoring, advanced RPC APIs, and production-ready infrastructure.
 
 ### Key Features
 
@@ -28,14 +28,14 @@ Cerulea represents a next-generation blockchain platform that extends traditiona
 │                         Cerulea Production Architecture                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Application Layer                                                          │
-│  ├── RPC APIs (19+ endpoints)    ├── CLI Tools & Utilities                  │
+│  ├── RPC APIs (19+ endpoints)    ├── node command Tools & Utilities                  │
 │  ├── Monitoring (Grafana)        ├── Fork Detection System                  │
 │  └── External Integrations       └── Development Tools                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Runtime Layer (WASM + Native)                                              │
 │  ├── pallet-cerulea-dcf    (Dynamic Consensus Framework)                        │
 │  ├── pallet-cerulea-pos    (Proof of Stake with Advanced Scoring)               │
-│  ├── pallet-cerulea-poi    (Proof of Inference with Challenge System)           │
+│  ├── pallet-cerulea-poi    (the retired inference path with Challenge System)           │
 │  ├── Standard Pallets  (System, Balances, Timestamp, TransactionPayment)    │
 │  └── Runtime APIs      (13+ specialized endpoints)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -47,7 +47,7 @@ Cerulea represents a next-generation blockchain platform that extends traditiona
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Node Layer                                                                 │
 │  ├── CBC Node (Multi-mode)       ├── Advanced Logging System                │
-│  ├── Service Configuration       ├── Security & Rate Limiting               │
+│  ├── Service Start values       ├── Security & Rate Limiting               │
 │  ├── Network Protocol            ├── Chain Specifications (4 modes)         │
 │  └── Client Services             └── Benchmarking Infrastructure            │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -61,7 +61,7 @@ Cerulea represents a next-generation blockchain platform that extends traditiona
 ### Consensus Flow
 
 1. **Validator Registration**: Validators register with stake and inference capabilities
-2. **Trust Score Calculation**: DCF combines PoS score (65%) + PoI score (35%)
+2. **Trust Score Calculation**: DCF combines PoS score (65%) + inference share (35%)
 3. **Epoch Management**: Automated validator set updates based on performance metrics
 4. **Block Production**: Deterministic author selection with round-robin scheduling
 5. **Performance Tracking**: Real-time monitoring of validator uptime and participation
@@ -106,7 +106,7 @@ Cerulea represents a next-generation blockchain platform that extends traditiona
   - Performance and benchmarking tests
 
 #### **Developer Tools & Documentation**
-- **CLI Tools**: Advanced command-line interface with 15+ commands
+- **node command Tools**: Advanced command-line interface with 15+ commands
 - **Benchmarking Suite**: Complete performance testing infrastructure
 - **Fork Checker**: Standalone fork detection utility
 - **Score Simulation**: Validator performance simulation tools
@@ -126,7 +126,7 @@ Cerulea represents a next-generation blockchain platform that extends traditiona
 - **Performance Scoring**: Multi-factor scoring with stake and inference components
 - **Slashing Protection**: Economic penalties for malicious behavior
 - **Uptime Tracking**: Real-time validator participation monitoring
-- **Trust Score System**: Sophisticated trust calculation with configurable weights
+- **Trust Score System**: Sophisticated trust calculation with adjustable weights
 
 #### **Network & Security**
 - **Multi-node Support**: Full peer-to-peer network with block propagation
@@ -249,7 +249,7 @@ fn select_next_author(validators: &[ValidatorProfile], mode: AuthorSelectionMode
 #### **Runtime Layer** (`cerulea-runtime/`)
 - **Complete WASM Runtime**: Production-ready runtime with all pallets
 - **13+ Runtime APIs**: Comprehensive API coverage for external integration
-- **Advanced Configuration**: Multiple chain specifications and genesis presets
+- **Advanced Start values**: Multiple chain specifications and genesis presets
 - **Testing Infrastructure**: Complete test coverage with mock runtime
 
 #### **Consensus Engine** (`cerulea-node/src/cerulea-consensus/`)
@@ -267,7 +267,7 @@ fn select_next_author(validators: &[ValidatorProfile], mode: AuthorSelectionMode
 #### **Custom Pallets** (`cerulea-pallets/`)
 - **pallet-cerulea-dcf**: Dynamic Consensus Framework with advanced features
 - **pallet-cerulea-pos**: Proof of Stake with sophisticated scoring
-- **pallet-cerulea-poi**: Proof of Inference with challenge mechanisms
+- **pallet-cerulea-poi**: the retired inference path with challenge mechanisms
 
 #### **Infrastructure** (`monitoring/`, `scripts/`, `docs/`)
 - **Monitoring Stack**: Grafana dashboards with Prometheus integration
@@ -311,10 +311,10 @@ cargo build --release
 # Local testnet (multiple validators)
 ./target/release/cerulea-node --chain local
 
-# Multi-validator testnet configuration
+# Multi-validator testnet start values
 ./target/release/cerulea-node --chain multi_validator
 
-# High-stake validator configuration
+# High-stake validator start values
 ./target/release/cerulea-node --chain high_stake
 ```
 
@@ -379,8 +379,8 @@ curl -X POST -H "Content-Type: application/json" \
 ## Performance Specifications
 
 ### Target Specifications
-- **Block Time**: 6 seconds (configurable)
-- **Validator Set Size**: 4-100 validators (configurable)
+- **Block Time**: 6 seconds (adjustable)
+- **Validator Set Size**: 4-100 validators (adjustable)
 - **Storage Efficiency**: SCALE codec with optimized layouts
 
 ### Development Environment Performance
@@ -424,10 +424,10 @@ Cerulea/
 ├── cerulea-pallets/                 # Custom pallets
 │   ├── pallet-cerulea-dcf/          # Dynamic Consensus Framework
 │   ├── pallet-cerulea-pos/          # Proof of Stake
-│   └── pallet-cerulea-poi/          # Proof of Inference
+│   └── pallet-cerulea-poi/          # the retired inference path
 ├── monitoring/                  # Monitoring infrastructure
 │   ├── grafana/                 # Grafana dashboards
-│   ├── prometheus.yml           # Prometheus configuration
+│   ├── prometheus.yml           # Prometheus start values
 │   └── README.md                # Monitoring setup guide
 ├── scripts/                     # Build and deployment scripts
 ├── tools/                       # Utility tools
@@ -472,7 +472,7 @@ Cerulea/
 - **Security Enhancements**: Advanced slashing and attack prevention
 
 #### **Medium Priority**
-- **Developer Tools**: SDK development and external integrations
+- **Developer Tools**: platform library development and external integrations
 - **Network Optimization**: Advanced peer-to-peer improvements
 - **Economic Model**: Dynamic fee adjustment and tokenomics refinement
 - **Monitoring**: Enhanced analytics and alerting systems
@@ -502,7 +502,7 @@ This project is licensed under the MIT-0 License - see the [LICENSE](LICENSE) fi
 - **Technical Documentation**: See `docs/` directory for comprehensive guides
 
 ### Key Documentation
-- **[Node Setup Guide](cerulea-node/README.md)** - Complete node installation and configuration
+- **[Node Setup Guide](cerulea-node/README.md)** - Complete node installation and start values
 - **[Runtime Guide](cerulea-runtime/README.md)** - Runtime development and deployment
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive testing procedures
 - **[API Reference](docs/rpc-endpoints.md)** - Complete RPC API documentation
@@ -510,7 +510,7 @@ This project is licensed under the MIT-0 License - see the [LICENSE](LICENSE) fi
 
 ### Development Resources
 - **[Developer Onboarding](docs/developer-onboarding.md)** - Getting started for developers
-- **[Monitoring Setup](monitoring/README.md)** - Production monitoring configuration
+- **[Monitoring Setup](monitoring/README.md)** - Production monitoring start values
 - **[Build Scripts](scripts/)** - Automated build and deployment tools
 
 ### Community and Support

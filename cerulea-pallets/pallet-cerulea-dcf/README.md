@@ -4,24 +4,24 @@ The **Dynamic Consensus Framework (DCF)** pallet manages validators, scoring, an
 
 ## Overview
 
-The DCF pallet implements the core consensus mechanism for Cerulea, combining Proof of Stake (PoS) and Proof of Inference (PoI) to create a dynamic validator selection and scoring system. It provides advanced features for validator management, score calculation, and on-chain governance.
+The DCF pallet implements the core consensus mechanism for Cerulea, combining Proof of Stake (PoS) and the retired inference path (PoI) to create a dynamic validator selection and scoring system. It provides advanced features for validator management, score calculation, and on-chain governance.
 
 ## Key Features
 
 - **Dynamic Validator Management**: Validator joining/leaving system with score-based selection
-- **Hybrid Scoring System**: Combined PoS and PoI scoring with configurable weight distribution
+- **Hybrid Scoring System**: Combined PoS and PoI scoring with adjustable weight distribution
 - **Epoch Management**: Automatic epoch transitions with validator set updates and historical tracking
 - **On-Chain Governance**: Proposal submission, voting mechanism, and execution system
 - **Security Features**: Validator slashing, score penalties, ejection mechanism, and governance controls
 
-## Configuration
+## Start values
 
 ```rust
 #[pallet::config]
 pub trait Config: frame_system::Config + pos::Config + poi::Config + TypeInfo + fmt::Debug {
     type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
     
-    // Validator set configuration
+    // Validator set start values
     #[pallet::constant]
     type MaxValidators: Get<u32>;
     
@@ -63,7 +63,7 @@ pub trait Config: frame_system::Config + pos::Config + poi::Config + TypeInfo + 
     #[pallet::constant]
     type ValidatorProposalInterval: Get<u32>;
     
-    // Additional configuration types...
+    // Additional start values types...
 }
 ```
 
@@ -205,7 +205,7 @@ sp_api::decl_runtime_apis! {
 }
 ```
 
-## Genesis Configuration
+## Genesis Start values
 
 ```rust
 #[pallet::genesis_config]

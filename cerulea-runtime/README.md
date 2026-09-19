@@ -1,6 +1,6 @@
 # CBC Runtime
 
-The CBC Runtime is the core blockchain implementation for the CBC (Caerulean ByteChains) protocol. It implements a sophisticated hybrid consensus mechanism combining Proof of Stake (PoS) and Proof of Inference (PoI) through the Dynamic Consensus Framework (DCF), providing a secure, scalable, and efficient blockchain platform.
+The CBC Runtime is the core blockchain implementation for the CBC (Caerulean ByteChains) protocol. It implements a sophisticated hybrid consensus mechanism combining Proof of Stake (PoS) and the retired inference path (PoI) through the Dynamic Consensus Framework (DCF), providing a secure, scalable, and efficient blockchain platform.
 
 ## Overview
 
@@ -23,18 +23,18 @@ The CBC Runtime serves as the heart of the CBC blockchain, defining the state tr
 
 ```
 cerulea-runtime/
-├── Cargo.toml                    # Project dependencies and feature configuration
+├── Cargo.toml                    # Project dependencies and feature start values
 ├── build.rs                      # Build script for WASM binary generation
 ├── src/
 │   ├── apis.rs                   # Runtime APIs exposed to external systems
 │   ├── benchmark_tests.rs        # Benchmarking infrastructure tests
 │   ├── benchmarks.rs             # Runtime benchmarking logic and implementations
-│   ├── configs/                  # Runtime configuration modules
+│   ├── configs/                  # Runtime start values modules
 │   │   ├── constants.rs          # Runtime constants and parameters
-│   │   ├── mod.rs                # Configuration module definitions
+│   │   ├── mod.rs                # Start values module definitions
 │   │   └── weights.rs            # Weight calculations for extrinsics
-│   ├── genesis_config_presets.rs # Genesis block configuration presets
-│   ├── lib.rs                    # Main runtime implementation and pallet configuration
+│   ├── genesis_config_presets.rs # Genesis block start values presets
+│   ├── lib.rs                    # Main runtime implementation and pallet start values
 │   ├── mock.rs                   # Mock runtime for testing
 │   ├── runtime_integration_tests.rs # Runtime-level integration tests
 │   └── tests.rs                  # Comprehensive runtime tests
@@ -48,7 +48,7 @@ cerulea-runtime/
 ### Core Runtime Files
 
 #### `Cargo.toml`
-- Comprehensive project configuration with 40+ dependencies
+- Comprehensive project start values with 40+ dependencies
 - Feature flags for std, runtime-benchmarks, try-runtime, and metadata-hash
 - WASM compilation support with substrate-wasm-builder
 - Development and build dependencies for testing and compilation
@@ -61,7 +61,7 @@ cerulea-runtime/
 
 #### `src/lib.rs`
 - Main runtime implementation with complete pallet integration
-- Defines runtime version, constants, and executive configuration
+- Defines runtime version, constants, and executive start values
 - Configures all FRAME pallets (System, Balances, Timestamp, etc.)
 - Implements custom CBC pallets (DCF, PoS, PoI)
 - Sets up transaction processing and fee calculation
@@ -76,7 +76,7 @@ cerulea-runtime/
 - **PoS APIs**: Validator scoring, stake management, performance tracking
 - **PoI APIs**: Inference validation, challenge handling, result verification
 - **System APIs**: Block authorship, trust scores, validator profiles
-- Used by RPC servers, CLI tools, and external applications
+- Used by RPC servers, node command tools, and external applications
 
 #### `src/benchmarks.rs`
 - Runtime benchmarking logic for performance optimization
@@ -107,7 +107,7 @@ cerulea-runtime/
 #### `src/mock.rs`
 - Mock runtime implementation for testing
 - Test account creation and funding utilities
-- Simplified runtime configuration for unit tests
+- Simplified runtime start values for unit tests
 - Test environment setup and management
 
 #### `tests/runtime_api_tests.rs`
@@ -116,11 +116,11 @@ cerulea-runtime/
 - Return value validation for all 13+ APIs
 - Integration testing with external tools
 
-### Configuration Files
+### Start values Files
 
 #### `src/configs/constants.rs`
 - Runtime constants and parameters
-- Block time, slot duration, and epoch configuration
+- Block time, slot duration, and epoch start values
 - Balance parameters and existential deposits
 - Consensus-specific constants
 
@@ -131,16 +131,16 @@ cerulea-runtime/
 - Benchmark-derived weight values
 
 #### `src/configs/mod.rs`
-- Configuration module organization
+- Start values module organization
 - Parameter validation and defaults
-- Runtime configuration management
+- Runtime start values management
 
 #### `src/genesis_config_presets.rs`
-- Genesis block configuration presets for different networks
-- Initial validator set configuration
+- Genesis block start values presets for different networks
+- Initial validator set start values
 - Initial balance distribution
 - PoS/PoI parameter initialization
-- DCF consensus configuration
+- DCF consensus start values
 
 ## Runtime Features
 
@@ -172,7 +172,7 @@ cerulea-runtime/
 - **Reward Distribution**: Automated reward calculation and distribution
 - **Validator Status**: Real-time validator state monitoring
 
-#### PoI (Proof of Inference) APIs
+#### PoI (the retired inference path) APIs
 - **Inference Validation**: Computational work verification
 - **Challenge Management**: Challenge creation and resolution
 - **Result Verification**: On-chain inference result validation
@@ -280,7 +280,7 @@ file target/release/wbuild/cerulea-runtime/cerulea_runtime.wasm
 cargo run -- --version
 ```
 
-## Runtime Configuration
+## Runtime Start values
 
 ### Runtime Version and Constants
 
@@ -305,7 +305,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 - **Slot Duration**: 6 seconds for consensus timing
 - **Block Hash Count**: 2400 blocks (4 hours of history)
 - **Maximum Block Weight**: Optimized for transaction throughput
-- **Maximum Block Length**: Configurable based on network capacity
+- **Maximum Block Length**: Adjustable based on network capacity
 
 ### Balance and Economic Parameters
 
@@ -323,7 +323,7 @@ pub const DOLLARS: Balance = UNIT;                     // 1 CBC = 1 DOLLAR equiv
 ### Consensus Parameters
 
 ```rust
-// DCF Configuration
+// DCF Start values
 pub const EPOCH_DURATION: u32 = 600;                   // 600 slots per epoch (1 hour)
 pub const MIN_VALIDATORS: u32 = 4;                     // Minimum validator count
 pub const MAX_VALIDATORS: u32 = 100;                   // Maximum validator count
@@ -358,7 +358,7 @@ The runtime integrates a comprehensive set of pallets for complete blockchain fu
    - **Purpose**: Fundamental blockchain system management
    - **Features**: Account management, block execution, event handling
    - **APIs**: Block hash, account info, event storage
-   - **Configuration**: 2400 block hash count, custom account data
+   - **Start values**: 2400 block hash count, custom account data
 
 #### 2. **Timestamp (`pallet_timestamp`)**
    - **Purpose**: Block timestamp management and time-dependent logic
@@ -370,7 +370,7 @@ The runtime integrates a comprehensive set of pallets for complete blockchain fu
    - **Purpose**: Account balance management and token transfers
    - **Features**: Free/reserved balance tracking, existential deposits
    - **APIs**: Balance queries, transfer operations, account existence
-   - **Configuration**: 1 MILLIUNIT existential deposit, dust handling
+   - **Start values**: 1 MILLIUNIT existential deposit, dust handling
 
 #### 4. **Transaction Payment (`pallet_transaction_payment`)**
    - **Purpose**: Transaction fee handling and weight-based pricing
@@ -387,7 +387,7 @@ The runtime integrates a comprehensive set of pallets for complete blockchain fu
 ### Custom CBC Pallets
 
 #### 6. **Pallet CBC PoI (`pallet_cbc_poi`)**
-   - **Purpose**: Proof of Inference implementation and validation
+   - **Purpose**: the retired inference path implementation and validation
    - **Features**: 
      - Inference result submission and validation
      - Challenge creation and resolution system
@@ -432,7 +432,7 @@ System ← Timestamp ← Balances ← TransactionPayment
                     (PoS, PoI, DCF) ← Sudo
 ```
 
-### Runtime Executive Configuration
+### Runtime Executive Start values
 
 The runtime uses FRAME Executive to coordinate all pallets:
 
