@@ -52,14 +52,14 @@ pub fn cerulea_operator() -> AccountId {
 /// result. The test `the_development_licence_signature_holds` rebuilds the
 /// message and checks these bytes against the control plane key.
 pub const DEVELOPMENT_LICENCE_SIGNATURE: [u8; 64] = [
-    218, 37, 126, 108, 163, 147, 182, 136,
-    95, 160, 253, 74, 107, 118, 53, 130,
-    12, 161, 72, 162, 236, 155, 253, 29,
-    34, 93, 225, 111, 30, 198, 215, 253,
-    126, 112, 23, 9, 168, 137, 171, 140,
-    110, 185, 131, 193, 57, 17, 41, 236,
-    206, 90, 119, 117, 180, 227, 3, 243,
-    190, 188, 58, 152, 121, 121, 183, 3,
+    23, 48, 166, 107, 173, 113, 14, 51,
+    120, 167, 28, 95, 144, 118, 167, 230,
+    127, 20, 89, 233, 247, 56, 29, 169,
+    93, 32, 124, 121, 251, 37, 104, 89,
+    125, 58, 80, 155, 229, 1, 113, 89,
+    129, 196, 179, 228, 89, 163, 96, 79,
+    111, 160, 87, 168, 106, 245, 103, 182,
+    238, 86, 107, 238, 210, 102, 45, 12,
 ];
 
 /// The licence the starting deployment runs under, with its signature.
@@ -86,6 +86,7 @@ fn starting_licence() -> (DeploymentId, Vec<u8>, Vec<u8>, [u8; 32]) {
         "audit",
         "operator",
         "custody",
+        pallet_cerulea_relayer::RELAY_FEATURE,
     ]
     .iter()
     .filter_map(|held| name_of(held).ok())
