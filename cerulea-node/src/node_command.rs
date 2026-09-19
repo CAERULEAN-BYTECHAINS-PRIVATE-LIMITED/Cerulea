@@ -107,18 +107,13 @@ pub struct FaucetCmd {
 }
 
 /// Output format for node command commands
-#[derive(Debug, Clone, clap::ValueEnum)]
+#[derive(Debug, Clone, Default, clap::ValueEnum)]
 pub enum OutputFormat {
     /// JSON format
     Json,
     /// Plain text format
+    #[default]
     Plain,
-}
-
-impl Default for OutputFormat {
-    fn default() -> Self {
-        OutputFormat::Plain
-    }
 }
 
 /// Display node information

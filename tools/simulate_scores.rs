@@ -107,7 +107,7 @@ impl Validator {
     }
 }
 
-fn simulate_epoch(validators: &mut Vec<Validator>, config: &SimulationConfig) -> Vec<SimulationResult> {
+fn simulate_epoch(validators: &mut [Validator], config: &SimulationConfig) -> Vec<SimulationResult> {
     let mut results = Vec::new();
     let mut rng = rand::thread_rng();
     

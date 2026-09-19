@@ -152,6 +152,12 @@ pub struct PermissionReply {
     pub fix: Vec<u8>,
 }
 
+/// One completed step of a process.
+///
+/// The four values name the transition, the state the record left, the
+/// state the record reached and the wall clock time the step completed at.
+pub type ProcessStep = (Vec<u8>, Vec<u8>, Vec<u8>, u64);
+
 /// The rows one view produced.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo, Serialize, Deserialize)]
 pub struct ViewReply {
@@ -193,7 +199,7 @@ pub struct WorkflowInstanceReply {
     pub started_block: u32,
     /// Every completed step, naming the transition, the state it left and
     /// the state it reached.
-    pub history: Vec<(Vec<u8>, Vec<u8>, Vec<u8>, u64)>,
+    pub history: Vec<ProcessStep>,
     /// The timers and deadlines scheduled for the present state, with the
     /// wall clock time each falls due at.
     pub scheduled: Vec<(Vec<u8>, u64)>,

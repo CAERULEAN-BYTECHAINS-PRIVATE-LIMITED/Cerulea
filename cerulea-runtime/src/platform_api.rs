@@ -39,7 +39,7 @@ pub const READ_CEILING: u32 = 512;
 
 /// Hold one limit inside the ceiling.
 fn bounded_limit(limit: u32) -> u32 {
-    limit.min(READ_CEILING).max(1)
+    limit.clamp(1, READ_CEILING)
 }
 
 /// Read a bounded name as plain bytes.

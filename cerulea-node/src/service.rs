@@ -63,9 +63,8 @@ pub fn new_partial(
             Ok((worker, telemetry))
         })
         .transpose()
-        .map_err(|e| {
-            LifecycleTracer::global().trace_error(8, "service.rs::new_partial", &e, "Telemetry initialization failed");
-            e
+        .inspect_err(|e| {
+            LifecycleTracer::global().trace_error(8, "service.rs::new_partial", e, "Telemetry initialization failed");
         })?;
 
     // STEP 8: Telemetry endpoints set
@@ -104,9 +103,8 @@ pub fn new_partial(
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
         )
-        .map_err(|e| {
-            LifecycleTracer::global().trace_error(10, "service.rs::new_partial", &e, "Client and backend initialization failed");
-            e
+        .inspect_err(|e| {
+            LifecycleTracer::global().trace_error(10, "service.rs::new_partial", e, "Client and backend initialization failed");
         })?;
 
     // STEP 10: Client and backend initialized
@@ -284,9 +282,8 @@ where
         select_chain: _,
         transaction_pool,
         other: consensus_metrics,
-    } = new_partial(&config, &node_config).map_err(|e| {
-        LifecycleTracer::global().trace_error(7, "service.rs::new_full", &e, "Partial components failed to initialize");
-        e
+    } = new_partial(&config, node_config).inspect_err(|e| {
+        LifecycleTracer::global().trace_error(7, "service.rs::new_full", e, "Partial components failed to initialize");
     })?;
 
     // Validate Registry settings parameters
@@ -421,9 +418,8 @@ where
             warp_sync_config: None,
             block_relay: None,
             metrics,
-        }).map_err(|e| {
-            LifecycleTracer::global().trace_error(18, "service.rs::new_full", &e, "P2P network layer initialization failed");
-            e
+        }).inspect_err(|e| {
+            LifecycleTracer::global().trace_error(18, "service.rs::new_full", e, "P2P network layer initialization failed");
         })?;
 
 	// Initialize Registry Gossip Components
@@ -912,7 +908,7 @@ where
                             
                             // Finalize all blocks from client_finalized+1 to dvf_finalized
                             for block_num in (client_finalized + 1)..=dvf_finalized {
-                                match finality_client.hash(block_num.into()) {
+                                match finality_client.hash(block_num) {
                                     Ok(Some(block_hash)) => {
                                         match finality_client.finalize_block(block_hash, None, true) {
                                             Ok(_) => {
@@ -994,7 +990,8 @@ where
                                 Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(client_finalized)),
                             );
                             
-                            if dvf_finalized > client_finalized {
+                            match dvf_finalized.cmp(&client_finalized) {
+                                core::cmp::Ordering::Greater => {
                                 let gap = dvf_finalized - client_finalized;
                                 
                                 // STEP 68: Finality gap detected
@@ -1022,7 +1019,7 @@ where
                                     );
                                     
                                     // Get block hash for this number
-                                    match finality_client.hash(block_num.into()) {
+                                    match finality_client.hash(block_num) {
                                         Ok(Some(block_hash)) => {
                                             // Finalize this block
                                             match finality_client.finalize_block(block_hash, None, true) {
@@ -1069,16 +1066,19 @@ where
                                     "Finality synchronization completed",
                                     Some(crate::lifecycle_tracer::TraceMetadata::new()),
                                 );
-                            } else if dvf_finalized == client_finalized {
+                                }
+                                core::cmp::Ordering::Equal => {
                                 // Already in sync, just log occasionally
                                 log::trace!("Registry and Client finality are in sync at #{}", dvf_finalized);
-                            } else {
+                                }
+                                core::cmp::Ordering::Less => {
                                 // This is normal: DCF (Deterministic Finality) is faster than Registry (Vote-based Finality)
                                 log::info!(
                                     "Registry Sync Status: Client head (#{}) is ahead of Registry head (#{}). Normal behavior.",
                                     client_finalized,
                                     dvf_finalized
                                 );
+                                }
                             }
                         },
                         Err(e) => {

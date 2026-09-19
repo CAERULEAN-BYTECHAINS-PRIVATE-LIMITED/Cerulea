@@ -250,9 +250,9 @@ async fn main() -> Result<()> {
         }
         "csv" => {
             let mut wtr = Writer::from_writer(io::stdout());
-            wtr.write_record(&[
-                "Validator", "PoS", "PoI", "Combined", "Stake", "Slashes", "Active", 
-                "Blocks Authored", "Total Blocks", "Last Active", "Inference Result", 
+            wtr.write_record([
+                "Validator", "PoS", "PoI", "Combined", "Stake", "Slashes", "Active",
+                "Blocks Authored", "Total Blocks", "Last Active", "Inference Result",
                 "Inference Confidence", "Challenge Window",
             ])?;
             for validator in &validators {

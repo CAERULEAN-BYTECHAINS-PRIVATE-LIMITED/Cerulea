@@ -2,7 +2,7 @@
 // It defines functions for generating JSON-based genesis settings used by the blockchain node
 // when starting a development or local testnet chain.
 
-use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, Cerulea}; // Runtime-specific types
+use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, CERULEA}; // Runtime-specific types
 use cerulea_blueprint::{Blueprint, BlueprintMeta};
 use codec::{Decode, Encode};
 use frame_support::BoundedVec;
@@ -178,16 +178,16 @@ fn testnet_genesis_with_stakes_and_names(
 	// Create initial validator scores
 	let validator_scores = vec![80; initial_validators.len()]; // 80% initial score
 
-	// Create validator stakes - use provided stakes or defaults in Cerulea
+	// Create validator stakes - use provided stakes or defaults in units
 	let stakes = validator_stakes.unwrap_or_else(|| {
-		// Default stakes: 10M, 8M, 6M, 5M, 3M Cerulea
+		// Default stakes: 10M, 8M, 6M, 5M, 3M units
 		initial_validators.iter().enumerate().map(|(i, _)| {
 			match i {
-				0 => 10_000_000 * Cerulea, // Alice: 10M Cerulea
-				1 => 8_000_000 * Cerulea,  // Bob: 8M Cerulea
-				2 => 6_000_000 * Cerulea,  // Charlie: 6M Cerulea
-				3 => 5_000_000 * Cerulea,  // Dave: 5M Cerulea
-				_ => 3_000_000 * Cerulea,  // Others: 3M Cerulea
+				0 => 10_000_000 * CERULEA, // Alice: 10M units
+				1 => 8_000_000 * CERULEA,  // Bob: 8M units
+				2 => 6_000_000 * CERULEA,  // Charlie: 6M units
+				3 => 5_000_000 * CERULEA,  // Dave: 5M units
+				_ => 3_000_000 * CERULEA,  // Others: 3M units
 			}
 		}).collect()
 	});
@@ -243,7 +243,7 @@ fn testnet_genesis_with_stakes_and_names(
 			balances: endowed_accounts
 				.iter()
 				.cloned()
-				.map(|k| (k, 100_000_000 * Cerulea)) // Each gets 100M units
+				.map(|k| (k, 100_000_000 * CERULEA)) // Each gets 100M units
 				.collect::<Vec<_>>(),
 		},
 		// Assign the sudo (root) key to the provided account

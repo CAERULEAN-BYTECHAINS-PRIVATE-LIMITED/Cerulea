@@ -49,7 +49,7 @@ parameter_types! {
 ///
 /// The balances module refuses a genesis balance below the existential
 /// deposit the runtime carries, so the endowment sits far above it.
-pub const TEST_ENDOWMENT: Balance = 100_000 * crate::Cerulea;
+pub const TEST_ENDOWMENT: Balance = 100_000 * crate::CERULEA;
 
 /// The settings one test runtime starts with
 pub struct MockRuntimeConfig {

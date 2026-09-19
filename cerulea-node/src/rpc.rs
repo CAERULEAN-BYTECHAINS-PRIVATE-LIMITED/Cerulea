@@ -56,7 +56,7 @@ impl RateLimiter {
     pub fn check_rate_limit(&self, ip: &str) -> bool {
         let now = Instant::now();
         let mut requests = self.requests.lock().unwrap();
-        let history = requests.entry(ip.to_string()).or_insert_with(Vec::new);
+        let history = requests.entry(ip.to_string()).or_default();
         history.retain(|&time| now.duration_since(time) <= self.window);
         if history.len() as u32 >= self.max_requests {
             return false;
@@ -496,7 +496,7 @@ where
         let best_hash = self.client.info().best_hash;
         
         // Get current block number
-        let current_block = self.client.info().best_number as u32;
+        let current_block = self.client.info().best_number;
         
         api.get_expected_author(best_hash, current_block)
             .map_err(|e| jsonrpsee::types::ErrorObjectOwned::owned(
@@ -804,7 +804,7 @@ where
             ))?;
         
         // Get last finalized block
-        let last_finalized_block = self.client.info().finalized_number as u32;
+        let last_finalized_block = self.client.info().finalized_number;
         
         // Determine consensus health
         let consensus_health = if active_validators_count >= 3 {
@@ -1571,9 +1571,6 @@ where
         // Register Fork Detection RPC handler
         let fork_api = ForkDetectionRpcApiImpl::<C, FullBackend>::new(client.clone(), rpc_config.clone());
         module.merge(ForkDetectionRpcApiServer::into_rpc(fork_api))?;
-    }
-
-    if rpc_config.expose_unsafe_methods {
     }
 
     Ok(module)

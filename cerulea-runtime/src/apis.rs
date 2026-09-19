@@ -342,7 +342,7 @@ impl_runtime_apis! {
 		}
 
 		fn get_validator_stake(validator: AccountId) -> u128 {
-			pallet_cerulea_pos::Pallet::<Runtime>::stake(&validator).into()
+			pallet_cerulea_pos::Pallet::<Runtime>::stake(&validator)
 		}
 
 		fn get_leave_request_status(validator: AccountId) -> Option<(u32, u32, bool)> {
