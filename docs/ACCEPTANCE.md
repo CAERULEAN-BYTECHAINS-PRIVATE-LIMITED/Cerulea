@@ -78,19 +78,17 @@ one criterion is:
 | 12 | The manifest is complete | Passed. 136 tests over 16 files |
 | 13 | Deployment is atomic | Shortfall. 42 of 44, the rollback suite whole |
 | 14 | The operator role is bounded | Passed |
-| 15 | Security passes | Passed on the checks. Evidence rebuild in flight |
+| 15 | Security passes | Passed. 217 tests, 25 of 25 controls |
 | 16 | Testing passes | Shortfall. Three coverage figures below target |
 | 17 | The term check passes | Passed |
 | 18 | Recovery works | Passed |
 
-Every criterion is measured. Thirteen passed. Five carry a measured shortfall
-or a measured qualification, and each one names the figure it reached. The
-five are criterion 6, where the journey stops at step two on a field name;
-criterion 10, where one test of forty seven reached the time limit; criterion
-13, where one test reads a genesis file as JSON that the writer now emits as
-SCALE bytes; criterion 15, where the checks pass and the evidence rebuild was
-still running; and criterion 16, where three coverage figures sit below
-their target.
+Every criterion is measured. Fourteen passed. Four carry a measured shortfall,
+and each one names the figure it reached. The four are criterion 6, where the
+journey stops at step two on a field name; criterion 10, where one test of
+forty seven reached the time limit; criterion 13, where one test reads a
+genesis file as JSON that the writer now emits as SCALE bytes; and criterion
+16, where three coverage figures sit below their target.
 
 ## The eighteen criteria
 
@@ -434,10 +432,8 @@ exportable, and both hold. The question register carries the gap.
 
 ### 15. Security passes
 
-**Passed on the checks. The evidence set rebuild was still running as this
-document was written, reporting `COLLECT` for every control it reached and
-holding a pass from earlier the same day for the controls it had yet to
-reach.**
+**Passed. Every check of Section 16 passes and all twenty five controls hold a
+passing run on this tree.**
 
 Controls implemented, certification not held.
 
@@ -446,7 +442,7 @@ Controls implemented, certification not held.
 | The security project of Cerulea APIs | 217 tests over 23 files | passed |
 | The secret scan over every tracked source file | SECRET SCAN PASSED | passed |
 | The chain protocol evidence | 4 controls | present |
-| The evidence set rebuild | every control it reached reported COLLECT | in flight |
+| The evidence set, twenty five controls | 25 of 25 hold a passing run | passed |
 
 The security project covers the whole of Section 16. Blueprint static
 analysis, the application security standard, multi-factor authentication,
@@ -455,10 +451,22 @@ security, field-level encryption, key rotation, consent, purpose limitation,
 retention, erasure, portability, residency, egress, the supply chain and
 immutable logging. All 217 tests passed.
 
-The evidence set on disk holds a directory for every one of the twenty five
-controls, each with its README and its last run, and the chain carries four
-more under `chain/security/evidence` for equivocation detection, checkpoint
-anchoring, peer diversity and message bounds.
+The evidence set holds a directory for every one of the twenty five controls,
+each with its README and its last run, and every last run ended with status
+zero. The chain carries four more under `chain/security/evidence` for
+equivocation detection, checkpoint anchoring, peer diversity and message
+bounds.
+
+Two controls failed on the first collection pass and both passed on re-proof.
+`P10-015`, purpose limitation, failed once where a deployment inside the test
+did not reach the succeeded state under machine load, and answered 5 of 5 on
+the repeat. `P10-022`, the bill of materials, produced bills for the four node
+repositories and none for the chain, because `cargo metadata --locked` cannot
+answer while the build lock is held, and two chain test runs held it at that
+moment. The repeat produced the chain bill from the crate metadata, 1,122
+components. The figures for the other four are 451 components for Cerulea
+APIs, 746 for Cerulea Studio, 590 for Cerulea Explorer and 434 for Cerulea
+Dashboard.
 
 One note on the rebuild. `security/collect-evidence.sh` reads the control
 register through `python`, and the Linux subsystem of this machine carries
@@ -468,10 +476,9 @@ read an empty register, ran no control and still reported
 nothing missing and nothing failing. That output is a false pass and the
 question register carries it. The rerun supplied the name and the collector
 began proving each control in turn, reporting `COLLECT` for every one it
-reached. Each control runs its own suite over the mounted Windows volume, at
-two to four minutes each, so the whole rebuild runs longer than this session
-held. Running `bash scripts/acceptance/15-security.sh` with the interpreter
-named on the path finishes it.
+reached. Running
+`bash scripts/acceptance/15-security.sh` with the interpreter named on the
+path collects the whole set.
 
 - Evidence: `test-results/acceptance/15-security/`, `security/evidence/`,
   `chain/security/evidence/`
