@@ -112,11 +112,7 @@ fn record(note: &str, members: Vec<(&str, Json)>) -> Json {
 }
 
 /// An object with a fixed member list where some members carry no value.
-fn record_with_optional(
-    note: &str,
-    members: Vec<(&str, Json)>,
-    required: &[&str],
-) -> Json {
+fn record_with_optional(note: &str, members: Vec<(&str, Json)>, required: &[&str]) -> Json {
     obj(vec![
         ("type", s("object")),
         ("description", s(note)),
@@ -138,10 +134,7 @@ fn nullable(inner: Json) -> Json {
 fn carried(name: &str, payload: Json) -> Json {
     obj(vec![
         ("type", s("object")),
-        (
-            "properties",
-            Json::object(vec![(name, payload)]),
-        ),
+        ("properties", Json::object(vec![(name, payload)])),
         ("required", words(&[name])),
         ("additionalProperties", Json::Bool(false)),
     ])
@@ -152,10 +145,7 @@ fn carried(name: &str, payload: Json) -> Json {
 fn choice(note: &str, bare: &[&str], carried_alternatives: Vec<Json>) -> Json {
     let mut alternatives: Vec<Json> = Vec::new();
     if !bare.is_empty() {
-        alternatives.push(obj(vec![
-            ("type", s("string")),
-            ("enum", words(bare)),
-        ]));
+        alternatives.push(obj(vec![("type", s("string")), ("enum", words(bare))]));
     }
     alternatives.extend(carried_alternatives);
     obj(vec![
@@ -204,11 +194,14 @@ fn truth(note: &str) -> Json {
 fn byte_run(note: &str, length: Option<i128>) -> Json {
     let mut members = vec![
         ("type", s("array")),
-        ("items", obj(vec![
-            ("type", s("integer")),
-            ("minimum", n(0)),
-            ("maximum", n(255)),
-        ])),
+        (
+            "items",
+            obj(vec![
+                ("type", s("integer")),
+                ("minimum", n(0)),
+                ("maximum", n(255)),
+            ]),
+        ),
         ("description", s(note)),
     ];
     if let Some(length) = length {
@@ -252,6 +245,7 @@ fn fragment_document() -> Json {
                     "integrations",
                     "governance",
                     "economics",
+                    "interface",
                 ])),
             ]),
         ),
@@ -275,6 +269,7 @@ fn fragment_document() -> Json {
                 ("governance", r("Governance")),
                 ("economics", nullable(r("Economics"))),
                 ("blocks", arr(r("Block"))),
+                ("interface", nullable(r("Interface"))),
             ]),
         ),
         (
@@ -340,18 +335,21 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", text_field("The catalogue identifier of the module.")),
                 (
                     "position",
-                    counted("The position of the module in the catalogue, counting from one.", 1),
+                    counted(
+                        "The position of the module in the catalogue, counting from one.",
+                        1,
+                    ),
                 ),
                 ("title", sentence("The title a person reads on screen.")),
                 (
                     "track",
-                    names("The application track the module serves.", &["dapp", "enterprise", "government", "blockchain"]),
+                    names(
+                        "The application track the module serves.",
+                        &["dapp", "enterprise", "government", "blockchain"],
+                    ),
                 ),
                 ("category", sentence("The catalogue category.")),
-                (
-                    "prefix",
-                    r("Identifier"),
-                ),
+                ("prefix", r("Identifier")),
                 (
                     "contributes",
                     sentence("One plain sentence stating what the module adds to a deployment."),
@@ -368,13 +366,22 @@ fn definitions() -> Vec<(String, Json)> {
         record(
             "One module this fragment depends on.",
             vec![
-                ("module", text_field("The catalogue identifier of the module depended on.")),
-                ("fragment", text_field("The fragment file holding that module.")),
+                (
+                    "module",
+                    text_field("The catalogue identifier of the module depended on."),
+                ),
+                (
+                    "fragment",
+                    text_field("The fragment file holding that module."),
+                ),
                 (
                     "kind",
                     names("The strength of the link.", &["requires", "recommends"]),
                 ),
-                ("reason", sentence("One plain sentence stating why the link holds.")),
+                (
+                    "reason",
+                    sentence("One plain sentence stating why the link holds."),
+                ),
             ],
         ),
     );
@@ -405,8 +412,14 @@ fn definitions() -> Vec<(String, Json)> {
             "The descriptive header of a fragment.",
             vec![
                 ("name", sentence("The name of the deployment part.")),
-                ("summary", sentence("One plain sentence stating what the part does.")),
-                ("owner", sentence("The organisation that owns the deployment part.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the part does."),
+                ),
+                (
+                    "owner",
+                    sentence("The organisation that owns the deployment part."),
+                ),
                 ("version", r("VersionStamp")),
             ],
         ),
@@ -436,7 +449,10 @@ fn definitions() -> Vec<(String, Json)> {
                                 ("type", s("integer")),
                                 ("minimum", n(0)),
                                 ("maximum", n(30)),
-                                ("description", s("The count of digits after the decimal point.")),
+                                (
+                                    "description",
+                                    s("The count of digits after the decimal point."),
+                                ),
                             ]),
                         )],
                     ),
@@ -485,8 +501,14 @@ fn definitions() -> Vec<(String, Json)> {
                 carried("Decimal", r("Decimal")),
                 carried("Text", text_field("A run of characters.")),
                 carried("Bytes", byte_run("A run of bytes.", None)),
-                carried("Timestamp", counted("Milliseconds since the start of 1970.", 0)),
-                carried("Identity", byte_run("An account or an organisation.", Some(32))),
+                carried(
+                    "Timestamp",
+                    counted("Milliseconds since the start of 1970.", 0),
+                ),
+                carried(
+                    "Identity",
+                    byte_run("An account or an organisation.", Some(32)),
+                ),
                 carried("Hash", byte_run("A 32 byte hash.", Some(32))),
                 carried(
                     "List",
@@ -622,10 +644,7 @@ fn definitions() -> Vec<(String, Json)> {
                 ),
                 carried(
                     "Present",
-                    record(
-                        "A present optional.",
-                        vec![("binding", r("Identifier"))],
-                    ),
+                    record("A present optional.", vec![("binding", r("Identifier"))]),
                 ),
             ],
         ),
@@ -877,7 +896,10 @@ fn definitions() -> Vec<(String, Json)> {
             vec![
                 ("name", r("Identifier")),
                 ("ty", r("TypeExpr")),
-                ("summary", sentence("One plain sentence stating what the field holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the field holds."),
+                ),
             ],
         ),
     );
@@ -895,7 +917,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("summary", sentence("One plain sentence stating what the record holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the record holds."),
+                ),
             ],
         ),
     );
@@ -913,7 +938,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("summary", sentence("One plain sentence stating what the enumeration holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the enumeration holds."),
+                ),
             ],
         ),
     );
@@ -942,7 +970,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("summary", sentence("One plain sentence stating what the sum type holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the sum type holds."),
+                ),
             ],
         ),
     );
@@ -983,10 +1014,7 @@ fn definitions() -> Vec<(String, Json)> {
                     "External",
                     record(
                         "The Blockchain holds a commitment and a locator.",
-                        vec![
-                            ("commitment", r("FieldPath")),
-                            ("locator", r("FieldPath")),
-                        ],
+                        vec![("commitment", r("FieldPath")), ("locator", r("FieldPath"))],
                     ),
                 ),
             ],
@@ -1078,7 +1106,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("privacy", r("PrivacyClass")),
                 ("retention", r("Retention")),
                 ("purpose", r("PurposeDeclaration")),
-                ("summary", sentence("One plain sentence stating what the collection holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the collection holds."),
+                ),
             ],
         ),
     );
@@ -1091,7 +1122,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", r("Identifier")),
                 ("parent", nullable(r("Identifier"))),
                 ("title", sentence("The name a person reads on screen.")),
-                ("summary", sentence("One plain sentence stating what the unit does.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the unit does."),
+                ),
             ],
             &["id", "parent", "title", "summary"],
         ),
@@ -1105,7 +1139,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("unit", nullable(r("Identifier"))),
                 ("requires", arr(r("Identifier"))),
                 ("title", sentence("The name a person reads on screen.")),
-                ("summary", sentence("One plain sentence stating what the role does.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the role does."),
+                ),
             ],
             &["id", "unit", "requires", "title", "summary"],
         ),
@@ -1147,7 +1184,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", r("Identifier")),
                 ("issuer", r("CredentialIssuer")),
                 ("validity", r("CredentialValidity")),
-                ("attests", sentence("One plain sentence stating what the credential attests.")),
+                (
+                    "attests",
+                    sentence("One plain sentence stating what the credential attests."),
+                ),
             ],
         ),
     );
@@ -1167,7 +1207,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("maximum_millis", counted("The longest span a delegation lasts.", 1)),
+                (
+                    "maximum_millis",
+                    counted("The longest span a delegation lasts.", 1),
+                ),
                 ("requires", nullable(r("Identifier"))),
             ],
             &["id", "from", "to", "scope", "maximum_millis", "requires"],
@@ -1271,8 +1314,14 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", r("Identifier")),
                 ("collection", r("Identifier")),
                 ("holds", r("Expr")),
-                ("problem", sentence("One sentence a person reads when the rule declines a change.")),
-                ("fix", sentence("One sentence stating what a person does next.")),
+                (
+                    "problem",
+                    sentence("One sentence a person reads when the rule declines a change."),
+                ),
+                (
+                    "fix",
+                    sentence("One sentence stating what a person does next."),
+                ),
             ],
         ),
     );
@@ -1291,8 +1340,14 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", r("Identifier")),
                 ("inputs", arr(r("RuleInput"))),
                 ("holds", r("Expr")),
-                ("problem", sentence("One sentence a person reads when the rule declines the action.")),
-                ("fix", sentence("One sentence stating what a person does next.")),
+                (
+                    "problem",
+                    sentence("One sentence a person reads when the rule declines the action."),
+                ),
+                (
+                    "fix",
+                    sentence("One sentence stating what a person does next."),
+                ),
             ],
         ),
     );
@@ -1321,7 +1376,10 @@ fn definitions() -> Vec<(String, Json)> {
             vec![
                 ("name", r("Identifier")),
                 ("ty", r("TypeExpr")),
-                ("summary", sentence("One plain sentence stating what the parameter holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the parameter holds."),
+                ),
             ],
         ),
     );
@@ -1330,10 +1388,7 @@ fn definitions() -> Vec<(String, Json)> {
         choice(
             "The span of keys a read or a write touches.",
             &["Full"],
-            vec![
-                carried("Exact", r("Expr")),
-                carried("Prefix", r("Expr")),
-            ],
+            vec![carried("Exact", r("Expr")), carried("Prefix", r("Expr"))],
         ),
     );
     push(
@@ -1369,10 +1424,7 @@ fn definitions() -> Vec<(String, Json)> {
                     "Delete",
                     record(
                         "Remove the records the key reaches.",
-                        vec![
-                            ("collection", r("Identifier")),
-                            ("key", r("KeySelector")),
-                        ],
+                        vec![("collection", r("Identifier")), ("key", r("KeySelector"))],
                     ),
                 ),
                 carried(
@@ -1439,7 +1491,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("summary", sentence("One plain sentence stating what the action does.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the action does."),
+                ),
             ],
         ),
     );
@@ -1457,9 +1512,15 @@ fn definitions() -> Vec<(String, Json)> {
             "One state of a workflow.",
             vec![
                 ("id", r("Identifier")),
-                ("final_state", truth("A record in a final state stays there.")),
+                (
+                    "final_state",
+                    truth("A record in a final state stays there."),
+                ),
                 ("title", sentence("The name a person reads on screen.")),
-                ("summary", sentence("One plain sentence stating what the state means.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the state means."),
+                ),
             ],
         ),
     );
@@ -1542,14 +1603,20 @@ fn definitions() -> Vec<(String, Json)> {
                 ("timers", arr(r("Timer"))),
                 ("deadlines", arr(r("Deadline"))),
                 ("cycles", r("CyclePolicy")),
-                ("summary", sentence("One plain sentence stating what the workflow drives.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the workflow drives."),
+                ),
             ],
         ),
     );
 
     push(
         "AuditPolicy",
-        names("Whether the audit log keeps the event.", &["Keep", "Expire"]),
+        names(
+            "Whether the audit log keeps the event.",
+            &["Keep", "Expire"],
+        ),
     );
     push(
         "DeliveryTarget",
@@ -1569,7 +1636,10 @@ fn definitions() -> Vec<(String, Json)> {
             "One party reading an event.",
             vec![
                 ("target", r("DeliveryTarget")),
-                ("summary", sentence("One plain sentence stating what the subscriber does with the event.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the subscriber does with the event."),
+                ),
             ],
         ),
     );
@@ -1582,7 +1652,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("payload", r("Identifier")),
                 ("audit", r("AuditPolicy")),
                 ("subscribers", arr(r("Subscriber"))),
-                ("summary", sentence("One plain sentence stating what the event records.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the event records."),
+                ),
             ],
         ),
     );
@@ -1654,7 +1727,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("group_by", arr(r("Identifier"))),
                 ("aggregates", arr(r("Aggregate"))),
                 ("sort", arr(r("SortKey"))),
-                ("limit", nullable(counted("The largest count of rows the view returns.", 1))),
+                (
+                    "limit",
+                    nullable(counted("The largest count of rows the view returns.", 1)),
+                ),
                 (
                     "purposes",
                     obj(vec![
@@ -1671,7 +1747,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("summary", sentence("One plain sentence stating what the view answers.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the view answers."),
+                ),
             ],
             &[
                 "id",
@@ -1718,7 +1797,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("record_type", r("Identifier")),
                 ("refresh_millis", counted("The span between two reads.", 1)),
                 ("attestation", r("AttestationRequirement")),
-                ("summary", sentence("One plain sentence stating what the feed carries.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the feed carries."),
+                ),
             ],
         ),
     );
@@ -1735,11 +1817,17 @@ fn definitions() -> Vec<(String, Json)> {
             "An endpoint moving records between this deployment and a named network.",
             vec![
                 ("id", r("Identifier")),
-                ("network", sentence("The name the operator gave the network on the other side.")),
+                (
+                    "network",
+                    sentence("The name the operator gave the network on the other side."),
+                ),
                 ("direction", r("BridgeDirection")),
                 ("collection", r("Identifier")),
                 ("attestation", r("AttestationRequirement")),
-                ("summary", sentence("One plain sentence stating what the endpoint moves.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the endpoint moves."),
+                ),
             ],
         ),
     );
@@ -1751,7 +1839,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("id", r("Identifier")),
                 ("action", r("Identifier")),
                 ("attestation", r("AttestationRequirement")),
-                ("summary", sentence("One plain sentence stating what the trigger starts.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the trigger starts."),
+                ),
             ],
         ),
     );
@@ -1788,7 +1879,10 @@ fn definitions() -> Vec<(String, Json)> {
                         ("maximum", n(100)),
                     ]),
                 ),
-                ("minimum_voters", counted("The count of approvals a change collects.", 1)),
+                (
+                    "minimum_voters",
+                    counted("The count of approvals a change collects.", 1),
+                ),
             ],
         ),
     );
@@ -1806,8 +1900,14 @@ fn definitions() -> Vec<(String, Json)> {
                         ("maximum", n(100)),
                     ]),
                 ),
-                ("minimum_voters", counted("The count of validators that vote.", 1)),
-                ("delay_millis", counted("The span between approval and effect.", 0)),
+                (
+                    "minimum_voters",
+                    counted("The count of validators that vote.", 1),
+                ),
+                (
+                    "delay_millis",
+                    counted("The span between approval and effect.", 0),
+                ),
             ],
         ),
     );
@@ -1825,8 +1925,14 @@ fn definitions() -> Vec<(String, Json)> {
                         ("minItems", n(1)),
                     ]),
                 ),
-                ("duration_millis", counted("The longest span the stage runs for.", 1)),
-                ("summary", sentence("One plain sentence stating what happens in the stage.")),
+                (
+                    "duration_millis",
+                    counted("The longest span the stage runs for.", 1),
+                ),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what happens in the stage."),
+                ),
             ],
         ),
     );
@@ -1889,7 +1995,10 @@ fn definitions() -> Vec<(String, Json)> {
                 ("collection", r("Identifier")),
                 ("amount_field", r("FieldPath")),
                 ("holder_field", r("FieldPath")),
-                ("summary", sentence("One plain sentence stating what the sheet records.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the sheet records."),
+                ),
             ],
         ),
     );
@@ -1900,7 +2009,10 @@ fn definitions() -> Vec<(String, Json)> {
             vec![
                 ("action", r("Identifier")),
                 ("amount", r("Decimal")),
-                ("summary", sentence("One plain sentence stating what the amount covers.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the amount covers."),
+                ),
             ],
         ),
     );
@@ -1911,7 +2023,10 @@ fn definitions() -> Vec<(String, Json)> {
             vec![
                 ("role", r("Identifier")),
                 ("maximum", r("Decimal")),
-                ("summary", sentence("One plain sentence stating why the ceiling holds.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating why the ceiling holds."),
+                ),
             ],
         ),
     );
@@ -1948,7 +2063,325 @@ fn definitions() -> Vec<(String, Json)> {
                 ("inputs", arr(r("Param"))),
                 ("outputs", arr(r("BlockOutput"))),
                 ("effects", arr(r("Effect"))),
-                ("summary", sentence("One plain sentence stating what the block does.")),
+                (
+                    "summary",
+                    sentence("One plain sentence stating what the block does."),
+                ),
+            ],
+        ),
+    );
+
+    push(
+        "StringKey",
+        obj(vec![
+            (
+                "description",
+                s("A key naming one translated string. The key reads as names joined by full stops."),
+            ),
+            ("type", s("string")),
+            ("pattern", s("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$")),
+            ("minLength", n(1)),
+            ("maxLength", n(160)),
+        ]),
+    );
+    push(
+        "LanguageTag",
+        obj(vec![
+            (
+                "description",
+                s("A language tag, with a region after a hyphen where one applies."),
+            ),
+            ("type", s("string")),
+            ("pattern", s("^[a-z]{2,8}(-[a-z]{2,8})?$")),
+        ]),
+    );
+    push(
+        "ComponentKind",
+        names(
+            "One component of the Cerulea component set.",
+            &[
+                "Page",
+                "Section",
+                "Grid",
+                "Stack",
+                "Split",
+                "Tabs",
+                "Accordion",
+                "Modal",
+                "Drawer",
+                "Table",
+                "List",
+                "CardGrid",
+                "DetailPanel",
+                "Chart",
+                "Timeline",
+                "Map",
+                "Calendar",
+                "Kanban",
+                "TextInput",
+                "NumberInput",
+                "DecimalInput",
+                "BooleanInput",
+                "TimestampInput",
+                "IdentityInput",
+                "HashInput",
+                "BytesInput",
+                "ReferenceInput",
+                "EnumerationInput",
+                "SumInput",
+                "ListInput",
+                "MapInput",
+                "OptionalInput",
+                "FileUpload",
+                "SignatureCapture",
+                "CameraCapture",
+                "BarcodeScan",
+                "ProofViewer",
+                "AuditTrail",
+                "TransactionStatus",
+                "VerificationBadge",
+                "HistoryDiff",
+                "Navigation",
+                "Header",
+                "Search",
+                "Notifications",
+                "Profile",
+                "LanguageSwitch",
+                "EmptyState",
+                "LoadingState",
+                "ErrorState",
+                "Confirmation",
+                "Toast",
+            ],
+        ),
+    );
+    push(
+        "Binding",
+        choice(
+            "What one component reads out of the Blueprint.",
+            &[],
+            vec![
+                carried("Collection", r("Identifier")),
+                carried(
+                    "Field",
+                    record(
+                        "One field of the record of one collection.",
+                        vec![("collection", r("Identifier")), ("field", r("FieldPath"))],
+                    ),
+                ),
+                carried(
+                    "Parameter",
+                    record(
+                        "One parameter of one action.",
+                        vec![("action", r("Identifier")), ("parameter", r("Identifier"))],
+                    ),
+                ),
+                carried("Action", r("Identifier")),
+                carried("Workflow", r("Identifier")),
+                carried("View", r("Identifier")),
+                carried("Event", r("Identifier")),
+            ],
+        ),
+    );
+    push(
+        "VisibilityRule",
+        choice(
+            "One rule deciding whether a component appears.",
+            &[],
+            vec![
+                carried("ForRoles", arr(r("Identifier"))),
+                carried(
+                    "InStates",
+                    record(
+                        "The component appears while the record rests in one of the listed states.",
+                        vec![
+                            ("workflow", r("Identifier")),
+                            ("states", arr(r("Identifier"))),
+                        ],
+                    ),
+                ),
+                carried("WhenValue", r("Expr")),
+            ],
+        ),
+    );
+    push(
+        "BreakpointOverride",
+        record(
+            "One change a breakpoint applies to a component.",
+            vec![
+                ("breakpoint", r("Identifier")),
+                (
+                    "visible",
+                    truth("Whether the component appears at this width."),
+                ),
+                (
+                    "span",
+                    counted("The count of grid columns the component covers.", 0),
+                ),
+                (
+                    "order",
+                    counted("The position the component takes among its siblings.", 0),
+                ),
+            ],
+        ),
+    );
+    push(
+        "ComponentNode",
+        record(
+            "One component placed on a screen.",
+            vec![
+                ("id", r("Identifier")),
+                ("component", r("ComponentKind")),
+                ("binding", nullable(r("Binding"))),
+                ("label_key", nullable(r("StringKey"))),
+                ("visibility", arr(r("VisibilityRule"))),
+                ("overrides", arr(r("BreakpointOverride"))),
+                ("children", arr(r("ComponentNode"))),
+            ],
+        ),
+    );
+    push(
+        "ScreenKind",
+        names(
+            "The reason a screen exists.",
+            &["List", "Detail", "Create", "Edit", "Approval", "Custom"],
+        ),
+    );
+    push(
+        "Screen",
+        record(
+            "One screen of the generated application.",
+            vec![
+                ("id", r("Identifier")),
+                ("kind", r("ScreenKind")),
+                ("route", text_field("The address the screen answers on.")),
+                ("collection", nullable(r("Identifier"))),
+                ("workflow", nullable(r("Identifier"))),
+                ("action", nullable(r("Identifier"))),
+                ("roles", arr(r("Identifier"))),
+                ("title_key", r("StringKey")),
+                ("components", arr(r("ComponentNode"))),
+                (
+                    "offline_capture",
+                    truth("Whether the screen captures records without a connection."),
+                ),
+            ],
+        ),
+    );
+    push(
+        "Token",
+        record(
+            "One named theme token.",
+            vec![
+                ("name", r("Identifier")),
+                ("value", text_field("The value the name carries.")),
+            ],
+        ),
+    );
+    push(
+        "Theme",
+        record(
+            "The theme token set the screens read.",
+            vec![
+                ("colour_light", arr(r("Token"))),
+                ("colour_dark", arr(r("Token"))),
+                ("type_scale", arr(r("Token"))),
+                ("spacing", arr(r("Token"))),
+            ],
+        ),
+    );
+    push(
+        "Breakpoint",
+        record(
+            "One responsive breakpoint.",
+            vec![
+                ("id", r("Identifier")),
+                (
+                    "min_width",
+                    counted(
+                        "The smallest viewport width the breakpoint covers, in pixels.",
+                        0,
+                    ),
+                ),
+                (
+                    "columns",
+                    counted("The count of grid columns at this width.", 1),
+                ),
+                ("label_key", r("StringKey")),
+            ],
+        ),
+    );
+    push(
+        "Translation",
+        record(
+            "One translation file.",
+            vec![
+                ("language", r("LanguageTag")),
+                (
+                    "entries",
+                    arr(pair(
+                        r("StringKey"),
+                        text_field("One sentence a reader sees."),
+                    )),
+                ),
+            ],
+        ),
+    );
+    push(
+        "ConflictResolution",
+        choice(
+            "How a conflict between a captured record and the stored record resolves.",
+            &["KeepStored", "TakeCaptured", "AskAPerson"],
+            vec![
+                carried(
+                    "LaterTimestamp",
+                    record(
+                        "The record carrying the later timestamp stays.",
+                        vec![("field", r("FieldPath"))],
+                    ),
+                ),
+                carried(
+                    "LargerValue",
+                    record(
+                        "The record carrying the larger value stays.",
+                        vec![("field", r("FieldPath"))],
+                    ),
+                ),
+                carried(
+                    "MergeFields",
+                    record(
+                        "The listed fields merge from the captured record.",
+                        vec![("fields", arr(r("FieldPath")))],
+                    ),
+                ),
+            ],
+        ),
+    );
+    push(
+        "ConflictRule",
+        record(
+            "One declared conflict rule.",
+            vec![
+                ("collection", r("Identifier")),
+                ("resolution", r("ConflictResolution")),
+                (
+                    "statement",
+                    sentence("One plain sentence stating why the rule reads this way."),
+                ),
+            ],
+        ),
+    );
+    push(
+        "Interface",
+        record(
+            "The interface section. The screens, the theme, the breakpoints, the translations and the conflict rules.",
+            vec![
+                ("screens", arr(r("Screen"))),
+                ("theme", r("Theme")),
+                ("breakpoints", arr(r("Breakpoint"))),
+                ("translations", arr(r("Translation"))),
+                ("conflict_rules", arr(r("ConflictRule"))),
+                ("default_language", r("LanguageTag")),
             ],
         ),
     );

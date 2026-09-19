@@ -186,6 +186,22 @@ declare_identifier!(
     "stage",
     "The name of one stage of a change process."
 );
+declare_identifier!(
+    ScreenId,
+    "screen",
+    "The name of a generated or authored screen."
+);
+declare_identifier!(
+    ComponentId,
+    "component",
+    "The name of one component placed on a screen."
+);
+declare_identifier!(
+    BreakpointId,
+    "breakpoint",
+    "The name of one responsive breakpoint."
+);
+declare_identifier!(TokenName, "token", "The name of one theme token.");
 
 /// A path to a field inside a record.
 ///

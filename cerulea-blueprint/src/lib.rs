@@ -30,6 +30,7 @@ pub mod fold;
 pub mod governance;
 pub mod identities;
 pub mod integrations;
+pub mod interface;
 pub mod permissions;
 pub mod rules;
 #[cfg(feature = "std")]
@@ -50,7 +51,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     actions::Action, collections::Collection, compose::Block, economics::Economics,
     events::EventDef, governance::Governance, identities::Identities, integrations::Integrations,
-    permissions::Permissions, rules::Rules, types::TypeDef, views::View, workflows::Workflow,
+    interface::Interface, permissions::Permissions, rules::Rules, types::TypeDef, views::View,
+    workflows::Workflow,
 };
 
 /// The schema version of the Blueprint type set carried by this crate.
@@ -230,6 +232,11 @@ pub struct Blueprint {
     /// The composition library. A block groups a subgraph under a name with
     /// typed inputs and typed outputs.
     pub blocks: Vec<Block>,
+    /// The interface. The screens, the components, the bindings, the theme,
+    /// the breakpoints, the visibility rules and the translated strings. A
+    /// deployment that publishes no application leaves this section out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interface: Option<Interface>,
 }
 
 impl Blueprint {
@@ -250,6 +257,7 @@ impl Blueprint {
             governance: Governance::default(),
             economics: None,
             blocks: Vec::new(),
+            interface: None,
         }
     }
 
@@ -441,6 +449,21 @@ impl Blueprint {
                 &self.identities,
                 &action_registry,
                 &root.field("economics"),
+            ));
+        }
+
+        if let Some(interface) = &self.interface {
+            let event_names: alloc::collections::BTreeSet<&str> =
+                self.events.iter().map(|event| event.id.as_str()).collect();
+            report.merge(interface.validate(
+                &type_registry,
+                &collection_registry,
+                &self.identities,
+                &action_registry,
+                &workflow_registry,
+                &view_registry,
+                &event_names,
+                &root.field("interface"),
             ));
         }
 
