@@ -1,7 +1,7 @@
 use crate::{
     benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
     chain_spec,
-    cli::{Cli, Subcommand, InfoCmd, HealthCmd, RuntimeUpgradeCmd, ForkCheckCmd, QueryAuthorsCmd, OutputFormat},
+    node_command::{NodeCommand, Subcommand, InfoCmd, HealthCmd, RuntimeUpgradeCmd, ForkCheckCmd, QueryAuthorsCmd, OutputFormat},
     fork_detection::ForkReport,
 };
 
@@ -14,7 +14,7 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sp_core::crypto::AccountId32;
 
-impl SubstrateCli for Cli {
+impl SubstrateCli for NodeCommand {
     fn impl_name() -> String {
         "Cerulea Chain".into()
     }
@@ -51,17 +51,17 @@ impl SubstrateCli for Cli {
 }
 
 pub fn run() -> sc_cli::Result<()> {
-    let cli = Cli::from_args();
+    let entry = NodeCommand::from_args();
 
     // Log node startup information
     crate::logging::log_consensus_event(&format!(
         "Starting Cerulea node version {} in {} mode", 
         env!("CARGO_PKG_VERSION"),
-        if cli.cerulea_mode == "production" { "production" } else { &cli.cerulea_mode }
+        if entry.cerulea_mode == "production" { "production" } else { &entry.cerulea_mode }
     ));
 
-    match &cli.subcommand {
-        Some(Subcommand::Key(cmd)) => cmd.run(&cli),
+    match &entry.subcommand {
+        Some(Subcommand::Key(cmd)) => cmd.run(&entry),
 
         Some(Subcommand::Faucet(cmd)) => {
             println!(
@@ -72,7 +72,7 @@ pub fn run() -> sc_cli::Result<()> {
         },
 
         Some(Subcommand::BuildSpec(cmd)) => {
-            let runner = cli.create_runner(cmd)?;
+            let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
         },
 
@@ -85,12 +85,12 @@ pub fn run() -> sc_cli::Result<()> {
         },
 
         Some(Subcommand::PurgeChain(cmd)) => {
-            let runner = cli.create_runner(cmd)?;
+            let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run(config.database))
         },
 
         Some(Subcommand::Benchmark(cmd)) => {
-            let runner = cli.create_runner(cmd)?;
+            let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| {
                 match cmd {
                     BenchmarkCmd::Pallet(cmd) => {
@@ -102,10 +102,10 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Block(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
-                                expose_unsafe_methods: cli.unsafe_rpc_expose,
-                                rate_limit_window: cli.rpc_rate_limit_window,
-                                rate_limit_requests: cli.rpc_rate_limit_requests,
+                                enable_cerulea_extensions: entry.enable_cerulea_extensions,
+                                expose_unsafe_methods: entry.unsafe_rpc_expose,
+                                rate_limit_window: entry.rpc_rate_limit_window,
+                                rate_limit_requests: entry.rpc_rate_limit_requests,
                             },
                         };
                         let sc_service::PartialComponents { client, .. } =
@@ -118,10 +118,10 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Storage(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
-                                expose_unsafe_methods: cli.unsafe_rpc_expose,
-                                rate_limit_window: cli.rpc_rate_limit_window,
-                                rate_limit_requests: cli.rpc_rate_limit_requests,
+                                enable_cerulea_extensions: entry.enable_cerulea_extensions,
+                                expose_unsafe_methods: entry.unsafe_rpc_expose,
+                                rate_limit_window: entry.rpc_rate_limit_window,
+                                rate_limit_requests: entry.rpc_rate_limit_requests,
                             },
                         };
                         let sc_service::PartialComponents { client, backend, .. } =
@@ -133,10 +133,10 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Overhead(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
-                                expose_unsafe_methods: cli.unsafe_rpc_expose,
-                                rate_limit_window: cli.rpc_rate_limit_window,
-                                rate_limit_requests: cli.rpc_rate_limit_requests,
+                                enable_cerulea_extensions: entry.enable_cerulea_extensions,
+                                expose_unsafe_methods: entry.unsafe_rpc_expose,
+                                rate_limit_window: entry.rpc_rate_limit_window,
+                                rate_limit_requests: entry.rpc_rate_limit_requests,
                             },
                         };
                         let sc_service::PartialComponents { client, .. } =
@@ -147,10 +147,10 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Extrinsic(cmd) => {
                         let node_config = crate::service::NodeConfig {
                             rpc_config: crate::rpc::RpcSecurityConfig {
-                                enable_cerulea_extensions: cli.enable_cerulea_extensions,
-                                expose_unsafe_methods: cli.unsafe_rpc_expose,
-                                rate_limit_window: cli.rpc_rate_limit_window,
-                                rate_limit_requests: cli.rpc_rate_limit_requests,
+                                enable_cerulea_extensions: entry.enable_cerulea_extensions,
+                                expose_unsafe_methods: entry.unsafe_rpc_expose,
+                                rate_limit_window: entry.rpc_rate_limit_window,
+                                rate_limit_requests: entry.rpc_rate_limit_requests,
                             },
                         };
                         let sc_service::PartialComponents { client, .. } =
@@ -171,28 +171,28 @@ pub fn run() -> sc_cli::Result<()> {
         },
 
         Some(Subcommand::ChainInfo(cmd)) => {
-            let runner = cli.create_runner(cmd)?;
+            let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         },
 
         Some(Subcommand::Info(cmd)) => {
-            run_info_cmd(cmd, &cli)
+            run_info_cmd(cmd, &entry)
         },
 
         Some(Subcommand::Health(cmd)) => {
-            run_health_cmd(cmd, &cli)
+            run_health_cmd(cmd, &entry)
         },
 
         Some(Subcommand::RuntimeUpgrade(cmd)) => {
-            run_runtime_upgrade_cmd(cmd, &cli)
+            run_runtime_upgrade_cmd(cmd, &entry)
         },
 
         Some(Subcommand::ForkCheck(cmd)) => {
-            run_fork_check_cmd(cmd, &cli)
+            run_fork_check_cmd(cmd, &entry)
         },
 
         Some(Subcommand::QueryAuthors(cmd)) => {
-            run_query_authors_cmd(cmd, &cli)
+            run_query_authors_cmd(cmd, &entry)
         },
 
         None => {
@@ -201,17 +201,17 @@ pub fn run() -> sc_cli::Result<()> {
             // NetworkKeyNotFound if it's missing for non-dev validator nodes.
             // We resolve the path from node command args and write the key first so the runner
             // never sees a missing file — same zero-setup experience as --dev.
-            ensure_network_key_from_cli(&cli);
+            ensure_network_key_from_cli(&entry);
 
-            let runner = cli.create_runner(&cli.run)?;
+            let runner = entry.create_runner(&entry.run)?;
             runner.run_node_until_exit(|config| async move {
 
                 let node_config = crate::service::NodeConfig {
                     rpc_config: crate::rpc::RpcSecurityConfig {
-                        enable_cerulea_extensions: cli.enable_cerulea_extensions,
-                        expose_unsafe_methods: cli.unsafe_rpc_expose,
-                        rate_limit_window: cli.rpc_rate_limit_window,
-                        rate_limit_requests: cli.rpc_rate_limit_requests,
+                        enable_cerulea_extensions: entry.enable_cerulea_extensions,
+                        expose_unsafe_methods: entry.unsafe_rpc_expose,
+                        rate_limit_window: entry.rpc_rate_limit_window,
+                        rate_limit_requests: entry.rpc_rate_limit_requests,
                     },
                 };
                 match config.network.network_backend.unwrap_or_default() {
@@ -232,13 +232,13 @@ pub fn run() -> sc_cli::Result<()> {
 }
 
 /// Run the info subcommand
-fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
+fn run_info_cmd(cmd: &InfoCmd, entry: &NodeCommand) -> sc_cli::Result<()> {
     let version = env!("CARGO_PKG_VERSION");
-    let impl_name = Cli::impl_name();
-    let impl_version = Cli::impl_version();
-    let description = Cli::description();
-    let author = Cli::author();
-    let support_url = Cli::support_url();
+    let impl_name = NodeCommand::impl_name();
+    let impl_version = NodeCommand::impl_version();
+    let description = NodeCommand::description();
+    let author = NodeCommand::author();
+    let support_url = NodeCommand::support_url();
     
     // Get system information
     let uptime = SystemTime::now()
@@ -256,11 +256,11 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
                 "author": author,
                 "support_url": support_url,
                 "uptime_seconds": uptime,
-                "cerulea_mode": cli.cerulea_mode,
-                "cerulea_extensions_enabled": cli.enable_cerulea_extensions,
-                "unsafe_rpc_exposed": cli.unsafe_rpc_expose,
-                "rate_limit_window": cli.rpc_rate_limit_window,
-                "rate_limit_requests": cli.rpc_rate_limit_requests
+                "cerulea_mode": entry.cerulea_mode,
+                "cerulea_extensions_enabled": entry.enable_cerulea_extensions,
+                "unsafe_rpc_exposed": entry.unsafe_rpc_expose,
+                "rate_limit_window": entry.rpc_rate_limit_window,
+                "rate_limit_requests": entry.rpc_rate_limit_requests
             });
             println!("{}", serde_json::to_string_pretty(&info).unwrap());
         },
@@ -274,11 +274,11 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
             println!("Author: {}", author);
             println!("Support URL: {}", support_url);
             println!("Uptime: {} seconds", uptime);
-            println!("Cerulea Mode: {}", cli.cerulea_mode);
-            println!("Cerulea Extensions Enabled: {}", cli.enable_cerulea_extensions);
-            println!("Unsafe RPC Exposed: {}", cli.unsafe_rpc_expose);
-            println!("Rate Limit Window: {} seconds", cli.rpc_rate_limit_window);
-            println!("Rate Limit Requests: {}", cli.rpc_rate_limit_requests);
+            println!("Cerulea Mode: {}", entry.cerulea_mode);
+            println!("Cerulea Extensions Enabled: {}", entry.enable_cerulea_extensions);
+            println!("Unsafe RPC Exposed: {}", entry.unsafe_rpc_expose);
+            println!("Rate Limit Window: {} seconds", entry.rpc_rate_limit_window);
+            println!("Rate Limit Requests: {}", entry.rpc_rate_limit_requests);
         }
     }
     
@@ -286,7 +286,7 @@ fn run_info_cmd(cmd: &InfoCmd, cli: &Cli) -> sc_cli::Result<()> {
 }
 
 /// Run the health subcommand
-fn run_health_cmd(cmd: &HealthCmd, _cli: &Cli) -> sc_cli::Result<()> {
+fn run_health_cmd(cmd: &HealthCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
     // Basic health check - in a real implementation this would check:
     // - Node connectivity
     // - Sync status
@@ -326,7 +326,7 @@ fn run_health_cmd(cmd: &HealthCmd, _cli: &Cli) -> sc_cli::Result<()> {
 }
 
 /// Run the runtime upgrade subcommand
-fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &Cli) -> sc_cli::Result<()> {
+fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
     // Validate WASM file exists
     if !cmd.wasm.exists() {
         return Err(format!("WASM file not found: {}", cmd.wasm.display()).into());
@@ -369,7 +369,7 @@ fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &Cli) -> sc_cli::Resul
 }
 
 /// Run the fork check subcommand
-fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &Cli) -> sc_cli::Result<()> {
+fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
     if cmd.peer_rpc.is_empty() {
         return Err("At least one peer RPC endpoint must be provided".into());
     }
@@ -508,7 +508,7 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &Cli) -> sc_cli::Result<()> {
 }
 
 /// Run the query authors subcommand
-fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &Cli) -> sc_cli::Result<()> {
+fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
     // Create a minimal runtime for the query
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| format!("Failed to create async runtime: {}", e))?;
@@ -649,11 +649,11 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &Cli) -> sc_cli::Result<()
 /// base path the same way Substrate does (explicit `--base-path` or the platform default
 /// `~/.local/share/cerulea-node/` on Linux), load the chain spec for the canonical chain ID,
 /// then write a fresh hex-encoded key — so any new node starts with zero manual setup.
-fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
+fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
     use sc_cli::SubstrateCli;
 
     // Skip dev — Substrate handles ephemeral keys internally.
-    let raw_chain = match cli.run.shared_params.chain.as_deref() {
+    let raw_chain = match entry.run.shared_params.chain.as_deref() {
         Some("dev") | Some("development") | Some("Cerulea") => return,
         None => return,
         Some(id) => id,
@@ -661,11 +661,11 @@ fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
 
     // Resolve base path: explicit --base-path, or the platform default
     // (~/.local/share/cerulea-node/ on Linux, equivalent on other platforms).
-    let base_path = match cli.run.shared_params.base_path.as_ref() {
+    let base_path = match entry.run.shared_params.base_path.as_ref() {
         Some(p) => p.clone(),
         None => {
             // Mirror Substrate's BasePath::from_project("", "", executable_name)
-            match directories::ProjectDirs::from("", "", &Cli::executable_name()) {
+            match directories::ProjectDirs::from("", "", &NodeCommand::executable_name()) {
                 Some(dirs) => dirs.data_local_dir().to_path_buf(),
                 None => return, // can't determine path, skip
             }
@@ -673,7 +673,7 @@ fn ensure_network_key_from_cli(cli: &crate::cli::Cli) {
     };
 
     // Load the chain spec to resolve the canonical ID ("local" → "cerulea_local", etc.)
-    let chain_id = match cli.load_spec(raw_chain) {
+    let chain_id = match entry.load_spec(raw_chain) {
         Ok(spec) => spec.id().to_string(),
         Err(_) => raw_chain.to_string(),
     };

@@ -130,7 +130,7 @@ fn runtime_api_validator_metadata_works() {
     });
 }
 
-/// Tests system configuration queries
+/// Tests system start values queries
 #[test]
 fn runtime_api_system_config_works() {
     new_test_ext().execute_with(|| {

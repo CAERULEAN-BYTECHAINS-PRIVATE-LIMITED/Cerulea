@@ -1,6 +1,6 @@
-//! DVF Multi-Node Integration Tests
+//! validation framework Multi-Node Integration Tests
 //!
-//! This module contains comprehensive multi-node integration tests for the DVF
+//! This module contains comprehensive multi-node integration tests for the validation framework
 //! (Dynamic Validator Finality) system. These tests verify:
 //! - Three-node validator setup with different weights
 //! - Vote propagation across the network via gossip protocol
@@ -17,10 +17,10 @@ use sp_core::crypto::AccountId32;
 use sp_keyring::Ed25519Keyring;
 
 // =============================================================================
-// DVF TEST CONFIGURATION
+// VALIDATION FRAMEWORK TEST START VALUES
 // =============================================================================
 
-/// Start values for DVF multi-node testing
+/// Start values for validation framework multi-node testing
 #[derive(Debug, Clone)]
 pub struct DvfMultiNodeConfig {
     /// Number of validator nodes
@@ -102,10 +102,10 @@ impl DvfMultiNodeConfig {
 }
 
 // =============================================================================
-// DVF VOTE STRUCTURE
+// validation framework VOTE STRUCTURE
 // =============================================================================
 
-/// DVF vote message
+/// validation framework vote message
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DvfVote {
     pub epoch_id: u32,
@@ -140,10 +140,10 @@ impl DvfVote {
 }
 
 // =============================================================================
-// DVF MOCK NODE
+// validation framework MOCK NODE
 // =============================================================================
 
-/// Mock DVF validator node for testing
+/// Mock validation framework validator node for testing
 #[derive(Debug)]
 pub struct DvfMockNode {
     pub index: usize,
@@ -196,14 +196,14 @@ impl DvfMockNode {
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("DVF: Starting validator node {} ({})", self.name, self.index);
+        log::info!("Validation framework: Starting validator node {} ({})", self.name, self.index);
         self.is_running = true;
         self.current_block = 1;
         Ok(())
     }
 
     pub fn stop(&mut self) {
-        log::info!("DVF: Stopping validator node {} ({})", self.name, self.index);
+        log::info!("Validation framework: Stopping validator node {} ({})", self.name, self.index);
         self.is_running = false;
     }
 
@@ -212,7 +212,7 @@ impl DvfMockNode {
             return Err("Node not running".into());
         }
 
-        log::info!("DVF: Node {} connecting to {} peers", self.name, expected_peers);
+        log::info!("Validation framework: Node {} connecting to {} peers", self.name, expected_peers);
         self.peer_count = expected_peers;
         Ok(())
     }
@@ -225,12 +225,12 @@ impl DvfMockNode {
     /// Create a vote for a checkpoint block
     pub fn create_vote(&mut self, block_number: u32, block_hash: [u8; 32]) -> Option<DvfVote> {
         if !self.is_checkpoint_block(block_number) {
-            log::debug!("DVF: Node {} skipping vote for non-checkpoint block {}", self.name, block_number);
+            log::debug!("Validation framework: Node {} skipping vote for non-checkpoint block {}", self.name, block_number);
             return None;
         }
 
         if block_number <= self.finalized_block {
-            log::debug!("DVF: Node {} skipping vote for already finalized block {}", self.name, block_number);
+            log::debug!("Validation framework: Node {} skipping vote for already finalized block {}", self.name, block_number);
             return None;
         }
 
@@ -245,7 +245,7 @@ impl DvfMockNode {
         );
 
         log::info!(
-            "DVF: Node {} created vote for block {} (round {}, weight {})",
+            "Validation framework: Node {} created vote for block {} (round {}, weight {})",
             self.name, block_number, self.current_round, self.weight
         );
 
@@ -259,27 +259,27 @@ impl DvfMockNode {
     pub fn receive_vote(&mut self, vote: DvfVote) -> bool {
         // Validate vote
         if vote.epoch_id != self.current_epoch {
-            log::warn!("DVF: Node {} rejecting vote with epoch mismatch", self.name);
+            log::warn!("Validation framework: Node {} rejecting vote with epoch mismatch", self.name);
             return false;
         }
 
         if vote.validator_set_id != self.validator_set_id {
-            log::warn!("DVF: Node {} rejecting vote with validator set mismatch", self.name);
+            log::warn!("Validation framework: Node {} rejecting vote with validator set mismatch", self.name);
             return false;
         }
 
         if !self.is_checkpoint_block(vote.block_number) {
-            log::warn!("DVF: Node {} rejecting vote for non-checkpoint block", self.name);
+            log::warn!("Validation framework: Node {} rejecting vote for non-checkpoint block", self.name);
             return false;
         }
 
         if vote.block_number <= self.finalized_block {
-            log::debug!("DVF: Node {} discarding late vote for finalized block", self.name);
+            log::debug!("Validation framework: Node {} discarding late vote for finalized block", self.name);
             return false;
         }
 
         log::debug!(
-            "DVF: Node {} received vote from validator (block {}, weight {})",
+            "Validation framework: Node {} received vote from validator (block {}, weight {})",
             self.name, vote.block_number, vote.validator_weight
         );
 
@@ -313,7 +313,7 @@ impl DvfMockNode {
     pub fn finalize_block(&mut self, block_number: u32, block_hash: [u8; 32]) {
         if block_number > self.finalized_block {
             log::info!(
-                "DVF: Node {} finalizing block {} (previous: {})",
+                "Validation framework: Node {} finalizing block {} (previous: {})",
                 self.name, block_number, self.finalized_block
             );
             self.finalized_block = block_number;
@@ -329,20 +329,20 @@ impl DvfMockNode {
     /// Advance to next block
     pub fn advance_block(&mut self) {
         self.current_block += 1;
-        log::debug!("DVF: Node {} advanced to block {}", self.name, self.current_block);
+        log::debug!("Validation framework: Node {} advanced to block {}", self.name, self.current_block);
     }
 
     /// Transition to new validator set
     pub fn transition_validator_set(&mut self, new_set_id: u32) {
         log::info!(
-            "DVF: Node {} transitioning to validator set {} (previous: {})",
+            "Validation framework: Node {} transitioning to validator set {} (previous: {})",
             self.name, new_set_id, self.validator_set_id
         );
         self.validator_set_id = new_set_id;
 
         // Clear vote pool
         self.vote_pool.write().unwrap().clear();
-        log::debug!("DVF: Node {} cleared vote pool for new validator set", self.name);
+        log::debug!("Validation framework: Node {} cleared vote pool for new validator set", self.name);
     }
 
     pub fn get_finalized_block(&self) -> u32 {
@@ -363,10 +363,10 @@ impl DvfMockNode {
 }
 
 // =============================================================================
-// DVF MOCK NETWORK
+// validation framework MOCK NETWORK
 // =============================================================================
 
-/// Mock DVF network for multi-node testing
+/// Mock validation framework network for multi-node testing
 pub struct DvfMockNetwork {
     pub config: DvfMultiNodeConfig,
     pub nodes: Vec<DvfMockNode>,
@@ -405,25 +405,25 @@ impl DvfMockNetwork {
     }
 
     pub async fn start_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("DVF: Starting {} validator nodes", self.config.node_count);
+        log::info!("Validation framework: Starting {} validator nodes", self.config.node_count);
 
         for node in &mut self.nodes {
             node.start().await?;
         }
 
-        log::info!("DVF: All validator nodes started");
+        log::info!("Validation framework: All validator nodes started");
         Ok(())
     }
 
     pub fn stop_all(&mut self) {
-        log::info!("DVF: Stopping all validator nodes");
+        log::info!("Validation framework: Stopping all validator nodes");
         for node in &mut self.nodes {
             node.stop();
         }
     }
 
     pub async fn establish_peer_connections(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("DVF: Establishing peer connections");
+        log::info!("Validation framework: Establishing peer connections");
 
         let expected_peers = self.config.node_count - 1;
 
@@ -431,13 +431,13 @@ impl DvfMockNetwork {
             node.connect_to_peers(expected_peers).await?;
         }
 
-        log::info!("DVF: Peer connections established");
+        log::info!("Validation framework: Peer connections established");
         Ok(())
     }
 
     /// Simulate vote propagation via gossip protocol
     pub async fn propagate_votes(&mut self, block_number: u32, block_hash: [u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("DVF: Propagating votes for block {}", block_number);
+        log::info!("Validation framework: Propagating votes for block {}", block_number);
 
         // Each node creates a vote
         let mut votes = Vec::new();
@@ -462,7 +462,7 @@ impl DvfMockNetwork {
             }
         }
 
-        log::info!("DVF: Vote propagation complete ({} votes)", votes.len());
+        log::info!("Validation framework: Vote propagation complete ({} votes)", votes.len());
         Ok(())
     }
 
@@ -485,7 +485,7 @@ impl DvfMockNetwork {
 
     /// Produce blocks and test finality
     pub async fn produce_blocks_with_finality(&mut self, target_blocks: u32) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("DVF: Producing {} blocks with finality testing", target_blocks);
+        log::info!("Validation framework: Producing {} blocks with finality testing", target_blocks);
 
         for block_num in 1..=target_blocks {
             // Generate block hash
@@ -498,16 +498,16 @@ impl DvfMockNetwork {
 
             // If this is a checkpoint block, propagate votes and check finality
             if self.nodes[0].is_checkpoint_block(block_num) {
-                log::info!("DVF: Processing checkpoint block {}", block_num);
+                log::info!("Validation framework: Processing checkpoint block {}", block_num);
 
                 // Propagate votes
                 self.propagate_votes(block_num, block_hash).await?;
 
                 // Check finality consensus
                 if self.check_finality_consensus(block_num, block_hash) {
-                    log::info!("DVF: ✓ Finality reached on all nodes for block {}", block_num);
+                    log::info!("Validation framework: ✓ Finality reached on all nodes for block {}", block_num);
                 } else {
-                    log::warn!("DVF: ✗ Finality NOT reached for block {}", block_num);
+                    log::warn!("Validation framework: ✗ Finality NOT reached for block {}", block_num);
                 }
             }
         }
@@ -539,7 +539,7 @@ impl DvfMockNetwork {
             }
         }
 
-        log::info!("DVF: ✓ All nodes have same finalized head: block {}", first_block);
+        log::info!("Validation framework: ✓ All nodes have same finalized head: block {}", first_block);
         Ok(())
     }
 
@@ -553,7 +553,7 @@ impl DvfMockNetwork {
             propagation_stats.insert(node.index, received);
 
             log::info!(
-                "DVF: Node {} - Created: {} votes, Received: {} votes",
+                "Validation framework: Node {} - Created: {} votes, Received: {} votes",
                 node.name, created, received
             );
         }
@@ -563,7 +563,7 @@ impl DvfMockNetwork {
 
     /// Simulate validator set transition
     pub fn transition_validator_set(&mut self, new_set_id: u32) {
-        log::info!("DVF: Transitioning all nodes to validator set {}", new_set_id);
+        log::info!("Validation framework: Transitioning all nodes to validator set {}", new_set_id);
 
         for node in &mut self.nodes {
             node.transition_validator_set(new_set_id);
@@ -1091,12 +1091,12 @@ async fn test_byzantine_fault_tolerance() {
     log::info!("  - Conflicting votes can be detected");
 }
 
-/// Comprehensive multi-node DVF test
+/// Comprehensive multi-node validation framework test
 #[tokio::test]
 async fn test_comprehensive_dvf_multi_node() {
     env_logger::try_init().ok();
 
-    log::info!("\n=== Comprehensive DVF Multi-Node Integration Test ===");
+    log::info!("\n=== Comprehensive Validation framework multi-node Integration Test ===");
 
     let config = DvfMultiNodeConfig::equal_weights()
         .with_checkpoint_interval(10)
@@ -1133,7 +1133,7 @@ async fn test_comprehensive_dvf_multi_node() {
     log::info!("Step 6: Generating network summary...");
     let summary = network.get_network_summary();
 
-    log::info!("\nCOMPREHENSIVE DVF MULTI-NODE TEST RESULTS:");
+    log::info!("\nCOMPREHENSIVE VALIDATION FRAMEWORK MULTI-NODE TEST RESULTS:");
     log::info!("Network Setup: {} validator nodes", summary.node_count);
     log::info!("Total Weight: {}", summary.total_weight);
     log::info!("Finalized Blocks: {:?}", summary.finalized_blocks);
@@ -1155,18 +1155,18 @@ async fn test_comprehensive_dvf_multi_node() {
     }
 
     log::info!("Overall Status: ALL TESTS PASSED");
-    log::info!("DVF multi-node integration test completed successfully!");
+    log::info!("Validation framework multi-node integration test completed successfully!");
 }
 
 // =============================================================================
-// DVF FINALITY ASSERTIONS (Requirements 12.6, 12.7, 12.8)
+// validation framework FINALITY ASSERTIONS (Requirements 12.6, 12.7, 12.8)
 // =============================================================================
 
 #[cfg(test)]
 mod dvf_finality_assertions {
     use super::*;
 
-    /// Requirements 12.6: DVF finalized head advances at every checkpoint block.
+    /// Requirements 12.6: validation framework finalized head advances at every checkpoint block.
     ///
     /// Runs 30 blocks and asserts finalized_block on all nodes equals 10, 20, 30
     /// at checkpoints 10, 20, 30.
@@ -1300,10 +1300,10 @@ mod dvf_finality_assertions {
         }
     }
 
-    /// Requirements 12.8: After DVF finalizes block 10, every subsequent checkpoint also
-    /// gets finalized, so the client never gets ahead of DVF.
+    /// Requirements 12.8: After validation framework finalizes block 10, every subsequent checkpoint also
+    /// gets finalized, so the client never gets ahead of validation framework.
     ///
-    /// Simulates that once DVF finalizes block 10, subsequent checkpoints (20, 30) are also
+    /// Simulates that once validation framework finalizes block 10, subsequent checkpoints (20, 30) are also
     /// finalized, meaning the condition `client_finalized > dvf_finalized` never holds after
     /// the first checkpoint.
     #[tokio::test]
@@ -1322,8 +1322,8 @@ mod dvf_finality_assertions {
             .expect("Failed to establish peer connections");
 
         // Simulate client finalized head advancing with each block (Substrate progressive finality)
-        // DVF finalized head advances only at checkpoints.
-        // After the first checkpoint, DVF must never fall behind the client.
+        // validation framework finalized head advances only at checkpoints.
+        // After the first checkpoint, validation framework must never fall behind the client.
 
         let mut client_finalized: u32 = 0;
         let mut dvf_finalized: u32 = 0;
@@ -1351,7 +1351,7 @@ mod dvf_finality_assertions {
                 let finalized = network.check_finality_consensus(block_num, block_hash);
                 assert!(
                     finalized,
-                    "DVF must finalize checkpoint block {}",
+                    "Validation framework must finalize checkpoint block {}",
                     block_num
                 );
 
@@ -1371,35 +1371,35 @@ mod dvf_finality_assertions {
 
         assert!(
             first_checkpoint_done,
-            "At least one DVF checkpoint must have been finalized"
+            "At least one validation framework checkpoint must have been finalised"
         );
 
-        // The key invariant: after DVF finalizes block 10, every subsequent checkpoint
+        // The key invariant: after validation framework finalizes block 10, every subsequent checkpoint
         // is also finalized before the client can get more than checkpoint_interval blocks ahead.
         // With checkpoint_interval=10 and progressive finality advancing by 1 per block,
-        // DVF finalizes at 10, 20, 30 — client never exceeds dvf_finalized by more than
-        // checkpoint_interval-1 blocks. The warning condition (client > dvf) may transiently
-        // hold between checkpoints, but once DVF catches up at each checkpoint it resolves.
+        // validation framework finalizes at 10, 20, 30 — client never exceeds dvf_finalized by more than
+        // checkpoint_interval-1 blocks. The warning condition (client > validation framework) may transiently
+        // hold between checkpoints, but once validation framework catches up at each checkpoint it resolves.
         //
         // The critical assertion: after the LAST checkpoint (30), client_finalized (29) <= dvf_finalized (30).
         assert!(
             !warning_triggered_after_first_checkpoint
                 || network.nodes[0].get_finalized_block() >= client_finalized,
-            "After all checkpoints, DVF finalized head ({}) must be >= client finalized head ({})",
+            "After all checkpoints, the validation framework finalised head ({}) must be >= client finalized head ({})",
             network.nodes[0].get_finalized_block(),
             client_finalized
         );
 
-        // Verify DVF finalized head equals 30 (all checkpoints finalized)
+        // Verify validation framework finalized head equals 30 (all checkpoints finalized)
         assert_eq!(
             network.nodes[0].get_finalized_block(),
             30,
-            "DVF must have finalized all checkpoints up to block 30"
+            "Validation framework must have finalized all checkpoints up to block 30"
         );
 
         // Verify all nodes agree
         network
             .verify_finalized_head_consensus()
-            .expect("All nodes must agree on DVF finalized head");
+            .expect("All nodes must agree on the validation framework finalised head");
     }
 }

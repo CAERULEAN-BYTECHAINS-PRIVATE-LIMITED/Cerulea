@@ -144,11 +144,11 @@ fn storage_consistency_works() {
     });
 }
 
-/// Tests configuration parameter access
+/// Tests start values parameter access
 #[test]
 fn configuration_parameters_work() {
     new_test_ext().execute_with(|| {
-        // Test that configuration parameters are accessible and reasonable
+        // Test that start values parameters are accessible and reasonable
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();

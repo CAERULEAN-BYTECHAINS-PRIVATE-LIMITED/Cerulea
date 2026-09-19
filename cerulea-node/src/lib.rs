@@ -4,7 +4,7 @@
 pub mod benchmarking;
 pub mod block_tracker;
 pub mod chain_spec;
-pub mod cli;
+pub mod node_command;
 pub mod command;
 pub mod fork_detection;
 pub use cerulea_consensus::lifecycle_tracer;

@@ -70,7 +70,7 @@ fn memory_usage_limits_work() {
         let active_validators = DcfPallet::active_validators();
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         
-        // Should not exceed configured limits
+        // Should not exceed set limits
         assert!(active_validators.len() <= max_validators as usize);
         
         // Test score history limits

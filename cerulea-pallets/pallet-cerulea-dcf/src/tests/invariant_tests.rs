@@ -72,8 +72,8 @@ fn consensus_weight_invariants_hold() {
         let (pos_weight, poi_weight) = (crate::PosWeight::<Test>::get(), crate::PoiWeight::<Test>::get());
         
         // Weight invariants
-        assert!(pos_weight > 0); // PoS weight must be positive
-        assert!(poi_weight > 0); // PoI weight must be positive
+        assert!(pos_weight > 0); // standing share must be positive
+        assert!(poi_weight > 0); // inference share must be positive
         assert_eq!(pos_weight + poi_weight, 10000); // Must sum to 100%
         assert!(pos_weight <= 10000); // Cannot exceed 100%
         assert!(poi_weight <= 10000); // Cannot exceed 100%
@@ -134,7 +134,7 @@ fn trust_score_invariants_hold() {
         
         for validator in &active_validators {
             // Trust score bounds would be checked if available
-            // For now, just verify the configuration is reasonable
+            // For now, just verify the start values is reasonable
             assert!(max_trust_score > min_trust_score);
             assert!(min_trust_score > 0);
         }
@@ -160,7 +160,7 @@ fn storage_consistency_invariants_hold() {
     });
 }
 
-/// Tests configuration invariants
+/// Tests start values invariants
 #[test]
 fn configuration_invariants_hold() {
     new_test_ext().execute_with(|| {
@@ -170,7 +170,7 @@ fn configuration_invariants_hold() {
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
         
-        // Configuration invariants
+        // Start values invariants
         assert!(min_active > 0); // Must have minimum validators
         assert!(min_active <= max_validators); // Min can't exceed max
         assert!(epoch_length > 0); // Epochs must have positive length

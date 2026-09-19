@@ -15,13 +15,13 @@ fn trust_score_bounds_enforcement_works() {
         assert!(min_trust_score > 0);
         assert!(max_trust_score > 1000); // Should allow meaningful range
         
-        // Check configured values
+        // Check set values
         assert_eq!(min_trust_score, 1000);
         assert_eq!(max_trust_score, 10000);
     });
 }
 
-/// Tests trust score weight configuration
+/// Tests trust score weight start values
 #[test]
 fn trust_score_weight_configuration_works() {
     new_test_ext().execute_with(|| {
@@ -34,7 +34,7 @@ fn trust_score_weight_configuration_works() {
         assert!(inference_weight > 0);
         assert!(slashing_weight > 0);
         
-        // Check configured values from mock
+        // Check set values from mock
         assert_eq!(uptime_weight, 4000);
         assert_eq!(inference_weight, 4000);
         assert_eq!(slashing_weight, 2000);
@@ -89,7 +89,7 @@ fn trust_score_calculation_consistency_works() {
             assert!(missed >= 0);
             
             // Trust score calculation would use these components
-            // with the configured weights
+            // with the set weights
         }
     });
 }

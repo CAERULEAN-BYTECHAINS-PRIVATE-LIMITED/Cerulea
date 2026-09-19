@@ -227,7 +227,7 @@ fn cache_performance_works() {
     });
 }
 
-/// Tests scaling with configuration limits
+/// Tests scaling with start values limits
 #[test]
 fn scaling_with_configuration_limits_works() {
     new_test_ext().execute_with(|| {
@@ -235,7 +235,7 @@ fn scaling_with_configuration_limits_works() {
         let max_history: u32 = <Test as crate::Config>::MaxValidatorHistorySize::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         
-        // Test operations at configuration limits
+        // Test operations at start values limits
         let active_validators = DcfPallet::active_validators();
         assert!(active_validators.len() <= max_validators as usize);
         

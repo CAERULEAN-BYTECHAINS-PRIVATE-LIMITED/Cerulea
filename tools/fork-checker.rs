@@ -14,7 +14,7 @@ use tokio::time::timeout;
 #[derive(Parser)]
 #[command(name = "fork-checker")]
 #[command(about = "Cerulea Fork Detection Tool")]
-struct Cli {
+struct ForkCheckArguments {
     #[command(subcommand)]
     command: Commands,
 }
@@ -305,9 +305,9 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 async fn main() -> Result<()> {
     env_logger::init();
     
-    let cli = Cli::parse();
+    let arguments = ForkCheckArguments::parse();
     
-    match cli.command {
+    match arguments.command {
         Commands::Check(args) => run_check(args).await,
         Commands::Serve(args) => run_serve(args).await,
     }
