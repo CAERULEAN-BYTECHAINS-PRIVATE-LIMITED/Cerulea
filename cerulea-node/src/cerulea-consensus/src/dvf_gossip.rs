@@ -1,3 +1,4 @@
+use crate::engines::commit::gossip::MessageSet;
 use crate::metrics::DvfMetrics;
 use codec::{Decode, Encode};
 use log::{debug, info, warn};
@@ -226,7 +227,11 @@ impl<
 /// Filters, validates, and manages routing of `/cerulea/commit/1` messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     pool: Arc<DvfVotePool<B::Hash, AccountId>>,
-    known_messages: RwLock<HashSet<B::Hash>>,
+    /// The messages this node has already seen.
+    ///
+    /// The set carries a capacity limit with least recently used eviction,
+    /// so node memory stays inside a stated ceiling whatever the peers send.
+    known_messages: RwLock<MessageSet<B::Hash>>,
     client: Arc<C>,
     metrics: Option<Arc<DvfMetrics>>,
 }
@@ -243,7 +248,7 @@ where
     pub fn new(pool: Arc<DvfVotePool<B::Hash, AccountId>>, client: Arc<C>) -> Self {
         Self {
             pool,
-            known_messages: RwLock::new(HashSet::new()),
+            known_messages: RwLock::new(MessageSet::new()),
             client,
             metrics: None,
         }
@@ -427,7 +432,7 @@ where
         let msg_hash_b = B::Hash::decode(&mut &msg_hash[..]).unwrap_or_default();
 
         let mut known = self.known_messages.write();
-        if !known.insert(msg_hash_b) {
+        if known.record(msg_hash_b) {
             return ValidationResult::ProcessAndDiscard(msg_hash_b); // Seen this message already
         }
 
