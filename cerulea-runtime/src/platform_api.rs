@@ -836,7 +836,7 @@ pub fn action_manifest(
 
     let mut reads: Vec<Vec<u8>> = Vec::new();
     let mut writes: Vec<Vec<u8>> = Vec::new();
-    let mut note = |list: &mut Vec<Vec<u8>>, collection: &CollectionId| {
+    let note = |list: &mut Vec<Vec<u8>>, collection: &CollectionId| {
         let bytes = collection.as_str().as_bytes().to_vec();
         if !list.contains(&bytes) {
             list.push(bytes);
