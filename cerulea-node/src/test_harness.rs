@@ -542,6 +542,41 @@ impl TestNetwork {
         header
     }
 
+    /// Build one header whose seal names another validator as the author.
+    ///
+    /// The signer places its own signature over a claim naming somebody else.
+    /// A node that holds no author key cannot produce the author signature, so
+    /// this is the strongest forgery a node can mount. Import rejects it.
+    pub fn forged_header(
+        &self,
+        signer: usize,
+        claim: SealClaim,
+        height: u32,
+        parent_hash: [u8; 32],
+    ) -> TestHeader {
+        use cerulea_consensus::engines::authoring::seal::{pre_seal_hash, seal_payload};
+        use sp_keystore::Keystore;
+
+        let header = TestHeader::new(
+            height,
+            Default::default(),
+            Default::default(),
+            sp_core::H256::from(parent_hash),
+            Digest::default(),
+        );
+        let hash = pre_seal_hash(&header);
+        let payload = seal_payload(hash.as_ref(), &claim);
+        let signature = self.nodes[signer]
+            .keystore
+            .ed25519_sign(CERULEA_KEY_TYPE, &self.nodes[signer].seal_key, &payload)
+            .expect("the keystore answers")
+            .expect("the keystore holds the signer key");
+        let seal = BlockSeal { claim, signature };
+        let mut sealed = header;
+        sealed.digest_mut().push(seal.digest_item());
+        sealed
+    }
+
     /// Report whether two conflicting blocks ever committed at one height.
     pub fn conflicting_commit(&self) -> Option<u32> {
         let mut seen: BTreeMap<u32, [u8; 32]> = BTreeMap::new();

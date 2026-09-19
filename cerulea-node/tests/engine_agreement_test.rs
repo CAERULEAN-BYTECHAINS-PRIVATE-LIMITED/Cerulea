@@ -150,7 +150,7 @@ fn a_forged_authorship_attempt_is_rejected_on_import() {
         forged_draw,
         0,
     );
-    let header = network.sealed_header(forger, claim, network.height() + 1, parent_hash);
+    let header = network.forged_header(forger, claim, network.height() + 1, parent_hash);
 
     let refusal = network
         .check(&header, slot, parent_hash, 0)

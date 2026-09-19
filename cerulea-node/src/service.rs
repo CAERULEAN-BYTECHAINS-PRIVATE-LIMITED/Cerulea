@@ -1,7 +1,7 @@
 #![allow(unused_variables, static_mut_refs)]
 use futures::FutureExt;
 use sc_client_api::{Backend, Finalizer};
-use sc_service::{error::Error as ServiceError, Settings, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::TelemetryWorker;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use cerulea_runtime::{self, apis::RuntimeApi, opaque::Block, AccountId, Hash};
@@ -37,7 +37,7 @@ pub struct NodeConfig {
 }
 
 pub fn new_partial(
-    config: &Settings,
+    config: &Configuration,
     node_config: &NodeConfig,
 ) -> Result<Service, ServiceError> {
     use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
@@ -256,7 +256,7 @@ pub fn new_partial(
 }
 
 pub fn new_full<N>(
-    config: Settings,
+    config: Configuration,
     node_config: &NodeConfig,
 ) -> Result<TaskManager, ServiceError>
 where

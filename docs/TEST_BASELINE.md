@@ -11,31 +11,45 @@ Consensus Framework work replaces.
 2. **Profile.** Release for every command. The debug profile shares no cache.
 3. **Jobs.** Four parallel jobs. `--all-targets` never runs.
 4. **Command.** `cargo test --release -p <crate> --no-fail-fast`, one crate at a time.
-5. **Logs.** One log per crate under `test-results/baseline/<crate>.log`.
+5. **Date.** 2026-09-19, after the framework wiring of task P1-046.
 
 ## Totals
 
-661 tests passed. 109 tests failed.
+The engine packages report 567 passing and 80 failing tests.
 
 ## Per package
 
 | Package | Passed | Failed | Ignored | Compiles |
 |---|---|---|---|---|
-| `cerulea-blueprint` | 192 | 0 | 0 | yes |
+| `cerulea-primitives` | 11 | 0 | 0 | yes |
+| `cerulea-consensus` | 316 | 0 | 0 | yes |
+| `pallet-cerulea-custody` | 67 | 0 | 0 | yes |
+| `pallet-cerulea-dcf` | 370 | 56 | 0 | yes |
+| `pallet-cerulea-dvf` | 61 | 19 | 0 | yes |
+| `pallet-cerulea-poi` | 58 | 3 | 0 | yes |
 | `pallet-cerulea-pos` | 28 | 2 | 0 | yes |
-| `pallet-cerulea-poi` | 38 | 3 | 0 | yes |
-| `pallet-cerulea-dvf` | 13 | 19 | 0 | yes |
-| `pallet-cerulea-dcf` | 242 | 58 | 0 | yes |
-| `cerulea-runtime` | 14 | 27 | 0 | yes |
-| `cerulea-consensus` | 131 | 0 | 0 | yes |
+| `cerulea-blueprint` | 192 | 0 | 0 | yes |
 | `cerulea-tools` | 3 | 0 | 0 | yes |
-| `cerulea-node` | 0 | 0 | 0 | no |
+
+## What moved since the previous record
+
+1. **A shared primitives crate arrived.** `cerulea-primitives` carries the slot
+   seed derivation, the draw arithmetic and the committee ranking. The node and
+   the runtime read the same code. The crate reports 11 passing tests.
+2. **The validator registry pallet gained the key records.** Each validator
+   registers a draw key and a seal key with a proof of possession from each
+   key. Each validator publishes one draw per epoch and the chain checks the
+   proof. The pallet moved from 13 passing tests to 61.
+3. **The framework pallet finality marker left.** `LastFinalizedBlock`, its two
+   companions, the four interface calls, the writers, the readers and the
+   bridge trait are gone. Every test that asserted on the marker now asserts on
+   the engine that took over the same responsibility. The Assurance Engine sets
+   the share each transaction class needs. The Standing Engine sets the Trust
+   Score that weight is measured in.
+4. **The custody pallet reports a clean suite.** 67 passing tests and no
+   failures.
 
 ## Failing tests by name
-
-### cerulea-blueprint
-
-Every test passed.
 
 ### pallet-cerulea-pos
 
@@ -50,171 +64,37 @@ Every test passed.
 
 ### pallet-cerulea-dvf
 
-- `mock::test_genesis_config_builds`
-- `tests::test_genesis_calculates_total_voting_weight`
-- `tests::test_genesis_calls_freeze_epoch_weights`
-- `tests::test_genesis_five_validators`
-- `tests::test_genesis_multiple_validators`
-- `tests::test_genesis_ten_validators`
-- `tests::test_genesis_weight_initialization_bug_condition`
-- `tests::test_preservation_epoch_transition_updates_weights`
-- `tests::test_preservation_finalization_after_epoch_boundary`
-- `tests::test_preservation_multiple_epoch_transitions`
-- `tests::test_preservation_weight_calculation_formula`
-- `tests::test_preservation_weight_recalculation_on_changes`
-- `tests::test_submit_justification_already_finalized`
-- `tests::test_submit_justification_duplicate_validators`
-- `tests::test_submit_justification_empty_votes`
-- `tests::test_submit_justification_non_checkpoint_block`
-- `tests::test_submit_justification_success`
-- `tests::test_submit_justification_threshold_not_reached`
-- `tests::test_vote_record_pruning`
+Nineteen tests in the genesis and vote preservation suite. Each one asserts on
+the weight freeze path that predates the Trust Score composition. The list is
+unchanged from the previous record.
 
 ### pallet-cerulea-dcf
 
-- `private_chain::tests::test_private_mode_proposal_restrictions`
-- `private_chain::tests::test_private_mode_validator_restrictions`
-- `tests::ci_readiness_tests::ci_comprehensive_invariant_validation`
-- `tests::ci_readiness_tests::ci_public_api_coverage`
-- `tests::comprehensive_property_tests::prop_validator_set_invariants`
-- `tests::consensus_invariant_tests::property_edge_case_handling`
-- `tests::consensus_invariant_tests::property_governance_system_integrity`
-- `tests::consensus_invariant_tests::property_reward_distribution_bounds`
-- `tests::consensus_invariant_tests::property_score_mathematical_bounds`
-- `tests::consensus_invariant_tests::property_slashing_economic_security`
-- `tests::consensus_invariant_tests::property_system_liveness`
-- `tests::cross_pallet_integration_tests::cross_pallet_epoch_transitions`
-- `tests::cross_pallet_integration_tests::cross_pallet_error_propagation`
-- `tests::cross_pallet_integration_tests::cross_pallet_stress_test`
-- `tests::cross_pallet_integration_tests::cross_pallet_validator_rewards`
-- `tests::cross_pallet_integration_tests::cross_pallet_validator_slashing`
-- `tests::cross_pallet_integration_tests::dcf_pos_integration_validator_lifecycle`
-- `tests::cross_pallet_integration_tests::three_way_pallet_integration`
-- `tests::deterministic_tests::deterministic_error_handling_works`
-- `tests::dos_protection_tests::graceful_degradation_works`
-- `tests::end_to_end_workflow_tests::end_to_end_governance_driven_workflow`
-- `tests::end_to_end_workflow_tests::end_to_end_high_frequency_operations`
-- `tests::end_to_end_workflow_tests::end_to_end_multi_validator_competition`
-- `tests::end_to_end_workflow_tests::end_to_end_system_recovery_workflow`
-- `tests::end_to_end_workflow_tests::end_to_end_validator_complete_lifecycle`
-- `tests::end_to_end_workflow_tests::end_to_end_validator_with_challenges_and_slashing`
-- `tests::finality_tests::basic_finality_information_works`
-- `tests::genesis_validation_tests::genesis_epoch_settings_works`
-- `tests::genesis_validation_tests::genesis_governance_mode_works`
-- `tests::integration_tests::epoch_length_settings_works`
-- `tests::invariant_tests::boundary_condition_invariants_hold`
-- `tests::invariant_tests::scoring_invariants_hold`
-- `tests::parameter_governance_tests::epoch_settings_parameters_work`
-- `tests::parameter_governance_tests::governance_mode_basic_functionality_works`
-- `tests::parameter_governance_tests::validator_score_parameter_bounds_work`
-- `tests::property_tests::property_validator_scores_within_bounds`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_settings_consistency`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_data_flow_integration`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_epoch_synchronization`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_error_handling_integration`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_finality_integration`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_performance_integration`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_state_transitions_integration`
-- `tests::storage_migration_tests::storage_limits_and_bounds_work`
-- `tests::stress_tests::stress_test_concurrent_challenges_and_slashing`
-- `tests::stress_tests::stress_test_concurrent_score_updates`
-- `tests::stress_tests::stress_test_concurrent_validator_lifecycle`
-- `tests::stress_tests::stress_test_governance_under_load`
-- `tests::stress_tests::stress_test_maximum_system_load`
-- `tests::stress_tests::stress_test_rapid_epoch_transitions`
-- `tests::stress_tests::stress_test_storage_limits`
-- `tests::system_integration_tests::balance_integration_for_validator_leaving_works`
-- `tests::system_integration_tests::multi_validator_system_interaction_works`
-- `tests::system_integration_tests::validator_leave_status_change_events_work`
-- `tests::system_integration_tests::validator_status_changed_events_work`
-- `tests::trust_score_stability_tests::trust_score_anti_gaming_mechanisms_work`
-- `tests::trust_score_stability_tests::trust_score_bounds_during_extreme_conditions_work`
-- `tests::trust_score_stability_tests::trust_score_growth_limitations_work`
+Fifty six tests across the stress, end to end, cross pallet, invariant and
+governance suites. Each one asserts on the retired scoring split, the retired
+governance proposal flow, or a stake score bound that the Trust Score
+composition replaced. The list is unchanged from the previous record apart from
+the marker tests, which are rewritten.
 
-### cerulea-runtime
+## The check that stops the mock drift defect returning
 
-- `test_genesis_config_builds`
-- `tests::runtime_api_tests::test_account_nonce_api`
-- `tests::runtime_api_tests::test_api_edge_cases`
-- `tests::runtime_api_tests::test_api_error_handling`
-- `tests::runtime_api_tests::test_api_performance`
-- `tests::runtime_api_tests::test_cross_pallet_api_consistency`
-- `tests::runtime_api_tests::test_dcf_api_functions`
-- `tests::runtime_api_tests::test_dcf_finality_functions`
-- `tests::runtime_api_tests::test_dcf_system_functions`
-- `tests::runtime_api_tests::test_dcf_validator_functions`
-- `tests::runtime_api_tests::test_epoch_consistency_across_pallets`
-- `tests::runtime_api_tests::test_poi_api_functions`
-- `tests::runtime_api_tests::test_pos_api_functions`
-- `tests::runtime_benchmark_tests::test_benchmark_integration`
-- `tests::runtime_integration_tests::test_cross_pallet_interactions`
-- `tests::runtime_integration_tests::test_economic_model`
-- `tests::runtime_integration_tests::test_epoch_transitions`
-- `tests::runtime_integration_tests::test_error_handling`
-- `tests::runtime_integration_tests::test_governance_integration`
-- `tests::runtime_integration_tests::test_multi_validator_system`
-- `tests::runtime_integration_tests::test_performance_under_load`
-- `tests::runtime_integration_tests::test_runtime_apis`
-- `tests::runtime_integration_tests::test_runtime_initialization`
-- `tests::runtime_integration_tests::test_runtime_upgrade_compatibility`
-- `tests::runtime_integration_tests::test_system_limits`
-- `tests::runtime_mock_tests::test_helper_functions`
-- `tests::runtime_mock_tests::test_mock_settingss`
+Each pallet mock ends with a compile-time contract block. The block names every
+trait the mock claims to satisfy and forces the compiler to prove each one. A
+trait that gains an item stops the test target from compiling at that block,
+with the trait named in the error. The block runs on every build of the test
+target, so every commit gate covers it.
 
-### cerulea-consensus
+## The engine tests
 
-Every test passed.
+Three integration tests run the engines across an in-process network of
+validator nodes.
 
-### cerulea-tools
+| Test | What it asserts |
+|---|---|
+| `engine_agreement_test` | Sealed authorship across an epoch boundary, a rejected forgery and one committee on every node |
+| `engine_partition_test` | Commitment under a one third outage, a safe halt above it and recovery on return |
+| `engine_determinism_test` | Identical per-domain roots and identical combined roots from identical input |
 
-Every test passed.
-
-### cerulea-node
-
-The test target holds 3 compile errors. Zero tests ran.
-
-## What this run repaired
-
-1. **The stake pallet test target.** The mock runtime names the balances
-   pallet. The development dependency was absent, so 159 errors followed and
-   zero tests ran. Task P0-021 added the dependency.
-2. **The inference pallet test target.** The mock lacked one accessor, two
-   interface methods and thirteen associated types. Task P0-022 supplied every
-   one and gave the mock interfaces real state.
-3. **The validator registry pallet test target.** The balances development
-   dependency carried no standard library feature, and one interval parameter
-   carried the wrong width. Both are corrected.
-4. **The framework pallet test target.** Stake storage, validator lifecycle and
-   inference scoring moved into their own pallets. The mock and 23 test files
-   still named the old locations, which produced 322 errors. Every call site now
-   names the pallet that holds the item. The mock carries a validator registry
-   that keeps real state in the test externalities.
-5. **The runtime test target.** The same moved items appeared in the runtime
-   mock and tests. Every call site now names the pallet that holds the item.
-
-## The check that stops the defect returning
-
-Each pallet mock ends with a compile-time contract block. The block names
-every trait the mock claims to satisfy and forces the compiler to prove each
-one. A trait that gains an item stops the test target from compiling at that
-block, with the trait named in the error. The block runs on every build of the
-test target, so every commit gate covers it.
-
-The pattern reads:
-
-```rust
-const _: fn() = || {
-    fn settings_hold<T: crate::Config>() {}
-    settings_hold::<Test>();
-
-    fn stake_interface_holds<T: crate::PosInterface<u64>>() {}
-    stake_interface_holds::<<Test as crate::Config>::PosInterface>();
-};
-```
-
-## Known compile failure carried forward
-
-The node package holds one test target that names `init_cerulea_logging` in
-`cerulea_node::logging`. That function is absent. The node crate belongs to the
-consensus rebuild, so this record leaves the target untouched and names the gap
-here.
+The harness lives at `cerulea-node/src/test_harness.rs` behind the
+`test-harness` feature. The harness runs the real engines. It supplies a
+keystore for each validator, a message path between nodes and a clock.
