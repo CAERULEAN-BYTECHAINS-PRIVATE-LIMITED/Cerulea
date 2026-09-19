@@ -10,6 +10,8 @@ pub trait WeightInfo {
     fn revoke() -> Weight;
     /// Report what one role reaches in one collection.
     fn preview_as_role() -> Weight;
+    /// Report what one role sees of one sample record.
+    fn preview_record_as_role() -> Weight;
 }
 
 /// The measured weight figures.
@@ -31,6 +33,10 @@ impl<T: frame_system::Config> WeightInfo for CeruleaWeight<T> {
     fn preview_as_role() -> Weight {
         Weight::from_parts(52_000_000, 6_000).saturating_add(RocksDbWeight::get().reads(8))
     }
+
+    fn preview_record_as_role() -> Weight {
+        Weight::from_parts(64_000_000, 7_000).saturating_add(RocksDbWeight::get().reads(3))
+    }
 }
 
 /// The figures a test runtime charges.
@@ -45,5 +51,9 @@ impl WeightInfo for () {
 
     fn preview_as_role() -> Weight {
         Weight::from_parts(52_000_000, 6_000)
+    }
+
+    fn preview_record_as_role() -> Weight {
+        Weight::from_parts(64_000_000, 7_000)
     }
 }

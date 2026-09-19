@@ -32,6 +32,7 @@
 extern crate alloc;
 
 pub mod resolve;
+pub mod simulate;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -44,6 +45,7 @@ mod tests;
 
 pub use pallet::*;
 pub use resolve::{admits_row, project};
+pub use simulate::RecordPreview;
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String, string::ToString, vec::Vec};
@@ -412,6 +414,19 @@ pub mod pallet {
             /// The capability.
             capability: CapabilityKey,
         },
+        /// A preview reported what one role sees of one record.
+        RecordPreviewed {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The role.
+            role: BoundedName,
+            /// The collection.
+            collection: BoundedName,
+            /// The role reaches the record.
+            visible: bool,
+            /// The plain sentence the interface layer shows.
+            statement: BoundedVec<u8, ConstU32<512>>,
+        },
         /// A preview reported what one role reaches.
         RolePreviewed {
             /// The deployment.
@@ -448,6 +463,9 @@ pub mod pallet {
         /// The entry names a field the record type lacks. Name a field the
         /// record type carries.
         FieldUnknown,
+        /// The sample record failed to decode. Submit the canonical
+        /// encoding the Studio produces.
+        RecordUnreadable,
     }
 
     #[pallet::call]
@@ -544,6 +562,37 @@ pub mod pallet {
                 role,
                 collection,
                 capability,
+            });
+            Ok(())
+        }
+
+        /// Report what one role sees of one sample record.
+        ///
+        /// The call resolves the named role directly against the matrix,
+        /// so the Studio previews a role before anyone holds it. The call
+        /// changes nothing.
+        #[pallet::call_index(3)]
+        #[pallet::weight(T::WeightInfo::preview_record_as_role())]
+        pub fn preview_record_as_role(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            role: BoundedName,
+            collection: BoundedName,
+            capability: CapabilityKey,
+            record: BoundedVec<u8, T::MaxEntryBytes>,
+        ) -> DispatchResult {
+            let _ = ensure_signed(origin)?;
+            let parsed = Value::decode(&mut record.as_slice())
+                .map_err(|_| Error::<T>::RecordUnreadable)?;
+            let found = Self::record_preview(&deployment, &role, &collection, &capability, &parsed);
+            let statement: BoundedVec<u8, ConstU32<512>> =
+                BoundedVec::truncate_from(found.statement().into_bytes());
+            Self::deposit_event(Event::RecordPreviewed {
+                deployment,
+                role,
+                collection,
+                visible: found.visible,
+                statement,
             });
             Ok(())
         }
@@ -647,6 +696,52 @@ impl<T: Config> Pallet<T> {
         }
         found.actions.sort();
         found
+    }
+
+    /// What one role sees of one sample record.
+    ///
+    /// The call resolves the named role directly against the matrix. No
+    /// account holds the role, so the Studio previews a draft entry.
+    pub fn record_preview(
+        deployment: &DeploymentId,
+        role: &BoundedName,
+        collection: &BoundedName,
+        capability: &CapabilityKey,
+        record: &Value,
+    ) -> RecordPreview {
+        let entry = match Self::entry(deployment, role, collection, capability) {
+            Some(held) => held,
+            None => {
+                return RecordPreview::refused(AccessDenial::owned(
+                    format!(
+                        "The role `{}` reaches no {} of `{}`.",
+                        name_text(role),
+                        capability.label(),
+                        name_text(collection)
+                    ),
+                    format!(
+                        "Grant the role the {} capability over `{}`.",
+                        capability.label(),
+                        name_text(collection)
+                    ),
+                ))
+            }
+        };
+
+        let env = Env::new(Identity([0u8; 32]), Self::now());
+        let binding = ParamName::new(ROW_BINDING);
+        let mut meter = Meter::new(T::RowStepLimit::get());
+        if !resolve::admits_row(entry.rows.as_ref(), record, &env, &mut meter, &binding) {
+            return RecordPreview::refused(AccessDenial::owned(
+                format!(
+                    "The row predicate of the role `{}` declines this record.",
+                    name_text(role)
+                ),
+                "Widen the row predicate, or preview a record the predicate admits."
+                    .to_string(),
+            ));
+        }
+        RecordPreview::seen(resolve::project(record, &entry.fields))
     }
 
     /// Resolve one request and answer with the grant or the refusal.

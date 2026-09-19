@@ -742,3 +742,123 @@ fn an_account_without_the_read_capability_sees_nothing() {
         assert!(seen.is_empty());
     });
 }
+
+#[test]
+fn a_record_preview_shows_what_a_role_would_see() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "clerk",
+            CapabilityKey::Read,
+            GrantPayload::only_fields(vec![FieldPath::parse("survey_number")]),
+        );
+        // No account holds the clerk role. The preview reads the matrix
+        // directly.
+        let found = Pallet::<Test>::record_preview(
+            &DEPLOYMENT,
+            &name("clerk"),
+            &name("parcel"),
+            &CapabilityKey::Read,
+            &parcel("12/3", "Anitha", "north"),
+        );
+        assert!(found.visible);
+        assert_eq!(found.kept, vec![FieldName::new("survey_number")]);
+        assert!(found.statement().contains("survey_number"));
+    });
+}
+
+#[test]
+fn a_record_preview_of_a_role_without_the_capability_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        install();
+        let found = Pallet::<Test>::record_preview(
+            &DEPLOYMENT,
+            &name("clerk"),
+            &name("parcel"),
+            &CapabilityKey::Read,
+            &parcel("12/3", "Anitha", "north"),
+        );
+        assert!(!found.visible);
+        let refusal = found.refusal.expect("the preview names the refusal");
+        assert!(refusal.fix.contains("Grant the role"));
+    });
+}
+
+#[test]
+fn a_record_preview_reports_a_row_the_predicate_declines() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "clerk",
+            CapabilityKey::Read,
+            GrantPayload::everything().where_rows(ward_predicate("north")),
+        );
+        let inside = Pallet::<Test>::record_preview(
+            &DEPLOYMENT,
+            &name("clerk"),
+            &name("parcel"),
+            &CapabilityKey::Read,
+            &parcel("12/3", "Anitha", "north"),
+        );
+        assert!(inside.visible);
+        let outside = Pallet::<Test>::record_preview(
+            &DEPLOYMENT,
+            &name("clerk"),
+            &name("parcel"),
+            &CapabilityKey::Read,
+            &parcel("44/9", "Benny", "south"),
+        );
+        assert!(!outside.visible);
+        assert!(outside.statement().contains("row predicate"));
+    });
+}
+
+#[test]
+fn a_record_preview_writes_its_statement_into_an_event() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant("clerk", CapabilityKey::Read, GrantPayload::everything());
+        assert_ok!(Permission::preview_record_as_role(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("clerk"),
+            name("parcel"),
+            CapabilityKey::Read,
+            bounded(parcel("12/3", "Anitha", "north").canonical_bytes())
+        ));
+        let found = System::events()
+            .into_iter()
+            .filter_map(|record| match record.event {
+                RuntimeEvent::Permission(crate::Event::RecordPreviewed {
+                    visible,
+                    statement,
+                    ..
+                }) => Some((visible, statement)),
+                _ => None,
+            })
+            .last()
+            .expect("the preview wrote an event");
+        assert!(found.0);
+        let held = String::from_utf8(found.1.to_vec()).expect("the statement reads back");
+        assert!(held.contains("holder"));
+    });
+}
+
+#[test]
+fn a_record_preview_declines_a_payload_that_fails_to_decode() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant("clerk", CapabilityKey::Read, GrantPayload::everything());
+        assert_noop!(
+            Permission::preview_record_as_role(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("clerk"),
+                name("parcel"),
+                CapabilityKey::Read,
+                bounded(vec![255u8, 255, 255, 255])
+            ),
+            Error::<Test>::RecordUnreadable
+        );
+    });
+}
