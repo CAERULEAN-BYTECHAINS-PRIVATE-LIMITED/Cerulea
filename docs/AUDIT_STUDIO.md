@@ -184,7 +184,7 @@ name, slug, workspace, description, and a small technical detail form:
 
 - dApp: target network (`cerulea-testnet` / `cerulea-mainnet` / `ethereum`),
   token standards (erc20/721/1155), royalties percentage.
-- Blockchain: consensus (PoA/PoS), region, initial validators, native token
+- Blockchain: consensus (PoA/stake), region, initial validators, native token
   symbol and decimals, and a fee model (base gas, burn percent, validator share).
 
 Produces: a real DB row. `onInitialize` POSTs to `/api/projects`
@@ -351,7 +351,7 @@ there. The specific missing capabilities:
   never emitted as a Next.js app, contracts, or API. `/app/[slug]` renders a
   trivial component list from a JSON file on `localhost:4000`; it is a mock viewer,
   not generated code.
-- No SDK/types generation (no Typechain style bindings, no client SDK).
+- No the client library/types generation (no Typechain style bindings, no client the client library).
 
 ### 3.2 There is no build, deploy, or provisioning pipeline
 
@@ -378,7 +378,7 @@ not durably captured today.
 
 ### 3.4 No verification, simulation, or preview of the real thing
 
-- No dry run or validation of the configuration (step6's "Validation and Security"
+- No dry run or validation of the settings (step6's "Validation and Security"
   is scripted text).
 - No testnet sandbox, no contract simulation, no schema/relationship consistency
   checks, no dependency solver enforcing that, for example, `nft-mint` implies
@@ -509,7 +509,7 @@ blueprint PATCH.
 
 ### 4.8 Data model gaps for the target domain
 
-Missing entirely: chain configuration (genesis, chain ID, consensus/validator set,
+Missing entirely: chain settings (genesis, chain ID, consensus/validator set,
 node params, RPC endpoints, network topology), a deployments table (addresses, tx
 hashes, network, status, logs), environments and secret storage, coherent version
 history and rollback, collaboration (workspace membership, teams, real RBAC), and

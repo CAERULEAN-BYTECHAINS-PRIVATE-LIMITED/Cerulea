@@ -71,7 +71,7 @@
   "rpc": {
     "pos": {
       "getValidatorScore": {
-        "description": "Get validator PoS performance score",
+        "description": "Get validator stake performance score",
         "params": [
           {
             "name": "validator",
@@ -111,7 +111,7 @@
         "type": "ValidatorStatus"
       }
     },
-    "poi": {
+    "inference": {
       "getInferenceResult": {
         "description": "Get validator inference result and confidence",
         "params": [
@@ -170,7 +170,7 @@
         "type": "Vec<(AccountId, u64)>"
       },
       "getConsensusWeights": {
-        "description": "Get current PoS and PoI weight distribution",
+        "description": "Get current stake and inference weight distribution",
         "params": [],
         "type": "ConsensusWeights"
       }
@@ -192,7 +192,7 @@
         "type": "ValidatorProfile"
       },
       "getTrustScore": {
-        "description": "Get validator trust score with PoS and PoI components",
+        "description": "Get validator trust score with stake and inference components",
         "params": [
           {
             "name": "validator",
@@ -271,7 +271,7 @@
       {
         "methods": {
           "get_api_version": {
-            "description": "Get DCF API version",
+            "description": "Get the framework pallet API version",
             "params": [],
             "type": "u32"
           },
@@ -306,7 +306,7 @@
             "type": "u64"
           },
           "get_consensus_weights": {
-            "description": "Get consensus weight configuration",
+            "description": "Get consensus weight settings",
             "params": [],
             "type": "(u64, u64)"
           },
@@ -373,7 +373,7 @@
       {
         "methods": {
           "get_validator_score": {
-            "description": "Get validator PoS score",
+            "description": "Get validator stake score",
             "params": [
               {
                 "name": "validator",
@@ -435,7 +435,7 @@
             "type": "Option<Vec<u8>>"
           },
           "get_current_epoch": {
-            "description": "Get current PoI epoch",
+            "description": "Get current inference epoch",
             "params": [],
             "type": "u32"
           }

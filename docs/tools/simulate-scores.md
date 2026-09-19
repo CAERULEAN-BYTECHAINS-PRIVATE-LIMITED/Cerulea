@@ -7,14 +7,14 @@ This tool is particularly useful for:
 - Testing validator scoring algorithms
 - Simulating network conditions
 - Analyzing consensus participation patterns
-- Evaluating PoS and PoI weight configurations
+- Evaluating stake and inference weight settingss
 - Testing slashing and reward mechanisms
 - Planning network upgrades and parameter changes
 
 ## Features
 - Multi-epoch simulation
-- Configurable validator parameters
-- PoS and PoI score simulation
+- Adjustable validator parameters
+- stake and inference score simulation
 - Slashing and reward simulation
 - Score decay modeling
 - CSV export for analysis
@@ -25,8 +25,8 @@ This tool is particularly useful for:
 ```
 Epoch: 1
 Validator: 1
-PoS Score: 1000
-PoI Score: 800
+stake Score: 1000
+inference Score: 800
 Combined Score: 1800
 Blocks Authored: 100/100 (100%)
 Inferences: 50/50 (100% accurate)
@@ -35,8 +35,8 @@ Slashes: 0
 
 Epoch: 2
 Validator: 1
-PoS Score: 1050
-PoI Score: 850
+stake Score: 1050
+inference Score: 850
 Combined Score: 1900
 Blocks Authored: 95/100 (95%)
 Inferences: 45/50 (90% accurate)
@@ -45,8 +45,8 @@ Slashes: 0
 
 Final Summary:
 Validator 1:
-- Average PoS Score: 1025
-- Average PoI Score: 825
+- Average stake Score: 1025
+- Average inference Score: 825
 - Total Rewards: 195
 - Total Slashes: 0
 - Average Participation: 97.5%
@@ -61,7 +61,7 @@ cargo run --bin simulate-scores -- --epochs 10
 # With custom validator count
 cargo run --bin simulate-scores -- --epochs 10 --validators 5
 
-# With custom PoS/PoI weights
+# With custom stake/inference weights
 cargo run --bin simulate-scores -- --epochs 10 --pos-weight 0.7 --poi-weight 0.3
 
 # Export to CSV
@@ -83,14 +83,14 @@ cargo build --bin simulate-scores
 ## Options
 - `--epochs`: Number of epochs to simulate (default: 10)
 - `--validators`: Number of validators to simulate (default: 10)
-- `--pos-weight`: Weight for PoS score in combined score (default: 0.7)
-- `--poi-weight`: Weight for PoI score in combined score (default: 0.3)
+- `--pos-weight`: Weight for stake score in combined score (default: 0.7)
+- `--poi-weight`: Weight for inference score in combined score (default: 0.3)
 - `--export`: Export file path for CSV results (optional)
 - `--seed`: Random number generator seed for reproducible results (optional)
 
 ## Simulation Parameters
-- PoS Score Range: 500-2000
-- PoI Score Range: 500-1500
+- stake Score Range: 500-2000
+- inference Score Range: 500-1500
 - Block Authoring Rate: 80-100%
 - Inference Accuracy: 70-95%
 - Score Decay Rate: 5% per epoch
@@ -110,8 +110,8 @@ The tool outputs:
 When using the --export option, the tool generates a CSV file containing:
 - Epoch number
 - Validator ID
-- PoS score
-- PoI score
+- stake score
+- inference score
 - Combined score
 - Blocks authored
 - Inferences made
@@ -120,7 +120,7 @@ When using the --export option, the tool generates a CSV file containing:
 - Slashes received
 
 ## Use Cases
-1. **Algorithm Testing**: Test different PoS/PoI weight configurations
+1. **Algorithm Testing**: Test different stake/inference weight settingss
 2. **Network Planning**: Simulate validator participation patterns
 3. **Parameter Tuning**: Find optimal score decay rates
 4. **Risk Analysis**: Model slashing scenarios

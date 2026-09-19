@@ -1,246 +1,367 @@
-# Cerulea — Block Confirmation and Finality Architecture
+# The Dynamic Consensus Framework
 
-This document describes the layered consensus model of Cerulea as observed
-from the codebase and node logs. There are three distinct levels, each with a
-specific responsibility.
+The Dynamic Consensus Framework is the agreement mechanism of the Cerulea
+Blockchain. The framework separates three decisions that other designs bundle
+together. Who may author a block. Who authors the next block. When a block
+becomes irreversible.
 
----
+Eight engines carry the work. One shared measure, the Trust Score, joins them.
 
-## Level 0 — Validator Scoring (PoS + PoI)
+| Engine | Responsibility | Location |
+|---|---|---|
+| Commit Engine | Reaches agreement and makes blocks irreversible | Consensus crate |
+| Authoring Engine | Selects the slot committee and the block author | Consensus crate |
+| Execution Engine | Groups transactions into domains and runs them in parallel | Consensus crate |
+| Assurance Engine | Applies the threshold appropriate to each transaction class | Framework pallet |
+| Custody Engine | Issues history challenges and scores the responses | Custody pallet |
+| Standing Engine | Computes and maintains the Trust Score | Framework pallet |
+| Admission Engine | Governs entry to and exit from the validator set | Validator registry pallet |
+| Amendment Engine | Governs changes to the seven engines above | Framework pallet |
 
-This is the foundation. Before any block is produced, every validator has a
-score that determines how many authoring slots they receive in the next epoch.
+## 1 The design principle
 
-### How the score is calculated
+Cerulea holds one principle above the rest. A transaction declares the state it
+reads and writes before execution. That declaration is the Access Manifest.
+Cerulea derives the manifest from the Blueprint automatically, so no person
+writes one.
+
+The manifest makes three things possible. Transactions that touch no shared
+state run at the same time. A group of transactions reaches irreversibility on
+its own schedule. The share of validator weight a transaction needs varies with
+what the transaction does.
+
+## 2 The Access Manifest
+
+An Access Manifest names the collections a transaction reads, the collections it
+writes, the span of keys inside each collection, and the class of the
+transaction. A collection is one named store of records inside a Blueprint.
+
+Derivation reads the Blueprint action definition, which names its collections
+and its key expressions. The key expressions evaluate against the transaction
+parameters at admission time. Enforcement compares every state access against
+the manifest during execution. An access outside the manifest ends that
+transaction and leaves the rest of the block untouched.
+
+## 3 The Execution Engine
+
+The Execution Engine builds a graph over the pending transactions. An edge joins
+two transactions wherever their manifests intersect on a written collection and
+an overlapping key span. The connected components become domains. A disjoint-set
+structure keeps the pass proportional to the transaction count.
+
+Ordering inside a domain runs by class descending, then arrival sequence, then
+transaction hash ascending. Every validator reproduces the same order, so every
+validator reproduces the same result.
+
+Domains execute in parallel across cores. Each domain produces its own state
+root. The block header carries the combined root.
+
+## 4 The Authoring Engine
+
+Each slot, every eligible validator evaluates a verifiable random function over
+the slot seed and its own public key. A verifiable random function produces a
+value that anyone checks and nobody predicts. The slot seed comes from the
+parent block hash and the slot number, so every node derives the same seed.
+
+The engine scales each threshold by the Trust Score of the validator, so higher
+standing wins more often while every eligible validator keeps a real chance. The
+five lowest outputs form the committee in rank order.
+
+Rank one authors. A slot unclaimed after the rank timeout passes to rank two,
+then onward. The timeout is a policy value.
+
+The seal is a signature over the block header by the author validator key, taken
+from the node keystore. Import verifies three conditions. The named author sits
+in the committee for that slot. The seal verifies against that author public
+key. The rank claimed matches the timing.
+
+Production begins only where the local validator key matches the scheduled
+author at the claimed rank.
+
+## 5 The Commit Engine
+
+Validators sign the block with an aggregate signature scheme. The author
+collects signatures during the slot, combines them into one signature of fixed
+size, and includes the aggregate and the signer bitmap in the block.
+
+A domain commits when the aggregated Trust Score weight crosses the threshold
+for the highest class present in that domain. One round settles a domain.
+
+Vote submission carries a maximum count enforced before pool admission. The
+declared weight scales with the vote count. The propagation message set carries
+a capacity limit with least-recently-used eviction, so memory stays bounded
+under load.
+
+## 6 The Assurance Engine
+
+The threshold required varies with what the transaction does. Cerulea settles a
+warehouse scan in a fraction of the time a treasury movement takes, on one
+chain, under one framework.
+
+| Class | Covers | Share of weight | Delay |
+|---|---|---|---|
+| Routine | Scans, readings, log entries | 51 percent | none |
+| Financial | Transfers, settlements, payments | 67 percent | none |
+| Structural | Schema, permission and validator set changes | 80 percent | none |
+| Constitutional | Policy amendment, upgrade authority | 90 percent | mandatory window |
+
+Class assignment comes from the Blueprint action definition. A domain carrying
+mixed classes commits at the highest threshold present. The required weight
+rounds upward, so two thirds of ten validators is seven rather than six.
+
+A constitutional change commits and then waits. The window runs one hundred
+blocks in the starting profile. The chain releases the change at the first block
+at or after the effective block, with no person acting. A release inside the
+window fails and names the blocks remaining.
+
+The table above is the profile a deployment starts from. The Amendment Engine
+governs every later change. A table that fails inspection never reaches storage.
+Inspection refuses a share at or below half the weight, a share above ninety
+nine percent, a stricter class sitting at or below a lighter class, and a
+constitutional class carrying no window.
+
+## 7 The Custody Engine
+
+Cerulea verifies continuously that every validator holds the complete history
+and serves that history on demand. The mechanism runs automatically for as long
+as the network produces blocks. No person is involved at any point.
+
+1. **Issue.** At a set block interval the engine mixes a domain separator, the
+   parent block hash and the round number. The result selects one validator and
+   one historical record. Every node derives the same value from state every
+   node already holds, so every node agrees on the challenge without
+   coordination.
+2. **Publish.** The challenge appears in the block header as a digest item under
+   the identifier `cecu`. Every node sees the challenge at the same moment.
+3. **Answer.** The challenged validator reads the record from its local store,
+   builds the inclusion proof and submits both. An inclusion proof is a short
+   chain of hashes showing the record belongs to a committed block.
+4. **Verify.** The chain hashes the record, walks the chain of hashes upward and
+   compares the result against the record root it already holds for that block.
+5. **Score.** A correct proof inside the deadline raises standing. A missed
+   deadline lowers standing. An incorrect proof lowers standing sharply and
+   records a fault.
+
+The deadline defaults to three blocks, which closes faster than a network fetch
+and a proof rebuild complete. Selection spans the full history from genesis, so
+retaining a subset fails over time. Challenge frequency is a policy value.
+
+Every block carries a record root over the records that block committed.
+Separate domain separators keep a leaf hash apart from a node hash, and the
+position of a record enters its leaf, so no rearranged proof passes.
+
+## 8 The Standing Engine
+
+One composite measure drives four engines. The Trust Score. Nothing else governs
+validator behaviour.
+
+| Component | Public-access chain | Private chain |
+|---|---|---|
+| Standing accumulated through service | 40 percent | absent |
+| Role weight | absent | 35 percent |
+| Credential attestation | absent | 25 percent |
+| Measured operational performance | 30 percent | 25 percent |
+| Custody proof | 20 percent | 15 percent |
+| Verification sampling | 10 percent | absent |
+
+1. **Accumulation.** A new validator enters at zero and rises through proven
+   custody, correct authoring, timely voting and accurate verification sampling.
+   The ramp runs 180 epochs in the starting profile. An epoch counts once, and
+   only where every service condition held. Money buys licences and machines
+   quickly. Time cannot be bought.
+2. **Verification sampling.** Validators re-execute a randomly drawn sample of
+   recent transactions and report the results. The draw reads the block hash and
+   the round number, so no validator picks the transactions it prefers.
+   Agreement raises standing. Catching a genuine fault raises standing sharply,
+   at five times the gain of an agreement.
+3. **Decay.** Standing falls slowly during inactivity. Two idle epochs cost
+   nothing. Every idle epoch past that removes five percent of the remaining
+   standing. A validator holding a seat without answering challenges or signing
+   blocks drifts below the standing floor and loses the seat.
+4. **Reset.** Proven misconduct returns standing to zero. Rebuilding takes the
+   months that accumulation took. This is the equivalent of a financial penalty,
+   with time as the value destroyed.
+
+## 9 The Admission Engine
+
+Admission runs continuously rather than per block. A validator holds a seat
+while meeting every condition. Losing a condition triggers demotion at the next
+epoch boundary. An epoch is a fixed span of blocks after which the active set
+may change.
+
+1. **Public-access admission.** A registrar confirmed the legal identity. The
+   Cerulea validator licence is active and carries the public-access class. The
+   validator proved storage of the full history. The machine answers challenges
+   within deadline.
+2. **Private admission.** Governance admits every validator. The deploying
+   organisation sets the approvals and the credentials. Identity verification
+   through a public registrar plays no part, since the organisation already
+   knows every participant.
+3. **Licence verification.** The control plane issues a signed licence
+   attestation. The engine verifies the attestation on chain. No external call
+   occurs during block production, so an outage at the control plane never
+   stalls the Blockchain. A nonce keeps a replayed attestation from reviving a
+   licence the control plane withdrew.
+4. **Exit conditions.** Standing below the floor, uptime below the floor,
+   participation below the floor, a lapsed licence, or proven misconduct.
+   Misconduct that breaks safety removes the seat at once. Every other condition
+   waits for the epoch boundary, so the active set stays stable inside an epoch.
+
+## 10 The Amendment Engine and the profile solver
+
+Seven consensus properties genuinely trade against one another. Cerulea exposes
+the outcomes and solves for the properties. The customer declares what matters
+and never touches a parameter.
+
+### 10.1 The seven properties that trade
+
+1. **Fault tolerance.** The share of validators that may fail while safety
+   holds. Raising tolerance raises the quorum, which raises latency.
+2. **Finality latency.** Time from submission to irreversibility. Lowering
+   latency lowers the quorum or the set size, which lowers tolerance.
+3. **Validator set size.** More validators spread trust wider and raise message
+   volume, latency and operating cost.
+4. **Availability under partition.** A network split forces a choice between
+   continuing to serve and halting to stay consistent.
+5. **Throughput.** Raising throughput raises state growth, storage cost and the
+   hardware floor for participation.
+6. **Ordering fairness.** Guaranteeing arrival-order commitment costs latency.
+   Author discretion is faster and permits reordering for advantage.
+7. **History retention.** Full verifiable history costs storage on every node.
+   Pruning lowers cost and weakens long-term auditability.
+
+### 10.2 The limits that stay fixed
+
+Some parts are hard limits rather than trades. No control ever lets a customer
+cross one. Every candidate profile passes these checks before presentation, so
+an invalid point never surfaces.
+
+1. **The fault bound.** Safety holds while the total participant count exceeds
+   three times the faulty count.
+2. **The timing assumption.** No deterministic protocol guarantees termination
+   in a fully asynchronous network holding even one faulty participant. Cerulea
+   therefore assumes a bound on message delay that eventually holds, and states
+   the assumption in the code. Safety holds at every moment. Progress resumes
+   once delay settles under that bound.
+3. **The partition choice.** A network split forces a choice between continuing
+   to serve and halting to stay consistent. The choice is a proven limit that no
+   design escapes. A profile states which side it takes rather than claiming
+   both.
+
+### 10.3 The solver
+
+1. **Declare.** Five questions in ordinary language. Whether instant
+   confirmation or maximum certainty matters more. How many organisations run
+   infrastructure. What a single wrong record would cost. Whether the system
+   must keep serving during a network split. How long records must remain
+   provable.
+2. **Search.** The solver searches the parameter space for points satisfying the
+   declarations, checking each against the fixed limits.
+3. **Present.** Three to five valid profiles appear with plain-language
+   consequences. Every number is stated as a consequence rather than a setting.
+4. **Show the trade.** Moving toward one goal shows immediately what recedes,
+   with the reason written out.
+
+The solver is a pure function, so the same call answers a chain query and an
+off-chain question. A customer sees the profiles the chain would accept.
+
+### 10.4 The eight policies
+
+A deployment profile is expressed as eight policies. The Amendment Engine
+governs changes to the first seven. The eighth governs itself.
+
+| Policy | Governs |
+|---|---|
+| Admission | Identity requirement, sponsoring authority, credentials, licence class |
+| Rotation | Epoch length, set size, rotation trigger |
+| Authoring | Trust Score mix and the draw threshold curve |
+| Assurance | The class table and the threshold per class |
+| Eligibility | Uptime floor, participation floor, standing floor |
+| Penalty | Offence catalogue, severity ladder, demotion conditions |
+| Reward | Distribution formula, including throughput quota and priority |
+| Amendment | Authority, quorum and delay governing changes to the seven above |
+
+Three conditions hold for every change. The account opening the amendment holds
+the authority the Amendment policy names. The approvals reach the quorum that
+policy names. The approved amendment waits the delay that policy names. An
+amendment carries the quorum and the delay in force at the moment it opened, so
+no change lowers its own bar.
+
+Combining tunable profiles with class thresholds means one deployment carries
+several agreement points at once. A logistics scan commits under a fast profile.
+A payment in the same system commits under a strict one. That combination is
+what makes the framework dynamic in a literal sense.
+
+## 11 The optional inference contribution
+
+Deployments running Cerulea Intelligence on their own validators may enable an
+additional scoring contribution based on served inference work. Custody proof
+remains the default for every other deployment.
+
+The contribution stays absent unless three conditions hold at once.
+
+1. **The build carries the module.** A cargo feature turns the module on. The
+   feature stays off by default.
+2. **Determinism is proven.** Two validators running the same task produce
+   identical bytes. That needs pinned weights, a fixed seed, fixed-point
+   arithmetic and a pinned runtime.
+3. **The work is real.** Tasks come from Cerulea Intelligence workload. A
+   generated task carries no contribution.
+
+A result is accepted provisionally. Any validator challenges inside a window. A
+challenge triggers redundant execution by a randomly drawn committee, and the
+losing side carries the penalty.
+
+## 12 Where each engine lives
 
 ```
-final_score = (stake_score * pos_weight + inference_score * poi_weight)
-              / PercentagePrecision
+chain/cerulea-node/src/cerulea-consensus/src/engines/
+  manifest.rs, manifest_derive.rs, manifest_guard.rs
+  execution/    partition, ordering, runner, roots, meter
+  authoring/    draw, committee, fallback, seal, verify, gate
+  commit/       collect, aggregate, commit, submission, gossip
+
+chain/cerulea-pallets/pallet-cerulea-dcf/src/engines/
+  assurance/    classes, threshold, delay
+  standing/     score, accumulate, sampling, decay, reset
+  amendment/    policies, solver, limits, amend
+
+chain/cerulea-pallets/pallet-cerulea-dvf/src/engines/
+  admission/    public, private, licence, exit
+
+chain/cerulea-pallets/pallet-cerulea-custody/src/
+  primitives, issue, publish, respond, verify, score
 ```
 
-- `stake_score` — derived from the validator's locked stake via the PoS pallet
-- `inference_score` — derived from the validator's AI inference results via the PoI pallet
-- `pos_weight` and `poi_weight` — configurable weights, must sum to 100
-- `PercentagePrecision` — precision divisor (100)
+## 13 Throughput targets
 
-### When scores are updated
+Every figure below is a design target. Published claims follow measurement
+rather than design.
 
-| Event | What updates |
-|-------|-------------|
-| Every 5 blocks | Offchain worker runs, computes PoI inference score, submits unsigned tx |
-| Tx lands on chain | `ValidatorStates.inference_score` updated, `update_final_score` called |
-| Every 10 blocks | `ScoreDecayInterval` — inactive validators lose score |
-| Every 100 blocks | `ParticipationUpdateInterval` — participation rates recalculated |
-| Every epoch boundary | `run_comprehensive_score_aggregation` refreshes all scores |
+| Measure | Target |
+|---|---|
+| Sustained throughput, private deployment, sixteen cores | 20,000 to 30,000 transactions per second |
+| Routine class finality | Under 400 milliseconds |
+| Financial class finality | Under 800 milliseconds |
+| Validator set at sub-second finality | 200 validators |
 
-### What the score controls
+## 14 The assertions the tests hold
 
-At every epoch boundary (every 100 blocks), the final scores of all active
-validators are used as weights to generate the author sequence for the next
-epoch. A validator with `final_score = 50` gets roughly twice as many authoring
-slots as one with `final_score = 25`.
+1. A forged seal is rejected on import.
+2. A node whose local key differs from the scheduled author produces no block.
+3. An unclaimed slot passes to rank two within the timeout.
+4. Two disjoint domains execute in parallel and produce identical roots on every
+   node.
+5. A routine transaction finalises before a constitutional transaction in the
+   same block.
+6. A constitutional change waits the full delay window.
+7. A custody challenge issues, is answered and moves standing, with no human
+   involvement.
+8. An unanswered custody challenge lowers standing.
+9. A vote submission above the maximum count is rejected before pool admission.
+10. The message set evicts at capacity and memory stays bounded.
+11. No two conflicting blocks finalise at the same height under any test.
+12. A solver profile that would cross a fixed limit never appears in the result
+    set.
 
----
-
-## Level 1 — Block Production and DCF Confirmation (Per Block)
-
-Every block is produced by exactly one validator as determined by the
-pre-computed author sequence for the current epoch.
-
-### Author selection flow
-
-```
-Epoch boundary (block N*100)
-  → generate_deterministic_author_sequence(epoch, validators, seed)
-  → produces a 100-slot sequence, one author per block offset
-  → stored in EpochAuthorSequences[epoch] on-chain
-
-Block N*100 + offset
-  → get_expected_author(block_number) reads EpochAuthorSequences
-  → returns the validator assigned to that offset
-  → only that validator's DCF consensus loop produces the block
-```
-
-### Block confirmation (DCF — per block)
-
-Once a block is imported, DCF confirms it through progressive finalization:
-
-```
-Block imported at height H
-  → on_initialize runs for block H
-  → Progressive finalization: LastFinalizedBlock advances to H-1
-  → DCF logs: "Finality advanced from H-1 to H in epoch E"
-  → Block H-1 is now DCF-confirmed
-```
-
-This means every block is DCF-confirmed one block after it is imported.
-Blocks 0 through H-1 are all auto-confirmed as soon as block H is imported.
-This is the "client finality" seen in logs as:
-
-```
-DCF: Progressive finalization advanced to block 818
-DCF: Finality advanced from 817 to 818 in epoch 8
-```
-
-### Block time
-
-- Target: 6 seconds per block
-- Consensus loop interval: 1000ms (checks every 1 second if it is this node's turn)
-- Slot duration: 6 seconds
-
----
-
-## Level 2 — DVF Finality (Every 10th Block)
-
-DVF (Distributed Validator Finality) provides Byzantine-fault-tolerant
-finality on top of DCF confirmation. It requires a 2/3 weighted threshold of
-validator votes to finalize a checkpoint block.
-
-### Which blocks get DVF votes
-
-Only checkpoint blocks receive DVF votes. A checkpoint block is any block
-where:
-
-```
-block_number % FinalityCheckpointInterval == 0
-FinalityCheckpointInterval = 10
-```
-
-So blocks 10, 20, 30, 40, ... are checkpoint blocks.
-
-### DVF vote flow
-
-```
-Block 10 imported
-  → VoteCreatorService receives import notification
-  → Checks: is block 10 a checkpoint? (10 % 10 == 0) → YES
-  → Checks: is block 10 already finalized? → NO
-  → Checks: is this node an active validator? → YES
-  → Creates DVF vote: { block_number: 10, block_hash: 0x..., epoch: 0, round: 0 }
-  → Signs vote with validator's ed25519 key (CBC_DVF_KEY_TYPE = b"cdvf")
-  → Broadcasts vote via DVF gossip protocol (/cbc/dvf/1)
-
-Other nodes receive the vote via gossip
-  → DVF Gossip Validator accepts and inserts into local vote pool
-  → VoteAggregatorService checks every 1 second
-
-VoteAggregatorService at block 10:
-  → Finds 3 votes for block 0x... in round 0
-  → Calculates accumulated weight: 32000 + 32000 + 32000 = 96000
-  → Checks threshold: 96000 >= 64320 (67% of 96000) → REACHED
-  → Triggers JustificationBuilder
-  → Justification constructed with 3 votes, weight 96000
-  → client.finalize_block(block_10_hash, justification) called
-  → Block 10 is DVF-finalized
-```
-
-### What DVF finalization means for blocks 1-9
-
-Once block 10 is DVF-finalized, all blocks from 1 to 9 are implicitly
-finalized because they are ancestors of block 10. Substrate's finality model
-guarantees that finalizing block N finalizes all ancestors.
-
-```
-DVF finalizes block 10
-  → blocks 1, 2, 3, 4, 5, 6, 7, 8, 9 are all finalized as ancestors
-DVF finalizes block 20
-  → blocks 11 through 19 are all finalized as ancestors
-```
-
-### Vote weights
-
-Each validator's vote weight comes from `EpochVotingWeight` in the DVF pallet,
-which is populated at genesis and epoch transitions:
-
-```
-Total weight (3 validators, equal stake): 96000
-  Alice:   32000
-  Bob:     32000
-  Charlie: 32000
-
-Finality threshold: 67% of total = 64320
-Minimum votes needed: any 2 of 3 validators (64000 >= 64320 is NOT enough,
-all 3 needed with equal weights: 96000 >= 64320)
-```
-
-### Vote retention
-
-Votes older than `VoteRetentionRounds = 20` rounds are pruned from the pool.
-The pruning service runs after each DVF finalization.
-
----
-
-## Full Block Lifecycle (Example: Blocks 1 to 20)
-
-```
-Block 1 produced by Alice (epoch 0, offset 1)
-  → DCF: block 0 auto-confirmed (progressive finalization)
-
-Block 2 produced by Bob
-  → DCF: block 1 auto-confirmed
-
-...
-
-Block 9 produced by Charlie
-  → DCF: block 8 auto-confirmed
-
-Block 10 produced by Alice (checkpoint block)
-  → DCF: block 9 auto-confirmed
-  → DVF: all 3 validators vote on block 10
-  → DVF: 96000 weight accumulated, threshold 64320 reached
-  → DVF: block 10 finalized with justification
-  → DVF: blocks 1-9 finalized as ancestors of block 10
-
-Block 11 produced by Bob
-  → DCF: block 10 auto-confirmed (already DVF-finalized, no conflict)
-
-...
-
-Block 20 produced by Alice (checkpoint block)
-  → DVF: all 3 validators vote on block 20
-  → DVF: block 20 finalized with justification
-  → DVF: blocks 11-19 finalized as ancestors of block 20
-
-Block 100 (epoch boundary)
-  → Score aggregation runs
-  → Author sequence for epoch 1 generated using validator scores
-  → EpochAuthorSequences[1] stored on-chain
-  → Epoch 1 begins, new 100-slot author sequence active
-```
-
----
-
-## Interval Summary
-
-| Interval | Value | What happens |
-|----------|-------|-------------|
-| Every block | 1 block | DCF progressive finalization (N-1 confirmed) |
-| Every 5 blocks | 5 blocks | Offchain worker computes PoI scores |
-| Every 10 blocks | 10 blocks | DVF checkpoint vote and finalization |
-| Every 10 blocks | 10 blocks | Score decay check, leave request check |
-| Every 50 blocks | 50 blocks | Underperformance check |
-| Every 100 blocks | 100 blocks | Epoch boundary — new author sequence generated |
-| Every 100 blocks | 100 blocks | Participation rates updated |
-| Every 200 blocks | 200 blocks | Validator proposals generated |
-| Every 1000 blocks | 1000 blocks | Health metrics emitted |
-
----
-
-## Three-Layer Summary
-
-```
-Layer 0 — Scoring (PoS + PoI)
-  Purpose: Determine how many authoring slots each validator earns
-  Frequency: Continuous (offchain worker every 5 blocks)
-  Output: final_score per validator → used at epoch boundary
-
-Layer 1 — DCF (per block)
-  Purpose: Produce blocks in deterministic order, confirm each block
-  Frequency: Every block (6 second target)
-  Output: Imported block + progressive finalization of N-1
-
-Layer 2 — DVF (every 10 blocks)
-  Purpose: Byzantine-fault-tolerant finality with 2/3 threshold
-  Frequency: Every 10th block (checkpoint)
-  Output: Justified finalization of checkpoint + all ancestor blocks
-```
+Defect closure is recorded in `DEFECT_CLOSURE.md`.

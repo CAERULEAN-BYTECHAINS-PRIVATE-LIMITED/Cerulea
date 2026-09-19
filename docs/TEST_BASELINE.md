@@ -99,16 +99,16 @@ Every test passed.
 - `tests::end_to_end_workflow_tests::end_to_end_validator_complete_lifecycle`
 - `tests::end_to_end_workflow_tests::end_to_end_validator_with_challenges_and_slashing`
 - `tests::finality_tests::basic_finality_information_works`
-- `tests::genesis_validation_tests::genesis_epoch_configuration_works`
+- `tests::genesis_validation_tests::genesis_epoch_settings_works`
 - `tests::genesis_validation_tests::genesis_governance_mode_works`
-- `tests::integration_tests::epoch_length_configuration_works`
+- `tests::integration_tests::epoch_length_settings_works`
 - `tests::invariant_tests::boundary_condition_invariants_hold`
 - `tests::invariant_tests::scoring_invariants_hold`
-- `tests::parameter_governance_tests::epoch_configuration_parameters_work`
+- `tests::parameter_governance_tests::epoch_settings_parameters_work`
 - `tests::parameter_governance_tests::governance_mode_basic_functionality_works`
 - `tests::parameter_governance_tests::validator_score_parameter_bounds_work`
 - `tests::property_tests::property_validator_scores_within_bounds`
-- `tests::runtime_api_cross_pallet_tests::runtime_api_configuration_consistency`
+- `tests::runtime_api_cross_pallet_tests::runtime_api_settings_consistency`
 - `tests::runtime_api_cross_pallet_tests::runtime_api_data_flow_integration`
 - `tests::runtime_api_cross_pallet_tests::runtime_api_epoch_synchronization`
 - `tests::runtime_api_cross_pallet_tests::runtime_api_error_handling_integration`
@@ -159,7 +159,7 @@ Every test passed.
 - `tests::runtime_integration_tests::test_runtime_upgrade_compatibility`
 - `tests::runtime_integration_tests::test_system_limits`
 - `tests::runtime_mock_tests::test_helper_functions`
-- `tests::runtime_mock_tests::test_mock_configurations`
+- `tests::runtime_mock_tests::test_mock_settingss`
 
 ### cerulea-consensus
 
