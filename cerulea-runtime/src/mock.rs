@@ -1,24 +1,23 @@
 //! Mock runtime for Cerulea Runtime testing
-//! 
+//!
 //! This module provides a comprehensive mock runtime that can be used for testing
 //! the entire Cerulea system including all pallets and their interactions.
 
-use crate::{
-    AccountId, Balance, BlockNumber, RuntimeOrigin,
-    System, Balances, Runtime,
-};
+use crate::{AccountId, Balance, Balances, BlockNumber, Runtime, RuntimeOrigin, System};
 use frame_support::{
     parameter_types,
-    traits::{ConstU32, ConstU64, ConstU128, ConstU8, Everything, Hooks, Currency, ReservableCurrency},
+    traits::{
+        ConstU128, ConstU32, ConstU64, ConstU8, Currency, Everything, Hooks, ReservableCurrency,
+    },
     weights::Weight,
     PalletId,
 };
+use sp_core::H256;
+use sp_runtime::AccountId32;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
-use sp_core::H256;
-use sp_runtime::AccountId32;
 
 /// Helper function to create AccountId from u64
 pub fn account_id(id: u64) -> AccountId {
@@ -33,10 +32,9 @@ pub fn funded_account_id(id: u64) -> AccountId {
 }
 use sp_io;
 
-
 // Re-export the main runtime for testing
 
-// Test configuration parameters
+// Test settings parameters
 parameter_types! {
     pub const TestBlockHashCount: u64 = 250;
     pub const TestMaximumBlockWeight: Weight = Weight::from_parts(1024, 0);
@@ -47,7 +45,13 @@ parameter_types! {
     pub const TestMaxReserves: u32 = 50;
 }
 
-/// Mock runtime configuration for testing
+/// The balance every test account starts with.
+///
+/// The balances module refuses a genesis balance below the existential
+/// deposit the runtime carries, so the endowment sits far above it.
+pub const TEST_ENDOWMENT: Balance = 100_000 * crate::Cerulea;
+
+/// The settings one test runtime starts with
 pub struct MockRuntimeConfig {
     pub validators: Vec<AccountId>,
     pub validator_stakes: Vec<Balance>,
@@ -67,42 +71,37 @@ impl Default for MockRuntimeConfig {
             ],
             validator_stakes: vec![10000, 10000, 10000, 10000],
             validator_scores: vec![60, 70, 80, 90], // Changed to u32
+            // Every endowment sits above the existential deposit the
+            // runtime carries. A balance below that deposit fails the
+            // genesis build of the balances module.
             endowed_accounts: vec![
-                (AccountId32::from([1u8; 32]), 100000),
-                (AccountId32::from([2u8; 32]), 100000),
-                (AccountId32::from([3u8; 32]), 100000),
-                (AccountId32::from([4u8; 32]), 100000),
-                (AccountId32::from([5u8; 32]), 100000),
+                (AccountId32::from([1u8; 32]), TEST_ENDOWMENT),
+                (AccountId32::from([2u8; 32]), TEST_ENDOWMENT),
+                (AccountId32::from([3u8; 32]), TEST_ENDOWMENT),
+                (AccountId32::from([4u8; 32]), TEST_ENDOWMENT),
+                (AccountId32::from([5u8; 32]), TEST_ENDOWMENT),
                 // Add test accounts
-                (AccountId32::from([99u8; 32]), 100000), // For test_account
+                (AccountId32::from([99u8; 32]), TEST_ENDOWMENT), // For test_account
             ],
             sudo_key: AccountId32::from([1u8; 32]),
         }
     }
 }
 
-/// Create a test externalities with default configuration
+/// Build the externalities of a test chain under the default settings
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    // Create minimal configuration for testing
-    let config = MockRuntimeConfig {
-        validators: vec![],
-        validator_stakes: vec![],
-        validator_scores: vec![],
-        endowed_accounts: vec![
-            (AccountId32::from([1u8; 32]), 1000000), // Ensure well above existential deposit
-        ],
-        sudo_key: AccountId32::from([1u8; 32]),
-    };
-    new_test_ext_with_config(config)
+    // The default settings carries four validators, every one of
+    // them endowed above the existential deposit.
+    new_test_ext_with_config(MockRuntimeConfig::default())
 }
 
-/// Create a test externalities with custom configuration
+/// Build the externalities of a test chain under the given settings
 pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExternalities {
     let mut storage = frame_system::GenesisConfig::<Runtime>::default()
         .build_storage()
         .unwrap();
 
-    // Configure balances
+    // The balances of every endowed account
     pallet_balances::GenesisConfig::<Runtime> {
         balances: config.endowed_accounts,
         dev_accounts: None,
@@ -110,40 +109,99 @@ pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExterna
     .assimilate_storage(&mut storage)
     .unwrap();
 
-    // Skip sudo configuration for now to isolate the issue
+    pallet_sudo::GenesisConfig::<Runtime> {
+        key: Some(config.sudo_key.clone()),
+    }
+    .assimilate_storage(&mut storage)
+    .unwrap();
 
-    // Configure DCF pallet - simplified for testing
-    // Skip DCF genesis configuration to avoid balance issues during testing
+    // The framework pallet, the stake pallet, the inference pallet and the
+    // validator registry all take the same validator set, so every read
+    // agrees with every other read.
+    if !config.validators.is_empty() {
+        pallet_cerulea_dcf::GenesisConfig::<Runtime> {
+            validators: config.validators.clone(),
+            validator_scores: config.validator_scores.clone(),
+            validator_stakes: config.validator_stakes.clone(),
+            current_epoch: 0,
+            epoch_config: pallet_cerulea_dcf::EpochConfig {
+                blocks_per_epoch: 100,
+                min_stake: 1_000,
+                max_validators: 100,
+            },
+            validator_names: alloc::vec![None; config.validators.len()],
+            strict_validation: false,
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
+
+        // The stake pallet takes the scores alone. A test registers a
+        // validator there itself, so the register starts empty.
+        pallet_cerulea_pos::GenesisConfig::<Runtime> {
+            validators: alloc::vec![],
+            validator_scores: alloc::vec![],
+            current_epoch: 0,
+            slashing_count: alloc::vec![],
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
+
+        // The inference pallet takes its results from the validators
+        // themselves, so the register starts empty.
+        pallet_cerulea_poi::GenesisConfig::<Runtime> {
+            inference_results: alloc::vec![],
+            challenges: alloc::vec![],
+            current_epoch: 0,
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
+
+        pallet_cerulea_dvf::GenesisConfig::<Runtime> {
+            initial_validator_weights: config
+                .validators
+                .iter()
+                .cloned()
+                .zip(config.validator_stakes.iter().cloned())
+                .zip(config.validator_scores.iter().cloned())
+                .map(|((validator, stake), score)| (validator, stake, score as u128))
+                .collect(),
+            initial_validator_keys: alloc::vec![],
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
+    }
 
     let mut ext = sp_io::TestExternalities::from(storage);
-    
+
     // Setup keystore for consensus testing
     // Keystore setup removed for simplicity
-    
+
     ext.execute_with(|| {
         System::set_block_number(1);
     });
-    
+
     ext
 }
 
-/// Create test externalities with multiple validators for stress testing
+/// Build the externalities of a test chain carrying many validators
 pub fn new_test_ext_with_validators(validator_count: u32) -> sp_io::TestExternalities {
     let validators: Vec<AccountId> = (1..=validator_count as u64)
         .map(|i| AccountId32::from([i as u8; 32]))
         .collect();
     let validator_stakes: Vec<Balance> = vec![10000; validator_count as usize];
-    let validator_scores: Vec<u32> = (60..60 + validator_count).collect();
+    // Every score sits inside the hundred point range the validator
+    // registry admits at genesis.
+    let validator_scores: Vec<u32> = (0..validator_count).map(|i| 60 + (i % 41)).collect();
     let mut endowed_accounts: Vec<(AccountId, Balance)> = validators
         .iter()
-        .map(|v| (v.clone(), 100000))
+        .map(|v| (v.clone(), TEST_ENDOWMENT))
         .collect();
-    
+
     // Add some additional accounts
     endowed_accounts.extend(vec![
-        (AccountId32::from([100u8; 32]), 1000000), // Rich account for testing
-        (AccountId32::from([101u8; 32]), 1000000),
-        (AccountId32::from([102u8; 32]), 1000000),
+        (AccountId32::from([100u8; 32]), TEST_ENDOWMENT * 10), // Rich account for testing
+        (AccountId32::from([101u8; 32]), TEST_ENDOWMENT * 10),
+        (AccountId32::from([102u8; 32]), TEST_ENDOWMENT * 10),
     ]);
 
     let config = MockRuntimeConfig {
@@ -157,25 +215,25 @@ pub fn new_test_ext_with_validators(validator_count: u32) -> sp_io::TestExternal
     new_test_ext_with_config(config)
 }
 
-/// Create test externalities for governance testing
+/// Build the externalities of a test chain running under governance
 pub fn new_test_ext_for_governance() -> sp_io::TestExternalities {
     let mut ext = new_test_ext();
-    
+
     ext.execute_with(|| {
         // Enable governance mode
         // Enable governance mode for testing
         pallet_cerulea_dcf::GovernanceModeEnabled::<Runtime>::put(true);
     });
-    
+
     ext
 }
 
 /// Create test externalities for epoch transition testing
 pub fn new_test_ext_for_epochs() -> sp_io::TestExternalities {
     let mut ext = new_test_ext();
-    
+
     ext.execute_with(|| {
-        // Setup epoch configuration for faster testing
+        // Setup epoch settings for faster testing
         let epoch_config = pallet_cerulea_dcf::EpochConfig {
             blocks_per_epoch: 100, // Shorter epochs for testing
             min_stake: 1000,
@@ -183,7 +241,7 @@ pub fn new_test_ext_for_epochs() -> sp_io::TestExternalities {
         };
         pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::put(epoch_config);
     });
-    
+
     ext
 }
 
@@ -192,12 +250,12 @@ pub fn advance_to_block(n: BlockNumber) {
     while System::block_number() < n {
         let current = System::block_number();
         System::set_block_number(current + 1);
-        
+
         // Trigger on_initialize for all pallets
         use frame_support::traits::Hooks;
         System::on_initialize(current + 1);
         pallet_cerulea_dcf::Pallet::<Runtime>::on_initialize(current + 1);
-        
+
         // Trigger on_finalize for all pallets
         pallet_cerulea_dcf::Pallet::<Runtime>::on_finalize(current + 1);
         System::on_finalize(current + 1);
@@ -225,7 +283,14 @@ pub fn create_funded_account(account_id: AccountId, balance: Balance) {
 
 /// Helper function to setup a validator with stake
 pub fn setup_validator_with_stake(validator: AccountId, stake: Balance) {
-    create_funded_account(validator.clone(), stake * 2);
+    // The account funds itself only where the balance it already holds
+    // falls short of the stake and the existential deposit together. An
+    // account endowed at genesis therefore keeps the balance it started
+    // with.
+    let held = Balances::free_balance(&validator);
+    if held < stake.saturating_add(crate::EXISTENTIAL_DEPOSIT) {
+        create_funded_account(validator.clone(), TEST_ENDOWMENT + stake);
+    }
     let _ = Balances::reserve(&validator, stake);
     pallet_cerulea_pos::Stake::<Runtime>::insert(&validator, stake);
 }
@@ -235,10 +300,10 @@ pub fn create_test_validators(count: u32) -> Vec<AccountId> {
     let validators: Vec<AccountId> = (100..100 + count as u64)
         .map(|i| AccountId32::from([i as u8; 32]))
         .collect();
-    
+
     for validator in &validators {
         setup_validator_with_stake(validator.clone(), 10000);
-        
+
         // Create validator state
         let validator_state = pallet_cerulea_dcf::ValidatorState {
             last_active_epoch: 0,
@@ -261,14 +326,14 @@ pub fn create_test_validators(count: u32) -> Vec<AccountId> {
             name: None,
             trust_score: 0,
         };
-        
+
         pallet_cerulea_dcf::ValidatorStates::<Runtime>::insert(validator, validator_state);
     }
-    
+
     validators
 }
 
-/// Test configuration for different scenarios
+/// Test settings for different scenarios
 pub enum TestScenario {
     Basic,
     MultiValidator(u32),
@@ -295,18 +360,18 @@ pub fn new_test_ext_for_scenario(scenario: TestScenario) -> sp_io::TestExternali
                 validator_stakes: vec![100000, 150000, 200000], // High stakes
                 validator_scores: vec![80, 90, 95],
                 endowed_accounts: vec![
-                    (AccountId32::from([1u8; 32]), 1000000),
-                    (AccountId32::from([2u8; 32]), 1000000),
-                    (AccountId32::from([3u8; 32]), 1000000),
+                    (AccountId32::from([1u8; 32]), TEST_ENDOWMENT),
+                    (AccountId32::from([2u8; 32]), TEST_ENDOWMENT),
+                    (AccountId32::from([3u8; 32]), TEST_ENDOWMENT),
                 ],
                 sudo_key: AccountId32::from([1u8; 32]),
             };
             new_test_ext_with_config(config)
-        },
+        }
         TestScenario::StressTest => new_test_ext_with_validators(50),
     }
 }
 
 // Re-export commonly used testing utilities
-pub use frame_support::{assert_ok, assert_noop, assert_err};
+pub use frame_support::{assert_err, assert_noop, assert_ok};
 pub use sp_runtime::traits::BadOrigin;

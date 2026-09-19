@@ -207,9 +207,11 @@ mod runtime_integration_tests {
             assert_eq!(current_epoch, 0);
             
             // Test consensus weights
+            // The Standing Engine holds the weighting in parts per ten
+            // thousand, so the two shares add to ten thousand.
             let pos_weight = DcfPallet::pos_weight();
             let poi_weight = DcfPallet::poi_weight();
-            assert_eq!(pos_weight + poi_weight, 100);
+            assert_eq!(pos_weight + poi_weight, 10000);
         });
     }
 
@@ -281,10 +283,11 @@ mod runtime_integration_tests {
         new_test_ext().execute_with(|| {
             let non_validator = funded_account_id(999);
             
-            // Test invalid validator operations
+            // The Admission Engine holds the validator set, so an account
+            // outside that set reaches no leave request.
             assert_noop!(
                 DvfPallet::leave_validators(RuntimeOrigin::signed(non_validator.clone())),
-                pallet_cerulea_dcf::Error::<Runtime>::ValidatorNotFound
+                pallet_cerulea_pos::Error::<Runtime>::ValidatorNotInSet
             );
             
             // Test invalid governance operations
@@ -427,7 +430,10 @@ mod runtime_mock_tests {
             
             // Test account creation
             let test_account = funded_account_id(999);
-            assert_eq!(Balances::free_balance(&test_account), 50000);
+            assert_eq!(
+                Balances::free_balance(&test_account),
+                crate::mock::TEST_ENDOWMENT
+            );
             
             // Test validator setup
             setup_validator_with_stake(test_account.clone(), 10000);
@@ -519,10 +525,11 @@ mod runtime_api_tests {
             let pos_weight = DcfPallet::pos_weight();
             let poi_weight = DcfPallet::poi_weight();
             
-            // Weights should be positive and sum to 100
+            // The Standing Engine holds the weighting in parts per ten
+            // thousand, so the two shares add to ten thousand.
             assert!(pos_weight > 0);
             assert!(poi_weight > 0);
-            assert_eq!(pos_weight + poi_weight, 100);
+            assert_eq!(pos_weight + poi_weight, 10000);
         });
     }
 
