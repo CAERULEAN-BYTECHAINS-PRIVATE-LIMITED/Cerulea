@@ -14,10 +14,17 @@
 extern crate alloc;
 
 pub mod authoring;
+pub mod equivocation;
 
 pub use authoring::{
     derive_slot_seed, draw_value, epoch_draw_sign_data, epoch_draw_transcript, rank_seats,
     seat_value, verify_epoch_draw, weighted_draw, CommitteeSeat, SeatInput, COMMITTEE_SIZE,
     DRAW_LABEL, DRAW_OUTPUT_CONTEXT, EPOCH_DOMAIN, SEAT_MIX_DOMAIN, SEED_DERIVATION_DOMAIN,
     STANDING_FLOOR, TRUST_SCORE_FULL,
+};
+
+pub use equivocation::{
+    verify_equivocation, EquivocationFacts, EquivocationFault, EquivocationProof, SealClaimBytes,
+    SealedHead, DRAW_KEY_OFFSET, RANK_OFFSET, SEAL_CLAIM_BYTES, SEAL_CLAIM_PREFIX_BYTES,
+    SEAL_DOMAIN, SEAL_KEY_OFFSET, SLOT_OFFSET,
 };

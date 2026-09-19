@@ -50,6 +50,8 @@ pub mod error;
 pub mod dvf_config_validator;
 /// Vote propagation across peers
 pub mod dvf_gossip;
+/// Equivocation report propagation across peers
+pub mod equivocation_gossip;
 /// Commitment record builder
 pub mod justification_builder;
 /// Vote aggregation service

@@ -290,6 +290,8 @@ const REG_SEEN: &[u8] = b"registry/seen/";
 const REG_AUTHORED: &[u8] = b"registry/authored/";
 const REG_MISSED: &[u8] = b"registry/missed/";
 const REG_EPOCH_WEIGHTS: &[u8] = b"registry/epoch_weights";
+const REG_DRAW_OWNER: &[u8] = b"registry/draw_owner/";
+const REG_SEAL_KEY: &[u8] = b"registry/seal_key/";
 
 fn reg_key(prefix: &[u8], validator: &u64) -> alloc::vec::Vec<u8> {
     let mut key = prefix.to_vec();
@@ -307,6 +309,18 @@ fn reg_put<V: codec::Encode>(key: &[u8], value: &V) {
 
 fn reg_list(key: &[u8]) -> alloc::vec::Vec<u64> {
     reg_get::<alloc::vec::Vec<u64>>(key).unwrap_or_default()
+}
+
+/// Record the two keys of one validator in the mock registry.
+///
+/// The Authoring Engine records the draw key and the seal key of every
+/// validator. The equivocation evidence path reads both back, so a test seeds
+/// them the way the Admission Engine seeds them on a running chain.
+pub fn registry_record_keys(validator: u64, draw_key: [u8; 32], seal_key: [u8; 32]) {
+    let mut key = REG_DRAW_OWNER.to_vec();
+    key.extend_from_slice(&draw_key);
+    reg_put(&key, &validator);
+    reg_put(&reg_key(REG_SEAL_KEY, &validator), &seal_key);
 }
 
 /// Seed the registry with a validator set. Genesis calls this.
@@ -340,6 +354,16 @@ impl crate::traits::WeightFreezer<u64> for TestWeightFreezer {
 impl crate::traits::ValidatorRegistryProvider<u64, u128, u64> for TestValidatorRegistry {
     fn get_active_validators() -> alloc::vec::Vec<u64> {
         reg_list(REG_ACTIVE)
+    }
+
+    fn draw_key_owner(draw_key: &[u8; 32]) -> Option<u64> {
+        let mut key = REG_DRAW_OWNER.to_vec();
+        key.extend_from_slice(draw_key);
+        reg_get(&key)
+    }
+
+    fn validator_seal_key(validator: &u64) -> Option<[u8; 32]> {
+        reg_get(&reg_key(REG_SEAL_KEY, validator))
     }
 
     fn get_validator_profile(validator: &u64) -> Option<TestProfile> {

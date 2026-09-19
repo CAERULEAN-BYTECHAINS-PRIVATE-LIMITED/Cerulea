@@ -1,0 +1,67 @@
+# Cerulea dependency audit settings.
+#
+# Every advisory listed here reaches Cerulea through a crate the workspace
+# manifest pins. None of them sits in Cerulea source. The pinned release of the
+# chain framework holds each dependency at a version the advisory covers, and
+# raising the dependency on its own breaks the framework build.
+#
+# The reasoning for each group and the review schedule sit in
+# cerulea-build/02-tasks/DECISIONS.md under P10-001.
+#
+# Review: each entry leaves this file as soon as the pinned framework release
+# carries a dependency above the patched range.
+
+[advisories]
+ignore = [
+    # The WebAssembly execution engine the framework pins at release eight.
+    # Cerulea runs the runtime through that engine alone and exposes no host
+    # filesystem, no component model interface and no Winch compiler backend.
+    "RUSTSEC-2023-0091",
+    "RUSTSEC-2024-0438",
+    "RUSTSEC-2024-0442",
+    "RUSTSEC-2025-0118",
+    "RUSTSEC-2026-0020",
+    "RUSTSEC-2026-0021",
+    "RUSTSEC-2026-0085",
+    "RUSTSEC-2026-0086",
+    "RUSTSEC-2026-0087",
+    "RUSTSEC-2026-0088",
+    "RUSTSEC-2026-0089",
+    "RUSTSEC-2026-0091",
+    "RUSTSEC-2026-0092",
+    "RUSTSEC-2026-0093",
+    "RUSTSEC-2026-0094",
+    "RUSTSEC-2026-0095",
+    "RUSTSEC-2026-0096",
+    "RUSTSEC-2026-0222",
+    "RUSTSEC-2026-0269",
+
+    # The transport security stack the framework pins for telemetry and for
+    # the light client. Cerulea reaches no telemetry endpoint and runs no
+    # light client in either deployment.
+    "RUSTSEC-2025-0009",
+    "RUSTSEC-2025-0010",
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+    "RUSTSEC-2026-0285",
+
+    # The transport layer of the framework networking stack.
+    "RUSTSEC-2026-0037",
+    "RUSTSEC-2026-0185",
+    "RUSTSEC-2026-0258",
+
+    # The name resolution library the framework networking stack pins.
+    "RUSTSEC-2026-0118",
+    "RUSTSEC-2026-0119",
+
+    # Utility crates the framework pins below their patched release.
+    "RUSTSEC-2025-0047",
+    "RUSTSEC-2025-0055",
+    "RUSTSEC-2026-0007",
+    "RUSTSEC-2026-0009",
+    "RUSTSEC-2026-0204",
+]
+
+informational_warnings = []

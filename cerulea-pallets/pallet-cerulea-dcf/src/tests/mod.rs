@@ -34,7 +34,7 @@ pub mod deterministic_tests;
 // Finality and consensus tests
 pub mod finality_tests;
 
-// Genesis and configuration tests
+// Genesis and deployment profile tests
 pub mod genesis_validation_tests;
 
 // Storage migration tests
@@ -59,3 +59,6 @@ pub mod stress_tests;
 pub mod runtime_api_cross_pallet_tests;
 // Assurance Engine tests
 pub mod assurance_engine_tests;
+
+// Equivocation detection and penalty tests
+pub mod equivocation_tests;

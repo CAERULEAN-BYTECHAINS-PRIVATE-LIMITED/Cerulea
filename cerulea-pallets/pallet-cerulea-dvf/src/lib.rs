@@ -1647,6 +1647,14 @@ impl<T: Config> pallet_cerulea_dcf::traits::ValidatorRegistryProvider<T::Account
         ActiveValidators::<T>::get().to_vec()
     }
 
+    fn draw_key_owner(draw_key: &[u8; 32]) -> Option<T::AccountId> {
+        DrawKeyOwner::<T>::get(draw_key)
+    }
+
+    fn validator_seal_key(validator: &T::AccountId) -> Option<[u8; 32]> {
+        ValidatorKeyRecords::<T>::get(validator).map(|set| set.seal)
+    }
+
     fn get_validator_profile(validator: &T::AccountId) -> Option<pallet_cerulea_dcf::ValidatorProfile<T::AccountId, <T as pallet_cerulea_pos::Config>::Balance, BlockNumberFor<T>>> {
         let state = ValidatorStates::<T>::get(validator)?;
         let stake = pallet_cerulea_pos::Stake::<T>::get(validator);

@@ -3768,6 +3768,35 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The equivocation fault each validator carries.
+    ///
+    /// Equivocation means one validator sealing two different headers for one
+    /// slot at one rank. The record names the slot, the rank and the two
+    /// headers, so an operator reads what the chain proved.
+    #[pallet::storage]
+    #[pallet::getter(fn equivocation_fault_of)]
+    pub type EquivocationFaults<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::FaultRecord,
+        OptionQuery,
+    >;
+
+    /// The equivocations the chain has already penalised.
+    ///
+    /// One slot, one rank and one seal key take one penalty. A second report of
+    /// one equivocation leaves the chain unchanged.
+    #[pallet::storage]
+    #[pallet::getter(fn equivocation_penalised)]
+    pub type PenalisedEquivocations<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        crate::engines::standing::FaultKey,
+        crate::engines::standing::FaultRecord,
+        OptionQuery,
+    >;
+
     /// The decay the Standing Engine applies during inactivity.
     #[pallet::storage]
     #[pallet::getter(fn standing_decay_settings)]
@@ -5182,6 +5211,17 @@ pub mod pallet {
             /// The epochs of service the reset destroyed.
             epochs_destroyed: u32,
         },
+        /// The chain proved one equivocation and applied the penalty.
+        EquivocationProven {
+            /// The validator that sealed two headers for one slot.
+            validator: T::AccountId,
+            /// The slot both headers served.
+            slot: u64,
+            /// The rank the author claimed in both headers.
+            rank: u8,
+            /// The epochs of service the reset destroyed.
+            epochs_destroyed: u32,
+        },
         /// An amendment opened against one policy.
         AmendmentOpened {
             /// The identifier of the amendment.
@@ -5829,6 +5869,27 @@ pub mod pallet {
         AmendmentAlreadyApproved,
         /// The chosen profile crosses a fixed limit.
         ProfileCrossesFixedLimit,
+        /// The equivocation evidence failed the check.
+        ///
+        /// The two sealed headers name a different slot, a different rank or a
+        /// different validator, or one of the two signatures failed the check.
+        /// Report two headers one validator sealed for one slot at one rank.
+        EquivocationEvidenceRejected,
+        /// The seal key the evidence names belongs to no registered validator.
+        ///
+        /// The Admission Engine records the draw key and the seal key of every
+        /// validator. Register the keys before reporting evidence against them.
+        EquivocationAuthorUnregistered,
+        /// The seal key the evidence names differs from the recorded key.
+        ///
+        /// Report evidence built from the seal key the chain holds for that
+        /// validator.
+        EquivocationKeysMismatch,
+        /// The chain already applied the penalty for this equivocation.
+        ///
+        /// One slot, one rank and one seal key take one penalty. Read the fault
+        /// record for what the chain proved.
+        EquivocationAlreadyPenalised,
     }
 
     // --- Dispatchable Calls --- //
@@ -7106,6 +7167,91 @@ pub mod pallet {
             crate::engines::amendment::inspect_point(&point)
                 .map_err(|_| Error::<T>::ProfileCrossesFixedLimit)?;
             Policies::<T>::put(policies);
+            Ok(())
+        }
+
+        /// Prove one equivocation and apply the penalty.
+        ///
+        /// Equivocation means one validator sealing two different headers for
+        /// one slot at one rank. A slot is one fixed span of time. The evidence
+        /// carries both sealed headers with the signature the author placed on
+        /// each one. Any account submits the evidence. The chain checks both
+        /// signatures itself, so the reporter earns no trust from the report.
+        ///
+        /// A proof that passes every check returns the standing of that
+        /// validator to zero through the Standing Engine reset path, records
+        /// the fault and takes the seat away at once.
+        #[pallet::call_index(48)]
+        #[pallet::weight(<T as Config>::WeightInfo::report_validator_misbehavior())]
+        pub fn report_equivocation(
+            origin: OriginFor<T>,
+            proof: cerulea_primitives::equivocation::EquivocationProof,
+        ) -> DispatchResult {
+            let _reporter = ensure_signed(origin)?;
+
+            // The shared evidence code runs on the node and on the chain, so
+            // both sides reach the same answer over one proof.
+            let facts = cerulea_primitives::equivocation::verify_equivocation(&proof)
+                .map_err(|_| Error::<T>::EquivocationEvidenceRejected)?;
+
+            let key = crate::engines::standing::FaultKey::of(&facts);
+            ensure!(
+                PenalisedEquivocations::<T>::get(key).is_none(),
+                Error::<T>::EquivocationAlreadyPenalised
+            );
+
+            // The draw key that won the seat names the validator account.
+            let validator = T::ValidatorRegistry::draw_key_owner(&facts.draw_key)
+                .ok_or(Error::<T>::EquivocationAuthorUnregistered)?;
+            let recorded = T::ValidatorRegistry::validator_seal_key(&validator)
+                .ok_or(Error::<T>::EquivocationAuthorUnregistered)?;
+            ensure!(
+                recorded == facts.seal_key,
+                Error::<T>::EquivocationKeysMismatch
+            );
+
+            let epoch = Self::current_epoch();
+            let block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
+            // The Standing Engine reset path returns standing to zero.
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let outcome = crate::engines::standing::reset(
+                &mut record,
+                crate::engines::standing::Misconduct::TwoBlocksAtOneSlot,
+                epoch,
+            );
+            ServiceRecords::<T>::insert(&validator, record);
+            StandingShares::<T>::insert(&validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(&validator, outcome);
+
+            let fault = crate::engines::standing::fault_record(
+                &facts,
+                epoch,
+                block,
+                outcome.epochs_destroyed,
+            );
+            EquivocationFaults::<T>::insert(&validator, fault);
+            PenalisedEquivocations::<T>::insert(key, fault);
+
+            // Two blocks at one slot break safety, so the seat goes at once.
+            if crate::engines::standing::Misconduct::TwoBlocksAtOneSlot.removes_the_seat_at_once() {
+                let _ = T::ValidatorRegistry::eject_validator(
+                    &validator,
+                    crate::EjectionReason::RepeatedMisbehavior,
+                );
+            }
+
+            Self::deposit_event(Event::StandingReset {
+                validator: validator.clone(),
+                misconduct: crate::engines::standing::Misconduct::TwoBlocksAtOneSlot,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            Self::deposit_event(Event::EquivocationProven {
+                validator,
+                slot: facts.slot,
+                rank: facts.rank,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
             Ok(())
         }
 

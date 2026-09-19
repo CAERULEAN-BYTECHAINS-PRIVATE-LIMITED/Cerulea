@@ -1372,6 +1372,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
+ "parking_lot 0.12.4",
  "proptest",
  "rand 0.8.5",
  "sc-basic-authorship",
@@ -1430,6 +1431,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-io",
 ]
 
 [[package]]
@@ -6531,6 +6533,7 @@ dependencies = [
 name = "pallet-cerulea-dcf"
 version = "0.1.0"
 dependencies = [
+ "cerulea-primitives",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

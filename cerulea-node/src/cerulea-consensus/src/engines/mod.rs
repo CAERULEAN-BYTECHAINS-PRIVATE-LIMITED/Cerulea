@@ -937,6 +937,47 @@ pub enum EngineError {
     )]
     EmptyValidatorSet,
 
+    /// A seal claim or a header hash ran to an unexpected length.
+    #[error(
+        "The value carries {bytes} bytes and the Authoring Engine expects {expected}. \
+         Fix: run a node release that builds the seal claim of this chain."
+    )]
+    SealClaimUnexpectedLength {
+        /// The bytes the value carried.
+        bytes: usize,
+        /// The bytes the Authoring Engine expects.
+        expected: usize,
+    },
+
+    /// An equivocation report carried more bytes than the limit allows.
+    #[error(
+        "The equivocation report carries {bytes} bytes and the limit is {limit}. \
+         Fix: report one pair of sealed headers in one message."
+    )]
+    EquivocationReportTooLarge {
+        /// The bytes the report carried.
+        bytes: usize,
+        /// The highest number of bytes one report carries.
+        limit: usize,
+    },
+
+    /// An equivocation report failed to read back.
+    #[error(
+        "The equivocation report failed to read back. Detail: {detail}. \
+         Fix: send a report built by the Authoring Engine of this release."
+    )]
+    EquivocationReportUnreadable {
+        /// The detail the reader reported.
+        detail: String,
+    },
+
+    /// An equivocation proof failed the evidence check.
+    #[error("{detail}")]
+    EquivocationProofRejected {
+        /// The sentence naming the problem and the fix.
+        detail: String,
+    },
+
     /// A participant count would cross the fault bound.
     #[error(
         "A participant count of {total} fails to exceed three times the faulty count of {faulty}. \

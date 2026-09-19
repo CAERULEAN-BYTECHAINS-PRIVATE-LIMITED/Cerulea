@@ -1,7 +1,7 @@
 #![allow(unused_variables, static_mut_refs)]
 use futures::FutureExt;
 use sc_client_api::{Backend, Finalizer};
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration as ServiceSettings, TaskManager};
 use sc_telemetry::TelemetryWorker;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use cerulea_runtime::{self, apis::RuntimeApi, opaque::Block, AccountId, Hash};
@@ -12,6 +12,9 @@ use sp_api::ProvideRuntimeApi;
 use crate::block_tracker::{BlockTracker, BlockTrackerConfig};
 use cerulea_consensus::import_queue::DcfImportQueue;
 use cerulea_consensus::dvf_gossip::{DVF_PROTOCOL_NAME, DvfVotePool, DvfGossipValidator};
+use cerulea_consensus::equivocation_gossip::{
+    EquivocationGossipValidator, EQUIVOCATION_PROTOCOL_NAME, MAX_EQUIVOCATION_REPORT_BYTES,
+};
 
 pub(crate) type FullClient = sc_service::TFullClient<
     Block,
@@ -37,7 +40,7 @@ pub struct NodeConfig {
 }
 
 pub fn new_partial(
-    config: &Configuration,
+    config: &ServiceSettings,
     node_config: &NodeConfig,
 ) -> Result<Service, ServiceError> {
     use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
@@ -256,7 +259,7 @@ pub fn new_partial(
 }
 
 pub fn new_full<N>(
-    config: Configuration,
+    config: ServiceSettings,
     node_config: &NodeConfig,
 ) -> Result<TaskManager, ServiceError>
 where
@@ -371,6 +374,27 @@ where
 	);
 	net_config.add_notification_protocol(dvf_notification_config);
 
+	// Register the equivocation report path. Equivocation means one validator
+	// sealing two different headers for one slot at one rank. A node holding both
+	// headers sends the evidence here. The message limit holds one report, so an
+	// oversized message is refused before any decoding runs.
+	let (equivocation_notification_config, equivocation_notification_service) =
+		N::notification_config(
+			EQUIVOCATION_PROTOCOL_NAME.into(),
+			Vec::new(),
+			MAX_EQUIVOCATION_REPORT_BYTES as u64,
+			None,
+			sc_network::config::SetConfig {
+				in_peers: 0,
+				out_peers: 0,
+				reserved_nodes: Vec::new(),
+				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+			},
+			metrics.clone(),
+			_peer_store_handle.clone(),
+		);
+	net_config.add_notification_protocol(equivocation_notification_config);
+
     let (network, system_rpc_tx, tx_handler_controller, sync_service) =
         sc_service::build_network(sc_service::BuildNetworkParams {
             config: &config,
@@ -402,6 +426,39 @@ where
 	);
 	let dvf_gossip_engine = Arc::new(Mutex::new(dvf_gossip_engine));
 
+	// The equivocation report engine. The validator checks every arriving report
+	// itself, so the node trusts the evidence rather than the peer.
+	let equivocation_queue = std::sync::Arc::new(parking_lot::RwLock::new(
+		cerulea_consensus::engines::authoring::equivocation::ReportQueue::new(),
+	));
+	let equivocation_validator: Arc<dyn sc_network_gossip::Validator<Block>> =
+		Arc::new(EquivocationGossipValidator::<Block>::new(equivocation_queue.clone()));
+	let equivocation_gossip_engine = sc_network_gossip::GossipEngine::new(
+		network.clone(),
+		sync_service.clone(),
+		equivocation_notification_service,
+		EQUIVOCATION_PROTOCOL_NAME,
+		equivocation_validator,
+		None,
+	);
+	let equivocation_gossip_engine = Arc::new(Mutex::new(equivocation_gossip_engine));
+
+	{
+		let equivocation_gossip_engine = equivocation_gossip_engine.clone();
+		task_manager.spawn_handle().spawn(
+			"equivocation-gossip-engine",
+			None,
+			async move {
+				loop {
+					futures::future::poll_fn(|cx| {
+						let mut engine = equivocation_gossip_engine.lock().unwrap();
+						engine.poll_unpin(cx)
+					}).await;
+				}
+			}
+		);
+	}
+
 	// Spawn Registry Gossip Service Task
 	{
 		let dvf_gossip_engine = dvf_gossip_engine.clone();
@@ -425,17 +482,16 @@ where
 		let keystore = keystore_container.keystore();
 		let mut public_keys = keystore.ed25519_public_keys(cerulea_consensus::CERULEA_KEY_TYPE);
 		
-		// If no Cerulea Registry ed25519 keys exist, generate and insert one automatically.
-		// This mirrors how Substrate handles GRANDPA keys: the node generates its own
-		// ed25519 keypair under the Cerulea Registry key type (b"cerk") on first start.
+		// The node generates and inserts one ed25519 key where the keystore holds
+		// none. The key sits under the Cerulea key type on first start.
 		if public_keys.is_empty() {
 			use sp_core::crypto::{Ss58Codec, Pair};
 			use sp_core::ed25519;
 			
 			// For well-known dev accounts (--alice, --bob, etc.) use deterministic seeds
 			// so the validator set in genesis always matches. For any other node, generate
-			// a fresh random keypair — the private key is persisted in the keystore on disk
-			// so it survives restarts, exactly like GRANDPA keys.
+			// a fresh random keypair. The private key sits in the keystore on disk,
+			// so the key survives a restart.
 			let node_name = config.network.node_name.to_lowercase();
 			
 			let deterministic_seed: Option<&str> = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
@@ -484,10 +540,9 @@ where
 					log::info!("Cerulea: seal key {} and draw key recorded", pair.public().to_ss58check());
 				}
 				None => {
-					// Unknown node name — generate a fresh random ed25519 keypair.
-					// The keystore persists this to disk (base-path/chains/.../keystore/)
-					// so the key survives restarts. This is the same mechanism Substrate
-					// uses for GRANDPA keys when you run `key generate` and insert them.
+					// A node name outside the well known list takes a fresh random
+					// ed25519 keypair. The keystore writes the key to disk under the
+					// chain base path, so the key survives a restart.
 					let (pair, seed_phrase, _) = ed25519::Pair::generate_with_phrase(None);
 					keystore.insert(
 						cerulea_consensus::CERULEA_KEY_TYPE,

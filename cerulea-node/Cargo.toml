@@ -76,6 +76,7 @@ atty = "0.2" # Terminal detection for color support
 
 # === Lifecycle Tracing ===
 once_cell = "1.19" # Lazy static initialization
+parking_lot = "0.12" # Read and write locks the node shares between tasks
 toml = "0.8" # TOML configuration parsing
 
 # === JSON-RPC ===
@@ -160,6 +161,7 @@ pallet-cerulea-rules = { workspace = true, default-features = true }
 pallet-cerulea-audit = { workspace = true, default-features = true }
 pallet-cerulea-relayer = { workspace = true, default-features = true }
 pallet-cerulea-tier = { workspace = true, default-features = true }
+pallet-cerulea-custody = { workspace = true, default-features = true }
 pallet-timestamp = { workspace = true, default-features = true }
 proptest = "1.0"
 env_logger = "0.10"

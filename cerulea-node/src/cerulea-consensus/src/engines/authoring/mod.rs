@@ -7,6 +7,7 @@
 
 pub mod committee;
 pub mod draw;
+pub mod equivocation;
 pub mod fallback;
 pub mod gate;
 pub mod seal;
@@ -31,4 +32,12 @@ pub use gate::{AuthorGate, AuthorTicket, GateDecision, StandDown};
 pub use draw::{
     derive_slot_seed, draw, draw_from_keystore, draw_value, epoch_draw, epoch_draw_from_keystore,
     verify_draw, verify_epoch_draw, verify_result, DrawInput, DrawProof, DrawResult,
+};
+
+pub use equivocation::{
+    accept_report, check_proof, head_key, read_report, sealed_head, sealed_head_of,
+    verify_equivocation, EquivocationFacts, EquivocationFault, EquivocationProof,
+    EquivocationReport, EquivocationTracker, HeadKey, ReportQueue, SealedHead,
+    DEFAULT_TRACKED_HEADS, DEFAULT_TRACKED_SLOTS, EQUIVOCATION_PROTOCOL_NAME,
+    MAX_EQUIVOCATION_REPORT_BYTES,
 };

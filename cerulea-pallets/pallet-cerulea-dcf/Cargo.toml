@@ -21,6 +21,7 @@ sp-core.workspace = true
 sp-runtime.workspace = true
 sp-api.workspace = true
 sp-io.workspace = true
+cerulea-primitives = { workspace = true, default-features = false }
 pallet-timestamp = { workspace = true, default-features = false }
 pallet-cerulea-pos = { path = "../pallet-cerulea-pos", default-features = false }
 pallet-cerulea-poi = { path = "../pallet-cerulea-poi", default-features = false }
@@ -48,6 +49,7 @@ std = [
 	"sp-runtime/std",
 	"sp-api/std",
 	"sp-io/std",
+	"cerulea-primitives/std",
 	"pallet-timestamp/std",
 	"pallet-cerulea-pos/std",
 	"pallet-cerulea-poi/std",

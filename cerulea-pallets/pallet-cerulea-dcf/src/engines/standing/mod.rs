@@ -3,14 +3,16 @@
 //! One composite measure drives four engines. The Trust Score. Nothing else
 //! governs validator behaviour.
 //!
-//! Five files carry the work. `score` composes the Trust Score from its
+//! Six files carry the work. `score` composes the Trust Score from its
 //! components. `accumulate` raises standing through service over a ramp period.
 //! `sampling` draws the verification sample and scores the reports. `decay`
 //! lowers standing during inactivity. `reset` returns standing to zero on
-//! proven misconduct.
+//! proven misconduct. `equivocation` records the fault a proven equivocation
+//! leaves behind.
 
 pub mod accumulate;
 pub mod decay;
+pub mod equivocation;
 pub mod reset;
 pub mod sampling;
 pub mod score;
@@ -21,6 +23,8 @@ pub use accumulate::{
 };
 
 pub use decay::{decay_once, decayed, epochs_until_floor, idle_epochs, DecaySettings};
+
+pub use equivocation::{fault_record, FaultKey, FaultRecord, EQUIVOCATION_PLAIN_LANGUAGE};
 
 pub use reset::{reset, Misconduct, ResetRecord};
 

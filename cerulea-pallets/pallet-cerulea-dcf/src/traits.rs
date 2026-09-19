@@ -93,6 +93,24 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     /// Updates the active validator set list.
     fn update_active_validators(active: alloc::vec::Vec<AccountId>);
 
+    /// Returns the validator account that registered one slot draw key.
+    ///
+    /// The Authoring Engine records the draw key of each validator. The
+    /// equivocation evidence path reads the owner back, so a proof naming a
+    /// draw key reaches the account whose standing the reset returns to zero.
+    fn draw_key_owner(_draw_key: &[u8; 32]) -> Option<AccountId> {
+        None
+    }
+
+    /// Returns the block seal key recorded for one validator.
+    ///
+    /// The seal key signs every block seal. The equivocation evidence path
+    /// compares the key the proof names against the recorded key, so evidence
+    /// built from a retired key carries no penalty.
+    fn validator_seal_key(_validator: &AccountId) -> Option<[u8; 32]> {
+        None
+    }
+
     /// Returns the block number when a validator joined.
     fn get_validator_join_time(validator: &AccountId) -> Option<u32>;
 

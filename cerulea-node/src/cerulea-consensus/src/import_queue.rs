@@ -21,9 +21,23 @@
 //!
 //! Checks two, three and four run inside `engines::authoring::verify`. Import
 //! builds the slot context from the chain and hands the work to the engine.
+//!
+//! # Equivocation detection
+//!
+//! Import keeps the sealed head of every block it accepts. A second head for
+//! one slot, one rank and one author seal key completes an equivocation proof.
+//! The queue holds the proof and raises an alert in the log. The node then
+//! submits the evidence extrinsic to the framework pallet, which returns the
+//! standing of that validator to zero and records the fault. A peer that saw
+//! only one of the two headers learns of the other through a report, and
+//! [`DcfImportQueue::accept_equivocation_report`] checks that report before the
+//! queue takes it.
 
 use crate::engines::authoring::committee::SlotCommittee;
 use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
+use crate::engines::authoring::equivocation::{
+    accept_report, EquivocationProof, EquivocationTracker, ReportQueue,
+};
 use crate::engines::authoring::fallback::{AuthoringPolicy, SlotSchedule};
 use crate::engines::authoring::seal::{extract_seal, BlockSeal, ValidatorKeys};
 use crate::engines::authoring::verify::{verify_seal, KeyRegistry};
@@ -31,9 +45,10 @@ use crate::engines::{CommitteeMember, Rank, Slot};
 use crate::metrics::ConsensusMetrics;
 use crate::types::ValidatorMetrics;
 use cerulea_runtime::AccountId;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::CeruleaAuthoringApi;
+use parking_lot::RwLock;
 use sc_client_api::Backend;
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult, Verifier};
 use sp_api::ProvideRuntimeApi;
@@ -103,6 +118,8 @@ where
     client: Arc<C>,
     metrics: ValidatorMetrics,
     consensus_metrics: Option<ConsensusMetrics>,
+    equivocation: Arc<RwLock<EquivocationTracker>>,
+    reports: Arc<RwLock<ReportQueue>>,
     _phantom: std::marker::PhantomData<(B, BE)>,
 }
 
@@ -119,6 +136,8 @@ where
             client,
             metrics: ValidatorMetrics::default(),
             consensus_metrics: None,
+            equivocation: Arc::new(RwLock::new(EquivocationTracker::new())),
+            reports: Arc::new(RwLock::new(ReportQueue::new())),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -129,6 +148,8 @@ where
             client,
             metrics: ValidatorMetrics::default(),
             consensus_metrics: Some(consensus_metrics),
+            equivocation: Arc::new(RwLock::new(EquivocationTracker::new())),
+            reports: Arc::new(RwLock::new(ReportQueue::new())),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -206,17 +227,12 @@ where
         let committee = committee_from_seats(seal.claim.slot, &seats);
         let registry = registry_from_keys(&key_sets);
         let schedule = SlotSchedule::for_slot(seal.claim.slot, AuthoringPolicy::standard());
-        let context = crate::engines::authoring::verify::SlotContext::new(input, committee, schedule);
+        let context =
+            crate::engines::authoring::verify::SlotContext::new(input, committee, schedule);
 
         // Checks two, three and four. Membership, signature and rank timing.
-        let verified = verify_seal(
-            header,
-            &seal,
-            &context,
-            &registry,
-            seal.claim.moment_ms,
-        )
-        .map_err(|reason| reason.to_string())?;
+        let verified = verify_seal(header, &seal, &context, &registry, seal.claim.moment_ms)
+            .map_err(|reason| reason.to_string())?;
 
         let author = author_account(&seal);
 
@@ -257,11 +273,83 @@ where
             ));
         }
 
+        // The sealed head joins the equivocation memory. A second head for this
+        // slot, this rank and this seal key completes the evidence.
+        self.observe_for_equivocation(header, &seal);
+
         Ok(SealedAuthorship {
             author,
             slot: verified.slot,
             rank: verified.rank.0,
         })
+    }
+
+    /// Keep the sealed head of one block and raise any equivocation it shows.
+    ///
+    /// The call runs on every block that passes the seal checks. A header
+    /// whose claim runs to an unexpected length leaves the memory untouched.
+    pub fn observe_for_equivocation(&self, header: &B::Header, seal: &BlockSeal) {
+        let detected = {
+            let mut tracker = self.equivocation.write();
+            match tracker.observe_header(header, seal) {
+                Ok(found) => found,
+                Err(reason) => {
+                    debug!(
+                        "Authoring Engine equivocation: the sealed head was set aside. {}",
+                        reason
+                    );
+                    None
+                }
+            }
+        };
+        if let Some(proof) = detected {
+            self.raise_equivocation(proof);
+        }
+    }
+
+    /// Place one proof in the queue and raise the alert.
+    fn raise_equivocation(&self, proof: EquivocationProof) {
+        let placed = self.reports.write().place(proof);
+        if placed {
+            warn!(
+                "Authoring Engine equivocation: validator {:?} sealed two headers for slot {} at                  rank {}. The evidence goes to the framework pallet and standing returns to zero.",
+                proof.first.seal_key(),
+                proof.first.slot(),
+                proof.first.rank()
+            );
+            if let Some(metrics) = &self.consensus_metrics {
+                metrics.record_author_mismatch();
+            }
+        }
+    }
+
+    /// Accept one equivocation report arriving from a peer.
+    ///
+    /// The byte bound runs before any decoding. The evidence check then runs
+    /// over the whole proof, so the node trusts no peer. The call reports the
+    /// facts the proof states.
+    pub fn accept_equivocation_report(
+        &self,
+        bytes: &[u8],
+    ) -> Result<crate::engines::authoring::equivocation::EquivocationFacts, String> {
+        let (report, facts) = accept_report(bytes).map_err(|reason| reason.to_string())?;
+        self.raise_equivocation(report.proof);
+        Ok(facts)
+    }
+
+    /// The proofs waiting for the evidence extrinsic.
+    pub fn equivocation_reports(&self) -> Vec<EquivocationProof> {
+        self.reports.read().held()
+    }
+
+    /// Take every waiting proof out for submission.
+    pub fn take_equivocation_reports(&self) -> Vec<EquivocationProof> {
+        self.reports.write().drain()
+    }
+
+    /// The number of equivocations this node has detected.
+    pub fn equivocation_count(&self) -> u64 {
+        self.equivocation.read().detections()
     }
 }
 
@@ -361,8 +449,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engines::authoring::draw::draw;
-    use crate::engines::authoring::seal::{seal_and_apply, SealClaim};
+    use crate::engines::authoring::draw::{draw, verify_result};
+    use crate::engines::authoring::seal::{check_seal_signature, seal_and_apply, SealClaim};
     use crate::engines::Rank;
     use crate::CERULEA_KEY_TYPE;
     use sp_core::{ed25519, sr25519, Pair as PairTrait};
@@ -421,7 +509,7 @@ mod tests {
         let mut head = header(4);
         let seed = derive_slot_seed(head.parent_hash().as_ref(), Slot(4));
         let input = DrawInput::new(Slot(4), seed);
-        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input));
+        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input), 0);
         let seal = seal_and_apply(&keystore, &mut head, claim).expect("the keystore seals it");
         assert_eq!(author_account(&seal), AccountId::from(seal_key.0));
         check_seal_signature(&head, &seal).expect("the seal checks out");
@@ -438,7 +526,7 @@ mod tests {
         let mut head = header(4);
         let seed = derive_slot_seed(head.parent_hash().as_ref(), Slot(4));
         let input = DrawInput::new(Slot(4), seed);
-        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input));
+        let claim = SealClaim::new(Slot(4), Rank::FIRST, seal_key, draw(&draw_pair, &input), 0);
         let seal = seal_and_apply(&keystore, &mut head, claim).expect("the keystore seals it");
         let mut forged = seal.clone();
         forged.claim.author = ed25519::Pair::from_seed(&[1u8; 32]).public();
