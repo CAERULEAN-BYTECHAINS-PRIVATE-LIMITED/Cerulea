@@ -54,7 +54,8 @@ pub use authoring::{
 };
 
 pub use commit::{
-    cast_vote, check_vote, vote_payload, CommitVote, SignatureCollector, VoteAdmission,
+    cast_vote, check_vote, vote_payload, AggregateSignature, CommitVote, SignatureCollector,
+    SignerBitmap, VoteAdmission,
 };
 
 pub use execution::{
@@ -858,6 +859,52 @@ pub enum EngineError {
         slot: u64,
         /// The moment the vote arrived, in milliseconds.
         moment_ms: u64,
+    },
+
+    /// A bitmap position sits outside the validator set.
+    #[error(
+        "Position {position} sits outside a validator set of {members} members.          Fix: build the bitmap from the validator set of that slot."
+    )]
+    BitmapPositionOutside {
+        /// The position the caller named.
+        position: usize,
+        /// The number of members the set holds.
+        members: usize,
+    },
+
+    /// An aggregate envelope carried an unknown scheme number.
+    #[error(
+        "The aggregate signature carries scheme {scheme} and this release reads scheme one.          Fix: upgrade the node to a release that reads that scheme."
+    )]
+    AggregateSchemeUnknown {
+        /// The scheme number the envelope carried.
+        scheme: u8,
+    },
+
+    /// An aggregate bitmap failed the shape check.
+    #[error(
+        "The aggregate signer bitmap fails the shape check.          Fix: build the bitmap from the validator set of that slot."
+    )]
+    AggregateBitmapMalformed,
+
+    /// An aggregate named a different number of signers than it carried.
+    #[error(
+        "The aggregate names {named} signers and carries {carried} signatures.          Fix: place one signature for each position the bitmap names."
+    )]
+    AggregateCountMismatch {
+        /// The number of positions the bitmap named.
+        named: usize,
+        /// The number of signatures the envelope carried.
+        carried: usize,
+    },
+
+    /// One signature inside an aggregate failed the check.
+    #[error(
+        "The signature at position {position} of the aggregate failed the check.          Fix: place the signature of the validator holding that position."
+    )]
+    AggregateSignatureRejected {
+        /// The position the signature sat at.
+        position: usize,
     },
 
     /// The eligible validator set held no members.

@@ -10,8 +10,10 @@
 //! enforced before pool admission. The propagation message set carries a
 //! capacity limit with least recently used eviction.
 
+pub mod aggregate;
 pub mod collect;
 
+pub use aggregate::{AggregateSignature, SignerBitmap, SCHEME_ENVELOPE_V1};
 pub use collect::{
     cast_vote, check_vote, vote_payload, CommitVote, SignatureCollector, VoteAdmission,
 };
