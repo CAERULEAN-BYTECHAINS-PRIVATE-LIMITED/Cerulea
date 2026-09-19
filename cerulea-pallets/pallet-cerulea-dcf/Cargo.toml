@@ -24,6 +24,7 @@ sp-io.workspace = true
 pallet-timestamp = { workspace = true, default-features = false }
 pallet-cerulea-pos = { path = "../pallet-cerulea-pos", default-features = false }
 pallet-cerulea-poi = { path = "../pallet-cerulea-poi", default-features = false }
+pallet-cerulea-custody = { path = "../pallet-cerulea-custody", default-features = false }
 serde.workspace = true
 log = { version = "0.4", default-features = false }
 
@@ -50,6 +51,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-cerulea-pos/std",
 	"pallet-cerulea-poi/std",
+	"pallet-cerulea-custody/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
