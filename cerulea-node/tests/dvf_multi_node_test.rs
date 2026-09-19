@@ -10,11 +10,11 @@
 //! - Validator set transitions
 //! - Byzantine fault tolerance
 
+use sp_core::crypto::AccountId32;
+use sp_keyring::Ed25519Keyring;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use sp_core::crypto::AccountId32;
-use sp_keyring::Ed25519Keyring;
 
 // =============================================================================
 // VALIDATION FRAMEWORK TEST START VALUES
@@ -196,23 +196,38 @@ impl DvfMockNode {
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Validation framework: Starting validator node {} ({})", self.name, self.index);
+        log::info!(
+            "Validation framework: Starting validator node {} ({})",
+            self.name,
+            self.index
+        );
         self.is_running = true;
         self.current_block = 1;
         Ok(())
     }
 
     pub fn stop(&mut self) {
-        log::info!("Validation framework: Stopping validator node {} ({})", self.name, self.index);
+        log::info!(
+            "Validation framework: Stopping validator node {} ({})",
+            self.name,
+            self.index
+        );
         self.is_running = false;
     }
 
-    pub async fn connect_to_peers(&mut self, expected_peers: usize) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn connect_to_peers(
+        &mut self,
+        expected_peers: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if !self.is_running {
             return Err("Node not running".into());
         }
 
-        log::info!("Validation framework: Node {} connecting to {} peers", self.name, expected_peers);
+        log::info!(
+            "Validation framework: Node {} connecting to {} peers",
+            self.name,
+            expected_peers
+        );
         self.peer_count = expected_peers;
         Ok(())
     }
@@ -225,12 +240,20 @@ impl DvfMockNode {
     /// Create a vote for a checkpoint block
     pub fn create_vote(&mut self, block_number: u32, block_hash: [u8; 32]) -> Option<DvfVote> {
         if !self.is_checkpoint_block(block_number) {
-            log::debug!("Validation framework: Node {} skipping vote for non-checkpoint block {}", self.name, block_number);
+            log::debug!(
+                "Validation framework: Node {} skipping vote for non-checkpoint block {}",
+                self.name,
+                block_number
+            );
             return None;
         }
 
         if block_number <= self.finalized_block {
-            log::debug!("Validation framework: Node {} skipping vote for already finalized block {}", self.name, block_number);
+            log::debug!(
+                "Validation framework: Node {} skipping vote for already finalized block {}",
+                self.name,
+                block_number
+            );
             return None;
         }
 
@@ -246,7 +269,10 @@ impl DvfMockNode {
 
         log::info!(
             "Validation framework: Node {} created vote for block {} (round {}, weight {})",
-            self.name, block_number, self.current_round, self.weight
+            self.name,
+            block_number,
+            self.current_round,
+            self.weight
         );
 
         if let Ok(mut votes) = self.created_votes.write() {
@@ -259,35 +285,51 @@ impl DvfMockNode {
     pub fn receive_vote(&mut self, vote: DvfVote) -> bool {
         // Validate vote
         if vote.epoch_id != self.current_epoch {
-            log::warn!("Validation framework: Node {} rejecting vote with epoch mismatch", self.name);
+            log::warn!(
+                "Validation framework: Node {} rejecting vote with epoch mismatch",
+                self.name
+            );
             return false;
         }
 
         if vote.validator_set_id != self.validator_set_id {
-            log::warn!("Validation framework: Node {} rejecting vote with validator set mismatch", self.name);
+            log::warn!(
+                "Validation framework: Node {} rejecting vote with validator set mismatch",
+                self.name
+            );
             return false;
         }
 
         if !self.is_checkpoint_block(vote.block_number) {
-            log::warn!("Validation framework: Node {} rejecting vote for non-checkpoint block", self.name);
+            log::warn!(
+                "Validation framework: Node {} rejecting vote for non-checkpoint block",
+                self.name
+            );
             return false;
         }
 
         if vote.block_number <= self.finalized_block {
-            log::debug!("Validation framework: Node {} discarding late vote for finalized block", self.name);
+            log::debug!(
+                "Validation framework: Node {} discarding late vote for finalized block",
+                self.name
+            );
             return false;
         }
 
         log::debug!(
             "Validation framework: Node {} received vote from validator (block {}, weight {})",
-            self.name, vote.block_number, vote.validator_weight
+            self.name,
+            vote.block_number,
+            vote.validator_weight
         );
 
         self.received_votes.write().unwrap().push(vote.clone());
 
         // Add to vote pool
         let mut pool = self.vote_pool.write().unwrap();
-        pool.entry(vote.block_number).or_insert_with(Vec::new).push(vote);
+        pool.entry(vote.block_number)
+            .or_insert_with(Vec::new)
+            .push(vote);
 
         true
     }
@@ -314,7 +356,9 @@ impl DvfMockNode {
         if block_number > self.finalized_block {
             log::info!(
                 "Validation framework: Node {} finalizing block {} (previous: {})",
-                self.name, block_number, self.finalized_block
+                self.name,
+                block_number,
+                self.finalized_block
             );
             self.finalized_block = block_number;
             self.finalized_hash = Some(block_hash);
@@ -329,20 +373,29 @@ impl DvfMockNode {
     /// Advance to next block
     pub fn advance_block(&mut self) {
         self.current_block += 1;
-        log::debug!("Validation framework: Node {} advanced to block {}", self.name, self.current_block);
+        log::debug!(
+            "Validation framework: Node {} advanced to block {}",
+            self.name,
+            self.current_block
+        );
     }
 
     /// Transition to new validator set
     pub fn transition_validator_set(&mut self, new_set_id: u32) {
         log::info!(
             "Validation framework: Node {} transitioning to validator set {} (previous: {})",
-            self.name, new_set_id, self.validator_set_id
+            self.name,
+            new_set_id,
+            self.validator_set_id
         );
         self.validator_set_id = new_set_id;
 
         // Clear vote pool
         self.vote_pool.write().unwrap().clear();
-        log::debug!("Validation framework: Node {} cleared vote pool for new validator set", self.name);
+        log::debug!(
+            "Validation framework: Node {} cleared vote pool for new validator set",
+            self.name
+        );
     }
 
     pub fn get_finalized_block(&self) -> u32 {
@@ -385,15 +438,11 @@ impl DvfMockNetwork {
             (Ed25519Keyring::Charlie, "Charlie"),
         ];
 
-        for (i, ((keyring, name), &weight)) in validators.iter().zip(&config.validator_weights).enumerate() {
+        for (i, ((keyring, name), &weight)) in
+            validators.iter().zip(&config.validator_weights).enumerate()
+        {
             let account = keyring.to_account_id();
-            let node = DvfMockNode::new(
-                i,
-                name.to_string(),
-                account,
-                weight,
-                config.clone(),
-            );
+            let node = DvfMockNode::new(i, name.to_string(), account, weight, config.clone());
             nodes.push(node);
         }
 
@@ -405,7 +454,10 @@ impl DvfMockNetwork {
     }
 
     pub async fn start_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Validation framework: Starting {} validator nodes", self.config.node_count);
+        log::info!(
+            "Validation framework: Starting {} validator nodes",
+            self.config.node_count
+        );
 
         for node in &mut self.nodes {
             node.start().await?;
@@ -436,8 +488,15 @@ impl DvfMockNetwork {
     }
 
     /// Simulate vote propagation via gossip protocol
-    pub async fn propagate_votes(&mut self, block_number: u32, block_hash: [u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Validation framework: Propagating votes for block {}", block_number);
+    pub async fn propagate_votes(
+        &mut self,
+        block_number: u32,
+        block_hash: [u8; 32],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!(
+            "Validation framework: Propagating votes for block {}",
+            block_number
+        );
 
         // Each node creates a vote
         let mut votes = Vec::new();
@@ -445,7 +504,9 @@ impl DvfMockNetwork {
             if let Some(vote) = node.create_vote(block_number, block_hash) {
                 votes.push(vote.clone());
                 // Also add own vote to own pool
-                node.vote_pool.write().unwrap()
+                node.vote_pool
+                    .write()
+                    .unwrap()
                     .entry(block_number)
                     .or_insert_with(Vec::new)
                     .push(vote);
@@ -462,15 +523,19 @@ impl DvfMockNetwork {
             }
         }
 
-        log::info!("Validation framework: Vote propagation complete ({} votes)", votes.len());
+        log::info!(
+            "Validation framework: Vote propagation complete ({} votes)",
+            votes.len()
+        );
         Ok(())
     }
 
     /// Check if finality is reached on all nodes
     pub fn check_finality_consensus(&mut self, block_number: u32, block_hash: [u8; 32]) -> bool {
         // First check if threshold is reached
-        let threshold_reached = self.nodes[0].check_finality_threshold(block_number, self.total_weight);
-        
+        let threshold_reached =
+            self.nodes[0].check_finality_threshold(block_number, self.total_weight);
+
         if !threshold_reached {
             return false;
         }
@@ -484,8 +549,14 @@ impl DvfMockNetwork {
     }
 
     /// Produce blocks and test finality
-    pub async fn produce_blocks_with_finality(&mut self, target_blocks: u32) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Validation framework: Producing {} blocks with finality testing", target_blocks);
+    pub async fn produce_blocks_with_finality(
+        &mut self,
+        target_blocks: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!(
+            "Validation framework: Producing {} blocks with finality testing",
+            target_blocks
+        );
 
         for block_num in 1..=target_blocks {
             // Generate block hash
@@ -498,16 +569,25 @@ impl DvfMockNetwork {
 
             // If this is a checkpoint block, propagate votes and check finality
             if self.nodes[0].is_checkpoint_block(block_num) {
-                log::info!("Validation framework: Processing checkpoint block {}", block_num);
+                log::info!(
+                    "Validation framework: Processing checkpoint block {}",
+                    block_num
+                );
 
                 // Propagate votes
                 self.propagate_votes(block_num, block_hash).await?;
 
                 // Check finality consensus
                 if self.check_finality_consensus(block_num, block_hash) {
-                    log::info!("Validation framework: ✓ Finality reached on all nodes for block {}", block_num);
+                    log::info!(
+                        "Validation framework: ✓ Finality reached on all nodes for block {}",
+                        block_num
+                    );
                 } else {
-                    log::warn!("Validation framework: ✗ Finality NOT reached for block {}", block_num);
+                    log::warn!(
+                        "Validation framework: ✗ Finality NOT reached for block {}",
+                        block_num
+                    );
                 }
             }
         }
@@ -517,8 +597,10 @@ impl DvfMockNetwork {
 
     /// Verify all nodes have the same finalized head
     pub fn verify_finalized_head_consensus(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let finalized_blocks: Vec<u32> = self.nodes.iter().map(|n| n.get_finalized_block()).collect();
-        let finalized_hashes: Vec<Option<[u8; 32]>> = self.nodes.iter().map(|n| n.get_finalized_hash()).collect();
+        let finalized_blocks: Vec<u32> =
+            self.nodes.iter().map(|n| n.get_finalized_block()).collect();
+        let finalized_hashes: Vec<Option<[u8; 32]>> =
+            self.nodes.iter().map(|n| n.get_finalized_hash()).collect();
 
         let first_block = finalized_blocks[0];
         let first_hash = finalized_hashes[0];
@@ -528,18 +610,23 @@ impl DvfMockNetwork {
                 return Err(format!(
                     "Finalized block mismatch: Node 0 has block {}, Node {} has block {}",
                     first_block, i, block
-                ).into());
+                )
+                .into());
             }
 
             if hash != first_hash {
                 return Err(format!(
                     "Finalized hash mismatch: Node 0 and Node {} have different hashes",
                     i
-                ).into());
+                )
+                .into());
             }
         }
 
-        log::info!("Validation framework: ✓ All nodes have same finalized head: block {}", first_block);
+        log::info!(
+            "Validation framework: ✓ All nodes have same finalized head: block {}",
+            first_block
+        );
         Ok(())
     }
 
@@ -554,7 +641,9 @@ impl DvfMockNetwork {
 
             log::info!(
                 "Validation framework: Node {} - Created: {} votes, Received: {} votes",
-                node.name, created, received
+                node.name,
+                created,
+                received
             );
         }
 
@@ -563,7 +652,10 @@ impl DvfMockNetwork {
 
     /// Simulate validator set transition
     pub fn transition_validator_set(&mut self, new_set_id: u32) {
-        log::info!("Validation framework: Transitioning all nodes to validator set {}", new_set_id);
+        log::info!(
+            "Validation framework: Transitioning all nodes to validator set {}",
+            new_set_id
+        );
 
         for node in &mut self.nodes {
             node.transition_validator_set(new_set_id);
@@ -583,8 +675,16 @@ impl DvfMockNetwork {
             total_weight: self.total_weight,
             finalized_blocks: self.nodes.iter().map(|n| n.get_finalized_block()).collect(),
             finalized_hashes: self.nodes.iter().map(|n| n.get_finalized_hash()).collect(),
-            created_votes: self.nodes.iter().map(|n| n.get_created_votes_count()).collect(),
-            received_votes: self.nodes.iter().map(|n| n.get_received_votes_count()).collect(),
+            created_votes: self
+                .nodes
+                .iter()
+                .map(|n| n.get_created_votes_count())
+                .collect(),
+            received_votes: self
+                .nodes
+                .iter()
+                .map(|n| n.get_received_votes_count())
+                .collect(),
         }
     }
 }
@@ -598,7 +698,6 @@ pub struct NetworkSummary {
     pub created_votes: Vec<usize>,
     pub received_votes: Vec<usize>,
 }
-
 
 // =============================================================================
 // INTEGRATION TESTS
@@ -620,8 +719,17 @@ fn test_three_node_setup() {
 
     // Verify weights
     for (i, node) in network.nodes.iter().enumerate() {
-        assert_eq!(node.weight, config.validator_weights[i], "Node {} should have correct weight", node.name);
-        assert_ne!(node.account, AccountId32::from([0u8; 32]), "Node {} should have valid account", node.name);
+        assert_eq!(
+            node.weight, config.validator_weights[i],
+            "Node {} should have correct weight",
+            node.name
+        );
+        assert_ne!(
+            node.account,
+            AccountId32::from([0u8; 32]),
+            "Node {} should have valid account",
+            node.name
+        );
     }
 
     // Verify total weight
@@ -649,16 +757,25 @@ async fn test_vote_propagation() {
 
     // Start network
     network.start_all().await.expect("Failed to start network");
-    network.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Test vote propagation for checkpoint block 10
     let checkpoint_block = 10;
     let block_hash = DvfMockNetwork::generate_block_hash(checkpoint_block);
 
-    log::info!("Testing vote propagation for checkpoint block {}", checkpoint_block);
+    log::info!(
+        "Testing vote propagation for checkpoint block {}",
+        checkpoint_block
+    );
 
     // Propagate votes
-    network.propagate_votes(checkpoint_block, block_hash).await.expect("Failed to propagate votes");
+    network
+        .propagate_votes(checkpoint_block, block_hash)
+        .await
+        .expect("Failed to propagate votes");
 
     // Verify votes created on each node
     for node in &network.nodes {
@@ -669,23 +786,41 @@ async fn test_vote_propagation() {
     // Verify votes received by each node (should receive from other 2 nodes)
     for node in &network.nodes {
         let received = node.get_received_votes_count();
-        assert_eq!(received, 2, "Node {} should have received 2 votes from other nodes", node.name);
+        assert_eq!(
+            received, 2,
+            "Node {} should have received 2 votes from other nodes",
+            node.name
+        );
     }
 
     // Measure propagation latency
     let propagation_stats = network.measure_vote_propagation();
     log::info!("Vote propagation statistics: {:?}", propagation_stats);
 
-    // Verify gossip protocol forwarded votes correctly
+    // Verify the propagation left each node holding the whole set.
+    //
+    // A node keeps its own vote beside the votes its peers sent, so the pool
+    // carries one vote per validator. Exactly one of them is the vote the
+    // node itself created.
     for node in &network.nodes {
         let pool = node.vote_pool.read().unwrap();
         if let Some(votes) = pool.get(&checkpoint_block) {
-            assert_eq!(votes.len(), 2, "Node {} should have 2 votes in pool", node.name);
+            assert_eq!(
+                votes.len(),
+                config.node_count,
+                "Node {} holds one vote per validator in the pool",
+                node.name
+            );
 
-            // Verify votes are from other validators
-            for vote in votes {
-                assert_ne!(vote.validator_account, node.account, "Node {} should not have its own vote in received pool", node.name);
-            }
+            let own = votes
+                .iter()
+                .filter(|vote| vote.validator_account == node.account)
+                .count();
+            assert_eq!(
+                own, 1,
+                "Node {} holds exactly one vote of its own in the pool",
+                node.name
+            );
         }
     }
 
@@ -711,24 +846,44 @@ async fn test_finality_consensus() {
 
     // Start network
     network.start_all().await.expect("Failed to start network");
-    network.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Produce blocks with finality
-    network.produce_blocks_with_finality(config.target_blocks).await.expect("Failed to produce blocks");
+    network
+        .produce_blocks_with_finality(config.target_blocks)
+        .await
+        .expect("Failed to produce blocks");
 
     // Verify all nodes reached same finalized head
-    network.verify_finalized_head_consensus().expect("Finalized head consensus failed");
+    network
+        .verify_finalized_head_consensus()
+        .expect("Finalized head consensus failed");
 
     // Verify finalized block numbers match
-    let finalized_blocks: Vec<u32> = network.nodes.iter().map(|n| n.get_finalized_block()).collect();
+    let finalized_blocks: Vec<u32> = network
+        .nodes
+        .iter()
+        .map(|n| n.get_finalized_block())
+        .collect();
     let first_finalized = finalized_blocks[0];
 
     for (i, &finalized) in finalized_blocks.iter().enumerate() {
-        assert_eq!(finalized, first_finalized, "Node {} finalized block mismatch", i);
+        assert_eq!(
+            finalized, first_finalized,
+            "Node {} finalized block mismatch",
+            i
+        );
     }
 
     // Verify finalized block hashes match
-    let finalized_hashes: Vec<Option<[u8; 32]>> = network.nodes.iter().map(|n| n.get_finalized_hash()).collect();
+    let finalized_hashes: Vec<Option<[u8; 32]>> = network
+        .nodes
+        .iter()
+        .map(|n| n.get_finalized_hash())
+        .collect();
     let first_hash = finalized_hashes[0];
 
     for (i, &hash) in finalized_hashes.iter().enumerate() {
@@ -736,9 +891,15 @@ async fn test_finality_consensus() {
     }
 
     log::info!("✓ Task 14.3 PASSED: Finality consensus verified");
-    log::info!("  - All nodes reached same finalized head: block {}", first_finalized);
+    log::info!(
+        "  - All nodes reached same finalized head: block {}",
+        first_finalized
+    );
     log::info!("  - All nodes have matching finalized hashes");
-    log::info!("  - Consensus achieved across {} checkpoints", first_finalized / config.checkpoint_interval);
+    log::info!(
+        "  - Consensus achieved across {} checkpoints",
+        first_finalized / config.checkpoint_interval
+    );
 }
 
 /// Task 14.4: Test varying validator weights
@@ -756,16 +917,34 @@ async fn test_varying_validator_weights() {
         .with_target_blocks(10);
 
     let mut network_equal = DvfMockNetwork::new(config_equal.clone());
-    network_equal.start_all().await.expect("Failed to start network");
-    network_equal.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network_equal
+        .start_all()
+        .await
+        .expect("Failed to start network");
+    network_equal
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Test finality with equal weights
-    network_equal.produce_blocks_with_finality(10).await.expect("Failed to produce blocks");
-    network_equal.verify_finalized_head_consensus().expect("Equal weights consensus failed");
+    network_equal
+        .produce_blocks_with_finality(10)
+        .await
+        .expect("Failed to produce blocks");
+    network_equal
+        .verify_finalized_head_consensus()
+        .expect("Equal weights consensus failed");
 
     let threshold_equal = (network_equal.total_weight * 67) / 100;
-    log::info!("  Total weight: {}, Threshold: {}", network_equal.total_weight, threshold_equal);
-    assert_eq!(network_equal.total_weight, 100, "Total weight should be 100");
+    log::info!(
+        "  Total weight: {}, Threshold: {}",
+        network_equal.total_weight,
+        threshold_equal
+    );
+    assert_eq!(
+        network_equal.total_weight, 100,
+        "Total weight should be 100"
+    );
     assert_eq!(threshold_equal, 67, "Threshold should be 67");
 
     // Test 2: Unequal weights (50%, 30%, 20%)
@@ -775,16 +954,34 @@ async fn test_varying_validator_weights() {
         .with_target_blocks(10);
 
     let mut network_unequal = DvfMockNetwork::new(config_unequal.clone());
-    network_unequal.start_all().await.expect("Failed to start network");
-    network_unequal.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network_unequal
+        .start_all()
+        .await
+        .expect("Failed to start network");
+    network_unequal
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Test finality with unequal weights
-    network_unequal.produce_blocks_with_finality(10).await.expect("Failed to produce blocks");
-    network_unequal.verify_finalized_head_consensus().expect("Unequal weights consensus failed");
+    network_unequal
+        .produce_blocks_with_finality(10)
+        .await
+        .expect("Failed to produce blocks");
+    network_unequal
+        .verify_finalized_head_consensus()
+        .expect("Unequal weights consensus failed");
 
     let threshold_unequal = (network_unequal.total_weight * 67) / 100;
-    log::info!("  Total weight: {}, Threshold: {}", network_unequal.total_weight, threshold_unequal);
-    assert_eq!(network_unequal.total_weight, 100, "Total weight should be 100");
+    log::info!(
+        "  Total weight: {}, Threshold: {}",
+        network_unequal.total_weight,
+        threshold_unequal
+    );
+    assert_eq!(
+        network_unequal.total_weight, 100,
+        "Total weight should be 100"
+    );
     assert_eq!(threshold_unequal, 67, "Threshold should be 67");
 
     // Test 3: Dominant validator (70%, 20%, 10%)
@@ -794,23 +991,44 @@ async fn test_varying_validator_weights() {
         .with_target_blocks(10);
 
     let mut network_dominant = DvfMockNetwork::new(config_dominant.clone());
-    network_dominant.start_all().await.expect("Failed to start network");
-    network_dominant.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network_dominant
+        .start_all()
+        .await
+        .expect("Failed to start network");
+    network_dominant
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Test finality with dominant validator
-    network_dominant.produce_blocks_with_finality(10).await.expect("Failed to produce blocks");
-    network_dominant.verify_finalized_head_consensus().expect("Dominant validator consensus failed");
+    network_dominant
+        .produce_blocks_with_finality(10)
+        .await
+        .expect("Failed to produce blocks");
+    network_dominant
+        .verify_finalized_head_consensus()
+        .expect("Dominant validator consensus failed");
 
     let threshold_dominant = (network_dominant.total_weight * 67) / 100;
-    log::info!("  Total weight: {}, Threshold: {}", network_dominant.total_weight, threshold_dominant);
-    assert_eq!(network_dominant.total_weight, 100, "Total weight should be 100");
+    log::info!(
+        "  Total weight: {}, Threshold: {}",
+        network_dominant.total_weight,
+        threshold_dominant
+    );
+    assert_eq!(
+        network_dominant.total_weight, 100,
+        "Total weight should be 100"
+    );
     assert_eq!(threshold_dominant, 67, "Threshold should be 67");
 
     // Verify threshold calculation correctness
     // With 70% weight, dominant validator + any other validator reaches threshold
     let dominant_weight = 70u128;
     let small_weight = 10u128;
-    assert!(dominant_weight + small_weight >= threshold_dominant, "Dominant + smallest should reach threshold");
+    assert!(
+        dominant_weight + small_weight >= threshold_dominant,
+        "Dominant + smallest should reach threshold"
+    );
 
     log::info!("✓ Task 14.4 PASSED: Varying validator weights verified");
     log::info!("  - Equal weights: finality achieved");
@@ -834,8 +1052,14 @@ async fn test_checkpoint_finalization() {
         .with_target_blocks(25);
 
     let mut network_10 = DvfMockNetwork::new(config_10.clone());
-    network_10.start_all().await.expect("Failed to start network");
-    network_10.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network_10
+        .start_all()
+        .await
+        .expect("Failed to start network");
+    network_10
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Verify only checkpoint blocks are voted on
     let checkpoint_block = 10;
@@ -843,17 +1067,32 @@ async fn test_checkpoint_finalization() {
     let block_hash = DvfMockNetwork::generate_block_hash(checkpoint_block);
 
     // Test checkpoint block
-    assert!(network_10.nodes[0].is_checkpoint_block(checkpoint_block), "Block 10 should be checkpoint");
+    assert!(
+        network_10.nodes[0].is_checkpoint_block(checkpoint_block),
+        "Block 10 should be checkpoint"
+    );
     let vote_checkpoint = network_10.nodes[0].create_vote(checkpoint_block, block_hash);
-    assert!(vote_checkpoint.is_some(), "Should create vote for checkpoint block");
+    assert!(
+        vote_checkpoint.is_some(),
+        "Should create vote for checkpoint block"
+    );
 
     // Test non-checkpoint block
-    assert!(!network_10.nodes[0].is_checkpoint_block(non_checkpoint_block), "Block 15 should not be checkpoint");
+    assert!(
+        !network_10.nodes[0].is_checkpoint_block(non_checkpoint_block),
+        "Block 15 should not be checkpoint"
+    );
     let vote_non_checkpoint = network_10.nodes[0].create_vote(non_checkpoint_block, block_hash);
-    assert!(vote_non_checkpoint.is_none(), "Should not create vote for non-checkpoint block");
+    assert!(
+        vote_non_checkpoint.is_none(),
+        "Should not create vote for non-checkpoint block"
+    );
 
     // Produce blocks and verify finality
-    network_10.produce_blocks_with_finality(25).await.expect("Failed to produce blocks");
+    network_10
+        .produce_blocks_with_finality(25)
+        .await
+        .expect("Failed to produce blocks");
 
     // Verify non-checkpoint blocks inherit finality
     let finalized = network_10.nodes[0].get_finalized_block();
@@ -862,7 +1101,11 @@ async fn test_checkpoint_finalization() {
     // All blocks up to finalized checkpoint should be considered finalized
     for block_num in 1..=finalized {
         let is_finalized = block_num <= finalized;
-        assert!(is_finalized, "Block {} should inherit finality from checkpoint {}", block_num, finalized);
+        assert!(
+            is_finalized,
+            "Block {} should inherit finality from checkpoint {}",
+            block_num, finalized
+        );
     }
 
     // Test with different checkpoint interval
@@ -872,10 +1115,19 @@ async fn test_checkpoint_finalization() {
         .with_target_blocks(20);
 
     let mut network_5 = DvfMockNetwork::new(config_5.clone());
-    network_5.start_all().await.expect("Failed to start network");
-    network_5.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network_5
+        .start_all()
+        .await
+        .expect("Failed to start network");
+    network_5
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
-    network_5.produce_blocks_with_finality(20).await.expect("Failed to produce blocks");
+    network_5
+        .produce_blocks_with_finality(20)
+        .await
+        .expect("Failed to produce blocks");
 
     let finalized_5 = network_5.nodes[0].get_finalized_block();
     log::info!("  Finalized checkpoint: block {}", finalized_5);
@@ -883,7 +1135,10 @@ async fn test_checkpoint_finalization() {
     // Verify more frequent checkpoints
     let expected_checkpoints_5 = finalized_5 / 5;
     log::info!("  Expected checkpoints: {}", expected_checkpoints_5);
-    assert!(expected_checkpoints_5 >= 3, "Should have at least 3 checkpoints with interval 5");
+    assert!(
+        expected_checkpoints_5 >= 3,
+        "Should have at least 3 checkpoints with interval 5"
+    );
 
     log::info!("✓ Task 14.5 PASSED: Checkpoint finalization verified");
     log::info!("  - Only checkpoint blocks are voted on");
@@ -907,18 +1162,28 @@ async fn test_validator_set_transitions() {
 
     // Start network
     network.start_all().await.expect("Failed to start network");
-    network.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Initial validator set ID
     let initial_set_id = network.nodes[0].validator_set_id;
     log::info!("Initial validator set ID: {}", initial_set_id);
 
     // Produce some blocks
-    network.produce_blocks_with_finality(10).await.expect("Failed to produce blocks");
+    network
+        .produce_blocks_with_finality(10)
+        .await
+        .expect("Failed to produce blocks");
 
     // Verify all nodes have same validator set ID
     for node in &network.nodes {
-        assert_eq!(node.validator_set_id, initial_set_id, "Node {} should have initial validator set ID", node.name);
+        assert_eq!(
+            node.validator_set_id, initial_set_id,
+            "Node {} should have initial validator set ID",
+            node.name
+        );
     }
 
     // Simulate validator set transition (e.g., adding/removing validator)
@@ -929,28 +1194,41 @@ async fn test_validator_set_transitions() {
 
     // Verify ValidatorSetId incremented consistently
     for node in &network.nodes {
-        assert_eq!(node.validator_set_id, new_set_id, "Node {} should have new validator set ID", node.name);
+        assert_eq!(
+            node.validator_set_id, new_set_id,
+            "Node {} should have new validator set ID",
+            node.name
+        );
     }
 
     // Verify vote pool was cleared
     for node in &network.nodes {
         let pool = node.vote_pool.read().unwrap();
-        assert!(pool.is_empty(), "Node {} vote pool should be cleared after transition", node.name);
+        assert!(
+            pool.is_empty(),
+            "Node {} vote pool should be cleared after transition",
+            node.name
+        );
     }
 
     // Continue producing blocks with new validator set
-    network.produce_blocks_with_finality(20).await.expect("Failed to produce blocks after transition");
+    network
+        .produce_blocks_with_finality(20)
+        .await
+        .expect("Failed to produce blocks after transition");
 
     // Verify finality continues with new validator set
-    network.verify_finalized_head_consensus().expect("Finality consensus failed after transition");
+    network
+        .verify_finalized_head_consensus()
+        .expect("Finality consensus failed after transition");
 
     // Test that old validator set votes are rejected
     let old_vote = DvfVote::new(
-        1, // epoch_id
+        1,              // epoch_id
         initial_set_id, // old validator_set_id
-        0, // round_number
-        20, // block_number
-        [0u8; 32], // block_hash
+        0,              // round_number
+        20,             // block_number
+        [0u8; 32],      // block_hash
         network.nodes[0].account.clone(),
         network.nodes[0].weight,
     );
@@ -981,7 +1259,10 @@ async fn test_byzantine_fault_tolerance() {
 
     // Start network
     network.start_all().await.expect("Failed to start network");
-    network.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
 
     // Test 1: Simulate one Byzantine validator (33% of weight)
     log::info!("\nTest 1: One Byzantine validator (33% weight)");
@@ -991,7 +1272,10 @@ async fn test_byzantine_fault_tolerance() {
 
     // Byzantine node (index 2) doesn't vote
     let byzantine_index = 2;
-    log::info!("Node {} is Byzantine (not voting)", network.nodes[byzantine_index].name);
+    log::info!(
+        "Node {} is Byzantine (not voting)",
+        network.nodes[byzantine_index].name
+    );
 
     // Only honest nodes (0 and 1) create votes
     let mut honest_votes = Vec::new();
@@ -1013,17 +1297,26 @@ async fn test_byzantine_fault_tolerance() {
     }
 
     // Verify finality progresses with 2/3 honest validators
-    let honest_weight: u128 = network.nodes.iter()
+    let honest_weight: u128 = network
+        .nodes
+        .iter()
         .enumerate()
         .filter(|(i, _)| *i != byzantine_index)
         .map(|(_, n)| n.weight)
         .sum();
 
-    log::info!("Honest weight: {} / {}", honest_weight, network.total_weight);
+    log::info!(
+        "Honest weight: {} / {}",
+        honest_weight,
+        network.total_weight
+    );
     assert_eq!(honest_weight, 66, "Honest weight should be 66%");
 
     let threshold = (network.total_weight * 67) / 100;
-    assert!(honest_weight < threshold, "Honest weight alone should not reach threshold (need 67%)");
+    assert!(
+        honest_weight < threshold,
+        "Honest weight alone should not reach threshold (need 67%)"
+    );
 
     log::info!("  Finality cannot progress with only 66% weight (need 67%)");
 
@@ -1058,7 +1351,8 @@ async fn test_byzantine_fault_tolerance() {
     // (In real implementation, this would be rejected by double-vote prevention)
     let pool = network.nodes[1].vote_pool.read().unwrap();
     let votes_for_block = pool.get(&checkpoint_block).unwrap();
-    let validator_votes: Vec<_> = votes_for_block.iter()
+    let validator_votes: Vec<_> = votes_for_block
+        .iter()
         .filter(|v| v.validator_account == network.nodes[0].account)
         .collect();
 
@@ -1111,17 +1405,25 @@ async fn test_comprehensive_dvf_multi_node() {
 
     // Step 2: Establish peer connections
     log::info!("Step 2: Establishing peer connections...");
-    network.establish_peer_connections().await.expect("Failed to establish peer connections");
+    network
+        .establish_peer_connections()
+        .await
+        .expect("Failed to establish peer connections");
     log::info!("✓ Peer connections established");
 
     // Step 3: Produce blocks with finality
     log::info!("Step 3: Producing blocks with finality...");
-    network.produce_blocks_with_finality(config.target_blocks).await.expect("Failed to produce blocks");
+    network
+        .produce_blocks_with_finality(config.target_blocks)
+        .await
+        .expect("Failed to produce blocks");
     log::info!("✓ Block production completed");
 
     // Step 4: Verify finality consensus
     log::info!("Step 4: Verifying finality consensus...");
-    network.verify_finalized_head_consensus().expect("Finality consensus failed");
+    network
+        .verify_finalized_head_consensus()
+        .expect("Finality consensus failed");
     log::info!("✓ Finality consensus verified");
 
     // Step 5: Measure vote propagation
@@ -1143,15 +1445,24 @@ async fn test_comprehensive_dvf_multi_node() {
 
     // Final validation
     let finalized_block = summary.finalized_blocks[0];
-    assert!(finalized_block >= 20, "Should have finalized at least 2 checkpoints");
+    assert!(
+        finalized_block >= 20,
+        "Should have finalized at least 2 checkpoints"
+    );
 
     for &fb in &summary.finalized_blocks {
-        assert_eq!(fb, finalized_block, "All nodes should have same finalized block");
+        assert_eq!(
+            fb, finalized_block,
+            "All nodes should have same finalized block"
+        );
     }
 
     let first_hash = summary.finalized_hashes[0];
     for &hash in &summary.finalized_hashes {
-        assert_eq!(hash, first_hash, "All nodes should have same finalized hash");
+        assert_eq!(
+            hash, first_hash,
+            "All nodes should have same finalized hash"
+        );
     }
 
     log::info!("Overall Status: ALL TESTS PASSED");
@@ -1188,11 +1499,7 @@ mod dvf_finality_assertions {
         // Produce blocks up to each checkpoint and verify finalization advances
         for checkpoint in [10u32, 20, 30] {
             // Produce blocks up to this checkpoint
-            let start = if checkpoint == 10 {
-                1
-            } else {
-                checkpoint - 9
-            };
+            let start = if checkpoint == 10 { 1 } else { checkpoint - 9 };
 
             for block_num in start..=checkpoint {
                 let block_hash = DvfMockNetwork::generate_block_hash(block_num);

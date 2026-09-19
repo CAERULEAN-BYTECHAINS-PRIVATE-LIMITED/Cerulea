@@ -1,19 +1,19 @@
 //! Comprehensive tests for the Cerulea Runtime
-//! 
+//!
 //! This module contains integration tests that verify the entire runtime
 //! works correctly with all pallets integrated together.
 
 use crate::{
-    mock::{*, funded_account_id},
-    RuntimeOrigin, System, Balances, Runtime,
+    mock::{funded_account_id, *},
+    Balances, Runtime, RuntimeOrigin, System,
 };
 type DcfPallet = pallet_cerulea_dcf::Pallet<Runtime>;
 type DvfPallet = pallet_cerulea_dvf::Pallet<Runtime>;
 type PalletCeruleaPos = pallet_cerulea_pos::Pallet<Runtime>;
 type PalletCeruleaPoi = pallet_cerulea_poi::Pallet<Runtime>;
-use frame_support::{assert_ok, assert_noop, traits::Get};
-use sp_runtime::traits::Zero;
 use codec::Encode;
+use frame_support::{assert_noop, assert_ok, traits::Get};
+use sp_runtime::traits::Zero;
 
 #[cfg(test)]
 mod runtime_integration_tests {
@@ -24,22 +24,22 @@ mod runtime_integration_tests {
         new_test_ext().execute_with(|| {
             // Verify runtime initializes correctly
             assert_eq!(System::block_number(), 1);
-            
+
             // Verify all pallets are working
             let test_account = funded_account_id(1);
             assert!(System::account_exists(&test_account));
             assert!(Balances::free_balance(&test_account) > 0u128);
-            
+
             // Verify DCF pallet is initialized
             let validators = DcfPallet::validator_set();
             assert!(!validators.is_empty());
             assert_eq!(validators.len(), 4);
-            
+
             // Verify each validator has proper state
             for validator in validators.iter() {
                 let state = DcfPallet::validator_states(validator);
                 assert!(state.is_some());
-                
+
                 let stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert!(stake > 0);
             }
@@ -51,23 +51,29 @@ mod runtime_integration_tests {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
             let _initial_balance = Balances::free_balance(&validator);
-            
+
+            // A genesis validator already holds a reserve, so the test reads
+            // the growth the new stake adds.
+            let reserved_before = Balances::reserved_balance(&validator);
+
             // Test DCF and Balances interaction
             let stake_amount = 5000u128;
             setup_validator_with_stake(validator.clone(), stake_amount);
-            
+
             // Verify balance was reserved
             let reserved = Balances::reserved_balance(&validator);
-            assert_eq!(reserved, stake_amount);
-            
+            assert_eq!(reserved - reserved_before, stake_amount);
+
             // Verify DCF recorded the stake
             let dcf_stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert_eq!(dcf_stake, stake_amount);
-            
+
             // Test PoS integration
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator.clone())));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                validator.clone()
+            )));
             assert!(PalletCeruleaPos::validators(&validator).is_some());
-            
+
             // Test PoI integration
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator.clone()),
@@ -83,10 +89,10 @@ mod runtime_integration_tests {
         new_test_ext_for_governance().execute_with(|| {
             let proposer = funded_account_id(1);
             let target = funded_account_id(2);
-            
+
             // Verify governance mode is enabled
             assert!(DcfPallet::governance_mode_enabled());
-            
+
             // Test proposal submission
             assert_ok!(DcfPallet::propose_reward_validator(
                 RuntimeOrigin::root(),
@@ -94,26 +100,58 @@ mod runtime_integration_tests {
                 target.clone(),
                 1000u128
             ));
-            
+
             // Verify proposal was created
             assert!(pallet_cerulea_dcf::Proposals::<Runtime>::contains_key(0));
-            
-            // Test voting
+
+            // A proposal passes once half of the active validators voted and
+            // the votes in favour outnumber the votes against. One vote leaves
+            // the proposal pending, which the pallet holds.
             assert_ok!(DcfPallet::vote_proposal(
                 RuntimeOrigin::signed(proposer.clone()),
                 0,
                 true
             ));
-            
+
+            let pending = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
+            let quorum = (DcfPallet::active_validators().len() as u32 + 1) / 2;
+            if quorum > 1 {
+                assert_eq!(pending.status, pallet_cerulea_dcf::ProposalStatus::Pending);
+            }
+
+            // The remaining active validators vote until the quorum is met.
+            for voter in DcfPallet::active_validators() {
+                let held = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
+                if held.votes_for + held.votes_against >= quorum {
+                    break;
+                }
+                if pallet_cerulea_dcf::ProposalVotes::<Runtime>::contains_key(0, &voter) {
+                    continue;
+                }
+                let now = frame_system::Pallet::<Runtime>::block_number();
+                frame_system::Pallet::<Runtime>::set_block_number(now + 2);
+                assert_ok!(DcfPallet::vote_proposal(
+                    RuntimeOrigin::signed(voter),
+                    0,
+                    true
+                ));
+            }
+
+            let approved = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
+            assert_eq!(
+                approved.status,
+                pallet_cerulea_dcf::ProposalStatus::Approved
+            );
+
             // Test proposal execution
-            assert_ok!(DcfPallet::execute_proposal(
-                RuntimeOrigin::root(),
-                0
-            ));
-            
+            assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
+
             // Verify proposal was executed
             let proposal = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
-            assert_eq!(proposal.status, pallet_cerulea_dcf::ProposalStatus::Executed);
+            assert_eq!(
+                proposal.status,
+                pallet_cerulea_dcf::ProposalStatus::Executed
+            );
         });
     }
 
@@ -121,18 +159,18 @@ mod runtime_integration_tests {
     fn test_epoch_transitions() {
         new_test_ext_for_epochs().execute_with(|| {
             let initial_epoch = DcfPallet::current_epoch();
-            
+
             // Advance to next epoch
             advance_to_next_epoch();
-            
+
             // Verify epoch advanced
             let new_epoch = DcfPallet::current_epoch();
             assert!(new_epoch > initial_epoch);
-            
+
             // Verify validators are still active
             let validators = DcfPallet::validator_set();
             assert!(!validators.is_empty());
-            
+
             // Verify validator states were updated
             for validator in validators.iter() {
                 let state = DcfPallet::validator_states(validator);
@@ -146,27 +184,31 @@ mod runtime_integration_tests {
         new_test_ext_with_validators(10).execute_with(|| {
             let validators = DcfPallet::validator_set();
             assert_eq!(validators.len(), 10);
-            
+
             // Test that all validators have proper setup
             for validator in validators.iter() {
                 let state = DcfPallet::validator_states(validator);
                 assert!(state.is_some());
-                
+
                 let stake = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 assert!(stake > 0);
-                
+
                 let balance = Balances::free_balance(validator);
                 assert!(balance > 0);
             }
-            
+
             // Test validator interactions
             let validator1 = validators[0].clone();
             let validator2 = validators[1].clone();
-            
+
             // Test PoS registration for multiple validators
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator1.clone())));
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator2.clone())));
-            
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                validator1.clone()
+            )));
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                validator2.clone()
+            )));
+
             // Test PoI submissions from multiple validators
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator1.clone()),
@@ -178,7 +220,7 @@ mod runtime_integration_tests {
                 43,
                 85
             ));
-            
+
             // Test challenge mechanism
             assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(validator2.clone()),
@@ -192,20 +234,20 @@ mod runtime_integration_tests {
     fn test_runtime_apis() {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
-            
+
             // Test DCF runtime APIs
             let profile = DcfPallet::get_validator_profile(validator);
             assert!(profile.is_some());
-            
+
             let validators = DcfPallet::validator_set();
             assert!(!validators.is_empty());
-            
+
             let active_validators = DcfPallet::active_validators();
             assert!(!active_validators.is_empty());
-            
+
             let current_epoch = DcfPallet::current_epoch();
             assert_eq!(current_epoch, 0);
-            
+
             // Test consensus weights
             // The Standing Engine holds the weighting in parts per ten
             // thousand, so the two shares add to ten thousand.
@@ -220,29 +262,56 @@ mod runtime_integration_tests {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
             let initial_balance = Balances::free_balance(&validator);
+            let reserved_before = Balances::reserved_balance(&validator);
             let stake_amount = 10000u128;
-            
+
             // Test staking
             setup_validator_with_stake(validator.clone(), stake_amount);
-            
+
             let free_balance = Balances::free_balance(&validator);
             let reserved_balance = Balances::reserved_balance(&validator);
-            
-            assert_eq!(reserved_balance, stake_amount);
-            assert_eq!(free_balance + reserved_balance, initial_balance);
-            
-            // Test slashing
+
+            // A genesis validator already holds a reserve, so the test reads
+            // the growth the new stake adds. The total the account holds
+            // stays where it was, since the reserve comes out of the free
+            // balance.
+            assert_eq!(reserved_balance - reserved_before, stake_amount);
+            assert_eq!(
+                free_balance + reserved_balance,
+                initial_balance + reserved_before
+            );
+
+            // The stake pallet holds the registration a penalty reads, so the
+            // validator registers there before the penalty lands.
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                validator.clone()
+            )));
+
+            // Test slashing. A penalty takes the named amount from the free
+            // balance. The bonded stake holds until the next epoch boundary.
             let slash_amount = 1000u128;
+            let free_before_penalty = Balances::free_balance(&validator);
             assert_ok!(PalletCeruleaPos::slash_validator(
                 RuntimeOrigin::root(),
                 validator.clone(),
                 slash_amount
             ));
-            
-            // Verify stake was reduced
-            let new_stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
-            assert!(new_stake < stake_amount);
-            
+
+            assert_eq!(
+                free_before_penalty - Balances::free_balance(&validator),
+                slash_amount
+            );
+            assert_eq!(
+                pallet_cerulea_pos::Stake::<Runtime>::get(&validator),
+                stake_amount
+            );
+
+            // The stake pallet records the amount against the validator.
+            assert_eq!(
+                pallet_cerulea_pos::ValidatorEpochSlashed::<Runtime>::get(&validator),
+                slash_amount
+            );
+
             // Test reward distribution
             let reward_amount = 500u128;
             assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
@@ -252,7 +321,7 @@ mod runtime_integration_tests {
                 validator.clone(),
                 reward_amount
             ));
-            
+
             // Verify proposal was created
             assert!(pallet_cerulea_dcf::Proposals::<Runtime>::contains_key(0));
         });
@@ -265,12 +334,12 @@ mod runtime_integration_tests {
             let max_validators = <Runtime as pallet_cerulea_pos::Config>::MaxValidators::get();
             let current_validators = DcfPallet::validator_set();
             assert!(current_validators.len() <= max_validators as usize);
-            
+
             // Test minimum active validators
             let min_active = <Runtime as pallet_cerulea_pos::Config>::MinActiveValidators::get();
             let active_validators = DcfPallet::active_validators();
             assert!(active_validators.len() >= min_active as usize);
-            
+
             // Test epoch history limits
             let max_history: u32 = <Runtime as pallet_cerulea_dcf::Config>::MaxEpochHistory::get();
             let epoch_histories = pallet_cerulea_dcf::EpochHistories::<Runtime>::get();
@@ -282,29 +351,37 @@ mod runtime_integration_tests {
     fn test_error_handling() {
         new_test_ext().execute_with(|| {
             let non_validator = funded_account_id(999);
-            
+
             // The Admission Engine holds the validator set, so an account
             // outside that set reaches no leave request.
             assert_noop!(
                 DvfPallet::leave_validators(RuntimeOrigin::signed(non_validator.clone())),
                 pallet_cerulea_pos::Error::<Runtime>::ValidatorNotInSet
             );
-            
+
             // Test invalid governance operations
             assert_noop!(
                 DcfPallet::vote_proposal(RuntimeOrigin::signed(non_validator.clone()), 999, true),
                 pallet_cerulea_dcf::Error::<Runtime>::ProposalNotApproved
             );
-            
+
             // Test invalid PoS operations
             assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 75),
+                PalletCeruleaPos::submit_score(
+                    RuntimeOrigin::signed(funded_account_id(1)),
+                    non_validator.clone(),
+                    75
+                ),
                 pallet_cerulea_pos::Error::<Runtime>::ValidatorNotRegistered
             );
-            
+
             // Test invalid PoI operations
             assert_noop!(
-                PalletCeruleaPoi::challenge_inference(RuntimeOrigin::signed(funded_account_id(1)), non_validator.clone(), 42),
+                PalletCeruleaPoi::challenge_inference(
+                    RuntimeOrigin::signed(funded_account_id(1)),
+                    non_validator.clone(),
+                    42
+                ),
                 pallet_cerulea_poi::Error::<Runtime>::InferenceNotFound
             );
         });
@@ -315,29 +392,29 @@ mod runtime_integration_tests {
         new_test_ext_for_scenario(TestScenario::StressTest).execute_with(|| {
             let validators = DcfPallet::validator_set();
             assert_eq!(validators.len(), 50);
-            
+
             // Test system performance with many validators
             use std::time::Instant;
             let start = Instant::now();
-            
+
             // Perform operations on all validators
             for validator in validators.iter().take(10) {
                 let _ = DcfPallet::update_validator_stake_score(
                     RuntimeOrigin::signed(validator.clone()),
-                    validator.clone()
+                    validator.clone(),
                 );
             }
-            
+
             let duration = start.elapsed();
-            
+
             // Should complete quickly even with many validators
             assert!(duration.as_millis() < 1000);
-            
+
             // Test epoch transition with many validators
             let start = Instant::now();
             advance_to_next_epoch();
             let duration = start.elapsed();
-            
+
             // Epoch transition should be reasonable even with many validators
             assert!(duration.as_millis() < 5000);
         });
@@ -349,22 +426,22 @@ mod runtime_integration_tests {
             // Test that runtime state is consistent
             let validators = DcfPallet::validator_set();
             let active_validators = DcfPallet::active_validators();
-            
+
             // All active validators should be in validator set
             for active in active_validators.iter() {
                 assert!(validators.contains(active));
             }
-            
+
             // All validators should have states
             for validator in validators.iter() {
                 assert!(DcfPallet::validator_states(validator).is_some());
                 assert!(pallet_cerulea_pos::Stake::<Runtime>::get(validator) > 0);
             }
-            
+
             // Test storage consistency
             let _current_epoch = DcfPallet::current_epoch();
             let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
-            
+
             assert!(epoch_config.blocks_per_epoch > 0);
             assert!(epoch_config.min_stake > 0);
             assert!(epoch_config.max_validators > 0);
@@ -381,11 +458,15 @@ mod runtime_benchmark_tests {
         new_test_ext().execute_with(|| {
             // Test that benchmarking infrastructure works
             let validator = funded_account_id(1);
-            
+
             // These should not panic and should complete quickly
             let _ = DvfPallet::join_validators(RuntimeOrigin::signed(validator.clone()), None);
             let _ = PalletCeruleaPos::register_validator(RuntimeOrigin::signed(validator.clone()));
-            let _ = PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(validator.clone()), 42, 80);
+            let _ = PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(validator.clone()),
+                42,
+                80,
+            );
         });
     }
 }
@@ -401,17 +482,17 @@ mod runtime_mock_tests {
             assert_eq!(System::block_number(), 1);
             assert_eq!(DcfPallet::validator_set().len(), 4);
         });
-        
+
         // Test multi-validator mock
         new_test_ext_with_validators(20).execute_with(|| {
             assert_eq!(DcfPallet::validator_set().len(), 20);
         });
-        
+
         // Test governance mock
         new_test_ext_for_governance().execute_with(|| {
             assert!(DcfPallet::governance_mode_enabled());
         });
-        
+
         // Test epoch mock
         new_test_ext_for_epochs().execute_with(|| {
             let config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
@@ -423,22 +504,25 @@ mod runtime_mock_tests {
     fn test_helper_functions() {
         new_test_ext().execute_with(|| {
             let initial_block = System::block_number();
-            
+
             // Test block advancement
             advance_blocks(10);
             assert_eq!(System::block_number(), initial_block + 10);
-            
+
             // Test account creation
             let test_account = funded_account_id(999);
             assert_eq!(
                 Balances::free_balance(&test_account),
                 crate::mock::TEST_ENDOWMENT
             );
-            
+
             // Test validator setup
             setup_validator_with_stake(test_account.clone(), 10000);
             assert_eq!(Balances::reserved_balance(&test_account), 10000);
-            assert_eq!(pallet_cerulea_pos::Stake::<Runtime>::get(&test_account), 10000);
+            assert_eq!(
+                pallet_cerulea_pos::Stake::<Runtime>::get(&test_account),
+                10000
+            );
         });
     }
 }
@@ -456,11 +540,11 @@ mod runtime_api_tests {
     fn test_account_nonce_api() {
         new_test_ext().execute_with(|| {
             let account = funded_account_id(1);
-            
+
             // Test initial nonce
             let nonce = System::account_nonce(&account);
             assert_eq!(nonce, 0);
-            
+
             // Increment nonce and test again
             System::inc_account_nonce(&account);
             let new_nonce = System::account_nonce(&account);
@@ -472,15 +556,15 @@ mod runtime_api_tests {
     fn test_pos_api_functions() {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
-            
+
             // Test getting validator stake
             let _stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             // stake is u128, always >= 0
-            
+
             // Test getting active validators
             let validators = DcfPallet::active_validators();
             assert!(!validators.is_empty());
-            
+
             // If validators exist, they should be valid account IDs
             for validator in validators {
                 // AccountId should not be empty - just verify we have validators
@@ -493,11 +577,11 @@ mod runtime_api_tests {
     fn test_poi_api_functions() {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
-            
+
             // Test getting current epoch
             let _epoch = DcfPallet::current_epoch();
             // epoch is u32, always >= 0
-            
+
             // Test getting inference result (should be None initially)
             let _result = PalletCeruleaPoi::inference_results(&validator);
             // May be None or Some depending on genesis setup
@@ -509,22 +593,22 @@ mod runtime_api_tests {
         new_test_ext().execute_with(|| {
             // Test getting all validator scores
             let scores = DcfPallet::get_validators_by_score();
-            
+
             // Should return a list of (validator, score) pairs
             for (validator, score) in scores {
                 // AccountId should not be empty - just verify we have validators
                 assert!(validator.encode().len() > 0);
                 assert!(score >= 0);
             }
-            
+
             // Test getting current epoch
             let epoch = DcfPallet::current_epoch();
             assert!(epoch >= 0);
-            
+
             // Test getting consensus weights
             let pos_weight = DcfPallet::pos_weight();
             let poi_weight = DcfPallet::poi_weight();
-            
+
             // The Standing Engine holds the weighting in parts per ten
             // thousand, so the two shares add to ten thousand.
             assert!(pos_weight > 0);
@@ -537,15 +621,15 @@ mod runtime_api_tests {
     fn test_dcf_validator_functions() {
         new_test_ext().execute_with(|| {
             let validator = funded_account_id(1);
-            
+
             // Test checking if validator is active
             let is_active = DcfPallet::is_validator_active(&validator);
             assert!(is_active == true || is_active == false);
-            
+
             // Test getting validator stake
             let stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
             assert!(stake >= 0);
-            
+
             // Test getting validator participation
             let (authored, missed) = DcfPallet::validator_participation(&validator);
             assert!(authored >= 0);
@@ -559,15 +643,18 @@ mod runtime_api_tests {
             // Test getting total validators count
             let count = DcfPallet::get_total_validators_count();
             assert!(count >= 0);
-            
-            // Test getting validator set info
-            let (total, active, inactive) = DcfPallet::get_validator_set_info();
-            
-            // Verify counts are consistent
-            assert!(total >= active + inactive);
-            assert!(active >= 0);
-            assert!(inactive >= 0);
-            
+
+            // The set information call answers with the seated count, the
+            // active count and the ceiling the deployment published.
+            let (seated, active, ceiling) = DcfPallet::get_validator_set_info();
+
+            assert!(active <= seated, "Every active validator holds a seat");
+            assert!(
+                seated <= ceiling,
+                "The seated count stays inside the ceiling"
+            );
+            assert!(ceiling > 0, "The deployment publishes a ceiling");
+
             // Test getting governance mode
             let governance_enabled = DcfPallet::get_governance_mode();
             assert!(governance_enabled == true || governance_enabled == false);
@@ -596,16 +683,16 @@ mod runtime_api_tests {
         new_test_ext().execute_with(|| {
             // Test that APIs return consistent data across pallets
             let validator = funded_account_id(1);
-            
+
             // Get validator from different APIs
             let dcf_active = DcfPallet::is_validator_active(&validator);
             let dcf_validators = DcfPallet::active_validators();
-            
+
             // If validator is active in DCF, it should be in the active list
             if dcf_active {
                 assert!(dcf_validators.contains(&validator));
             }
-            
+
             // Validator lists should be consistent
             assert!(dcf_validators.len() >= 0);
         });
@@ -617,7 +704,7 @@ mod runtime_api_tests {
             // Test epoch consistency across pallets
             let dcf_epoch = DcfPallet::current_epoch();
             let poi_epoch = PalletCeruleaPoi::current_epoch();
-            
+
             // Epochs should be consistent across pallets
             assert_eq!(dcf_epoch, poi_epoch);
         });
@@ -627,11 +714,11 @@ mod runtime_api_tests {
     fn test_api_error_handling() {
         new_test_ext().execute_with(|| {
             let invalid_validator = funded_account_id(999999);
-            
+
             // Test that APIs handle invalid validators gracefully
             let stake = pallet_cerulea_pos::Stake::<Runtime>::get(&invalid_validator);
             assert_eq!(stake, 0);
-            
+
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
             assert_eq!(is_active, false);
         });
@@ -641,7 +728,7 @@ mod runtime_api_tests {
     fn test_api_edge_cases() {
         new_test_ext().execute_with(|| {
             // Test APIs with edge case inputs
-            
+
             // Test with block number 0
             let zero = DvfPallet::get_finality_info(0);
             assert!(zero.is_finalized == true || zero.is_finalized == false);
@@ -649,7 +736,7 @@ mod runtime_api_tests {
             // Test finality with edge cases
             let finalized = DvfPallet::finalized_block_number();
             assert!(finalized <= System::block_number());
-            
+
             // If we reach here, all edge cases were handled gracefully
             assert!(true);
         });
@@ -660,16 +747,17 @@ mod runtime_api_tests {
         new_test_ext().execute_with(|| {
             // Test API performance with multiple validators
             let validators = DcfPallet::active_validators();
-            
+
             // Test that getting scores for all validators doesn't panic
-            for validator in validators.iter().take(10) { // Limit to 10 for test performance
+            for validator in validators.iter().take(10) {
+                // Limit to 10 for test performance
                 let _ = pallet_cerulea_pos::Stake::<Runtime>::get(validator);
                 let _ = DcfPallet::validator_participation(validator);
             }
-            
+
             // Test bulk operations
             let all_scores = DcfPallet::get_validators_by_score();
-            
+
             // Should complete without issues
             assert!(all_scores.len() >= 0);
         });

@@ -35,9 +35,6 @@ pub mod resolve;
 pub mod simulate;
 pub mod weights;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
-
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
@@ -553,10 +550,9 @@ pub mod pallet {
                 Error::<T>::EntryAbsent
             );
             Matrix::<T>::remove(slot);
-            EntryCount::<T>::mutate(
-                (deployment, role.clone(), collection.clone()),
-                |count| *count = count.saturating_sub(1),
-            );
+            EntryCount::<T>::mutate((deployment, role.clone(), collection.clone()), |count| {
+                *count = count.saturating_sub(1)
+            });
             Self::deposit_event(Event::CapabilityRevoked {
                 deployment,
                 role,
@@ -582,8 +578,8 @@ pub mod pallet {
             record: BoundedVec<u8, T::MaxEntryBytes>,
         ) -> DispatchResult {
             let _ = ensure_signed(origin)?;
-            let parsed = Value::decode(&mut record.as_slice())
-                .map_err(|_| Error::<T>::RecordUnreadable)?;
+            let parsed =
+                Value::decode(&mut record.as_slice()).map_err(|_| Error::<T>::RecordUnreadable)?;
             let found = Self::record_preview(&deployment, &role, &collection, &capability, &parsed);
             let statement: BoundedVec<u8, ConstU32<512>> =
                 BoundedVec::truncate_from(found.statement().into_bytes());
@@ -737,8 +733,7 @@ impl<T: Config> Pallet<T> {
                     "The row predicate of the role `{}` declines this record.",
                     name_text(role)
                 ),
-                "Widen the row predicate, or preview a record the predicate admits."
-                    .to_string(),
+                "Widen the row predicate, or preview a record the predicate admits.".to_string(),
             ));
         }
         RecordPreview::seen(resolve::project(record, &entry.fields))
@@ -826,14 +821,16 @@ impl<T: Config> Pallet<T> {
                 }
                 None => {
                     return Err(AccessDenial::owned(
-                        format!("The registry lacks the collection `{}`.", request.collection),
+                        format!(
+                            "The registry lacks the collection `{}`.",
+                            request.collection
+                        ),
                         "Register the collection before reading it.".to_string(),
                     ))
                 }
             }
-            admitting.retain(|(_, entry)| {
-                entry.purposes.is_empty() || entry.purposes.contains(purpose)
-            });
+            admitting
+                .retain(|(_, entry)| entry.purposes.is_empty() || entry.purposes.contains(purpose));
             if admitting.is_empty() {
                 return Err(AccessDenial::owned(
                     format!(
@@ -887,8 +884,7 @@ impl<T: Config> Pallet<T> {
                         "The row predicate of every entry declines this record of `{}`.",
                         request.collection
                     ),
-                    "Widen the row predicate, or act on a record the predicate admits."
-                        .to_string(),
+                    "Widen the row predicate, or act on a record the predicate admits.".to_string(),
                 ));
             }
             admitting = passed;
@@ -990,9 +986,7 @@ impl<T: Config> Pallet<T> {
 impl<T: Config> PermissionGate for Pallet<T> {
     type AccountId = T::AccountId;
 
-    fn resolve(
-        request: &AccessRequest<'_, Self::AccountId>,
-    ) -> Result<AccessGrant, AccessDenial> {
+    fn resolve(request: &AccessRequest<'_, Self::AccountId>) -> Result<AccessGrant, AccessDenial> {
         Pallet::<T>::resolve_request(request)
     }
 }
