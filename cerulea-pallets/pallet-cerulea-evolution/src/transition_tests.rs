@@ -21,9 +21,10 @@
 
 use crate::{mock::*, Error, PlanStatus, Plans};
 use cerulea_blueprint::{
-    collections::{Collection, PurposeDeclaration},
+    collections::Collection,
     types::{
-        CollectionId, FieldDef, FieldName, FieldPath, RecordDef, TypeDef, TypeExpr, TypeId, Value,
+        CollectionId, Decimal, FieldDef, FieldName, FieldPath, Hash32, Identity, OptionalValue,
+        RecordDef, Timestamp, TypeDef, TypeExpr, TypeId, Value,
     },
 };
 use codec::Encode;
@@ -35,7 +36,7 @@ use pallet_cerulea_schema::{
 use pallet_cerulea_state::RecordStore;
 
 extern crate alloc;
-use alloc::{string::ToString, vec, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use std::path::PathBuf;
 
 const DEPLOYMENT: DeploymentId = [21u8; 32];
@@ -170,55 +171,140 @@ fn key_field(record: &RecordDef) -> FieldDef {
     record.fields.first().cloned().expect("the record holds a field")
 }
 
-/// A collection over one record type.
-fn collection_for(record: &RecordDef) -> Collection {
-    let key = key_field(record);
-    let mut collection = Collection::new(
-        record.id.as_str(),
-        record.id.as_str(),
-        key.name.as_str(),
-        "A collection the transition test carries.",
-    );
-    collection.purpose = PurposeDeclaration::new(
-        "The collection holds the records this transition carries.",
-        &["registration"],
-    );
-    collection
-}
-
-/// A value for one field, by the shape the field declares.
-fn value_for(field: &FieldDef, seed: usize) -> Value {
-    match &field.ty {
-        TypeExpr::Integer => Value::Integer(seed as i128 + 1),
-        _ => Value::Text(alloc::format!("value-{}", seed)),
+/// A value of the stated type, drawn from the types the fragment declares.
+///
+/// The generator walks the whole type language, because the catalogue uses
+/// the whole type language. `depth` stops a record type that holds itself,
+/// directly or through a list, from recursing without end: past the limit an
+/// optional answers absent and a list answers empty, both of which the
+/// checker accepts for any element type.
+fn value_of(ty: &TypeExpr, declared: &[TypeDef], seed: usize, depth: usize) -> Option<Value> {
+    match ty {
+        TypeExpr::Bool => Some(Value::Bool(seed % 2 == 0)),
+        TypeExpr::Integer => Some(Value::Integer(seed as i128 + 1)),
+        TypeExpr::Decimal { scale } => Some(Value::Decimal(Decimal {
+            units: seed as i128 + 1,
+            scale: *scale,
+        })),
+        TypeExpr::Text => Some(Value::Text(alloc::format!("value-{seed}"))),
+        TypeExpr::Bytes => Some(Value::Bytes(alloc::vec![seed as u8; 4])),
+        TypeExpr::Timestamp => Some(Value::Timestamp(Timestamp::from_millis(
+            1_700_000_000_000 + seed as u64,
+        ))),
+        TypeExpr::Identity => Some(Value::Identity(Identity([seed as u8; 32]))),
+        TypeExpr::Hash => Some(Value::Hash(Hash32::of(&[seed as u8]))),
+        TypeExpr::List(element) => {
+            if depth >= DEPTH_LIMIT {
+                return Some(Value::list(element.as_ref().clone(), Vec::new()));
+            }
+            let item = value_of(element, declared, seed, depth + 1)?;
+            Some(Value::list(element.as_ref().clone(), alloc::vec![item]))
+        }
+        TypeExpr::Map { key, value } => {
+            if depth >= DEPTH_LIMIT {
+                return Some(Value::map(
+                    key.as_ref().clone(),
+                    value.as_ref().clone(),
+                    Vec::new(),
+                ));
+            }
+            let held_key = value_of(key, declared, seed, depth + 1)?;
+            let held_value = value_of(value, declared, seed + 1, depth + 1)?;
+            Some(Value::map(
+                key.as_ref().clone(),
+                value.as_ref().clone(),
+                alloc::vec![(held_key, held_value)],
+            ))
+        }
+        TypeExpr::Optional(element) => {
+            let item = if depth >= DEPTH_LIMIT {
+                None
+            } else {
+                value_of(element, declared, seed, depth + 1).map(alloc::boxed::Box::new)
+            };
+            Some(Value::Optional(OptionalValue {
+                element: element.as_ref().clone(),
+                item,
+            }))
+        }
+        TypeExpr::Record(type_id) => {
+            if depth >= DEPTH_LIMIT {
+                return None;
+            }
+            let held = declared.iter().find_map(|entry| match entry {
+                TypeDef::Record(record) if &record.id == type_id => Some(record),
+                _ => None,
+            })?;
+            record_of(held, declared, seed, depth + 1)
+        }
+        TypeExpr::Enumeration(type_id) => {
+            let held = declared.iter().find_map(|entry| match entry {
+                TypeDef::Enumeration(enumeration) if &enumeration.id == type_id => {
+                    Some(enumeration)
+                }
+                _ => None,
+            })?;
+            let variant = held.variants.first()?.clone();
+            Some(Value::enumeration(type_id.clone(), variant))
+        }
+        TypeExpr::Sum(type_id) => {
+            let held = declared.iter().find_map(|entry| match entry {
+                TypeDef::Sum(sum) if &sum.id == type_id => Some(sum),
+                _ => None,
+            })?;
+            let variant = held.variants.first()?;
+            let payload = match &variant.payload {
+                None => None,
+                Some(declared_payload) => {
+                    if depth >= DEPTH_LIMIT {
+                        return None;
+                    }
+                    Some(value_of(declared_payload, declared, seed, depth + 1)?)
+                }
+            };
+            Some(Value::sum(type_id.clone(), variant.name.clone(), payload))
+        }
+        // A pointer carries the collection it points into and a key. The key
+        // stands for a record the test does not install, and the checker asks
+        // only that the collection match.
+        TypeExpr::Reference(collection) => Some(Value::reference(
+            collection.clone(),
+            Value::Text(alloc::format!("pointer-{seed}")),
+        )),
     }
 }
 
-/// One record of the stated type.
-fn record_value(record: &RecordDef, seed: usize) -> Value {
-    let mut value = Value::record(
-        TypeId::new(record.id.as_str()),
-        record
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(position, field)| {
-                (
-                    FieldName::new(field.name.as_str()),
-                    value_for(field, seed + position),
-                )
-            })
-            .collect::<Vec<(FieldName, Value)>>(),
-    );
+/// How deep the generator walks before it stops on a type that holds itself.
+const DEPTH_LIMIT: usize = 6;
+
+/// A record value of the stated record type.
+fn record_of(
+    record: &RecordDef,
+    declared: &[TypeDef],
+    seed: usize,
+    depth: usize,
+) -> Option<Value> {
+    let mut fields = Vec::new();
+    for (position, field) in record.fields.iter().enumerate() {
+        let held = value_of(&field.ty, declared, seed + position, depth)?;
+        fields.push((FieldName::new(field.name.as_str()), held));
+    }
+    let mut value = Value::record(TypeId::new(record.id.as_str()), fields);
     value.canonicalise();
-    value
+    Some(value)
 }
 
-fn record_key_of(record: &RecordDef, seed: usize) -> RecordKey {
+/// One record of the stated type, or nothing where the fragment leans on a
+/// type it does not itself declare.
+fn record_value(record: &RecordDef, declared: &[TypeDef], seed: usize) -> Option<Value> {
+    record_of(record, declared, seed, 0)
+}
+
+fn record_key_of(record: &RecordDef, declared: &[TypeDef], seed: usize) -> Option<RecordKey> {
     let key = key_field(record);
-    let mut value = value_for(&key, seed);
+    let mut value = value_of(&key.ty, declared, seed, 0)?;
     value.canonicalise();
-    BoundedVec::try_from(value.canonical_bytes()).expect("the key fits")
+    Some(BoundedVec::try_from(value.canonical_bytes()).expect("the key fits"))
 }
 
 /// The plan that carries a collection forward one version.
@@ -242,6 +328,15 @@ fn forward_plan(record: &RecordDef) -> MigrationPlan {
 /// record. A fragment declaring a shape the registry refuses in isolation
 /// answers false, and the caller counts it.
 fn install(entry: &FragmentType, seed: usize) -> bool {
+    install_reported(entry, seed).is_none()
+}
+
+/// The reason a fragment stands outside this test: its record leans on a type
+/// another fragment declares, and the test installs one fragment at a time.
+const UNDECLARED: &str = "the record leans on a type the fragment does not declare";
+
+/// Install and answer with the reason the registry refused, where it did.
+fn install_reported(entry: &FragmentType, seed: usize) -> Option<alloc::string::String> {
     let record = &entry.record;
     // Every type the fragment declares registers first, so a record referring
     // to another type of the same fragment resolves.
@@ -257,22 +352,65 @@ fn install(entry: &FragmentType, seed: usize) -> bool {
         DEPLOYMENT,
         bounded(TypeDef::Record(record.clone()).encode()),
     );
-    if Schema::register_collection(
+    if let Err(cause) = Schema::register_collection(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
         bounded(entry.collection.encode()),
-    )
-    .is_err()
-    {
-        return false;
+    ) {
+        return Some(alloc::format!("collection {:?}", cause));
     }
-    State::insert(
+    let body = match record_value(record, &entry.types, seed) {
+        Some(found) => found,
+        None => return Some(UNDECLARED.to_string()),
+    };
+    match State::insert(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
         name_of(record.id.as_str()).expect("the name fits"),
-        bounded(record_value(record, seed).canonical_bytes()),
-    )
-    .is_ok()
+        bounded(body.canonical_bytes()),
+    ) {
+        Ok(()) => None,
+        Err(cause) => Some(alloc::format!("record {cause:?}")),
+    }
+}
+
+/// The registry takes every record type the catalogue declares in full.
+///
+/// A record leaning on a type another fragment declares stands outside this
+/// test, because the test installs one fragment at a time. Every other
+/// refusal is a defect, and the test names it.
+#[test]
+fn the_registry_takes_every_self_contained_record_type() {
+    let types = fragment_types();
+    let mut refusals: Vec<alloc::string::String> = Vec::new();
+    let mut outside = 0usize;
+    let mut taken = 0usize;
+    for (seed, entry) in types.iter().enumerate() {
+        new_test_ext().execute_with(|| match install_reported(entry, seed) {
+            None => taken += 1,
+            Some(reason) if reason == UNDECLARED => outside += 1,
+            Some(reason) => {
+                if refusals.len() < 12 {
+                    refusals.push(alloc::format!("{}: {}", entry.fragment, reason));
+                }
+            }
+        });
+    }
+    assert!(
+        refusals.is_empty(),
+        "the registry refused {} record types the catalogue declares. First: {:?}",
+        refusals.len(),
+        refusals
+    );
+    std::println!(
+        "the registry took {taken} of {} record types; {outside} lean on a type another fragment declares",
+        types.len()
+    );
+    assert!(
+        taken * 2 > types.len(),
+        "the registry took {taken} of {} record types, and {outside} lean on a type          another fragment declares, which leaves too few to stand for the catalogue",
+        types.len()
+    );
 }
 
 fn plan(body: &MigrationPlan, window: u64) -> u64 {
@@ -323,7 +461,7 @@ fn every_fragment_carries_its_collection_forward_and_back() {
             let before = State::read(
                 &DEPLOYMENT,
                 &CollectionId::new(entry.record.id.as_str()),
-                &record_key_of(&entry.record, seed),
+                &record_key_of(&entry.record, &entry.types, seed).expect("the key stands"),
             )
             .expect("the store holds the record before the transition");
 
@@ -357,7 +495,7 @@ fn every_fragment_carries_its_collection_forward_and_back() {
             let after = State::read(
                 &DEPLOYMENT,
                 &CollectionId::new(entry.record.id.as_str()),
-                &record_key_of(&entry.record, seed),
+                &record_key_of(&entry.record, &entry.types, seed).expect("the key stands"),
             )
             .expect("the store holds the record after the transition");
             assert_eq!(
@@ -376,7 +514,7 @@ fn every_fragment_carries_its_collection_forward_and_back() {
             let returned = State::read(
                 &DEPLOYMENT,
                 &CollectionId::new(entry.record.id.as_str()),
-                &record_key_of(&entry.record, seed),
+                &record_key_of(&entry.record, &entry.types, seed).expect("the key stands"),
             )
             .expect("the store holds the record after the rollback");
             assert_eq!(
@@ -409,20 +547,27 @@ fn every_fragment_carries_its_collection_forward_and_back() {
 
 #[test]
 fn a_transition_that_removes_a_field_asks_for_the_electorate() {
-    let entry = fragment_types()
+    // The field the collection keys on cannot go, because the collection
+    // would lose the way it finds a record. The plan drops a plain field, so
+    // the refusal comes from the electorate and not from the key.
+    let (seed, entry) = fragment_types()
         .into_iter()
-        .next()
-        .expect("the catalogue holds a record type");
+        .enumerate()
+        .find(|(seed, entry)| {
+            entry.record.fields.len() > 1
+                && new_test_ext().execute_with(|| install(entry, *seed))
+        })
+        .expect("the catalogue holds a record type carrying a plain field");
     new_test_ext().execute_with(|| {
-        assert!(install(&entry, 0), "the first record type installs");
-        let key = key_field(&entry.record);
+        assert!(install(&entry, seed), "the record type installs");
+        let plain = entry.record.fields[1].clone();
         let removing = MigrationPlan::new(
             entry.record.id.as_str(),
             1,
             "The collection drops a field an integration reads.",
         )
         .with(MigrationStep::RemoveField {
-            field: FieldName::new(key.name.as_str()),
+            field: FieldName::new(plain.name.as_str()),
         });
         let id = plan(&removing, 100);
         let held = Plans::<Test>::get(DEPLOYMENT, id).expect("the register holds the plan");
@@ -431,13 +576,20 @@ fn a_transition_that_removes_a_field_asks_for_the_electorate() {
             "a plan removing a field reads as breaking"
         );
         assert_eq!(held.status, PlanStatus::Planned);
-        let refused = Evolution::apply(RuntimeOrigin::signed(STEWARD), DEPLOYMENT, id);
-        assert!(
-            refused.is_err(),
-            "a breaking plan applied without the electorate"
-        );
+        // A plan reaches the electorate only after the dry run, so the first
+        // refusal names the dry run and the second names the approval.
         assert_eq!(
-            refused.unwrap_err(),
+            Evolution::apply(RuntimeOrigin::signed(STEWARD), DEPLOYMENT, id).unwrap_err(),
+            Error::<Test>::DryRunPending.into(),
+            "the refusal names the dry run the plan waits on"
+        );
+        assert_ok!(Evolution::dry_run(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            id
+        ));
+        assert_eq!(
+            Evolution::apply(RuntimeOrigin::signed(STEWARD), DEPLOYMENT, id).unwrap_err(),
             Error::<Test>::ApprovalMissing.into(),
             "the refusal names the approval the plan waits on"
         );
