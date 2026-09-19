@@ -134,6 +134,11 @@ impl Tier {
 #[derive(
     Clone, Debug, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen,
 )]
+// The two type parameters carry the bounds alone. They hold no value, so the
+// encoding derives take no bound from them.
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+#[codec(mel_bound())]
 #[scale_info(skip_type_params(MaxFeatures, MaxAddons))]
 pub struct Licence<MaxFeatures, MaxAddons>
 where
