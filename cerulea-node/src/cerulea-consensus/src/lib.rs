@@ -70,7 +70,7 @@ mod tests;
 pub use dcf::{DcfConsensus, RealBlockImport};
 pub use dvf_config_validator::{ConfigValidationError, DvfConfig};
 pub use error::{ConsensusError, ConsensusResult};
-pub use finality::FinalityEngine;
+pub use finality::{CommitLedger, CommitRecord};
 pub use finality::{FinalityNotification, FinalityNotifier};
 pub use inherent_providers::CeruleaInherentDataProviders;
 pub use proposer_factory::ProposerFactory;
