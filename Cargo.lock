@@ -1280,6 +1280,7 @@ name = "cerulea-consensus"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "cerulea-primitives",
  "cerulea-runtime",
  "frame-benchmarking",
  "frame-support",
@@ -1419,7 +1420,10 @@ dependencies = [
  "pallet-cerulea-custody",
  "pallet-cerulea-dcf",
  "pallet-cerulea-dvf",
+ "pallet-cerulea-evolution",
+ "pallet-cerulea-governance",
  "pallet-cerulea-identity",
+ "pallet-cerulea-logic",
  "pallet-cerulea-permission",
  "pallet-cerulea-poi",
  "pallet-cerulea-pos",
@@ -6487,6 +6491,7 @@ dependencies = [
 name = "pallet-cerulea-dvf"
 version = "0.1.0"
 dependencies = [
+ "cerulea-primitives",
  "frame-support",
  "frame-system",
  "log",
@@ -6503,6 +6508,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-evolution"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-governance",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-governance"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-cerulea-identity"
 version = "0.1.0"
 dependencies = [
@@ -6511,6 +6555,26 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-logic"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-permission",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
