@@ -568,9 +568,11 @@ impl ComponentKind {
             Kanban => BindingNeed::Workflow,
             TextInput | NumberInput | DecimalInput | BooleanInput | TimestampInput
             | IdentityInput | HashInput | BytesInput | ReferenceInput | EnumerationInput
-            | SumInput | ListInput | MapInput | OptionalInput | FileUpload | SignatureCapture
-            | CameraCapture | BarcodeScan => BindingNeed::Field,
-            TransactionStatus | Confirmation => BindingNeed::Action,
+            | SumInput | ListInput | MapInput | OptionalInput => BindingNeed::Field,
+            // The four capture components attach evidence to the write the
+            // screen runs rather than to one field of the record.
+            TransactionStatus | Confirmation | FileUpload | SignatureCapture | CameraCapture
+            | BarcodeScan => BindingNeed::Action,
             _ => BindingNeed::Nothing,
         }
     }
