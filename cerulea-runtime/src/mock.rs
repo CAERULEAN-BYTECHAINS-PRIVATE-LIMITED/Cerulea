@@ -166,6 +166,7 @@ pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExterna
                 .map(|((validator, stake), score)| (validator, stake, score as u128))
                 .collect(),
             initial_validator_keys: alloc::vec![],
+            strict_validation: false,
         }
         .assimilate_storage(&mut storage)
         .unwrap();

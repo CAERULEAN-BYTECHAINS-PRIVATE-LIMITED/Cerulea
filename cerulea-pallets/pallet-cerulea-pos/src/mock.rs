@@ -101,7 +101,76 @@ impl pallet_cerulea_pos::Config for Test {
     type MaxRewardBoost = ConstU64<20>;
     type HighPerformanceScore = ConstU64<80>;
     type TopPerformerPercentage = ConstU32<20>;
-    type ValidatorHandler = ();
+    type ValidatorHandler = TestAdmission;
+}
+
+/// The key the mock Admission Engine writes its active set under.
+const ADMITTED_KEY: &[u8] = b"cerulea/test/admission/active";
+
+/// A stand-in for the Admission Engine inside this mock runtime.
+///
+/// The Admission Engine governs entry to and exit from the validator set. The
+/// stake pallet holds the stake and the registration record. The stake pallet
+/// reads the active set from the engine through this handler. The stand-in
+/// keeps the same contract, so a test reads real delegation rather than an
+/// empty answer.
+pub struct TestAdmission;
+
+impl TestAdmission {
+    /// Read the admitted set.
+    pub fn admitted() -> Vec<u64> {
+        frame_support::storage::unhashed::get::<Vec<u64>>(ADMITTED_KEY).unwrap_or_default()
+    }
+
+    fn write(set: Vec<u64>) {
+        frame_support::storage::unhashed::put(ADMITTED_KEY, &set);
+    }
+}
+
+impl crate::ValidatorHandler<u64, u64> for TestAdmission {
+    fn on_joined(validator: &u64, _stake: u64) -> sp_runtime::DispatchResult {
+        let mut set = Self::admitted();
+        if !set.contains(validator) {
+            set.push(*validator);
+            Self::write(set);
+        }
+        Ok(())
+    }
+
+    fn on_leave_requested(_validator: &u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_left(validator: &u64) -> sp_runtime::DispatchResult {
+        let mut set = Self::admitted();
+        set.retain(|held| held != validator);
+        Self::write(set);
+        Ok(())
+    }
+
+    fn on_stake_increased(_validator: &u64, _amount: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_stake_decreased(_validator: &u64, _amount: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_slashed(_validator: &u64, _amount: u64, _penalty: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_rewarded(_validator: &u64, _amount: u64, _boost: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn get_validator_score(validator: &u64) -> u64 {
+        crate::ValidatorScores::<Test>::get(validator).unwrap_or(0) as u64
+    }
+
+    fn get_active_validators() -> Vec<u64> {
+        Self::admitted()
+    }
 }
 
 // Build genesis storage for the mock runtime.

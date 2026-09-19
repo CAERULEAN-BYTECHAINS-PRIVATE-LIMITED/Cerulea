@@ -291,21 +291,44 @@ mod tests {
         });
     }
 
+    /// The Admission Engine owns the active validator set.
+    ///
+    /// The stake pallet holds the registration record and the stake. Entry to
+    /// the active set belongs to the Admission Engine. This test registers
+    /// three validators, admits each one through the engine, and reads the
+    /// active set back through the stake pallet. A registration that the
+    /// engine never admitted stays outside the active set.
     #[test]
-    fn test_get_active_validators() {
+    fn active_validators_come_from_the_admission_engine() {
         new_test_ext().execute_with(|| {
-            // Register multiple validators
-            for i in 1..=3 {
+            for i in 1..=3u64 {
                 assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(i)));
             }
-            
-            // Test getting active validators
+
+            // Registration alone leaves the active set empty.
+            assert!(PalletCeruleaPos::get_active_validators().is_empty());
+
+            let stake: u64 = <Test as crate::Config>::MinStake::get();
+            for i in 1..=3u64 {
+                assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(
+                    &i, stake
+                ));
+            }
+
             let active_validators = PalletCeruleaPos::get_active_validators();
-            
-            // Should include registered validators
             assert!(active_validators.contains(&1u64));
             assert!(active_validators.contains(&2u64));
             assert!(active_validators.contains(&3u64));
+
+            // An exit through the engine takes the validator out again.
+            assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&2u64));
+            let after_exit = PalletCeruleaPos::get_active_validators();
+            assert!(after_exit.contains(&1u64));
+            assert!(!after_exit.contains(&2u64));
+            assert!(after_exit.contains(&3u64));
+
+            // The registration record survives the exit.
+            assert_eq!(PalletCeruleaPos::validators(2), Some(true));
         });
     }
 
@@ -401,18 +424,32 @@ mod tests {
         });
     }
 
+    /// The Admission Engine reaches the minimum active validator count.
+    ///
+    /// The stake pallet carries the minimum the deployment asks for. The
+    /// Admission Engine admits each validator. The active set meets the
+    /// minimum once the engine admitted that many validators.
     #[test]
-    fn test_minimum_active_validators_constraint() {
+    fn the_admission_engine_reaches_the_minimum_active_count() {
         new_test_ext().execute_with(|| {
             let min_active = <Test as crate::Config>::MinActiveValidators::get();
-            
-            // Register minimum required validators
+            let stake: u64 = <Test as crate::Config>::MinStake::get();
+
             for i in 1..=min_active {
-                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(i as u64)));
+                let who = i as u64;
+                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(who)));
+                assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(
+                    &who, stake
+                ));
             }
-            
+
             let active_validators = PalletCeruleaPos::get_active_validators();
             assert!(active_validators.len() >= min_active as usize);
+
+            // One exit takes the set below the minimum, which the deployment
+            // reads as a signal to admit a replacement.
+            assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&1u64));
+            assert!(PalletCeruleaPos::get_active_validators().len() < min_active as usize);
         });
     }
 

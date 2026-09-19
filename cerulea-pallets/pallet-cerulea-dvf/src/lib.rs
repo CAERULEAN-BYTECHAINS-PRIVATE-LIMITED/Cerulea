@@ -8,6 +8,15 @@ pub mod keys;
 
 pub use pallet::*;
 
+/// The scale the epoch commit weight of one validator reads on.
+///
+/// The Commit Engine compares aggregated weight against a share of the total.
+/// Every validator therefore carries a share of this fixed scale rather than a
+/// raw stake figure. A validator holding half the stake of an epoch carries
+/// half of this number. The sum across an epoch reaches this number, less the
+/// remainder integer division leaves behind.
+pub const VOTE_WEIGHT_SCALE: u128 = 32_000;
+
 use sp_runtime::SaturatedConversion;
 use frame_support::traits::Get;
 use frame_support::{ensure, BoundedVec};
@@ -463,15 +472,24 @@ sp_api::decl_runtime_apis! {
         pub initial_validator_weights: Vec<(T::AccountId, u128, u128)>,
         /// The draw key and the seal key of each validator present at genesis.
         pub initial_validator_keys: Vec<(T::AccountId, crate::keys::ValidatorKeySet)>,
+        /// Whether genesis demands a validator set at block zero.
+        ///
+        /// A production chain spec sets this true, so a spec naming no
+        /// validator stops the chain at genesis. A deployment that admits
+        /// every validator through the Admission Engine after genesis leaves
+        /// this false and starts from an empty weight table.
+        pub strict_validation: bool,
     }
 
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
-            assert!(
-                !self.initial_validator_weights.is_empty(),
-                "Registry genesis requires at least one validator with non-zero weight"
-            );
+            if self.strict_validation {
+                assert!(
+                    !self.initial_validator_weights.is_empty(),
+                    "Registry genesis requires at least one validator with non-zero weight. Name the genesis validators in the chain spec, or admit them through the Admission Engine after genesis and leave strict_validation false."
+                );
+            }
 
             for (validator, stake, score) in &self.initial_validator_weights {
                 assert!(
@@ -1179,15 +1197,18 @@ sp_api::decl_runtime_apis! {
             
             let _ = EpochVotingWeight::<T>::clear(u32::MAX, None);
 
-            const VOTE_WEIGHT_SCALE: u128 = 32_000u128;
             let validator_count = validators.len() as u128;
             let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
             let mut total_epoch_weight = 0u128;
 
             for (validator, stake, _score) in validators {
                 let normalized_weight = if total_stake > 0 {
-                    stake.saturating_mul(VOTE_WEIGHT_SCALE) / total_stake
-                } else if validator_count > 0 { VOTE_WEIGHT_SCALE / validator_count } else { 0 };
+                    stake.saturating_mul(crate::VOTE_WEIGHT_SCALE) / total_stake
+                } else if validator_count > 0 {
+                    crate::VOTE_WEIGHT_SCALE / validator_count
+                } else {
+                    0
+                };
 
                 EpochVotingWeight::<T>::insert(validator, normalized_weight);
                 total_epoch_weight = total_epoch_weight.saturating_add(normalized_weight);

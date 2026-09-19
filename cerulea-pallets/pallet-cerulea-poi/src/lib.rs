@@ -445,6 +445,19 @@ pub mod pallet {
 			let (stored_result, epoch) = InferenceResults::<T>::get(&challenged)
 				.ok_or(Error::<T>::InferenceNotFound)?;
 
+			// A validator carries no verdict on its own work. Submit the
+			// challenge from a second validator account instead.
+			ensure!(challenger != challenged, Error::<T>::CannotChallengeSelf);
+
+			// One challenger lodges one challenge against one validator. Wait
+			// for the open challenge to settle before lodging another.
+			ensure!(
+				Challenges::<T>::get(&challenger)
+					.map(|(held, _, _)| held != challenged)
+					.unwrap_or(true),
+				Error::<T>::ChallengeAlreadyExists
+			);
+
 			let current_epoch = CurrentEpoch::<T>::get();
 
 			// Ensure the inference is not too old.

@@ -282,6 +282,9 @@ fn testnet_genesis_with_stakes_and_names(
 		registry: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
 			initial_validator_keys: validator_keys,
+			// A production chain spec names its genesis validators, so
+			// genesis stops on a spec that names none.
+			strict_validation: true,
 		},
 		// Install the starting Blueprint. The logic module validates it,
 		// registers every type and every collection it declares and stores

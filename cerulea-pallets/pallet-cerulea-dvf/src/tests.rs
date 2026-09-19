@@ -3,6 +3,22 @@ use frame_support::{assert_noop, assert_ok};
 use sp_core::{sr25519, Pair};
 use sp_runtime::BuildStorage;
 
+/// The epoch commit weight the Commit Engine gives one validator.
+///
+/// The Commit Engine compares aggregated weight against a share of the total.
+/// Each validator therefore carries the share of the epoch stake it holds,
+/// scaled to [`crate::VOTE_WEIGHT_SCALE`]. This helper repeats the engine rule
+/// so each assertion below names the rule it protects.
+fn engine_share(stake: u128, total_stake: u128) -> u128 {
+    stake * crate::VOTE_WEIGHT_SCALE / total_stake
+}
+
+/// The sum of every share across one validator set.
+fn engine_total(stakes: &[u128]) -> u128 {
+    let total: u128 = stakes.iter().sum();
+    stakes.iter().map(|stake| engine_share(*stake, total)).sum()
+}
+
 #[test]
 fn test_is_checkpoint_block() {
     new_test_ext().execute_with(|| {
@@ -257,23 +273,46 @@ fn test_submit_justification_success() {
         };
         
         // Submit justification
-        assert_ok!(Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
+        assert_ok!(Registry::submit_justification(RuntimeOrigin::none(), justification));
         
         // Verify finality state was updated
         assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 10);
         assert_eq!(crate::FinalizedBlockHash::<Test>::get(), Some(block_hash));
         assert_eq!(crate::CurrentRound::<Test>::get(), 1);
         
-        // Verify BlockFinalized event was emitted
-        // Weight calculation: (1000 * 1) + (100 * 100) = 11000 per validator
-        // Total: 3 validators * 11000 = 33000
+        // The commitment record carries the aggregated share of the three
+        // signers. Each holds a third of the epoch stake, so each carries a
+        // third of the commit scale.
+        let stakes = [1000u128, 1000u128, 1000u128];
         System::assert_has_event(
             crate::Event::BlockFinalized {
                 block_number: 10,
                 block_hash,
                 round: 0,
-                weight: 33000,
+                weight: engine_total(&stakes),
             }.into()
+        );
+    });
+}
+
+/// The Commit Engine takes the commitment record as an unsigned submission.
+///
+/// The record carries the signature of every voter, so the record
+/// authenticates itself. A signed origin therefore carries no meaning and the
+/// call refuses it. Submit the record from the unsigned origin instead.
+#[test]
+fn a_signed_commitment_record_is_refused() {
+    new_test_ext().execute_with(|| {
+        let alice = account_key("Alice");
+        let justification = crate::DvfJustification {
+            round_number: 0,
+            block_hash: sp_core::H256::from_low_u64_be(10),
+            votes: Vec::new(),
+        };
+
+        assert_noop!(
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            sp_runtime::DispatchError::BadOrigin
         );
     });
 }
@@ -281,8 +320,6 @@ fn test_submit_justification_success() {
 #[test]
 fn test_submit_justification_empty_votes() {
     new_test_ext().execute_with(|| {
-        let alice = account_key("Alice");
-        
         // Create empty justification
         let justification = crate::DvfJustification {
             round_number: 0,
@@ -292,7 +329,7 @@ fn test_submit_justification_empty_votes() {
         
         // Submit should fail
         assert_noop!(
-            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::none(), justification),
             Error::<Test>::EmptyJustification
         );
     });
@@ -339,7 +376,7 @@ fn test_submit_justification_non_checkpoint_block() {
         
         // Submit should fail
         assert_noop!(
-            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::none(), justification),
             Error::<Test>::NonCheckpointBlock
         );
     });
@@ -389,7 +426,7 @@ fn test_submit_justification_already_finalized() {
         
         // Submit should fail
         assert_noop!(
-            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::none(), justification),
             Error::<Test>::BlockAlreadyFinalized
         );
     });
@@ -439,7 +476,7 @@ fn test_submit_justification_duplicate_validators() {
         
         // Submit should fail
         assert_noop!(
-            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::none(), justification),
             Error::<Test>::DuplicateValidator
         );
     });
@@ -494,7 +531,7 @@ fn test_submit_justification_threshold_not_reached() {
         
         // Submit should fail (1/3 < 2/3 threshold)
         assert_noop!(
-            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::none(), justification),
             Error::<Test>::ThresholdNotReached
         );
     });
@@ -586,7 +623,7 @@ fn test_vote_record_pruning() {
             votes,
         };
         
-        assert_ok!(Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
+        assert_ok!(Registry::submit_justification(RuntimeOrigin::none(), justification));
         
         // Verify round was incremented
         assert_eq!(crate::CurrentRound::<Test>::get(), 1);
@@ -655,15 +692,16 @@ fn test_genesis_weight_initialization_bug_condition() {
                 validator
             );
             
-            // Verify weight calculation is correct (stake * factor + score * factor with cap)
-            let expected_stake_weight = *stake; // StakeWeightFactor = 1
-            let expected_score_weight = score * 100; // ScoreWeightFactor = 100
-            let expected_total = expected_stake_weight + expected_score_weight;
+            // The Commit Engine gives each validator its share of the epoch
+            // stake, scaled to the fixed commit scale.
+            let total_stake: u128 = genesis_validators.iter().map(|(_, stake, _)| *stake).sum();
+            let expected_total = engine_share(*stake, total_stake);
             assert_eq!(
                 weight_value, expected_total,
-                "Bug detected: Validator {:?} weight calculation incorrect. Expected {}, got {}",
+                "Validator {:?} carries a share the Commit Engine did not set. Expected {}, found {}",
                 validator, expected_total, weight_value
             );
+            let _ = score;
         }
         
         // **EXPECTED BEHAVIOR 2.3**: TotalVotingWeight SHOULD be > 0 at genesis
@@ -673,14 +711,17 @@ fn test_genesis_weight_initialization_bug_condition() {
             "Bug detected: TotalVotingWeight is 0 at genesis. Expected sum of all validator weights."
         );
         
-        // Verify total weight is correct sum
-        let expected_total: u128 = genesis_validators.iter()
-            .map(|(_, stake, score)| *stake + (score * 100))
-            .sum();
+        // The total is the sum of every share across the set.
+        let stakes: Vec<u128> = genesis_validators.iter().map(|(_, stake, _)| *stake).collect();
+        let expected_total = engine_total(&stakes);
         assert_eq!(
             total_weight, expected_total,
-            "Bug detected: TotalVotingWeight incorrect. Expected {}, got {}",
-            expected_total, total_weight
+            "The epoch total reads {} where the Commit Engine sets {}",
+            total_weight, expected_total
+        );
+        assert!(
+            expected_total <= crate::VOTE_WEIGHT_SCALE,
+            "The epoch total stays inside the commit scale"
         );
         
         // **EXPECTED BEHAVIOR 2.4**: Finalization at block 10 SHOULD succeed
@@ -735,7 +776,7 @@ fn test_genesis_weight_initialization_bug_condition() {
         
         // Attempt to finalize block 10
         // On unfixed code, this will fail because validators have no weights
-        let result = Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
+        let result = Registry::submit_justification(RuntimeOrigin::none(), justification);
         assert!(
             result.is_ok(),
             "Bug detected: Finalization of block 10 failed. Expected success with genesis-initialized weights. Error: {:?}",
@@ -807,73 +848,95 @@ fn test_preservation_epoch_transition_updates_weights() {
                     validator, epoch
                 );
                 
-                // Verify weight calculation formula: stake * 1 + score * 100 (with cap)
-                let expected_stake_weight = *stake; // StakeWeightFactor = 1
-                let expected_score_weight = score * 100; // ScoreWeightFactor = 100
-                let expected_total = expected_stake_weight + expected_score_weight;
-                
+                // The Commit Engine share rule holds at every epoch boundary.
+                let total_stake: u128 = validators.iter().map(|(_, held, _)| *held).sum();
+                let expected_total = engine_share(*stake, total_stake);
+
                 assert_eq!(
                     weight.unwrap(),
                     expected_total,
-                    "Preservation check: Weight calculation formula must remain unchanged at epoch {}",
+                    "The Commit Engine share rule moved at epoch {}",
                     epoch
                 );
+                let _ = score;
             }
             
-            // Verify TotalVotingWeight is calculated correctly
+            // The epoch total is the sum of every share.
             let total_weight = crate::TotalVotingWeight::<Test>::get();
-            let expected_total: u128 = validators.iter()
-                .map(|(_, stake, score)| *stake + (score * 100))
-                .sum();
-            
+            let stakes: Vec<u128> = validators.iter().map(|(_, stake, _)| *stake).collect();
+            let expected_total = engine_total(&stakes);
+
             assert_eq!(
                 total_weight,
                 expected_total,
-                "Preservation check: TotalVotingWeight calculation must remain unchanged at epoch {}",
+                "The epoch total moved away from the sum of the shares at epoch {}",
                 epoch
             );
         }
     });
 }
 
-/// **Property 2.2: Weight Calculation Formula Preservation**
-/// 
-/// For all epoch boundaries > 0, weight calculation formula remains unchanged.
-/// This test verifies the formula: weight = (stake * stake_factor) + min(score * score_factor, cap)
+/// The Commit Engine share rule holds across every stake pattern.
+///
+/// The engine gives a validator the share of the epoch stake it holds. A
+/// validator holding half the stake carries half the scale. A validator
+/// holding nothing carries nothing. Equal stakes carry equal shares.
 #[test]
-fn test_preservation_weight_calculation_formula() {
+fn the_commit_engine_share_follows_the_stake_pattern() {
     new_test_ext().execute_with(|| {
         let alice = account_key("Alice");
         let bob = account_key("Bob");
-        
-        // Test various stake and score combinations
-        let test_cases = vec![
-            // (stake, score, expected_weight)
-            (1_000_000u128, 50u128, 1_000_000 + 5_000),      // Normal case
-            (5_000_000u128, 80u128, 5_000_000 + 8_000),      // Normal case
-            (10_000_000u128, 100u128, 10_000_000 + 10_000),  // Max score
-            (100_000u128, 1000u128, 100_000 + 100_000),      // Score capped at 100_000
-            (0u128, 80u128, 8_000),                      // Zero stake
+
+        // Each pair reads as the stake of Alice beside the stake of Bob.
+        let patterns = vec![
+            (1_000_000u128, 1_000_000u128),
+            (5_000_000u128, 1_000_000u128),
+            (10_000_000u128, 1_000_000u128),
+            (100_000u128, 1_000_000u128),
+            (0u128, 1_000_000u128),
         ];
-        
-        for (i, (stake, score, expected_weight)) in test_cases.iter().enumerate() {
+
+        for (index, (alice_stake, bob_stake)) in patterns.iter().enumerate() {
             let validators = vec![
-                (alice.clone(), *stake, *score),
-                (bob.clone(), 1_000_000u128, 80u128), // Bob for variety
+                (alice.clone(), *alice_stake, 80u128),
+                (bob.clone(), *bob_stake, 80u128),
             ];
-            
-            // Freeze weights for epoch (simulating epoch transition)
-            Registry::freeze_epoch_weights(i as u32 + 1, &validators);
-            
-            // Verify Alice's weight matches expected formula
-            let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice);
+
+            Registry::freeze_epoch_weights(index as u32 + 1, &validators);
+
+            let total_stake = alice_stake + bob_stake;
+            let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
+            let bob_weight = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
+
             assert_eq!(
-                alice_weight.unwrap(),
-                *expected_weight,
-                "Preservation check: Weight formula must remain unchanged for stake={}, score={}",
-                stake, score
+                alice_weight,
+                engine_share(*alice_stake, total_stake),
+                "The share of Alice left the Commit Engine rule at stake {}",
+                alice_stake
+            );
+            assert_eq!(
+                bob_weight,
+                engine_share(*bob_stake, total_stake),
+                "The share of Bob left the Commit Engine rule at stake {}",
+                bob_stake
+            );
+            assert_eq!(
+                crate::TotalVotingWeight::<Test>::get(),
+                alice_weight + bob_weight,
+                "The epoch total reads the sum of the two shares"
             );
         }
+
+        // Equal stakes carry equal shares, and the pair reaches the scale.
+        let even = vec![
+            (alice.clone(), 4_000u128, 80u128),
+            (bob.clone(), 4_000u128, 80u128),
+        ];
+        Registry::freeze_epoch_weights(99, &even);
+        let alice_even = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
+        let bob_even = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
+        assert_eq!(alice_even, bob_even);
+        assert_eq!(alice_even + bob_even, crate::VOTE_WEIGHT_SCALE);
     });
 }
 
@@ -1018,7 +1081,7 @@ fn test_preservation_finalization_after_epoch_boundary() {
         };
         
         // Finalization should succeed after epoch boundary
-        let result = Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
+        let result = Registry::submit_justification(RuntimeOrigin::none(), justification);
         assert!(
             result.is_ok(),
             "Preservation check: Finalization should succeed after epoch boundary. Error: {:?}",
@@ -1068,20 +1131,20 @@ fn test_preservation_multiple_epoch_transitions() {
                 epoch
             );
             
-            let expected_weight = 10_000_000 + (80 * 100);
+            let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
+            let total_stake: u128 = stakes.iter().sum();
             assert_eq!(
                 alice_weight.unwrap(),
-                expected_weight,
+                engine_share(10_000_000, total_stake),
                 "Preservation check: Weight should be consistent across epoch {}",
                 epoch
             );
             
             // Verify total weight
             let total_weight = crate::TotalVotingWeight::<Test>::get();
-            let expected_total = (10_000_000 + 8_000) + (8_000_000 + 8_000) + (6_000_000 + 8_000);
             assert_eq!(
                 total_weight,
-                expected_total,
+                engine_total(&stakes),
                 "Preservation check: Total weight should be consistent at epoch {}",
                 epoch
             );
@@ -1108,10 +1171,9 @@ fn test_preservation_weight_recalculation_on_changes() {
         Registry::freeze_epoch_weights(1, &validators_epoch1);
         
         let alice_weight_epoch1 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
-        let expected_alice_epoch1 = 5_000_000 + (70 * 100);
         assert_eq!(
             alice_weight_epoch1,
-            expected_alice_epoch1,
+            engine_share(5_000_000, 5_000_000 + 3_000_000),
             "Preservation check: Alice's weight should match formula at epoch 1"
         );
         
@@ -1124,18 +1186,16 @@ fn test_preservation_weight_recalculation_on_changes() {
         Registry::freeze_epoch_weights(2, &validators_epoch2);
         
         let alice_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
-        let expected_alice_epoch2 = 8_000_000 + (90 * 100);
         assert_eq!(
             alice_weight_epoch2,
-            expected_alice_epoch2,
+            engine_share(8_000_000, 8_000_000 + 2_000_000),
             "Preservation check: Alice's weight should be recalculated correctly at epoch 2"
         );
         
         let bob_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
-        let expected_bob_epoch2 = 2_000_000 + (50 * 100);
         assert_eq!(
             bob_weight_epoch2,
-            expected_bob_epoch2,
+            engine_share(2_000_000, 8_000_000 + 2_000_000),
             "Preservation check: Bob's weight should be recalculated correctly at epoch 2"
         );
         
@@ -1173,139 +1233,171 @@ fn test_genesis_single_validator() {
     });
 }
 
-/// Test genesis initialization with multiple validators (3 validators)
+/// Genesis seeds the Commit Engine weight table for every validator named.
 #[test]
-fn test_genesis_multiple_validators() {
+fn genesis_seeds_a_share_for_every_named_validator() {
     new_test_ext().execute_with(|| {
         let alice = account_key("Alice");
         let bob = account_key("Bob");
         let charlie = account_key("Charlie");
-        
-        // Verify all validators have weights
+
         let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice);
         let bob_weight = crate::EpochVotingWeight::<Test>::get(&bob);
         let charlie_weight = crate::EpochVotingWeight::<Test>::get(&charlie);
-        
-        assert!(alice_weight.is_some(), "Alice should have a voting weight");
-        assert!(bob_weight.is_some(), "Bob should have a voting weight");
-        assert!(charlie_weight.is_some(), "Charlie should have a voting weight");
-        
-        // Verify all weights are greater than 0
-        assert!(alice_weight.unwrap() > 0, "Alice's weight should be > 0");
-        assert!(bob_weight.unwrap() > 0, "Bob's weight should be > 0");
-        assert!(charlie_weight.unwrap() > 0, "Charlie's weight should be > 0");
-        
-        // Verify weights are calculated correctly based on stakes and scores
-        // Alice: 10_000_000 stake, 80 score -> (10_000_000 * 1) + (80 * 100) = 10_008_000
-        // Bob: 8_000_000 stake, 80 score -> (8_000_000 * 1) + (80 * 100) = 8_008_000
-        // Charlie: 6_000_000 stake, 80 score -> (6_000_000 * 1) + (80 * 100) = 6_008_000
-        assert_eq!(alice_weight.unwrap(), 10_008_000, "Alice's weight should be 10_008_000");
-        assert_eq!(bob_weight.unwrap(), 8_008_000, "Bob's weight should be 8_008_000");
-        assert_eq!(charlie_weight.unwrap(), 6_008_000, "Charlie's weight should be 6_008_000");
-        
-        // Verify TotalVotingWeight is sum of all weights
+
+        assert!(alice_weight.is_some(), "Alice carries a share at genesis");
+        assert!(bob_weight.is_some(), "Bob carries a share at genesis");
+        assert!(charlie_weight.is_some(), "Charlie carries a share at genesis");
+
+        // The mock genesis names three stakes. Each validator carries the
+        // share of the epoch stake it holds.
+        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
+        let total_stake: u128 = stakes.iter().sum();
+
+        assert_eq!(alice_weight.unwrap(), engine_share(stakes[0], total_stake));
+        assert_eq!(bob_weight.unwrap(), engine_share(stakes[1], total_stake));
+        assert_eq!(charlie_weight.unwrap(), engine_share(stakes[2], total_stake));
+
+        // The share of Alice exceeds the share of Bob, which exceeds the
+        // share of Charlie, in the order their stakes run.
+        assert!(alice_weight.unwrap() > bob_weight.unwrap());
+        assert!(bob_weight.unwrap() > charlie_weight.unwrap());
+
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        assert_eq!(total_weight, 24_024_000, "Total weight should be sum of all validator weights");
+        assert_eq!(total_weight, engine_total(&stakes));
     });
 }
 
-/// Test genesis initialization with 5 validators
+/// Genesis seeds a share for each of five validators.
 #[test]
-fn test_genesis_five_validators() {
-    // Create a custom test environment with 5 validators
+fn genesis_seeds_five_validators() {
     let validators = vec![
-        (account_key("Alice"), 1000, 80),
-        (account_key("Bob"), 2000, 80),
-        (account_key("Charlie"), 3000, 80),
-        (account_key("Dave"), 4000, 80),
-        (account_key("Eve"), 5000, 80),
+        (account_key("Alice"), 1000u128, 80u128),
+        (account_key("Bob"), 2000u128, 80u128),
+        (account_key("Charlie"), 3000u128, 80u128),
+        (account_key("Dave"), 4000u128, 80u128),
+        (account_key("Eve"), 5000u128, 80u128),
     ];
-    
+
     let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
-    
+
     crate::GenesisConfig::<Test> {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
-    
+
     let mut ext: sp_io::TestExternalities = t.into();
-    
+
     ext.execute_with(|| {
-        // Verify all 5 validators have weights
-        for (validator, stake, score) in validators {
-            let weight = crate::EpochVotingWeight::<Test>::get(&validator);
-            assert!(weight.is_some(), "Validator should have a weight");
-            
-            let expected_weight = stake + (score * 100);
-            assert_eq!(weight.unwrap(), expected_weight, "Weight should match formula");
+        let stakes: Vec<u128> = validators.iter().map(|(_, stake, _)| *stake).collect();
+        let total_stake: u128 = stakes.iter().sum();
+
+        for (validator, stake, _score) in &validators {
+            let weight = crate::EpochVotingWeight::<Test>::get(validator);
+            assert!(weight.is_some(), "Each validator carries a share");
+            assert_eq!(weight.unwrap(), engine_share(*stake, total_stake));
         }
-        
-        // Verify total weight
+
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        let expected_total = (1000 + 2000 + 3000 + 4000 + 5000) + (5 * 80 * 100);
-        assert_eq!(total_weight, expected_total, "Total weight should be sum of all weights");
+        assert_eq!(total_weight, engine_total(&stakes));
+        assert!(total_weight <= crate::VOTE_WEIGHT_SCALE);
     });
 }
 
-/// Test genesis initialization with 10 validators
+/// Genesis seeds a share for each of ten validators.
 #[test]
-fn test_genesis_ten_validators() {
-    // Create a custom test environment with 10 validators
+fn genesis_seeds_ten_validators() {
     let validators: Vec<_> = (0..10)
         .map(|i| {
             let name = format!("Validator{}", i);
             let stake = (i as u128 + 1) * 1000;
-            (account_key(&name), stake, 80)
+            (account_key(&name), stake, 80u128)
         })
         .collect();
-    
+
     let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
-    
+
     crate::GenesisConfig::<Test> {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
-    
+
     let mut ext: sp_io::TestExternalities = t.into();
-    
+
     ext.execute_with(|| {
-        // Verify all 10 validators have weights
-        for (validator, stake, score) in validators {
-            let weight = crate::EpochVotingWeight::<Test>::get(&validator);
-            assert!(weight.is_some(), "Validator should have a weight");
-            
-            let expected_weight = stake + (score * 100);
-            assert_eq!(weight.unwrap(), expected_weight, "Weight should match formula");
+        let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
+
+        for (validator, stake, _score) in &validators {
+            let weight = crate::EpochVotingWeight::<Test>::get(validator);
+            assert!(weight.is_some(), "Each validator carries a share");
+            assert_eq!(weight.unwrap(), engine_share(*stake, total_stake));
         }
-        
-        // Verify ValidatorSetId is 0
+
         let validator_set_id = crate::ValidatorSetId::<Test>::get();
-        assert_eq!(validator_set_id, 0, "ValidatorSetId should be 0 at genesis");
+        assert_eq!(validator_set_id, 0, "The validator set identifier starts at zero");
     });
 }
 
-/// Test that genesis validation rejects empty validator set
+/// A strict chain spec naming no validator stops at genesis.
 #[test]
 #[should_panic(expected = "Registry genesis requires at least one validator")]
-fn test_genesis_rejects_empty_validator_set() {
+fn genesis_rejects_a_strict_spec_naming_no_validator() {
     let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
-    
+
     crate::GenesisConfig::<Test> {
         initial_validator_keys: Vec::new(),
-        initial_validator_weights: vec![], // Empty validator set
+        initial_validator_weights: vec![],
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
+}
+
+/// A deployment that admits every validator after genesis starts empty.
+///
+/// The Admission Engine governs entry to the validator set. A chain spec that
+/// leaves the strict check off therefore builds from an empty weight table and
+/// takes its validators through the engine afterwards.
+#[test]
+fn genesis_accepts_an_open_spec_naming_no_validator() {
+    let mut t = frame_system::GenesisConfig::<Test>::default()
+        .build_storage()
+        .unwrap();
+
+    crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
+        initial_validator_weights: vec![],
+        strict_validation: false,
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    let mut ext: sp_io::TestExternalities = t.into();
+    ext.execute_with(|| {
+        assert_eq!(crate::TotalVotingWeight::<Test>::get(), 0);
+        assert_eq!(crate::ValidatorSetId::<Test>::get(), 0);
+
+        // The Admission Engine admits a validator, and the Commit Engine
+        // weight table follows at the next epoch boundary.
+        let alice = account_key("Alice");
+        Registry::freeze_epoch_weights(1, &[(alice.clone(), 1_000u128, 80u128)]);
+        assert_eq!(
+            crate::EpochVotingWeight::<Test>::get(&alice),
+            Some(crate::VOTE_WEIGHT_SCALE)
+        );
+    });
 }
 
 /// Test that genesis validation rejects zero stakes
@@ -1321,6 +1413,7 @@ fn test_genesis_rejects_zero_stake() {
         initial_validator_weights: vec![
             (account_key("Alice"), 0, 80), // Zero stake
         ],
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1339,24 +1432,27 @@ fn test_genesis_rejects_invalid_score() {
         initial_validator_weights: vec![
             (account_key("Alice"), 1000, 101), // Score > 100
         ],
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
 }
 
-/// Test that freeze_epoch_weights is called with epoch 0 at genesis
+/// Genesis runs the epoch weight freeze for epoch zero.
 #[test]
-fn test_genesis_calls_freeze_epoch_weights() {
+fn genesis_freezes_the_weights_of_epoch_zero() {
     new_test_ext().execute_with(|| {
-        // Verify that weights were set (which means freeze_epoch_weights was called)
         let alice = account_key("Alice");
         let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice);
-        
-        assert!(alice_weight.is_some(), "freeze_epoch_weights should have been called at genesis");
-        
-        // Verify the weight calculation matches freeze_epoch_weights logic
-        let expected_weight = 1000 + (80 * 100); // stake * factor + score * factor
-        assert_eq!(alice_weight.unwrap(), expected_weight, "Weight should match freeze_epoch_weights calculation");
+
+        assert!(
+            alice_weight.is_some(),
+            "Genesis runs the epoch weight freeze, so Alice carries a share"
+        );
+
+        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
+        let total_stake: u128 = stakes.iter().sum();
+        assert_eq!(alice_weight.unwrap(), engine_share(stakes[0], total_stake));
     });
 }
 
@@ -1375,15 +1471,19 @@ fn test_genesis_populates_epoch_voting_weight() {
     });
 }
 
-/// Test that TotalVotingWeight is calculated correctly at genesis
+/// Genesis records the epoch total the Commit Engine reads.
 #[test]
-fn test_genesis_calculates_total_voting_weight() {
+fn genesis_records_the_epoch_total() {
     new_test_ext().execute_with(|| {
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        
-        // Expected: (10_000_000 + 8_000_000 + 6_000_000) + (3 * 80 * 100) = 24_000_000 + 24_000 = 24_024_000
-        assert_eq!(total_weight, 24_024_000, "TotalVotingWeight should be calculated correctly at genesis");
-        assert!(total_weight > 0, "TotalVotingWeight should be greater than 0");
+        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
+
+        assert_eq!(total_weight, engine_total(&stakes));
+        assert!(total_weight > 0, "The epoch total carries weight at genesis");
+        assert!(
+            total_weight <= crate::VOTE_WEIGHT_SCALE,
+            "The epoch total stays inside the commit scale"
+        );
     });
 }
 

@@ -189,6 +189,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     crate::GenesisConfig::<Test> {
         initial_validator_weights: test_validator_weights,
         initial_validator_keys: test_validator_keys,
+        strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
