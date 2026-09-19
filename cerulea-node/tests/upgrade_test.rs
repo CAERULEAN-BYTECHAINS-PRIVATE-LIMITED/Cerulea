@@ -200,5 +200,9 @@ fn a_record_written_before_the_transition_reads_back_after_it() {
 
     let roots_after = roots_of(&before);
     assert_eq!(roots_before, roots_after);
-    assert_eq!(roots_before.len(), 1, "both records share one conflict domain");
+    assert_eq!(
+        roots_before.len(),
+        2,
+        "each record writes its own key, so each one carries its own conflict domain"
+    );
 }

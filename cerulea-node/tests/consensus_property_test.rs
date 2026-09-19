@@ -12,7 +12,7 @@
 //! 3. **Thresholds.** A weight crossing the share commits. A weight below it
 //!    waits. The four class shares rise in order.
 //! 4. **Draw.** The committee draw is the same on every node for the same
-//!    published state, and a higher Trust Score never lowers a seat value.
+//!    published state, and a higher Trust Score never raises a seat value.
 //! 5. **Seal.** A sealed header verifies under the author key alone. Any change
 //!    to the header or the claim breaks the seal.
 //! 6. **Commit.** Two signer sets that each reach the share share a member.
@@ -30,7 +30,7 @@ use proptest::prelude::*;
 
 use cerulea_consensus::engines::authoring::draw::derive_slot_seed;
 use cerulea_consensus::engines::authoring::seal::{
-    extract_seal, pre_seal_hash, seal_and_apply, SealClaim,
+    extract_seal, pre_seal_hash, SealClaim,
 };
 use cerulea_consensus::engines::commit::commit::{crosses, DomainCommitter, ThresholdTable};
 use cerulea_consensus::engines::execution::partition::DomainPartitioner;
@@ -216,13 +216,16 @@ proptest! {
     }
 
     #[test]
-    fn a_higher_trust_score_never_lowers_a_seat_value(
+    fn a_higher_trust_score_never_raises_a_seat_value(
         raw in any::<u128>(),
         lower in 1u32..500_000u32,
         rise in 1u32..499_999u32,
     ) {
+        // The factor runs from one at no standing down to one quarter at the
+        // whole score, and a lower seat value wins a lower rank. A validator
+        // that served therefore never sits behind one that did not.
         let higher = lower.saturating_add(rise).min(1_000_000);
-        prop_assert!(weighted_draw(raw, higher) >= weighted_draw(raw, lower));
+        prop_assert!(weighted_draw(raw, higher) <= weighted_draw(raw, lower));
     }
 
     #[test]
@@ -357,15 +360,7 @@ proptest! {
             draw,
             0,
         );
-        let mut header = cerulea_node::test_harness::TestHeader::new(
-            height,
-            Default::default(),
-            Default::default(),
-            sp_core::H256::from(parent),
-            sp_runtime::generic::Digest::default(),
-        );
-        seal_and_apply(&network.nodes[1].keystore, &mut header, claim)
-            .expect("the keystore seals the header");
+        let header = network.sealed_header(1, claim, height, parent);
         prop_assert!(extract_seal(&header).is_some());
     }
 
@@ -507,22 +502,22 @@ proptest! {
                 _ => ConfirmationPreference::MaximumCertainty,
             },
             operators: match operators {
-                0 => OperatorCount::One,
-                1 => OperatorCount::Few,
-                _ => OperatorCount::Many,
+                0 => OperatorCount::SingleOrganisation,
+                1 => OperatorCount::SeveralOrganisations,
+                _ => OperatorCount::ManyOrganisations,
             },
             error_cost: match cost {
-                0 => ErrorCost::Low,
-                1 => ErrorCost::Moderate,
-                _ => ErrorCost::Severe,
+                0 => ErrorCost::Recoverable,
+                1 => ErrorCost::Expensive,
+                _ => ErrorCost::Irreversible,
             },
             split: match split {
                 0 => SplitBehaviour::KeepServing,
-                _ => SplitBehaviour::StopAndWait,
+                _ => SplitBehaviour::HaltToStayConsistent,
             },
             retention: match retention {
-                0 => RetentionNeed::Short,
-                1 => RetentionNeed::Medium,
+                0 => RetentionNeed::RecentOnly,
+                1 => RetentionNeed::SeveralYears,
                 _ => RetentionNeed::Permanent,
             },
         };

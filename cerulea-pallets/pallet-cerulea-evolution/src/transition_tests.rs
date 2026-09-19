@@ -81,6 +81,8 @@ struct FragmentType {
     fragment: String,
     types: Vec<TypeDef>,
     record: RecordDef,
+    /// The collection the fragment declares over this record type.
+    collection: Collection,
 }
 
 /// Read every record type out of every fragment.
@@ -113,6 +115,20 @@ fn fragment_types() -> Vec<FragmentType> {
                 declared.push(decoded);
             }
         }
+        // The fragment declares its own collections. The transition carries
+        // those rather than a collection the test invents, so the registry
+        // reads the shape a deployment really installs.
+        let mut collections: Vec<Collection> = Vec::new();
+        for entry in raw
+            .get("collections")
+            .and_then(|value| value.as_array())
+            .unwrap_or(&Vec::new())
+            .iter()
+        {
+            if let Ok(decoded) = serde_json::from_value::<Collection>(entry.clone()) {
+                collections.push(decoded);
+            }
+        }
         for decoded in declared.iter() {
             if let TypeDef::Record(record) = decoded.clone() {
                 if record.fields.is_empty() {
@@ -125,10 +141,19 @@ fn fragment_types() -> Vec<FragmentType> {
                 {
                     continue;
                 }
+                let collection = collections
+                    .iter()
+                    .find(|entry| entry.record_type.as_str() == record.id.as_str())
+                    .cloned();
+                let collection = match collection {
+                    Some(held) => held,
+                    None => continue,
+                };
                 found.push(FragmentType {
                     fragment: name.clone(),
                     types: declared.clone(),
                     record,
+                    collection,
                 });
             }
         }
@@ -165,7 +190,6 @@ fn collection_for(record: &RecordDef) -> Collection {
 fn value_for(field: &FieldDef, seed: usize) -> Value {
     match &field.ty {
         TypeExpr::Integer => Value::Integer(seed as i128 + 1),
-        TypeExpr::Optional(_) => Value::Null,
         _ => Value::Text(alloc::format!("value-{}", seed)),
     }
 }
@@ -236,7 +260,7 @@ fn install(entry: &FragmentType, seed: usize) -> bool {
     if Schema::register_collection(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
-        bounded(collection_for(record).encode()),
+        bounded(entry.collection.encode()),
     )
     .is_err()
     {
