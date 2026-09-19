@@ -58,7 +58,9 @@ fn required_files(raw: &serde_json::Value) -> Vec<String> {
         .and_then(|value| value.as_array())
         .map(|list| {
             list.iter()
-                .filter(|entry| entry.get("kind").and_then(|kind| kind.as_str()) == Some("requires"))
+                .filter(|entry| {
+                    entry.get("kind").and_then(|kind| kind.as_str()) == Some("requires")
+                })
                 .filter_map(|entry| {
                     entry
                         .get("fragment")
@@ -84,10 +86,7 @@ where
 }
 
 fn entry_signature(entry: &CapabilityEntry) -> String {
-    format!(
-        "{}|{}|{:?}",
-        entry.role, entry.collection, entry.capability
-    )
+    format!("{}|{}|{:?}", entry.role, entry.collection, entry.capability)
 }
 
 /// Merge one dependency fragment into the fragment under test.
@@ -142,9 +141,11 @@ fn merge(into: &mut Blueprint, from: &Blueprint) {
     absorb(&mut into.actions, &from.actions, |action: &Action| {
         action.id.as_str().to_string()
     });
-    absorb(&mut into.workflows, &from.workflows, |workflow: &Workflow| {
-        workflow.id.as_str().to_string()
-    });
+    absorb(
+        &mut into.workflows,
+        &from.workflows,
+        |workflow: &Workflow| workflow.id.as_str().to_string(),
+    );
     absorb(&mut into.events, &from.events, |event: &EventDef| {
         event.id.as_str().to_string()
     });
@@ -179,8 +180,12 @@ struct Loaded {
 fn load(path: &Path) -> Loaded {
     let text = fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("{} fails to open: {error}", path.display()));
-    let raw: serde_json::Value = serde_json::from_str(&text)
-        .unwrap_or_else(|error| panic!("{} holds text that parses as no JSON: {error}", path.display()));
+    let raw: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|error| {
+        panic!(
+            "{} holds text that parses as no JSON: {error}",
+            path.display()
+        )
+    });
     let blueprint: Blueprint = serde_json::from_str(&text).unwrap_or_else(|error| {
         panic!(
             "{} fails to decode into the Blueprint type set: {error}",
@@ -336,12 +341,18 @@ fn the_reference_fragment_fills_every_section() {
         !blueprint.rules.invariants.is_empty() && !blueprint.rules.preconditions.is_empty(),
         "the reference declares rules"
     );
-    assert!(!blueprint.actions.is_empty(), "the reference declares actions");
+    assert!(
+        !blueprint.actions.is_empty(),
+        "the reference declares actions"
+    );
     assert!(
         !blueprint.workflows.is_empty(),
         "the reference declares a workflow"
     );
-    assert!(!blueprint.events.is_empty(), "the reference declares events");
+    assert!(
+        !blueprint.events.is_empty(),
+        "the reference declares events"
+    );
     assert!(!blueprint.views.is_empty(), "the reference declares views");
     assert!(
         !blueprint.integrations.feeds.is_empty()
@@ -357,7 +368,10 @@ fn the_reference_fragment_fills_every_section() {
         blueprint.economics.is_some(),
         "the reference declares a unit of account"
     );
-    assert!(!blueprint.blocks.is_empty(), "the reference declares a block");
+    assert!(
+        !blueprint.blocks.is_empty(),
+        "the reference declares a block"
+    );
     blueprint
         .validate()
         .expect("the reference fragment validates on its own");

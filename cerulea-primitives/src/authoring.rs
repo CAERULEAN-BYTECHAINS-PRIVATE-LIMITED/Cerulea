@@ -282,7 +282,9 @@ mod tests {
 
     #[test]
     fn every_node_ranks_the_same_candidates_the_same_way() {
-        let candidates: Vec<SeatInput> = (1..=9u8).map(|n| seat(n, n.wrapping_mul(3), 250_000)).collect();
+        let candidates: Vec<SeatInput> = (1..=9u8)
+            .map(|n| seat(n, n.wrapping_mul(3), 250_000))
+            .collect();
         let seed = derive_slot_seed(&[7u8; 32], 42);
         let first = rank_seats(&candidates, &seed);
         let mut shuffled = candidates.clone();

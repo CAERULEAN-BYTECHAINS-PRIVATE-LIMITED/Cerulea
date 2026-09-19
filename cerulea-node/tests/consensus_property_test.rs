@@ -29,9 +29,7 @@ use std::collections::BTreeSet;
 use proptest::prelude::*;
 
 use cerulea_consensus::engines::authoring::draw::derive_slot_seed;
-use cerulea_consensus::engines::authoring::seal::{
-    extract_seal, pre_seal_hash, SealClaim,
-};
+use cerulea_consensus::engines::authoring::seal::{extract_seal, pre_seal_hash, SealClaim};
 use cerulea_consensus::engines::commit::commit::{crosses, DomainCommitter, ThresholdTable};
 use cerulea_consensus::engines::execution::partition::DomainPartitioner;
 use cerulea_consensus::engines::manifest::{AccessManifest, CollectionAccess, PendingTransaction};

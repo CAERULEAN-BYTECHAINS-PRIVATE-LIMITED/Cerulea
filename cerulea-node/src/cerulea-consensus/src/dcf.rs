@@ -3,32 +3,32 @@
 //! This module provides the core consensus engine implementation for the Cerulea chain.
 //! It handles block production, validation, and author selection.
 
+use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
+use crate::engines::authoring::fallback::{AuthoringPolicy, FallbackTracker, SlotSchedule};
+use crate::engines::authoring::gate::{AuthorGate, AuthorTicket, GateDecision};
+use crate::engines::authoring::seal::{seal_header, BlockSeal};
+use crate::engines::authoring::verify::SlotContext;
+use crate::engines::Slot;
+use crate::import_queue::{committee_from_seats, registry_from_keys};
 use crate::{
     error::{ConsensusError, ConsensusResult},
     metrics::ConsensusMetrics,
     proposer_factory::ProposerFactory,
     types::{ConsensusParams, ValidatorMetrics},
 };
+use cerulea_platform_api::CeruleaPlatformApi;
 use cerulea_runtime::AccountId;
 use codec::Encode;
 use log::{debug, error, info, warn};
-use crate::engines::authoring::fallback::{AuthoringPolicy, FallbackTracker, SlotSchedule};
-use crate::engines::authoring::gate::{AuthorGate, AuthorTicket, GateDecision};
-use crate::engines::authoring::seal::{seal_header, BlockSeal};
-use crate::engines::authoring::verify::SlotContext;
-use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
-use crate::import_queue::{committee_from_seats, registry_from_keys};
-use crate::engines::Slot;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
-use cerulea_platform_api::CeruleaPlatformApi;
 use pallet_cerulea_dvf::CeruleaAuthoringApi;
-use sp_keystore::KeystorePtr;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::ed25519::Public;
 use sp_core::Pair;
+use sp_keystore::KeystorePtr;
 use sp_runtime::traits::{Block as BlockTrait, Header as HeaderT, NumberFor, SaturatedConversion};
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
@@ -273,7 +273,10 @@ where
     /// The chain publishes the committee drawn for the slot and the key set of
     /// every active validator. Every node builds the same context from the same
     /// chain state.
-    pub fn slot_context(&self, slot: Slot) -> ConsensusResult<(SlotContext, crate::engines::authoring::verify::KeyRegistry)> {
+    pub fn slot_context(
+        &self,
+        slot: Slot,
+    ) -> ConsensusResult<(SlotContext, crate::engines::authoring::verify::KeyRegistry)> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
         let parent = self.client.info().best_hash;
@@ -549,7 +552,10 @@ where
     /// and the slot draw this node produced from its own keystore. The seal
     /// signs all of that beside the pre-seal header hash. A node without the
     /// author key produces no signature, so authorship is no longer forgeable.
-    async fn produce_block_with_validation(&mut self, ticket: &AuthorTicket) -> ConsensusResult<()> {
+    async fn produce_block_with_validation(
+        &mut self,
+        ticket: &AuthorTicket,
+    ) -> ConsensusResult<()> {
         let production_start = std::time::Instant::now();
 
         let author = ticket.keys.seal;
@@ -610,8 +616,7 @@ where
         seal: BlockSeal,
     ) -> ConsensusResult<()> {
         let block_number = *header.number();
-        let mut import_params =
-            BlockImportParams::new(sp_consensus::BlockOrigin::Own, header);
+        let mut import_params = BlockImportParams::new(sp_consensus::BlockOrigin::Own, header);
         import_params.post_digests.push(seal.digest_item());
         import_params.body = Some(extrinsics);
         import_params.finalized = false;
@@ -623,16 +628,28 @@ where
                 Ok(())
             }
             Ok(ImportResult::AlreadyInChain) => {
-                debug!("Commit Engine: block #{} already sits in the chain", block_number);
+                debug!(
+                    "Commit Engine: block #{} already sits in the chain",
+                    block_number
+                );
                 Ok(())
             }
             Ok(other) => {
-                debug!("Commit Engine: block #{} import reported {:?}", block_number, other);
+                debug!(
+                    "Commit Engine: block #{} import reported {:?}",
+                    block_number, other
+                );
                 Ok(())
             }
             Err(e) => {
-                error!("Commit Engine: block #{} failed to import: {:?}", block_number, e);
-                Err(ConsensusError::BlockImport(format!("Import failed: {:?}", e)))
+                error!(
+                    "Commit Engine: block #{} failed to import: {:?}",
+                    block_number, e
+                );
+                Err(ConsensusError::BlockImport(format!(
+                    "Import failed: {:?}",
+                    e
+                )))
             }
         }
     }

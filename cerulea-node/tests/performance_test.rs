@@ -79,13 +79,9 @@ fn measure_class_latency(class: TransactionClass) -> ClassLatency {
     for sample in 0..SAMPLES {
         let hash = [(sample % 251) as u8; 32];
         let started = Instant::now();
-        let mut committer = DomainCommitter::open(
-            Slot(sample as u64 + 1),
-            hash,
-            network.total_weight(),
-            table,
-        )
-        .expect("the validator set carries weight");
+        let mut committer =
+            DomainCommitter::open(Slot(sample as u64 + 1), hash, network.total_weight(), table)
+                .expect("the validator set carries weight");
         for node in network.nodes.iter() {
             committer
                 .add_signer(node.seal_key, node.standing)

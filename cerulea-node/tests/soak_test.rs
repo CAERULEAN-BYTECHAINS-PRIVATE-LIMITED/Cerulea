@@ -140,7 +140,10 @@ fn the_soak_run_holds_memory_and_handles_steady() {
     let minutes = minutes_requested();
     let (samples, slots, committed) = soak(minutes);
 
-    assert!(samples.len() >= 3, "the run collected at least three samples");
+    assert!(
+        samples.len() >= 3,
+        "the run collected at least three samples"
+    );
     assert!(slots > 0, "the run drove slots");
     assert_eq!(committed as u64, slots, "every slot finalised a block");
 
