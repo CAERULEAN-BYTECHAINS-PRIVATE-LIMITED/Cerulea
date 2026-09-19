@@ -3,6 +3,9 @@
 // The pallet-side Admission Engine of the Dynamic Consensus Framework
 pub mod engines;
 
+/// The validator key records the Authoring Engine reads.
+pub mod keys;
+
 pub use pallet::*;
 
 use sp_runtime::SaturatedConversion;
@@ -40,7 +43,7 @@ pub mod pallet {
 
     use pallet_cerulea_dcf::{ValidatorStatus, EpochStats, EjectionReason};
 
-    /// Local DVF ValidatorState structure to keep registry decoupled from DCF Config
+    /// Local Registry ValidatorState structure to keep registry decoupled from DCF Config
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
     #[scale_info(skip_type_params(T))]
     pub struct ValidatorState<T: Config> {
@@ -67,7 +70,7 @@ pub mod pallet {
         pub finalized_checkpoint_hash: Option<Hash>,
     }
     
-    /// DVF Vote structure sent over the network and recorded in the runtime
+    /// Registry Vote structure sent over the network and recorded in the runtime
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
     pub struct DvfVote<Hash, AccountId, Signature> {
         pub epoch_id: u32,
@@ -79,7 +82,7 @@ pub mod pallet {
         pub signature: Signature, // Signature of the above fields
     }
 
-    /// DVF Justification structure containing threshold-reaching votes
+    /// Registry Justification structure containing threshold-reaching votes
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, frame_support::__private::codec::DecodeWithMemTracking)]
     pub struct DvfJustification<Hash, AccountId, Signature> {
         /// Round number for this justification
@@ -91,7 +94,7 @@ pub mod pallet {
     }
 
 sp_api::decl_runtime_apis! {
-    /// DVF Runtime API for querying the DVF gadget network state.
+    /// Registry Runtime API for querying the Registry gadget network state.
     pub trait DvfApi<BlockNumber, AccountId, Hash>
     where
         BlockNumber: codec::Codec + Clone + Eq + sp_std::fmt::Debug,
@@ -112,12 +115,37 @@ sp_api::decl_runtime_apis! {
         fn get_vote_tally(block_hash: Hash) -> u128;
         fn submit_dvf_justification(justification: DvfJustification<Hash, AccountId, sp_runtime::MultiSignature>) -> Result<(), sp_runtime::DispatchError>;
     }
+
+    /// The Authoring Engine interface the node reads.
+    ///
+    /// The node fills its key registry and its slot committee from these calls.
+    /// Import then reaches the three checks the Authoring Engine carries.
+    /// Membership names the author inside the committee. Signature checks the
+    /// seal against the author key. Timing checks the rank against the moment.
+    pub trait CeruleaAuthoringApi<AccountId>
+    where
+        AccountId: codec::Codec + Clone + Eq + sp_std::fmt::Debug,
+    {
+        /// The draw key and the seal key of every active validator.
+        fn active_validator_keys() -> sp_std::vec::Vec<(AccountId, crate::keys::ValidatorKeySet)>;
+
+        /// The five drawn validators for one slot, in rank order.
+        ///
+        /// Each seat carries the epoch draw proof the validator published.
+        fn slot_committee(slot: u64, parent_hash: [u8; 32]) -> sp_std::vec::Vec<crate::keys::SlotCommitteeSeat<AccountId>>;
+
+        /// The epoch the chain runs now.
+        fn authoring_epoch() -> u32;
+
+        /// The draw one validator published for one epoch.
+        fn published_epoch_draw(validator: AccountId, epoch: u32) -> Option<crate::keys::PublishedDraw>;
+    }
 }
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
+	/// Set the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cerulea_pos::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
@@ -185,17 +213,17 @@ sp_api::decl_runtime_apis! {
     #[pallet::getter(fn total_voting_weight)]
     pub type TotalVotingWeight<T: Config> = StorageValue<_, u128, ValueQuery>;
 
-    /// Current DVF voting round inside an epoch. Incremented after each successfully finalized block.
+    /// Current Registry voting round inside an epoch. Incremented after each successfully finalized block.
     #[pallet::storage]
     #[pallet::getter(fn current_round)]
     pub type CurrentRound<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Number of the highest finalized block via DVF.
+    /// Number of the highest finalized block via Registry.
     #[pallet::storage]
     #[pallet::getter(fn finalized_block_number)]
     pub type FinalizedBlockNumber<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
-    /// Hash of the highest finalized block via DVF.
+    /// Hash of the highest finalized block via Registry.
     #[pallet::storage]
     #[pallet::getter(fn finalized_block_hash)]
     pub type FinalizedBlockHash<T: Config> = StorageValue<_, T::Hash, OptionQuery>;
@@ -371,11 +399,70 @@ sp_api::decl_runtime_apis! {
         ValueQuery,
     >;
 
-    /// Genesis configuration for the DVF pallet.
+    // --- Validator Key Records ---
+
+    /// The key set each validator uses now.
+    ///
+    /// The Authoring Engine reads the draw key for the slot draw and the seal
+    /// key for the block seal.
+    #[pallet::storage]
+    #[pallet::getter(fn validator_key_record)]
+    pub type ValidatorKeyRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::keys::ValidatorKeySet,
+        OptionQuery,
+    >;
+
+    /// The key set each validator takes up at the next epoch boundary.
+    #[pallet::storage]
+    #[pallet::getter(fn pending_validator_key_record)]
+    pub type PendingKeyRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::keys::ValidatorKeySet,
+        OptionQuery,
+    >;
+
+    /// The validator account that owns one draw key.
+    ///
+    /// The reverse record keeps every draw key with one owner. The committee
+    /// call reads it to name the validator behind a drawn key.
+    #[pallet::storage]
+    #[pallet::getter(fn draw_key_owner)]
+    pub type DrawKeyOwner<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        [u8; 32],
+        T::AccountId,
+        OptionQuery,
+    >;
+
+    /// The draw each validator published for one epoch.
+    #[pallet::storage]
+    #[pallet::getter(fn epoch_draw)]
+    pub type EpochDraws<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat, u32,
+        Blake2_128Concat, T::AccountId,
+        crate::keys::PublishedDraw,
+        OptionQuery,
+    >;
+
+    /// The epoch the active key records last moved forward.
+    #[pallet::storage]
+    #[pallet::getter(fn key_rotation_epoch)]
+    pub type KeyRotationEpoch<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Genesis settings for the Registry pallet.
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
         pub initial_validator_weights: Vec<(T::AccountId, u128, u128)>,
+        /// The draw key and the seal key of each validator present at genesis.
+        pub initial_validator_keys: Vec<(T::AccountId, crate::keys::ValidatorKeySet)>,
     }
 
     #[pallet::genesis_build]
@@ -383,26 +470,26 @@ sp_api::decl_runtime_apis! {
         fn build(&self) {
             assert!(
                 !self.initial_validator_weights.is_empty(),
-                "DVF genesis requires at least one validator with non-zero weight"
+                "Registry genesis requires at least one validator with non-zero weight"
             );
 
             for (validator, stake, score) in &self.initial_validator_weights {
                 assert!(
                     *stake > 0,
-                    "DVF genesis validator {:?} has invalid stake (must be > 0)",
+                    "Registry genesis validator {:?} has invalid stake (must be > 0)",
                     validator
                 );
                 assert!(
                     *score <= 100,
-                    "DVF genesis validator {:?} has invalid score {} (must be 0-100)",
+                    "Registry genesis validator {:?} has invalid score {} (must be 0-100)",
                     validator,
                     score
                 );
             }
 
             log::info!(
-                target: "runtime::dvf",
-                "DVF genesis initializing with {} validators",
+                target: "runtime::registry",
+                "Registry genesis initializing with {} validators",
                 self.initial_validator_weights.len()
             );
 
@@ -410,9 +497,14 @@ sp_api::decl_runtime_apis! {
             Pallet::<T>::freeze_epoch_weights(0, &self.initial_validator_weights);
             ValidatorSetId::<T>::put(0);
 
+            for (validator, keys) in &self.initial_validator_keys {
+                ValidatorKeyRecords::<T>::insert(validator, keys);
+                DrawKeyOwner::<T>::insert(keys.draw, validator.clone());
+            }
+
             log::info!(
-                target: "runtime::dvf",
-                "DVF genesis initialization complete - EpochVotingWeight populated for epoch 0"
+                target: "runtime::registry",
+                "Registry genesis initialization complete - EpochVotingWeight populated for epoch 0"
             );
         }
     }
@@ -420,9 +512,9 @@ sp_api::decl_runtime_apis! {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A block was finalized by the DVF voting protocol.
+		/// A block was finalized by the Registry voting protocol.
 		BlockFinalized { block_number: BlockNumberFor<T>, block_hash: T::Hash, round: u32, weight: u128 },
-        /// DVF Voting Weights Frozen for a new epoch.
+        /// Registry Voting Weights Frozen for a new epoch.
         WeightsFrozen { epoch: u32, total_weight: u128 },
         /// Validator set has changed and ValidatorSetId was incremented.
         ValidatorSetChanged { old_id: u32, new_id: u32 },
@@ -445,6 +537,13 @@ sp_api::decl_runtime_apis! {
 		},
 		ValidatorEjected { validator: T::AccountId, reason: pallet_cerulea_dcf::EjectionReason },
         CooldownExpired { validator: T::AccountId },
+        /// A validator registered a draw key and a seal key. The pair takes
+        /// effect at the next epoch boundary.
+        ValidatorKeysRegistered { validator: T::AccountId, keys: crate::keys::ValidatorKeySet },
+        /// A pending key pair took effect at an epoch boundary.
+        ValidatorKeysRotated { validator: T::AccountId, epoch: u32, keys: crate::keys::ValidatorKeySet },
+        /// A validator published its draw for one epoch.
+        EpochDrawPublished { validator: T::AccountId, epoch: u32 },
 	}
 
 	#[pallet::error]
@@ -479,6 +578,26 @@ sp_api::decl_runtime_apis! {
         ValidatorNotFound,
         /// Account is not a validator.
         NotValidator,
+        /// The draw key failed to prove possession. Sign the validator account
+        /// with the draw key and submit that signature.
+        DrawKeyPossessionRejected,
+        /// The seal key failed to prove possession. Sign the validator account
+        /// with the seal key and submit that signature.
+        SealKeyPossessionRejected,
+        /// Another validator already holds this draw key. Generate a fresh draw
+        /// key and register that one.
+        DrawKeyAlreadyHeld,
+        /// The account holds no registered key pair. Register a draw key and a
+        /// seal key before publishing a draw.
+        ValidatorKeysAbsent,
+        /// The published draw failed its proof. Publish a draw made with the
+        /// registered draw key for the stated epoch.
+        EpochDrawRejected,
+        /// The stated epoch already closed. Publish a draw for the epoch that
+        /// runs now or for one that follows.
+        EpochDrawTooLate,
+        /// The validator already published a draw for the stated epoch.
+        EpochDrawAlreadyHeld,
 	}
 
     #[pallet::hooks]
@@ -491,6 +610,7 @@ sp_api::decl_runtime_apis! {
             if block_number % T::UnderperformanceCheckInterval::get().saturated_into::<u32>() == 0 {
                 Self::check_and_handle_underperforming_validators();
             }
+            Self::rotate_validator_keys_at_epoch_boundary();
             Weight::zero()
         }
     }
@@ -549,7 +669,7 @@ sp_api::decl_runtime_apis! {
             Ok(())
         }
 
-        /// Submit a DVF justification to finalize a block.
+        /// Submit a Registry justification to finalize a block.
         #[pallet::call_index(1)]
         #[pallet::weight(Weight::from_parts(100_000, 0) + T::DbWeight::get().reads_writes(10, 10))]
         pub fn submit_justification(
@@ -760,9 +880,231 @@ sp_api::decl_runtime_apis! {
 
             Ok(())
         }
+
+        /// Register the draw key and the seal key of one validator.
+        ///
+        /// The Authoring Engine draws the slot committee with the draw key. The
+        /// Authoring Engine seals the block with the seal key. The Commit
+        /// Engine signs every vote with the same seal key.
+        ///
+        /// The extrinsic is signed by the validator account. Each new key signs
+        /// that account in turn, so the chain learns that the account holds
+        /// both private keys. The pair waits in a pending record and takes
+        /// effect at the next epoch boundary.
+        #[pallet::call_index(7)]
+        #[pallet::weight(Weight::from_parts(80_000, 0) + T::DbWeight::get().reads_writes(3, 2))]
+        pub fn register_validator_keys(
+            origin: OriginFor<T>,
+            draw_key: [u8; 32],
+            seal_key: [u8; 32],
+            draw_possession: [u8; 64],
+            seal_possession: [u8; 64],
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(
+                ValidatorSet::<T>::get().contains(&who),
+                Error::<T>::NotValidator
+            );
+
+            let payload = crate::keys::possession_payload(&who.encode());
+            let draw_public = sp_core::sr25519::Public::from_raw(draw_key);
+            let draw_signature = sp_core::sr25519::Signature::from_raw(draw_possession);
+            ensure!(
+                sp_io::crypto::sr25519_verify(&draw_signature, &payload[..], &draw_public),
+                Error::<T>::DrawKeyPossessionRejected
+            );
+
+            let seal_public = sp_core::ed25519::Public::from_raw(seal_key);
+            let seal_signature = sp_core::ed25519::Signature::from_raw(seal_possession);
+            ensure!(
+                sp_io::crypto::ed25519_verify(&seal_signature, &payload[..], &seal_public),
+                Error::<T>::SealKeyPossessionRejected
+            );
+
+            if let Some(owner) = DrawKeyOwner::<T>::get(draw_key) {
+                ensure!(owner == who, Error::<T>::DrawKeyAlreadyHeld);
+            }
+
+            let set = crate::keys::ValidatorKeySet::new(draw_key, seal_key);
+            PendingKeyRecords::<T>::insert(&who, set);
+            Self::deposit_event(Event::ValidatorKeysRegistered {
+                validator: who,
+                keys: set,
+            });
+            Ok(())
+        }
+
+        /// Publish the draw of one validator for one epoch.
+        ///
+        /// The draw is one verifiable random function evaluation over the epoch
+        /// number and the validator draw key. The chain checks the proof once
+        /// here and stores the output. The committee of each slot in that epoch
+        /// mixes the stored output with the slot seed.
+        #[pallet::call_index(8)]
+        #[pallet::weight(Weight::from_parts(200_000, 0) + T::DbWeight::get().reads_writes(3, 1))]
+        pub fn publish_epoch_draw(
+            origin: OriginFor<T>,
+            epoch: u32,
+            proof: crate::keys::DrawProofBytes,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
+            ensure!(epoch >= current_epoch, Error::<T>::EpochDrawTooLate);
+            ensure!(
+                !EpochDraws::<T>::contains_key(epoch, &who),
+                Error::<T>::EpochDrawAlreadyHeld
+            );
+
+            let set = Self::key_set_for_epoch(&who, epoch).ok_or(Error::<T>::ValidatorKeysAbsent)?;
+            let signature = crate::keys::read_proof(&proof).ok_or(Error::<T>::EpochDrawRejected)?;
+            let output =
+                cerulea_primitives::verify_epoch_draw(&set.draw_public(), epoch, &signature)
+                    .ok_or(Error::<T>::EpochDrawRejected)?;
+
+            EpochDraws::<T>::insert(
+                epoch,
+                &who,
+                crate::keys::PublishedDraw {
+                    epoch,
+                    output,
+                    proof,
+                },
+            );
+            Self::deposit_event(Event::EpochDrawPublished {
+                validator: who,
+                epoch,
+            });
+            Ok(())
+        }
 	}
 
     impl<T: Config> Pallet<T> {
+        // --- Validator Key Records ---
+
+        /// The key set one validator uses in the stated epoch.
+        ///
+        /// A pending record serves every epoch beyond the one running now. The
+        /// active record serves the epoch running now.
+        pub fn key_set_for_epoch(
+            validator: &T::AccountId,
+            epoch: u32,
+        ) -> Option<crate::keys::ValidatorKeySet> {
+            let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
+            if epoch > current_epoch {
+                if let Some(pending) = PendingKeyRecords::<T>::get(validator) {
+                    return Some(pending);
+                }
+            }
+            ValidatorKeyRecords::<T>::get(validator)
+                .or_else(|| PendingKeyRecords::<T>::get(validator))
+        }
+
+        /// Move every pending key record into service at an epoch boundary.
+        ///
+        /// The block initialisation hook calls this. A rotation therefore lands
+        /// between two epochs and never splits one slot.
+        pub fn rotate_validator_keys_at_epoch_boundary() -> u32 {
+            let current_epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
+            if KeyRotationEpoch::<T>::get() == current_epoch
+                && ValidatorKeyRecords::<T>::iter().next().is_some()
+            {
+                return 0;
+            }
+            KeyRotationEpoch::<T>::put(current_epoch);
+            let pending: Vec<(T::AccountId, crate::keys::ValidatorKeySet)> =
+                PendingKeyRecords::<T>::iter().collect();
+            let mut moved = 0u32;
+            for (validator, set) in pending {
+                if let Some(previous) = ValidatorKeyRecords::<T>::get(&validator) {
+                    if previous.draw != set.draw {
+                        DrawKeyOwner::<T>::remove(previous.draw);
+                    }
+                }
+                ValidatorKeyRecords::<T>::insert(&validator, set);
+                DrawKeyOwner::<T>::insert(set.draw, validator.clone());
+                PendingKeyRecords::<T>::remove(&validator);
+                moved = moved.saturating_add(1);
+                Self::deposit_event(Event::ValidatorKeysRotated {
+                    validator,
+                    epoch: current_epoch,
+                    keys: set,
+                });
+            }
+            moved
+        }
+
+        /// The key set of every active validator.
+        ///
+        /// The node fills its key registry from this list. Import then checks
+        /// that the seal key named in a block belongs to the validator that
+        /// drew the slot.
+        pub fn active_validator_keys() -> Vec<(T::AccountId, crate::keys::ValidatorKeySet)> {
+            let epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
+            ActiveValidators::<T>::get()
+                .into_iter()
+                .filter_map(|validator| {
+                    Self::key_set_for_epoch(&validator, epoch).map(|set| (validator, set))
+                })
+                .collect()
+        }
+
+        /// The committee drawn for one slot, in rank order.
+        ///
+        /// Every candidate carries a published epoch draw. The seat value mixes
+        /// that draw with the slot seed and then scales the result by the Trust
+        /// Score the caller supplies. The five lowest seat values form the
+        /// committee. Every node reaches the same order from the same chain
+        /// state.
+        pub fn slot_committee(
+            slot: u64,
+            parent_hash: [u8; 32],
+            standing_of: impl Fn(&T::AccountId) -> u32,
+        ) -> Vec<crate::keys::SlotCommitteeSeat<T::AccountId>> {
+            let epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
+            let seed = cerulea_primitives::derive_slot_seed(&parent_hash, slot);
+            let mut candidates: Vec<cerulea_primitives::SeatInput> = Vec::new();
+            let mut records: Vec<(
+                [u8; 32],
+                T::AccountId,
+                crate::keys::ValidatorKeySet,
+                Option<crate::keys::PublishedDraw>,
+            )> = Vec::new();
+
+            for validator in ActiveValidators::<T>::get().into_iter() {
+                let set = match Self::key_set_for_epoch(&validator, epoch) {
+                    Some(set) => set,
+                    None => continue,
+                };
+                let published = EpochDraws::<T>::get(epoch, &validator);
+                let epoch_output = match &published {
+                    Some(record) => record.output,
+                    None => crate::keys::starting_epoch_output(&set.draw),
+                };
+                candidates.push(cerulea_primitives::SeatInput {
+                    draw_key: set.draw,
+                    epoch_output,
+                    standing: standing_of(&validator),
+                });
+                records.push((set.draw, validator, set, published));
+            }
+
+            cerulea_primitives::rank_seats(&candidates, &seed)
+                .into_iter()
+                .filter_map(|seat| {
+                    records
+                        .iter()
+                        .find(|(draw_key, _, _, _)| *draw_key == seat.draw_key)
+                        .map(|(_, validator, set, published)| crate::keys::SlotCommitteeSeat {
+                            validator: validator.clone(),
+                            keys: *set,
+                            rank: seat.rank,
+                            seat_value: seat.seat_value,
+                            draw: *published,
+                        })
+                })
+                .collect()
+        }
+
         /// Helper function to check if a block number is a checkpoint block
         pub fn is_checkpoint_block(block_number: BlockNumberFor<T>) -> bool {
             let checkpoint_interval = T::FinalityCheckpointInterval::get();
@@ -865,7 +1207,7 @@ sp_api::decl_runtime_apis! {
             justification: DvfJustification<T::Hash, T::AccountId, T::Signature>,
         ) -> DispatchResult {
             log::info!(
-                "DVF Pallet: verify_and_finalize_justification called for block {:?}, round {}",
+                "Registry Pallet: verify_and_finalize_justification called for block {:?}, round {}",
                 justification.block_hash,
                 justification.round_number
             );
@@ -949,7 +1291,7 @@ sp_api::decl_runtime_apis! {
             );
 
             log::info!(
-                "DVF Pallet: Successfully verified and finalized block #{:?} via justification in round {}",
+                "Registry Pallet: Successfully verified and finalized block #{:?} via justification in round {}",
                 block_number,
                 justification.round_number
             );
@@ -1092,14 +1434,14 @@ sp_api::decl_runtime_apis! {
             for validator in validators_to_check {
                 if let Some(state) = ValidatorStates::<T>::get(&validator) {
                     if state.current.final_score < min_score {
-                        log::warn!("DVF: Validator {:?} has low score: {}, ejecting", 
+                        log::warn!("Registry: Validator {:?} has low score: {}, ejecting", 
                                   validator, state.current.final_score);
                         let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
                     }
                     
                     let inactive_epochs = current_epoch.saturating_sub(state.last_active_epoch);
                     if inactive_epochs > T::MaxInactiveEpochs::get() {
-                        log::warn!("DVF: Validator {:?} inactive for {} epochs, ejecting", 
+                        log::warn!("Registry: Validator {:?} inactive for {} epochs, ejecting", 
                                   validator, inactive_epochs);
                         let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
                     }
@@ -1164,7 +1506,7 @@ sp_api::decl_runtime_apis! {
                 let mut tag = b"dvf_justification_".to_vec();
                 justification.block_hash.encode_to(&mut tag);
 
-                ValidTransaction::with_tag_prefix("Dvf")
+                ValidTransaction::with_tag_prefix("Registry")
                     .priority(priority)
                     .and_provides(tag)
                     .longevity(5)
@@ -1553,12 +1895,5 @@ impl<T: Config> pallet_cerulea_dcf::traits::ValidatorRegistryProvider<T::Account
 impl<T: Config> pallet_cerulea_dcf::traits::WeightFreezer<T::AccountId> for Pallet<T> {
     fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
         Self::freeze_epoch_weights(epoch, validators);
-    }
-}
-
-impl<T: Config> pallet_cerulea_dcf::traits::DvfFinalizedBlockProvider for Pallet<T> {
-    fn dvf_finalized_block() -> u32 {
-        use sp_runtime::traits::SaturatedConversion;
-        FinalizedBlockNumber::<T>::get().saturated_into::<u32>()
     }
 }

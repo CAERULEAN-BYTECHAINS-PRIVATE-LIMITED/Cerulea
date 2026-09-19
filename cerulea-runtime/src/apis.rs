@@ -317,14 +317,6 @@ impl_runtime_apis! {
 			pallet_cerulea_dcf::Pallet::<Runtime>::get_validators_by_score()
 		}
 
-		fn get_last_finalized_block() -> u32 {
-			pallet_cerulea_dcf::Pallet::<Runtime>::get_last_finalized_block()
-		}
-
-		fn is_block_finalized(block_number: u32) -> bool {
-			pallet_cerulea_dcf::Pallet::<Runtime>::is_block_finalized(block_number)
-		}
-
 		fn get_misbehavior_report_count(validator: AccountId) -> u32 {
 			pallet_cerulea_dcf::Pallet::<Runtime>::get_misbehavior_report_count(&validator)
 		}
@@ -339,14 +331,6 @@ impl_runtime_apis! {
 
 		fn is_validator_at_risk(validator: AccountId) -> bool {
 			pallet_cerulea_dcf::Pallet::<Runtime>::is_validator_at_risk(&validator)
-		}
-
-		fn get_finality_info() -> (u32, u32) {
-			pallet_cerulea_dcf::Pallet::<Runtime>::get_finality_info()
-		}
-
-		fn blocks_since_finalization(current_block: u32) -> u32 {
-			pallet_cerulea_dcf::Pallet::<Runtime>::blocks_since_finalization(current_block)
 		}
 
 		fn get_validator_leave_request(validator: AccountId) -> Option<u32> {
@@ -462,7 +446,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	// DVF API
+	// Registry API
 	impl pallet_cerulea_dvf::DvfApi<Block, BlockNumber, AccountId, <Block as BlockT>::Hash> for Runtime {
 		fn get_dvf_finalized_block() -> BlockNumber {
 			pallet_cerulea_dvf::Pallet::<Runtime>::finalized_block_number()
@@ -520,6 +504,27 @@ impl_runtime_apis! {
 			>
 		) -> Result<(), sp_runtime::DispatchError> {
 			pallet_cerulea_dvf::Pallet::<Runtime>::verify_and_finalize_justification(justification)
+		}
+	}
+
+	// The Authoring Engine interface the node reads.
+	impl pallet_cerulea_dvf::CeruleaAuthoringApi<Block, AccountId> for Runtime {
+		fn active_validator_keys() -> Vec<(AccountId, pallet_cerulea_dvf::keys::ValidatorKeySet)> {
+			pallet_cerulea_dvf::Pallet::<Runtime>::active_validator_keys()
+		}
+
+		fn slot_committee(slot: u64, parent_hash: [u8; 32]) -> Vec<pallet_cerulea_dvf::keys::SlotCommitteeSeat<AccountId>> {
+			pallet_cerulea_dvf::Pallet::<Runtime>::slot_committee(slot, parent_hash, |validator| {
+				pallet_cerulea_dcf::Pallet::<Runtime>::trust_score(validator).parts_per_million()
+			})
+		}
+
+		fn authoring_epoch() -> u32 {
+			pallet_cerulea_dcf::Pallet::<Runtime>::current_epoch()
+		}
+
+		fn published_epoch_draw(validator: AccountId, epoch: u32) -> Option<pallet_cerulea_dvf::keys::PublishedDraw> {
+			pallet_cerulea_dvf::EpochDraws::<Runtime>::get(epoch, &validator)
 		}
 	}
 

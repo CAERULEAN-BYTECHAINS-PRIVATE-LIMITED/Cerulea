@@ -1,14 +1,14 @@
 //! # pallet-cerulea-dcf
 //!
-//! This pallet implements the Dynamic Consensus Framework (DCF) for the Cerulea, providing advanced validator management, scoring, and on-chain governance. It supports dynamic validator sets, configurable consensus weights, and robust governance mechanisms for slashing, rewards, and ejection.
+//! This pallet implements the Dynamic Consensus Framework (DCF) for the Cerulea, providing advanced validator management, scoring, and on-chain governance. It supports dynamic validator sets, adjustable consensus weights, and robust governance mechanisms for slashing, rewards, and ejection.
 //!
 //! ## Main Features
-//! - **Validator Scoring:** Combines Proof-of-Stake (PoS) and Proof-of-Inference (PoI) scores with configurable weights, supporting dynamic adjustment and decay.
+//! - **Validator Scoring:** Combines Proof-of-Stake (PoS) and the inference contribution (PoI) scores with adjustable weights, supporting dynamic adjustment and decay.
 //! - **Epoch Management:** Handles epoch transitions, validator activity tracking, score decay, and validator set updates.
 //! - **Governance:** Enables on-chain proposals for slashing, rewarding, and ejecting validators, with voting and execution logic.
 //! - **Block Authorship Tracking:** Monitors block authorship and missed blocks, applying score boosts or penalties accordingly.
 //! - **Runtime Hooks:** Integrates with runtime hooks for per-block and per-epoch logic, including automatic epoch transitions and score updates.
-//! - **Genesis Configuration:** Allows initialization of validator set, scores, and consensus parameters at genesis.
+//! - **Genesis Settings:** Allows initialization of validator set, scores, and consensus parameters at genesis.
 //! - **APIs:** Exposes runtime APIs for querying validator scores, participation, epoch state, and expected block authors.
 //! - **Sudo Controls:** Supports governance mode toggling and sudo-only operations for manual intervention and testing.
 //! - **Validator Cooldown System:** Enforces mandatory cooldown periods when validators leave to prevent gaming and ensure network stability.
@@ -41,9 +41,9 @@
 //! - **Cooldown Respect:** Leave cooldown periods are always respected and cannot be bypassed
 //! - **Block Finality:** Finalized blocks are immutable: `finalized_block <= current_block`
 //!
-//! ## Genesis Configuration Links
+//! ## Genesis Settings Links
 //!
-//! The pallet's configuration constants are initialized through genesis presets defined in
+//! The pallet's settings constants are initialized through genesis presets defined in
 //! `cerulea-runtime/src/genesis_config_presets.rs`. Available presets include:
 //!
 //! - **development:** Single validator (Alice) for local development
@@ -57,34 +57,34 @@
 //! - `max_validators: 100` - Maximum validator set size
 //! - Default validator stakes range from 3M to 50M units depending on preset
 //!
-//! ## Configuration Constants to Genesis Preset Mapping
+//! ## Settings Constants to Genesis Preset Mapping
 //!
-//! The pallet's configuration constants are initialized through genesis configuration
+//! The pallet's settings constants are initialized through genesis settings
 //! and can be customized for different network deployments:
 //!
-//! ### Validator Set Configuration
+//! ### Validator Set Settings
 //! - `MaxValidators` → `genesis.dcf.epoch_config.max_validators` (default: 100)
 //! - `MinActiveValidators` → Enforced at runtime (typically 1-3 for testnets)
 //! - `MinStake` → `genesis.dcf.epoch_config.min_stake` (default: 1,000,000 units)
 //!
-//! ### Epoch and Timing Configuration  
+//! ### Epoch and Timing Settings  
 //! - `EpochLength` → `genesis.dcf.epoch_config.blocks_per_epoch` (default: 100 blocks)
 //! - `LeaveCooldown` → Runtime constant (default: 1000-10000 blocks)
 //! - `ValidatorCooldownPeriod` → Runtime constant for re-entry restrictions
 //!
-//! ### Scoring and Performance Configuration
-//! - `DefaultPosWeight` → Initial PoS weight (default: 5000 = 50%)
-//! - `DefaultPoiWeight` → Initial PoI weight (default: 5000 = 50%)
+//! ### Scoring and Performance Settings
+//! - `DefaultPosWeight` → Initial stake share (default: 5000 = 50%)
+//! - `DefaultPoiWeight` → Initial inference share (default: 5000 = 50%)
 //! - `MinValidatorScore` → Minimum score for active participation (default: 30)
 //! - `MaxValidatorScore` → Maximum possible score (default: 10000)
 //!
-//! ### Trust Score Configuration
+//! ### Trust Score Settings
 //! - `TrustScoreUptimeWeight` → Uptime component weight (default: 40)
 //! - `TrustScoreInferenceWeight` → Inference component weight (default: 35)
 //! - `TrustScoreSlashingWeight` → Slashing penalty weight (default: 25)
 //! - `MaxTrustScore` → Maximum trust score value (default: 10000)
 //!
-//! ### Economic and Reward Configuration
+//! ### Economic and Reward Settings
 //! - `ValidatorReward` → Default reward amount for governance proposals
 //! - `SlashPercent` → Percentage of stake slashed for misbehavior (default: 10-30%)
 //! - `BaseRewardPercentage` → Base reward pool allocation (default: 60%)
@@ -285,7 +285,7 @@ sp_api::decl_runtime_apis! {
     /// DCF Runtime API for querying validator and consensus state.
     /// 
     /// This API provides comprehensive access to the DCF system state including
-    /// validator information, consensus parameters, governance configuration,
+    /// validator information, consensus parameters, governance settings,
     /// and system health metrics. All methods are designed to be stable and
     /// backward-compatible within the same API version.
     /// 
@@ -365,20 +365,16 @@ sp_api::decl_runtime_apis! {
         fn get_total_validators_count() -> u32;
         fn get_validator_set_info() -> (u32, u32, u32);
         fn get_validators_by_score() -> Vec<(AccountId, u64)>;
-        fn get_last_finalized_block() -> u32;
-        fn is_block_finalized(block_number: u32) -> bool;
         fn get_misbehavior_report_count(validator: AccountId) -> u32;
         fn get_misbehavior_reporters(validator: AccountId) -> Vec<AccountId>;
         fn get_misbehavior_evidence(validator: AccountId, reporter: AccountId) -> Option<Vec<u8>>;
         fn is_validator_at_risk(validator: AccountId) -> bool;
-        fn get_finality_info() -> (u32, u32);
-        fn blocks_since_finalization(current_block: u32) -> u32;
         fn get_validator_leave_request(validator: AccountId) -> Option<u32>;
         fn validate_expected_author(block_number: u32, actual_author: AccountId) -> bool;
         fn get_validator_stake(validator: AccountId) -> u128;
         fn get_leave_request_status(validator: AccountId) -> Option<(u32, u32, bool)>; // (request_block, expires_at, can_execute)
         fn get_epoch_manager_config() -> (u64, u64, u32, u32, u32, u32, u64, u32, u32, u32, u32); // (min_perf_score, high_perf_score, min_participation, high_participation, max_missed_blocks, max_missed_blocks_high, healthy_validator_score, healthy_participation_rate, healthy_missed_blocks_max, leave_cooldown, top_validators_display_count)
-        fn get_epoch_length() -> u32; // Get configurable epoch length from T::EpochLength
+        fn get_epoch_length() -> u32; // Get adjustable epoch length from T::EpochLength
         fn validate_block_author_strict(block_number: u32, actual_author: AccountId) -> Result<(), u8>;
         fn report_author_mismatch(block_number: u32, expected: Option<AccountId>, actual: AccountId) -> Result<(), sp_runtime::DispatchError>;
         fn report_successful_block_authorship(block_number: u32, author: AccountId) -> Result<(), sp_runtime::DispatchError>;
@@ -403,7 +399,7 @@ pub use weights::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use crate::traits::{DvfFinalizedBlockProvider, WeightFreezer};
+    use crate::traits::WeightFreezer;
 
     /// Current storage version for the DCF pallet.
     /// 
@@ -447,7 +443,7 @@ pub mod pallet {
         pub trust_score: u64, // Computed trust score based on uptime, inference success, and slashing history
     }
 
-    /// Configuration for epochs (block count, min stake, max validators).
+    /// Settings for epochs (block count, min stake, max validators).
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
     #[serde(rename_all = "camelCase")]
     pub struct EpochConfig {
@@ -456,7 +452,7 @@ pub mod pallet {
         pub max_validators: u32,
     }
 
-    /// Configuration for trust score calculation with configurable weights and bounds.
+    /// Settings for trust score calculation with adjustable weights and bounds.
     ///
     /// This struct defines the weights used in trust score computation to balance
     /// different aspects of validator performance and reliability. The weights
@@ -504,7 +500,7 @@ pub mod pallet {
         pub stability_factor: u32,
     }
 
-    /// Trust score bounds configuration for preventing explosive growth and decay.
+    /// Trust score bounds settings for preventing explosive growth and decay.
     ///
     /// This struct defines the boundaries and rate limits that constrain trust score
     /// changes to ensure long-term stability and prevent gaming of the scoring system.
@@ -516,7 +512,7 @@ pub mod pallet {
     /// - **Absolute Bounds**: Ensures scores stay within min/max range
     /// - **Stability Smoothing**: Reduces score volatility through averaging
     ///
-    /// # Configuration Guidelines
+    /// # Settings Guidelines
     /// - Growth rates should be conservative to prevent gaming
     /// - Decay rates should allow recovery from temporary issues
     /// - Min/max bounds should reflect realistic performance ranges
@@ -608,7 +604,7 @@ pub mod pallet {
         }
     }
 
-    /// Deterministic epoch processing configuration and state.
+    /// Deterministic epoch processing settings and state.
     ///
     /// This struct manages the deterministic processing of epoch transitions to ensure
     /// that all nodes produce identical results when processing the same epoch with
@@ -689,7 +685,7 @@ pub mod pallet {
 
     /// Parameter range definition with minimum, maximum, and current values.
     ///
-    /// This generic struct defines safe operating ranges for any configurable parameter
+    /// This generic struct defines safe operating ranges for any adjustable parameter
     /// in the DCF system. It ensures that parameter updates remain within acceptable
     /// bounds while tracking the current value.
     ///
@@ -725,7 +721,7 @@ pub mod pallet {
         }
     }
 
-    /// Rate limiting configuration for DoS protection.
+    /// Rate limiting settings for DoS protection.
     ///
     /// This struct defines rate limits for various dispatchable operations to prevent
     /// abuse and DoS attacks. It includes per-block limits, per-account limits, and
@@ -856,12 +852,12 @@ pub mod pallet {
         },
     }
 
-    /// Comprehensive governance configuration with safety rails for all DCF parameters.
+    /// Comprehensive governance settings with safety rails for all DCF parameters.
     ///
-    /// This struct contains parameter ranges for all configurable aspects of the DCF
+    /// This struct contains parameter ranges for all adjustable aspects of the DCF
     /// system, providing centralized governance with built-in safety constraints.
     /// Each parameter has defined minimum and maximum values to prevent dangerous
-    /// configurations that could compromise network security or stability.
+    /// settings that could compromise network security or stability.
     ///
     /// Parameter categories include:
     /// - **Epoch Management**: Block counts, validator limits, stake requirements
@@ -881,7 +877,7 @@ pub mod pallet {
     /// to changing conditions and requirements.
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
     pub struct GovernanceConfig<T: Config> {
-        // Epoch configuration parameters
+        // Epoch settings parameters
         /// Range for blocks per epoch (typical: 100-7200 blocks)
         pub epoch_length: ParameterRange<u32>,
         /// Range for minimum stake requirement (prevents too low/high barriers)
@@ -892,7 +888,7 @@ pub mod pallet {
         // Consensus weight parameters
         /// Range for Proof-of-Stake weight in final score calculation (0-10000 basis points)
         pub pos_weight: ParameterRange<u64>,
-        /// Range for Proof-of-Inference weight in final score calculation (0-10000 basis points)
+        /// Range for the inference contribution weight in final score calculation (0-10000 basis points)
         pub poi_weight: ParameterRange<u64>,
         
         // Performance threshold parameters
@@ -913,7 +909,7 @@ pub mod pallet {
         /// Range for leave cooldown period in blocks (balances flexibility with stability)
         pub leave_cooldown: ParameterRange<BlockNumberFor<T>>,
         
-        // Trust score configuration
+        // Trust score settings
         /// Range for uptime weight in trust score calculation
         pub trust_score_uptime_weight: ParameterRange<u32>,
         /// Range for inference weight in trust score calculation
@@ -1232,13 +1228,13 @@ pub mod pallet {
 
     /// Genesis validation report generated by dry-run genesis build.
     ///
-    /// This report provides comprehensive information about the genesis configuration
+    /// This report provides comprehensive information about the genesis settings
     /// validation results, including statistics, invariant checks, and warnings.
     /// Used by the dry-run functionality to provide detailed feedback without
     /// actually modifying storage.
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub struct GenesisValidationReport<T: Config> {
-        /// Total number of validators in genesis configuration
+        /// Total number of validators in genesis settings
         pub validator_count: u32,
         /// Total stake across all validators
         pub total_stake: <T as pallet::Config>::Balance,
@@ -1248,7 +1244,7 @@ pub mod pallet {
         pub min_stake_validator: Option<(T::AccountId, <T as pallet::Config>::Balance)>,
         /// Validator with maximum stake (validator, stake amount)
         pub max_stake_validator: Option<(T::AccountId, <T as pallet::Config>::Balance)>,
-        /// Epoch configuration being validated
+        /// Epoch settings being validated
         pub epoch_config: EpochConfig,
         /// List of invariant checks performed and their results
         pub invariant_checks: Vec<String>,
@@ -1290,15 +1286,15 @@ pub mod pallet {
         }
     }
 
-    /// Enumeration of all configurable DCF parameters for governance updates.
+    /// Enumeration of all adjustable DCF parameters for governance updates.
     ///
     /// This enum provides a type-safe way to identify which parameter is being
     /// updated through governance calls. Each variant corresponds to a specific
-    /// configurable aspect of the DCF system.
+    /// adjustable aspect of the DCF system.
     ///
     /// Used by the `update_dcf_parameter` dispatchable to:
     /// - Identify which parameter range to validate against
-    /// - Apply the update to the correct configuration field
+    /// - Apply the update to the correct settings field
     /// - Emit appropriate events with parameter-specific information
     /// - Provide clear error messages for validation failures
     ///
@@ -1310,7 +1306,7 @@ pub mod pallet {
     /// - Trust score calculation components
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
     pub enum ParameterType {
-        // Epoch configuration
+        // Epoch settings
         EpochLength,
         MinStake,
         MaxValidators,
@@ -1446,7 +1442,7 @@ pub mod pallet {
             <(<T as frame_system::Config>::AccountId, Option<u64>), <T as pos::Config>::MaxValidators>,
     }
 
-    /// Non-generic struct for runtime API (AccountId = T::AccountId, all BoundedVecs use configurable size).
+    /// Non-generic struct for runtime API (AccountId = T::AccountId, all BoundedVecs use adjustable size).
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
     pub struct RuntimeEpochHistory<AccountId> {
         pub epoch_number: u32,
@@ -1499,7 +1495,7 @@ pub mod pallet {
     pub struct ValidatorProfile<AccountId, Balance, BlockNumber> {
         /// Current stake amount reserved by the validator
         pub stake: Balance,
-        /// Current Proof-of-Inference score
+        /// Current the inference contribution score
         pub poi_score: u32,
         /// Current final consensus score
         pub final_score: u64,
@@ -1522,11 +1518,11 @@ pub mod pallet {
     pub struct ScoreBreakdown {
         /// Proof-of-Stake score component
         pub pos_score: u64,
-        /// Proof-of-Inference score component
+        /// the inference contribution score component
         pub poi_score: u64,
         /// Weight applied to PoS score in final calculation
         pub pos_weight: u64,
-        /// Weight applied to PoI score in final calculation
+        /// Weight applied to inference contribution in final calculation
         pub poi_weight: u64,
         /// Final combined consensus score
         pub final_score: u64,
@@ -1534,7 +1530,7 @@ pub mod pallet {
         pub trust_score: u64,
     }
 
-    /// System constants and configuration parameters exposed via runtime API
+    /// System constants and settings parameters exposed via runtime API
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
     pub struct SystemConstants<Balance, BlockNumber> {
         /// Minimum stake required to become a validator
@@ -1577,7 +1573,6 @@ pub mod pallet {
     /// 
     /// ## System Health Indicators
     /// - `invariant_health`: Overall system health based on invariant checks (enum: Healthy/Warning/Critical)
-    /// - `finality_lag`: Number of blocks between current block and last finalized block (block count)
     /// - `missed_blocks_current_epoch`: Total blocks missed by all validators in current epoch (block count)
     /// 
     /// # Usage Guidelines
@@ -1627,8 +1622,6 @@ pub mod pallet {
         // System health metrics
         /// Overall system health status based on invariant validation
         pub invariant_health: InvariantHealth,
-        /// Number of blocks between current block and last finalized block
-        pub finality_lag: u32,
         /// Total number of blocks missed by all validators in current epoch
         pub missed_blocks_current_epoch: u32,
     }
@@ -1648,7 +1641,6 @@ pub mod pallet {
                 epoch_progress_percentage: 0,
                 average_trust_score: 0,
                 invariant_health: InvariantHealth::default(),
-                finality_lag: 0,
                 missed_blocks_current_epoch: 0,
             }
         }
@@ -1748,12 +1740,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config + pos::Config<Balance = <Self as pallet::Config>::Balance> + poi::Config + TypeInfo + fmt::Debug {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         
-        /// Interface to notify DVF of epoch transitions and weights
+        /// Interface to notify Registry of epoch transitions and weights
         type WeightFreezer: crate::traits::WeightFreezer<Self::AccountId>;
 
-        /// Interface to query the last DVF-finalized block number.
-        /// DCF progressive finality will not advance past this value.
-        type DvfFinalizedBlockProvider: crate::traits::DvfFinalizedBlockProvider;
 
         /// Interface to query and mutate validator registry state.
         type ValidatorRegistry: crate::traits::ValidatorRegistryProvider<Self::AccountId, <Self as pallet::Config>::Balance, BlockNumberFor<Self>>;
@@ -1783,7 +1772,7 @@ pub mod pallet {
         #[pallet::constant]
         type DefaultPosWeight: Get<u64>;
         
-        /// Default weight for Proof-of-Inference (PoI) component in final score calculation.
+        /// Default weight for the inference contribution (PoI) component in final score calculation.
         /// 
         /// Determines the initial influence of AI/ML inference performance on consensus score.
         /// Higher values emphasize technical AI capabilities, while lower values reduce
@@ -2002,7 +1991,7 @@ pub mod pallet {
         #[pallet::constant]
         type MisbehaviorSlashThreshold: Get<u32>; // Number of reports needed to trigger slash
         
-        // Off-chain worker configuration
+        // Off-chain worker settings
         /// Timeout duration for off-chain worker operations in milliseconds.
         /// 
         /// Sets the maximum time off-chain workers can spend on external
@@ -2159,7 +2148,7 @@ pub mod pallet {
         #[pallet::constant]
         type MaxPosContribution: Get<u32>; // Max PoS contribution percentage (90%)
         
-        /// Maximum percentage that PoI (Proof-of-Inference) can contribute to final scores.
+        /// Maximum percentage that PoI (the inference contribution) can contribute to final scores.
         /// 
         /// Prevents the consensus mechanism from becoming too heavily weighted
         /// toward AI/ML performance by capping the PoI influence. Ensures that
@@ -2485,10 +2474,10 @@ pub mod pallet {
     /// final consensus score. The final score is calculated as:
     /// `final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision`
     /// 
-    /// Higher PoS weight values give more importance to validator stake amounts,
+    /// Higher stake share values give more importance to validator stake amounts,
     /// while lower values reduce the influence of stake on consensus participation.
     /// 
-    /// Default value is set via `T::DefaultPosWeight` configuration constant.
+    /// Default value is set via `T::DefaultPosWeight` settings constant.
     /// Can be updated through governance or root calls to `update_consensus_weights`.
     /// 
     /// # Value: u64 - Weight multiplier for PoS scores (typically 0-10000 for percentage-based calculations)
@@ -2496,17 +2485,17 @@ pub mod pallet {
     #[pallet::getter(fn pos_weight)]
     pub type PosWeight<T: Config> = StorageValue<_, u64, ValueQuery>;
 
-    /// Current Proof-of-Inference (PoI) weight used in final score calculations.
+    /// Current the inference contribution (PoI) weight used in final score calculations.
     /// 
     /// This value determines how much influence a validator's inference performance
     /// has on their final consensus score. The final score is calculated as:
     /// `final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision`
     /// 
-    /// Higher PoI weight values give more importance to validator inference accuracy
+    /// Higher inference share values give more importance to validator inference accuracy
     /// and participation, while lower values reduce the influence of AI/ML performance
     /// on consensus participation.
     /// 
-    /// Default value is set via `T::DefaultPoiWeight` configuration constant.
+    /// Default value is set via `T::DefaultPoiWeight` settings constant.
     /// Can be updated through governance or root calls to `update_consensus_weights`.
     /// 
     /// # Value: u64 - Weight multiplier for PoI scores (typically 0-10000 for percentage-based calculations)
@@ -2548,34 +2537,34 @@ pub mod pallet {
         }
     }
 
-    /// Configuration parameters for epoch management and transitions.
+    /// Settings parameters for epoch management and transitions.
     /// 
     /// Contains essential parameters that control how epochs operate:
-    /// - `blocks_per_epoch`: Number of blocks in each epoch (configurable via T::EpochLength)
+    /// - `blocks_per_epoch`: Number of blocks in each epoch (adjustable via T::EpochLength)
     /// - `min_stake`: Minimum stake required for validator participation
     /// - `max_validators`: Maximum number of validators allowed in the active set
     /// 
-    /// This configuration is initialized during genesis and can be updated through
+    /// This settings is initialized during genesis and can be updated through
     /// governance proposals or root calls. Changes typically take effect at the
     /// next epoch boundary to ensure consistency.
     /// 
     /// The epoch system is fundamental to validator set management, score decay,
     /// reward distribution, and network parameter updates.
     /// 
-    /// # Value: EpochConfig - Struct containing epoch-related configuration parameters
+    /// # Value: EpochConfig - Struct containing epoch-related settings parameters
     #[pallet::storage]
     #[pallet::getter(fn epoch_config)]
     pub type EpochConfigStorage<T: Config> = StorageValue<_, EpochConfig, ValueQuery>;
 
-    /// Configuration parameters for trust score calculation weights.
+    /// Settings parameters for trust score calculation weights.
     ///
     /// Stores the weights used to balance different components in trust score computation.
-    /// This configuration allows the network to adjust the relative importance of:
+    /// This settings allows the network to adjust the relative importance of:
     /// - Validator uptime and availability
     /// - AI/ML inference performance and accuracy
     /// - Historical slashing and penalty impacts
     ///
-    /// The configuration is initialized with default values during genesis:
+    /// The settings is initialized with default values during genesis:
     /// - Uptime weight: 40 (40% influence)
     /// - Inference weight: 35 (35% influence)  
     /// - Slashing weight: 25 (25% penalty impact)
@@ -2586,7 +2575,7 @@ pub mod pallet {
     /// - Increasing inference weight to emphasize AI capabilities
     /// - Adjusting slashing weight to modify penalty severity
     ///
-    /// Changes to trust score configuration affect all future trust score
+    /// Changes to trust score settings affect all future trust score
     /// calculations but do not retroactively modify historical scores.
     ///
     /// # Value: TrustScoreConfig - Struct containing trust score calculation weights
@@ -2594,14 +2583,14 @@ pub mod pallet {
     #[pallet::getter(fn trust_score_config)]
     pub type TrustScoreConfigStorage<T: Config> = StorageValue<_, TrustScoreConfig, ValueQuery>;
 
-    /// Comprehensive governance configuration with parameter ranges and safety rails.
+    /// Comprehensive governance settings with parameter ranges and safety rails.
     ///
-    /// This storage item contains all configurable DCF parameters with their allowed
+    /// This storage item contains all adjustable DCF parameters with their allowed
     /// ranges, current values, and validation rules. It provides a centralized
     /// governance system that ensures parameter changes remain within safe bounds.
     ///
     /// The GovernanceConfig includes ranges for:
-    /// - Epoch configuration (length, min stake, max validators)
+    /// - Epoch settings (length, min stake, max validators)
     /// - Consensus weights (PoS/PoI balance)
     /// - Performance thresholds and scoring parameters
     /// - Economic parameters (rewards, slashing, cooldowns)
@@ -2616,7 +2605,7 @@ pub mod pallet {
     /// This system prevents dangerous parameter changes that could destabilize
     /// the network while allowing controlled adaptation to changing conditions.
     ///
-    /// # Value: GovernanceConfig<T> - Complete parameter governance configuration
+    /// # Value: GovernanceConfig<T> - Complete parameter governance settings
     #[pallet::storage]
     #[pallet::getter(fn governance_config)]
     pub type GovernanceConfigStorage<T: Config> = StorageValue<_, GovernanceConfig<T>, ValueQuery>;
@@ -2881,7 +2870,7 @@ pub mod pallet {
     /// - Governance decision support
     /// - API queries for historical data
     /// 
-    /// Maximum size is controlled by `T::MaxEpochHistory` configuration parameter.
+    /// Maximum size is controlled by `T::MaxEpochHistory` settings parameter.
     /// 
     /// # Value: BoundedVec<EpochHistory<T>, T::MaxEpochHistory> - Circular buffer of recent epoch records
     #[pallet::storage]
@@ -2984,7 +2973,7 @@ pub mod pallet {
 
     // Total count of successful inference operations performed by each validator.
     // Tracks the cumulative number of successful AI/ML inference operations
-    // completed by validators as part of the Proof-of-Inference (PoI) consensus.
+    // completed by validators as part of the the inference contribution (PoI) consensus.
     // This metric is fundamental to the Cerulea blockchain's AI-focused consensus mechanism.
     // The counter increments when validators:
     // - Successfully complete inference tasks
@@ -3233,72 +3222,6 @@ pub mod pallet {
     // The value is None for validators who joined before this tracking
     // ValidatorJoinTime and ValidatorLeaveRequests moved to pallet-cerulea-pos.
 
-    /// Block number of the most recently finalized block in the network.
-    /// 
-    /// Tracks the highest block number that has achieved finality through
-    /// the consensus mechanism. Finalization typically occurs at epoch
-    /// boundaries or through explicit finality gadgets.
-    /// 
-    /// Finalized blocks are considered:
-    /// - Permanently part of the canonical chain
-    /// - Safe from reorganization or rollback
-    /// - Confirmed by sufficient validator consensus
-    /// - Available for state pruning and archival
-    /// 
-    /// Used for:
-    /// - Determining safe block heights for critical operations
-    /// - State pruning and storage optimization
-    /// - API responses about network finality status
-    /// - Calculating finality lag and network health metrics
-    /// - Ensuring transaction irreversibility guarantees
-    /// 
-    /// The value is updated through:
-    /// - Automatic finalization at epoch boundaries
-    /// - Explicit finality signals from consensus mechanisms
-    /// - Manual finalization through governance actions
-    /// 
-    /// # Value: u32 - Block number of the last finalized block
-    #[pallet::storage]
-    #[pallet::getter(fn last_finalized_block)]
-    pub type LastFinalizedBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-    /// Previous finalized block number for regression detection.
-    /// 
-    /// Stores the finalized block number from the previous epoch to enable
-    /// monotonic advancement validation and regression detection. This storage
-    /// is updated during each epoch transition to track finality progression.
-    /// 
-    /// Used for:
-    /// - Validating monotonic finality advancement
-    /// - Detecting finality regression attempts
-    /// - Ensuring finality never moves backward
-    /// - Generating finality progression reports
-    /// 
-    /// # Value: u32 - Block number of the previous finalized block
-    #[pallet::storage]
-    #[pallet::getter(fn previous_finalized_block)]
-    pub type PreviousFinalizedBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-    /// Best known block number from the previous epoch for finality validation.
-    /// 
-    /// Tracks the highest block number that was known during the previous epoch
-    /// to ensure that finality never exceeds the best known block of the prior
-    /// epoch. This prevents finality from advancing beyond what was actually
-    /// produced and validated.
-    /// 
-    /// Updated at each epoch boundary to capture the best block of the
-    /// concluding epoch before transitioning to the new epoch.
-    /// 
-    /// Used for:
-    /// - Validating finality bounds against actual block production
-    /// - Preventing finality from exceeding known block heights
-    /// - Ensuring finality consistency with block production
-    /// - Detecting invalid finality advancement attempts
-    /// 
-    /// # Value: u32 - Best known block number from previous epoch
-    #[pallet::storage]
-    #[pallet::getter(fn previous_epoch_best_block)]
-    pub type PreviousEpochBestBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     /// Evidence storage for validator misbehavior reports.
     /// 
@@ -3351,7 +3274,7 @@ pub mod pallet {
     /// These scores are used to assess validator trustworthiness and influence their participation
     /// in consensus and reward distribution.
     ///
-    /// Trust scores are calculated using configurable weights for different components:
+    /// Trust scores are calculated using adjustable weights for different components:
     /// - Uptime score: Based on validator availability and participation
     /// - Inference success score: Based on AI/ML inference accuracy and participation
     /// - Slashing penalty: Negative impact from past misbehavior or poor performance
@@ -3438,7 +3361,7 @@ pub mod pallet {
     /// These values can be updated through governance to adapt to network conditions
     /// while maintaining the integrity of the trust scoring system.
     ///
-    /// # Value: TrustScoreBoundsData - Current bounds configuration
+    /// # Value: TrustScoreBoundsData - Current bounds settings
     #[pallet::storage]
     #[pallet::getter(fn trust_score_bounds)]
     pub type TrustScoreBounds<T: Config> = StorageValue<_, TrustScoreBoundsData, ValueQuery>;
@@ -3514,13 +3437,13 @@ pub mod pallet {
     #[pallet::getter(fn storage_version)]
     pub type StorageVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Rate limiting configuration for DoS protection.
+    /// Rate limiting settings for DoS protection.
     ///
-    /// This storage item contains the current rate limiting configuration that
+    /// This storage item contains the current rate limiting settings that
     /// controls how frequently various operations can be performed to prevent
     /// abuse and DoS attacks on the network.
     ///
-    /// # Value: RateLimitConfig - Complete rate limiting configuration
+    /// # Value: RateLimitConfig - Complete rate limiting settings
     #[pallet::storage]
     #[pallet::getter(fn rate_limit_config)]
     pub type RateLimitConfigStorage<T: Config> = StorageValue<_, RateLimitConfig, ValueQuery>;
@@ -3709,9 +3632,9 @@ pub mod pallet {
     #[pallet::getter(fn metrics_last_updated)]
     pub type MetricsLastUpdated<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Private chain configuration and validator allowlist.
+    /// Private chain settings and validator allowlist.
     ///
-    /// This storage item contains the configuration for private chain mode,
+    /// This storage item contains the settings for private chain mode,
     /// including the validator allowlist and permission settings.
     ///
     /// # Usage
@@ -3719,7 +3642,7 @@ pub mod pallet {
     /// - Managing validator allowlists and permissions
     /// - Enforcing private chain access restrictions
     ///
-    /// # Value: PrivateChainConfig<T::AccountId> - Complete private chain configuration
+    /// # Value: PrivateChainConfig<T::AccountId> - Complete private chain settings
     #[pallet::storage]
     #[pallet::getter(fn private_chain_config)]
     pub type PrivateChainConfigStorage<T: Config> = StorageValue<_, private_chain::PrivateChainConfig<T::AccountId>, OptionQuery>;
@@ -3937,7 +3860,7 @@ pub mod pallet {
             validator: T::AccountId,
             /// New Proof-of-Stake score based on validator's stake amount
             stake_score: u64,
-            /// New Proof-of-Inference score based on AI/ML performance
+            /// New the inference contribution score based on AI/ML performance
             inference_score: u64,
             /// New combined final score used for consensus ranking
             final_score: u64,
@@ -3954,7 +3877,7 @@ pub mod pallet {
         ConsensusWeightsUpdated {
             /// New weight for Proof-of-Stake component (0-10000 basis points)
             pos_weight: u64,
-            /// New weight for Proof-of-Inference component (0-10000 basis points)
+            /// New weight for the inference contribution component (0-10000 basis points)
             poi_weight: u64,
         },
 
@@ -3989,7 +3912,7 @@ pub mod pallet {
         /// Score decay is applied to validators who have not been active for extended
         /// periods to encourage consistent participation and prevent dormant validators
         /// from maintaining high rankings indefinitely. Decay is applied according to
-        /// the configured decay rate and inactivity thresholds.
+        /// the set decay rate and inactivity thresholds.
         ValidatorScoreDecayed {
             /// The validator whose score was decayed
             validator: T::AccountId,
@@ -4236,15 +4159,15 @@ pub mod pallet {
             validator: T::AccountId,
         },
 
-        /// Emitted when a validator's Proof-of-Inference score is updated.
+        /// Emitted when a validator's the inference contribution score is updated.
         /// 
         /// This event specifically tracks changes to PoI scores, which reflect
         /// validator performance in AI/ML inference tasks. PoI scores are a critical
         /// component of the Cerulea consensus mechanism's hybrid scoring system.
         ValidatorPoiScoreUpdated {
-            /// The validator whose PoI score was updated
+            /// The validator whose inference contribution was updated
             validator: T::AccountId,
-            /// New Proof-of-Inference score value
+            /// New the inference contribution score value
             poi_score: u64,
         },
 
@@ -4335,7 +4258,7 @@ pub mod pallet {
         /// Emitted when a validator is automatically slashed due to multiple misbehavior reports.
         /// 
         /// This event occurs when the number of independent misbehavior reports against
-        /// a validator reaches the configured threshold, triggering automatic slashing
+        /// a validator reaches the set threshold, triggering automatic slashing
         /// without requiring governance approval. This provides rapid response to
         /// clear cases of validator misbehavior.
         ValidatorAutoSlashed {
@@ -4357,33 +4280,6 @@ pub mod pallet {
             validator: T::AccountId,
             /// The account that triggered the inference simulation
             triggered_by: T::AccountId,
-        },
-
-        /// Emitted when a block achieves finality in the network.
-        /// 
-        /// Block finalization marks blocks as permanently part of the canonical
-        /// chain and safe from reorganization. This event is critical for
-        /// applications that require transaction irreversibility guarantees.
-        BlockFinalized {
-            /// Block number that achieved finality
-            block_number: u32,
-        },
-
-        /// Emitted when consensus finality is reached for a specific block.
-        /// 
-        /// This event provides detailed finality tracking for consensus monitoring
-        /// and includes information about the validator set that participated in
-        /// achieving finality. It's essential for consensus health monitoring and
-        /// provides more detailed information than BlockFinalized.
-        FinalityMarker {
-            /// Block number that achieved consensus finality
-            block_number: u32,
-            /// Hash of the finalized block for verification
-            block_hash: T::Hash,
-            /// List of validators that participated in achieving finality
-            participating_validators: Vec<T::AccountId>,
-            /// Total number of validators in the active set during finality
-            total_validators: u32,
         },
 
         /// Emitted when an epoch transition occurs with validator set changes and performance metrics.
@@ -4466,9 +4362,9 @@ pub mod pallet {
             old_stake_score: u64,
             /// New Proof-of-Stake score value
             new_stake_score: u64,
-            /// Previous Proof-of-Inference score value
+            /// Previous the inference contribution score value
             old_inference_score: u64,
-            /// New Proof-of-Inference score value
+            /// New the inference contribution score value
             new_inference_score: u64,
             /// Previous combined final score value
             old_final_score: u64,
@@ -4707,7 +4603,7 @@ pub mod pallet {
         /// 
         /// # Usage
         /// - DoS attack detection and monitoring
-        /// - Client configuration debugging
+        /// - Client settings debugging
         /// - Network abuse prevention and analysis
         /// - Rate limiting effectiveness monitoring
         RateLimitViolation {
@@ -4723,7 +4619,7 @@ pub mod pallet {
             limit: u32,
         },
 
-        /// Emitted when rate limiting configuration is updated.
+        /// Emitted when rate limiting settings is updated.
         /// 
         /// This event documents changes to rate limiting parameters for
         /// audit trails and monitoring purposes.
@@ -4734,7 +4630,7 @@ pub mod pallet {
         /// - `max_leaves_per_block`: New maximum leaves per block
         /// 
         /// # Usage
-        /// - Configuration change auditing
+        /// - Settings change auditing
         /// - Rate limiting parameter monitoring
         /// - Security policy compliance tracking
         /// - System administration logging
@@ -4853,106 +4749,15 @@ pub mod pallet {
             first_author: T::AccountId,
         },
 
-        /// Emitted when finality regression is detected during validation.
+        /// Emitted when genesis settings validation succeeds.
         /// 
-        /// This critical event indicates that the finalized block number has
-        /// moved backward, which violates the fundamental finality guarantee
-        /// that finalized blocks are immutable. This should never occur in
-        /// normal operation and indicates a serious consensus issue.
-        /// 
-        /// # Event Data
-        /// - `previous_finalized`: Previously finalized block number
-        /// - `attempted_finalized`: Block number that was attempted to be finalized
-        /// - `current_block`: Current block number for context
-        /// - `epoch`: Epoch when the regression was detected
-        /// 
-        /// # Usage
-        /// - Critical system alerts and incident response
-        /// - Consensus failure detection and analysis
-        /// - System integrity monitoring
-        /// - Debugging finality mechanism issues
-        FinalityRegressionDetected {
-            /// Previously finalized block number that was higher
-            previous_finalized: u32,
-            /// Block number that was attempted to be finalized (lower than previous)
-            attempted_finalized: u32,
-            /// Current block number for context
-            current_block: u32,
-            /// Epoch when the regression was detected
-            epoch: u32,
-        },
-
-        /// Emitted when finality advancement validation fails.
-        /// 
-        /// This event indicates that an attempt to advance finality was rejected
-        /// because it would violate finality constraints, such as exceeding the
-        /// best known block of the previous epoch or advancing too far ahead.
-        /// 
-        /// # Event Data
-        /// - `attempted_block`: Block number that was attempted to be finalized
-        /// - `current_finalized`: Current finalized block number
-        /// - `best_known_block`: Best known block number from previous epoch
-        /// - `epoch`: Epoch when the validation failed
-        /// - `reason`: Specific reason for the validation failure
-        /// 
-        /// # Usage
-        /// - Finality mechanism debugging and monitoring
-        /// - Consensus validation and integrity checking
-        /// - System health monitoring and alerting
-        /// - Audit trails for finality decisions
-        FinalityAdvancementRejected {
-            /// Block number that was attempted to be finalized
-            attempted_block: u32,
-            /// Current finalized block number before the attempt
-            current_finalized: u32,
-            /// Best known block number from previous epoch
-            best_known_block: u32,
-            /// Epoch when the validation failed
-            epoch: u32,
-            /// Specific reason for the validation failure
-            reason: BoundedVec<u8, ConstU32<128>>,
-        },
-
-        /// Emitted when finality progression is validated successfully.
-        /// 
-        /// This event confirms that finality has advanced correctly according
-        /// to all validation rules, including monotonic advancement and bounds
-        /// checking against the best known block of the previous epoch.
-        /// 
-        /// # Event Data
-        /// - `previous_finalized`: Previous finalized block number
-        /// - `new_finalized`: New finalized block number
-        /// - `advancement`: Number of blocks by which finality advanced
-        /// - `epoch`: Epoch when the advancement occurred
-        /// - `validation_checks_passed`: Number of validation checks that passed
-        /// 
-        /// # Usage
-        /// - Monitoring healthy finality progression
-        /// - Validating finality mechanism correctness
-        /// - System health and performance tracking
-        /// - Audit trails for successful finality updates
-        FinalityProgressionValidated {
-            /// Previous finalized block number
-            previous_finalized: u32,
-            /// New finalized block number after advancement
-            new_finalized: u32,
-            /// Number of blocks by which finality advanced
-            advancement: u32,
-            /// Epoch when the advancement occurred
-            epoch: u32,
-            /// Number of validation checks that passed
-            validation_checks_passed: u32,
-        },
-
-        /// Emitted when genesis configuration validation succeeds.
-        /// 
-        /// This event indicates that a genesis configuration has passed all
+        /// This event indicates that a genesis settings has passed all
         /// validation checks including duplicate validator detection, stake
         /// validation, and invariant verification. The event provides summary
-        /// statistics about the validated configuration.
+        /// statistics about the validated settings.
         /// 
         /// # Fields
-        /// - `validator_count`: Number of validators in the configuration
+        /// - `validator_count`: Number of validators in the settings
         /// - `total_stake`: Total stake across all validators
         /// 
         /// # Requirements Coverage
@@ -4960,20 +4765,20 @@ pub mod pallet {
         /// - 11.2: Confirms active set size validation passed
         /// 
         /// # Usage
-        /// - Genesis configuration testing and validation
+        /// - Genesis settings testing and validation
         /// - Network launch preparation and verification
-        /// - Configuration audit trails and compliance
+        /// - Settings audit trails and compliance
         /// - Automated testing and CI/CD pipelines
         GenesisValidationSucceeded {
-            /// Number of validators in the validated configuration
+            /// Number of validators in the validated settings
             validator_count: u32,
-            /// Total stake across all validators in the configuration
+            /// Total stake across all validators in the settings
             total_stake: <T as pallet::Config>::Balance,
         },
 
-        /// Emitted when genesis configuration validation fails.
+        /// Emitted when genesis settings validation fails.
         /// 
-        /// This event indicates that a genesis configuration has failed one or more
+        /// This event indicates that a genesis settings has failed one or more
         /// validation checks. The error field provides detailed information about
         /// what caused the validation to fail, enabling developers to fix issues.
         /// 
@@ -4985,9 +4790,9 @@ pub mod pallet {
         /// - 11.2: Reports failures in active set size validation
         /// 
         /// # Usage
-        /// - Genesis configuration debugging and troubleshooting
+        /// - Genesis settings debugging and troubleshooting
         /// - Development environment error reporting
-        /// - Configuration validation feedback
+        /// - Settings validation feedback
         /// - Automated testing failure analysis
         GenesisValidationFailed {
             /// Detailed error message describing why validation failed
@@ -5012,12 +4817,12 @@ pub mod pallet {
         /// - 11.4: Provides comprehensive validation without side effects
         /// 
         /// # Usage
-        /// - Genesis configuration comprehensive testing
+        /// - Genesis settings comprehensive testing
         /// - Network launch readiness verification
         /// - System health validation and monitoring
-        /// - Configuration optimization and tuning
+        /// - Settings optimization and tuning
         GenesisDryRunCompleted {
-            /// Number of validators in the dry-run configuration
+            /// Number of validators in the dry-run settings
             validator_count: u32,
             /// Total stake across all validators in the dry-run
             total_stake: <T as pallet::Config>::Balance,
@@ -5042,10 +4847,10 @@ pub mod pallet {
         /// - 11.4: Provides error feedback without side effects
         /// 
         /// # Usage
-        /// - Genesis configuration debugging and troubleshooting
+        /// - Genesis settings debugging and troubleshooting
         /// - Development environment error reporting
         /// - Dry-run validation failure analysis
-        /// - System configuration issue diagnosis
+        /// - System settings issue diagnosis
         GenesisDryRunFailed {
             /// Detailed error message describing why the dry-run failed
             error: BoundedVec<u8, ConstU32<256>>,
@@ -5092,7 +4897,7 @@ pub mod pallet {
         /// to private chain mode with a fixed validator allowlist.
         /// 
         /// # Usage
-        /// - Network configuration monitoring
+        /// - Network settings monitoring
         /// - Validator management system updates
         /// - Compliance and audit logging
         PrivateChainModeEnabled {
@@ -5108,7 +4913,7 @@ pub mod pallet {
         /// chain mode back to public mode, removing validator restrictions.
         /// 
         /// # Usage
-        /// - Network configuration monitoring
+        /// - Network settings monitoring
         /// - Validator management system updates
         /// - Compliance and audit logging
         PrivateChainModeDisabled,
@@ -5461,9 +5266,9 @@ pub mod pallet {
         /// Resolution: Ensure weights are positive and sum to the precision factor.
         InvalidWeight,
 
-        /// The epoch configuration parameters are invalid or inconsistent.
+        /// The epoch settings parameters are invalid or inconsistent.
         /// 
-        /// This error occurs when epoch configuration contains:
+        /// This error occurs when epoch settings contains:
         /// - Zero or negative epoch length
         /// - Minimum stake amounts that exceed maximum possible values
         /// - Maximum validator counts that exceed system limits
@@ -5642,9 +5447,9 @@ pub mod pallet {
         /// This error occurs when trust score computation encounters:
         /// - Invalid historical data
         /// - Inconsistent performance metrics
-        /// - Configuration errors in trust score weights
+        /// - Settings errors in trust score weights
         /// 
-        /// Resolution: Verify trust score configuration and validator performance data.
+        /// Resolution: Verify trust score settings and validator performance data.
         TrustScoreCalculationFailed,
 
         /// The validator metadata is invalid or exceeds size limits.
@@ -5667,14 +5472,14 @@ pub mod pallet {
         /// Resolution: Ensure sufficient balance is available for stake operations.
         StakeOperationFailed,
 
-        /// The cooldown period configuration is invalid or inconsistent.
+        /// The cooldown period settings is invalid or inconsistent.
         /// 
         /// This error occurs when cooldown periods:
         /// - Are set to zero or negative values
         /// - Exceed reasonable maximum limits
         /// - Are inconsistent with other timing parameters
         /// 
-        /// Resolution: Configure cooldown periods within valid ranges.
+        /// Resolution: Set cooldown periods within valid ranges.
         InvalidCooldownPeriod,
 
         /// The misbehavior evidence is invalid or cannot be processed.
@@ -5697,7 +5502,7 @@ pub mod pallet {
         /// Resolution: This indicates a serious system issue requiring investigation.
         EpochTransitionFailed,
 
-        /// The parameter value is outside the allowed range defined in governance configuration.
+        /// The parameter value is outside the allowed range defined in governance settings.
         /// 
         /// This error occurs when attempting to update DCF parameters with values that:
         /// - Are below the minimum allowed value for the parameter
@@ -5707,7 +5512,7 @@ pub mod pallet {
         /// Each parameter has predefined safe operating ranges to prevent:
         /// - Network destabilization from extreme values
         /// - Economic vulnerabilities from inappropriate settings
-        /// - Performance degradation from poor configurations
+        /// - Performance degradation from poor settings
         /// 
         /// Resolution: Check the parameter's allowed range and provide a value within bounds.
         ParameterOutOfRange,
@@ -5726,7 +5531,7 @@ pub mod pallet {
         /// 
         /// This error enforces that only root accounts can update DCF parameters
         /// through the governance system. Parameter updates require the highest
-        /// level of authorization to prevent unauthorized network configuration changes.
+        /// level of authorization to prevent unauthorized network settings changes.
         /// 
         /// Unauthorized parameter changes could:
         /// - Compromise network security and stability
@@ -5737,13 +5542,13 @@ pub mod pallet {
         /// Resolution: Ensure the call is made with root origin/authorization.
         UnauthorizedParameterUpdate,
 
-        /// The governance configuration is invalid or corrupted.
+        /// The governance settings is invalid or corrupted.
         /// 
-        /// This error occurs when the governance configuration storage contains:
+        /// This error occurs when the governance settings storage contains:
         /// - Inconsistent parameter ranges (min > max)
         /// - Invalid current values outside their ranges
-        /// - Corrupted or malformed configuration data
-        /// - Missing required configuration parameters
+        /// - Corrupted or malformed settings data
+        /// - Missing required settings parameters
         /// 
         /// This is a critical system error that indicates governance system corruption
         /// and requires immediate attention to restore parameter governance functionality.
@@ -5846,7 +5651,7 @@ pub mod pallet {
         /// Rate limit exceeded for per-block operations.
         /// 
         /// This error occurs when the number of operations of a specific type
-        /// in the current block exceeds the configured per-block limit. This
+        /// in the current block exceeds the set per-block limit. This
         /// prevents DoS attacks that attempt to overwhelm the network with
         /// excessive operations in a single block.
         /// 
@@ -5890,10 +5695,10 @@ pub mod pallet {
         /// Resolution: Wait for the minimum interval to elapse before retrying.
         MinimumIntervalViolation,
 
-        /// Operation weight exceeds configured bounds.
+        /// Operation weight exceeds set bounds.
         /// 
         /// This error occurs when an operation would consume more computational
-        /// weight than the configured maximum for that operation type. This
+        /// weight than the set maximum for that operation type. This
         /// prevents operations with large loops or heavy computation from
         /// blocking the network.
         /// 
@@ -5906,35 +5711,35 @@ pub mod pallet {
         /// Resolution: Reduce operation scope or increase weight limits if appropriate.
         WeightLimitExceeded,
 
-        /// Rate limiting configuration is invalid.
+        /// Rate limiting settings is invalid.
         /// 
-        /// This error occurs when attempting to update rate limiting configuration
+        /// This error occurs when attempting to update rate limiting settings
         /// with invalid values that could compromise network security or stability.
         /// 
         /// Common causes:
         /// - Zero or negative rate limits
         /// - Inconsistent time windows and limits
         /// - Weight limits that are too restrictive
-        /// - Configuration values that would prevent normal operation
+        /// - Settings values that would prevent normal operation
         /// 
-        /// Resolution: Provide valid rate limiting configuration values.
+        /// Resolution: Provide valid rate limiting settings values.
         InvalidRateLimitConfig,
 
-        /// Genesis configuration validation failed.
+        /// Genesis settings validation failed.
         /// 
-        /// This error occurs when genesis configuration validation detects issues
+        /// This error occurs when genesis settings validation detects issues
         /// that would prevent safe network initialization. The validation checks
         /// include duplicate validator detection, stake validation, active set
         /// size limits, and invariant verification.
         /// 
         /// Common causes:
-        /// - Duplicate validators in the genesis configuration
+        /// - Duplicate validators in the genesis settings
         /// - Validator stakes below minimum requirements
         /// - Active set size exceeding MaxValidators limit
-        /// - Invalid epoch configuration parameters
-        /// - Invariant violations in the proposed configuration
+        /// - Invalid epoch settings parameters
+        /// - Invariant violations in the proposed settings
         /// 
-        /// Resolution: Fix the genesis configuration issues and retry validation.
+        /// Resolution: Fix the genesis settings issues and retry validation.
         GenesisValidationFailed,
 
         /// Private chain mode is disabled but operation requires it.
@@ -5948,7 +5753,7 @@ pub mod pallet {
         /// Allowlist updates are disabled in private chain mode.
         /// 
         /// This error occurs when attempting to modify the validator allowlist
-        /// while allowlist updates are disabled in the private chain configuration.
+        /// while allowlist updates are disabled in the private chain settings.
         /// 
         /// Resolution: Enable allowlist updates or use root privileges if available.
         AllowlistUpdatesDisabled,
@@ -6074,17 +5879,17 @@ pub mod pallet {
 
         /// Update a DCF parameter through the governance system with safety rails.
         /// 
-        /// This dispatchable allows root accounts to update any configurable DCF parameter
-        /// while enforcing safety constraints defined in the governance configuration.
+        /// This dispatchable allows root accounts to update any adjustable DCF parameter
+        /// while enforcing safety constraints defined in the governance settings.
         /// All parameter updates are validated against predefined ranges to prevent
-        /// dangerous configurations that could destabilize the network.
+        /// dangerous settings that could destabilize the network.
         /// 
         /// The function:
         /// - Validates the caller has root authorization
         /// - Checks the parameter type is supported
         /// - Validates the new value is within the allowed range
-        /// - Updates the parameter in the governance configuration
-        /// - Applies the change to the active system configuration
+        /// - Updates the parameter in the governance settings
+        /// - Applies the change to the active system settings
         /// - Emits an event documenting the change with old/new values
         /// 
         /// # Parameters
@@ -6107,7 +5912,7 @@ pub mod pallet {
             // Ensure only root can update parameters
             ensure_root(origin)?;
             
-            // Get current governance configuration
+            // Get current governance settings
             let mut config = GovernanceConfigStorage::<T>::get();
             
             // Store old value for event emission
@@ -6116,10 +5921,10 @@ pub mod pallet {
             // Validate and update the parameter
             Self::validate_and_update_parameter(&mut config, parameter.clone(), &value)?;
             
-            // Store updated configuration
+            // Store updated settings
             GovernanceConfigStorage::<T>::put(&config);
             
-            // Apply the parameter change to active system configuration
+            // Apply the parameter change to active system settings
             Self::apply_parameter_change(&parameter, &value)?;
             
             // Emit event documenting the change
@@ -6132,13 +5937,13 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Update rate limiting configuration for DoS protection.
+        /// Update rate limiting settings for DoS protection.
         /// 
         /// This dispatchable allows root accounts to update the rate limiting
-        /// configuration that controls how frequently various operations can be
+        /// settings that controls how frequently various operations can be
         /// performed to prevent abuse and DoS attacks.
         /// 
-        /// The function validates the new configuration to ensure it won't prevent
+        /// The function validates the new settings to ensure it won't prevent
         /// normal network operation while providing adequate protection against abuse.
         /// 
         /// # Parameters
@@ -6149,7 +5954,7 @@ pub mod pallet {
         /// 
         /// # Errors
         /// - `BadOrigin`: If caller is not root
-        /// - `InvalidRateLimitConfig`: If configuration values are invalid
+        /// - `InvalidRateLimitConfig`: If settings values are invalid
         #[pallet::call_index(35)]
         #[pallet::weight(Weight::from_parts(50_000_000, 0))] // Fixed weight for config update
         pub fn update_rate_limit_config(
@@ -6158,7 +5963,7 @@ pub mod pallet {
             max_joins_per_block: u32,
             max_leaves_per_block: u32,
         ) -> DispatchResult {
-            // Ensure only root can update rate limiting configuration
+            // Ensure only root can update rate limiting settings
             ensure_root(origin)?;
             
             // Create new config with provided values and defaults for others
@@ -6167,7 +5972,7 @@ pub mod pallet {
             new_config.max_joins_per_block = max_joins_per_block;
             new_config.max_leaves_per_block = max_leaves_per_block;
             
-            // Update configuration with validation
+            // Update settings with validation
             Self::update_rate_limit_config_internal(new_config)?;
             
             Ok(())
@@ -6672,9 +6477,9 @@ pub mod pallet {
 
         // join_validator_set moved to pallet-cerulea-dvf.
 
-        /// Validate a genesis configuration without applying it.
+        /// Validate a genesis settings without applying it.
         /// 
-        /// This dispatchable allows validation of genesis configurations for testing
+        /// This dispatchable allows validation of genesis settings for testing
         /// and verification purposes. It performs comprehensive checks including
         /// duplicate validator detection, stake validation, and invariant verification.
         /// 
@@ -6682,7 +6487,7 @@ pub mod pallet {
         /// * `origin` - Must be root origin for security
         /// * `validators` - List of validator accounts
         /// * `validator_stakes` - List of validator stakes (must match validators length or be empty)
-        /// * `epoch_config` - Epoch configuration parameters
+        /// * `epoch_config` - Epoch settings parameters
         /// 
         /// # Errors
         /// * `BadOrigin` - If caller is not root
@@ -6746,7 +6551,7 @@ pub mod pallet {
         /// * `origin` - Must be root origin for security
         /// * `validators` - List of validator accounts
         /// * `validator_stakes` - List of validator stakes (must match validators length or be empty)
-        /// * `epoch_config` - Epoch configuration parameters
+        /// * `epoch_config` - Epoch settings parameters
         /// 
         /// # Errors
         /// * `BadOrigin` - If caller is not root
@@ -8330,226 +8135,8 @@ pub mod pallet {
                 }
             }
             
-            // Check 2: Finality markers advance monotonically
-            let current_finalized = LastFinalizedBlock::<T>::get();
-            let previous_finalized = PreviousFinalizedBlock::<T>::get();
-            
-            if current_finalized < previous_finalized {
-                let context = format!("Previous finalized: {}, Current finalized: {}", previous_finalized, current_finalized);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
-            
-            // Check 3: Finality doesn't exceed current block
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            if current_finalized > current_block {
-                let context = format!("Finalized: {}, Current block: {}", current_finalized, current_block);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized: current_block,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
-            
-            // Check 4: Finality doesn't exceed best known block of previous epoch
-            let previous_epoch_best = PreviousEpochBestBlock::<T>::get();
-            if current_finalized > previous_epoch_best && previous_epoch_best > 0 {
-                let context = format!("Finalized: {}, Previous epoch best: {}", current_finalized, previous_epoch_best);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized: previous_epoch_best,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
             
             violations
-        }
-
-        /// Validate finality marker advancement with comprehensive correctness checks.
-        /// 
-        /// This function performs comprehensive validation of finality marker updates
-        /// to ensure they comply with all finality correctness requirements:
-        /// - Monotonic advancement (never moves backward)
-        /// - Bounded by current block number
-        /// - Bounded by best known block of previous epoch
-        /// - Reasonable advancement rate (not too large jumps)
-        /// 
-        /// # Arguments
-        /// - `new_finalized_block`: The block number being proposed for finalization
-        /// - `epoch`: Current epoch number for context
-        /// 
-        /// # Returns
-        /// - `Ok(())`: If the finality advancement is valid
-        /// - `Err(reason)`: If the advancement should be rejected with reason
-        pub fn validate_finality_advancement(
-            new_finalized_block: u32, 
-            epoch: u32
-        ) -> Result<(), BoundedVec<u8, ConstU32<128>>> {
-            let current_finalized = LastFinalizedBlock::<T>::get();
-            let _previous_finalized = PreviousFinalizedBlock::<T>::get();
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let previous_epoch_best = PreviousEpochBestBlock::<T>::get();
-            
-            // Check 1: Monotonic advancement - new finalized must be >= current
-            if new_finalized_block < current_finalized {
-                let reason = format!("Finality regression: {} < {}", new_finalized_block, current_finalized);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    // Emit regression detection event
-                    Self::deposit_event(Event::FinalityRegressionDetected {
-                        previous_finalized: current_finalized,
-                        attempted_finalized: new_finalized_block,
-                        current_block,
-                        epoch,
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // Check 2: Cannot exceed current block number
-            if new_finalized_block > current_block {
-                let reason = format!("Finality exceeds current block: {} > {}", new_finalized_block, current_block);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    Self::deposit_event(Event::FinalityAdvancementRejected {
-                        attempted_block: new_finalized_block,
-                        current_finalized,
-                        best_known_block: current_block,
-                        epoch,
-                        reason: bounded_reason.clone(),
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // Check 3: Cannot exceed best known block of previous epoch (if available)
-            // For progressive finalization, we allow advancement within the current epoch
-            // Only restrict if we're trying to finalize blocks from future epochs
-            let current_epoch = Self::current_epoch();
-            let current_epoch_start = current_epoch.saturating_mul(T::EpochLength::get());
-            let is_progressive_finalization = new_finalized_block <= current_block && 
-                                            new_finalized_block >= current_epoch_start;
-            
-            if previous_epoch_best > 0 && !is_progressive_finalization && new_finalized_block > previous_epoch_best {
-                let reason = format!("Finality exceeds previous epoch best: {} > {} (not progressive)", new_finalized_block, previous_epoch_best);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    Self::deposit_event(Event::FinalityAdvancementRejected {
-                        attempted_block: new_finalized_block,
-                        current_finalized,
-                        best_known_block: previous_epoch_best,
-                        epoch,
-                        reason: bounded_reason.clone(),
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // All checks passed - emit successful validation event
-            let advancement = new_finalized_block.saturating_sub(current_finalized);
-            Self::deposit_event(Event::FinalityProgressionValidated {
-                previous_finalized: current_finalized,
-                new_finalized: new_finalized_block,
-                advancement,
-                epoch,
-                validation_checks_passed: 3, // Number of checks that passed
-            });
-            
-            Ok(())
-        }
-
-        /// Update finality markers with comprehensive validation and tracking.
-        /// 
-        /// This function safely updates the finality markers while maintaining
-        /// all correctness guarantees and tracking previous values for regression
-        /// detection. It should be called during epoch transitions to advance
-        /// finality in a controlled manner.
-        /// 
-        /// # Arguments
-        /// - `new_finalized_block`: The block number to finalize
-        /// - `epoch`: Current epoch number for context
-        /// 
-        /// # Returns
-        /// - `Ok(())`: If finality was successfully updated
-        /// - `Err(reason)`: If the update was rejected
-        pub fn update_finality_markers(
-            new_finalized_block: u32, 
-            epoch: u32
-        ) -> Result<(), BoundedVec<u8, ConstU32<128>>> {
-            // Validate the finality advancement first
-            Self::validate_finality_advancement(new_finalized_block, epoch)?;
-
-            // Cap DCF progressive finality at the last DVF-finalized block.
-            // DVF is the primary finality authority; DCF must not advance the hard
-            // finalized head past the last DVF checkpoint.
-            let dvf_finalized = T::DvfFinalizedBlockProvider::dvf_finalized_block();
-            let capped_block = new_finalized_block.min(dvf_finalized);
-
-            if capped_block == 0 {
-                // DVF has not finalized any block yet; skip DCF progressive finality
-                // to avoid advancing ahead of DVF.
-                log::debug!(
-                    "DCF: Progressive finality skipped — DVF has not finalized any block yet"
-                );
-                return Ok(());
-            }
-
-            if capped_block < new_finalized_block {
-                log::debug!(
-                    "DCF: Progressive finality capped at DVF-finalized block {} (requested {})",
-                    capped_block, new_finalized_block
-                );
-            }
-            
-            // Store current finalized block as previous for next validation
-            let current_finalized = LastFinalizedBlock::<T>::get();
-
-            // Nothing to advance if already at or past the cap
-            if current_finalized >= capped_block {
-                return Ok(());
-            }
-
-            PreviousFinalizedBlock::<T>::put(current_finalized);
-            
-            // Update the current finalized block
-            LastFinalizedBlock::<T>::put(capped_block);
-            
-            // Update best known block for current epoch
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            PreviousEpochBestBlock::<T>::put(current_block);
-            
-            // Emit finalization events
-            Self::deposit_event(Event::BlockFinalized {
-                block_number: capped_block,
-            });
-            
-            // Get active validators for detailed finality tracking
-            let active_validators = Self::active_validators();
-            let block_hash = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(capped_block));
-            
-            Self::deposit_event(Event::FinalityMarker {
-                block_number: capped_block,
-                block_hash,
-                participating_validators: active_validators.to_vec(),
-                total_validators: active_validators.len() as u32,
-            });
-            
-            log::info!("DCF: Finality advanced from {} to {} in epoch {}", 
-                      current_finalized, capped_block, epoch);
-            
-            Ok(())
         }
 
         /// Check all invariants at epoch boundaries and generate a comprehensive report.
@@ -8779,11 +8366,6 @@ pub mod pallet {
             let current_epoch = Self::current_epoch();
             let next_epoch = current_epoch.saturating_add(1);
 
-            // Update PreviousEpochBestBlock to the last block of the epoch that just ended.
-            // This is block_number - 1 (the boundary block belongs to the new epoch).
-            // Without this, validate_finality_advancement Check 3 rejects all progressive
-            // finality with "Finality exceeds previous epoch best: N > 1 (not progressive)".
-            PreviousEpochBestBlock::<T>::put(block_number.saturating_sub(1));
             
             // Initialize deterministic engine if not already done
             let mut engine = DeterministicEngineState::<T>::get();
@@ -8856,7 +8438,7 @@ pub mod pallet {
                 output_hash,
             };
             
-            // Invoke DVF weight freezing.
+            // Invoke Registry weight freezing.
             // Use the live PoS stake (raw u128 token amount) so that freeze_epoch_weights
             // can normalize it correctly via VOTE_WEIGHT_SCALE. Using the stale
             // stake_score field (a u64 truncation of the raw amount) caused validators
@@ -8978,7 +8560,7 @@ pub mod pallet {
                 return BoundedVec::new();
             }
             
-            // Get epoch configuration
+            // Get epoch settings
             let epoch_config = Self::epoch_config();
             let blocks_per_epoch = epoch_config.blocks_per_epoch;
             
@@ -9125,11 +8707,11 @@ pub mod pallet {
                 // Validate that all required storage items are accessible
                 weight = weight.saturating_add(Self::validate_storage_integrity()?);
                 
-                // Initialize default governance configuration if not present
+                // Initialize default governance settings if not present
                 if !GovernanceConfigStorage::<T>::exists() {
                     let default_config = GovernanceConfig::<T>::default();
                     GovernanceConfigStorage::<T>::put(default_config);
-                    log::info!("DCF: Initialized default governance configuration");
+                    log::info!("DCF: Initialized default governance settings");
                 }
                 
                 // Initialize storage version manager
@@ -9180,7 +8762,7 @@ pub mod pallet {
             // Storage accessibility validation would go here
             // (removed recursive call)
             
-            // Validate governance configuration if it exists
+            // Validate governance settings if it exists
             if GovernanceConfigStorage::<T>::exists() {
                 let _governance_config = GovernanceConfigStorage::<T>::get();
                 // Governance config validation (available in test/benchmark builds only)
@@ -9190,7 +8772,7 @@ pub mod pallet {
                 }
             }
             
-            // Validate epoch configuration
+            // Validate epoch settings
             let _epoch_config = EpochConfigStorage::<T>::get();
             // Epoch config validation (available in test/benchmark builds only)
             #[cfg(any(feature = "runtime-benchmarks", test))]
@@ -9247,17 +8829,17 @@ pub mod pallet {
             Ok(weight)
         }
         
-        /// Validate governance configuration for consistency and safety.
+        /// Validate governance settings for consistency and safety.
         /// 
-        /// This function checks that the governance configuration contains
+        /// This function checks that the governance settings contains
         /// valid parameter ranges and current values within those ranges.
         /// 
         /// # Arguments
-        /// - `config`: Governance configuration to validate
+        /// - `config`: Governance settings to validate
         /// 
         /// # Returns
-        /// - `Ok(Weight)`: Configuration is valid
-        /// - `Err(MigrationError)`: Configuration validation failed
+        /// - `Ok(Weight)`: Settings is valid
+        /// - `Err(MigrationError)`: Settings validation failed
         #[cfg(any(feature = "runtime-benchmarks", test))]
         pub fn validate_governance_config(config: &GovernanceConfig<T>) -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
@@ -9292,21 +8874,21 @@ pub mod pallet {
                 });
             }
             
-            log::debug!("DCF: Governance configuration validation passed");
+            log::debug!("DCF: Governance settings validation passed");
             Ok(weight)
         }
         
-        /// Validate epoch configuration for consistency and safety.
+        /// Validate epoch settings for consistency and safety.
         /// 
-        /// This function checks that the epoch configuration contains
+        /// This function checks that the epoch settings contains
         /// reasonable values that won't cause system instability.
         /// 
         /// # Arguments
-        /// - `config`: Epoch configuration to validate
+        /// - `config`: Epoch settings to validate
         /// 
         /// # Returns
-        /// - `Ok(Weight)`: Configuration is valid
-        /// - `Err(MigrationError)`: Configuration validation failed
+        /// - `Ok(Weight)`: Settings is valid
+        /// - `Err(MigrationError)`: Settings validation failed
         #[cfg(any(feature = "runtime-benchmarks", test))]
         pub fn validate_epoch_config(config: &EpochConfig) -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
@@ -9335,7 +8917,7 @@ pub mod pallet {
                 });
             }
             
-            log::debug!("DCF: Epoch configuration validation passed");
+            log::debug!("DCF: Epoch settings validation passed");
             Ok(weight)
         }
 
@@ -10065,35 +9647,6 @@ pub mod pallet {
             let block_number = now.saturated_into::<u32>();
             let current_epoch = Self::current_epoch();
             
-            // Initialize finalization at block 1 if not already done
-            if block_number == 1 && Self::last_finalized_block() == 0 {
-                LastFinalizedBlock::<T>::put(0); // Genesis block (block 0) is finalized
-                PreviousFinalizedBlock::<T>::put(0);
-                PreviousEpochBestBlock::<T>::put(block_number); // Set to current block for progressive finalization
-                
-                Self::deposit_event(Event::BlockFinalized {
-                    block_number: 0,
-                });
-                log::info!("DCF: Initialized finalization markers at block 1 - genesis block 0 finalized, best block set to {}", block_number);
-                weight = weight.saturating_add(Weight::from_parts(50_000, 0));
-            }
-            
-            // Progressive finalization - finalize blocks as we go (with 1 block lag for safety)
-            if block_number > 1 {
-                let target_finalized = block_number - 1;
-                if Self::last_finalized_block() < target_finalized {
-                    match Self::update_finality_markers(target_finalized, current_epoch) {
-                        Ok(()) => {
-                            log::info!("DCF: Progressive finalization advanced to block {}", target_finalized);
-                        },
-                        Err(reason) => {
-                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
-                            log::warn!("DCF: Progressive finalization failed for block {}: {}", target_finalized, reason_str);
-                        }
-                    }
-                    weight = weight.saturating_add(Weight::from_parts(100_000, 0));
-                }
-            }
             
             // Lower the standing of every validator that let an epoch pass.
             // An absent validator drifts downward with no person acting.
@@ -10465,26 +10018,26 @@ pub mod pallet {
             });
         }
 
-        /// Update rate limiting configuration internally.
+        /// Update rate limiting settings internally.
         /// 
         /// This function allows root accounts to update the rate limiting
-        /// configuration with validation to ensure the new configuration
+        /// settings with validation to ensure the new settings
         /// is valid and won't prevent normal network operation.
         /// 
         /// # Parameters
-        /// - `new_config`: New rate limiting configuration
+        /// - `new_config`: New rate limiting settings
         /// 
         /// # Returns
-        /// - `Ok(())`: Configuration updated successfully
-        /// - `Err(Error)`: Configuration is invalid
+        /// - `Ok(())`: Settings updated successfully
+        /// - `Err(Error)`: Settings is invalid
         fn update_rate_limit_config_internal(new_config: RateLimitConfig) -> DispatchResult {
-            // Validate the new configuration
+            // Validate the new settings
             Self::validate_rate_limit_config(&new_config)?;
 
-            // Get old configuration for event (we'll use it for logging)
+            // Get old settings for event (we'll use it for logging)
             let _old_config = RateLimitConfigStorage::<T>::get();
 
-            // Update configuration
+            // Update settings
             RateLimitConfigStorage::<T>::put(&new_config);
 
             // Emit event
@@ -10497,7 +10050,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Validate rate limiting configuration.
+        /// Validate rate limiting settings.
         fn validate_rate_limit_config(config: &RateLimitConfig) -> DispatchResult {
             // Check that limits are reasonable (not zero or excessively high)
             ensure!(config.max_proposals_per_block > 0 && config.max_proposals_per_block <= 100, Error::<T>::InvalidRateLimitConfig);
@@ -10727,9 +10280,6 @@ pub mod pallet {
                 InvariantHealth::Healthy
             };
             
-            // Calculate finality lag
-            let last_finalized = Self::last_finalized_block();
-            let finality_lag = current_block_u32.saturating_sub(last_finalized);
             
             // Get historical totals (these would be maintained by other tasks)
             let total_slashed = pos::Pallet::<T>::epoch_total_slashed();
@@ -10749,7 +10299,6 @@ pub mod pallet {
                 epoch_progress_percentage,
                 average_trust_score,
                 invariant_health,
-                finality_lag,
                 missed_blocks_current_epoch,
             };
             
@@ -10908,7 +10457,7 @@ pub mod pallet {
         }
     }
 
-    // --- Genesis Configuration --- //
+    // --- Genesis Settings --- //
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
@@ -10920,7 +10469,7 @@ pub mod pallet {
         pub validator_stakes: Vec<<T as pallet::Config>::Balance>,
         /// Starting epoch number (usually 0)
         pub current_epoch: u32,
-        /// Epoch configuration parameters
+        /// Epoch settings parameters
         pub epoch_config: EpochConfig,
         /// Optional validator names (must match validators length or be empty)
         pub validator_names: Vec<Option<Vec<u8>>>,
@@ -10945,8 +10494,8 @@ pub mod pallet {
                        self.validators.len(), MaxValidatorsOf::<T>::get());
             }
 
-            // STEP 10.2: Genesis configuration loaded
-            log::info!("============== [Cerulea-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis configuration loaded ==============");
+            // STEP 10.2: Genesis settings loaded
+            log::info!("============== [Cerulea-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis settings loaded ==============");
             log::info!("  Validator count: {}", self.validators.len());
             log::info!("  Epoch: {}", self.current_epoch);
             log::info!("  Blocks per epoch: {}", self.epoch_config.blocks_per_epoch);
@@ -11067,7 +10616,7 @@ pub mod pallet {
                 let final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
 
                 log::info!("  PoS score: {}", stake_score);
-                log::info!("  PoI score: {}", inference_score);
+                log::info!("  inference contribution: {}", inference_score);
                 log::info!("  Combined DCF score: {}", final_score);
 
                 // Prepare validator name if provided
@@ -11126,8 +10675,8 @@ pub mod pallet {
             
             // STEP 10.6: Combined DCF scores computed for all validators
             log::info!("============== [Cerulea-TRACE] 10.6 [pallet-cerulea-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
-            log::info!("  PoS weight: {}", T::DefaultPosWeight::get());
-            log::info!("  PoI weight: {}", T::DefaultPoiWeight::get());
+            log::info!("  stake share: {}", T::DefaultPosWeight::get());
+            log::info!("  inference share: {}", T::DefaultPoiWeight::get());
 
             // Initialize active validators with all genesis validators
             ActiveValidators::<T>::put(
@@ -11142,7 +10691,7 @@ pub mod pallet {
             PosWeight::<T>::put(T::DefaultPosWeight::get());
             PoiWeight::<T>::put(T::DefaultPoiWeight::get());
             
-            // Initialize trust score configuration with default values
+            // Initialize trust score settings with default values
             TrustScoreConfigStorage::<T>::put(TrustScoreConfig {
                 uptime_weight: 40,      // 40% weight for uptime
                 inference_weight: 35,   // 35% weight for inference success
@@ -11167,9 +10716,9 @@ pub mod pallet {
             // Initialize trust score stability metrics
             TrustScoreStabilityMetrics::<T>::put(TrustScoreStabilityMetricsData::default());
             
-            // Initialize governance configuration with default parameter ranges and safety rails
+            // Initialize governance settings with default parameter ranges and safety rails
             GovernanceConfigStorage::<T>::put(GovernanceConfig {
-                // Epoch configuration parameters with safe ranges
+                // Epoch settings parameters with safe ranges
                 epoch_length: ParameterRange {
                     min: 50,                                    // Minimum 50 blocks per epoch
                     max: 14400,                                 // Maximum 14400 blocks per epoch (24 hours at 6s)
@@ -11237,7 +10786,7 @@ pub mod pallet {
                     current: LeaveCooldownOf::<T>::get().into(),
                 },
                 
-                // Trust score configuration
+                // Trust score settings
                 trust_score_uptime_weight: ParameterRange {
                     min: 10,                                    // Minimum 10% weight
                     max: 80,                                    // Maximum 80% weight
@@ -11309,12 +10858,8 @@ pub mod pallet {
                 },
             });
             
-            // Initialize finality markers for production-ready finality tracking
-            LastFinalizedBlock::<T>::put(1);           // Genesis block is finalized
-            PreviousFinalizedBlock::<T>::put(0);       // No previous finalized block initially
-            PreviousEpochBestBlock::<T>::put(1);       // Genesis block is the best known initially
 
-            // Initialize rate limiting configuration with default values
+            // Initialize rate limiting settings with default values
             RateLimitConfigStorage::<T>::put(RateLimitConfig::default());
 
             // **FIX FOR ISSUE #3: Initialize Epoch 0 Author Sequence**
@@ -11372,7 +10917,7 @@ pub mod pallet {
     }
 
     impl<T: Config> GenesisConfig<T> {
-        /// Validate genesis configuration for consistency and correctness
+        /// Validate genesis settings for consistency and correctness
         fn validate_genesis_config(&self) {
             // Validate validator count
             if self.validators.is_empty() {
@@ -11415,21 +10960,21 @@ pub mod pallet {
                 }
             }
 
-            // Validate epoch configuration
+            // Validate epoch settings
             if self.epoch_config.blocks_per_epoch == 0 {
                 panic!("Epoch length cannot be zero");
             }
 
-            log::info!("Genesis configuration validation passed");
+            log::info!("Genesis settings validation passed");
         }
 
         /// Comprehensive genesis validation routine that checks for duplicate validators and invalid stakes.
         /// 
-        /// This function performs thorough validation of the genesis configuration to ensure:
+        /// This function performs thorough validation of the genesis settings to ensure:
         /// - No duplicate validators exist in the validator set
         /// - All validator stakes meet minimum requirements
         /// - Active set size does not exceed MaxValidators
-        /// - All configuration parameters are within valid ranges
+        /// - All settings parameters are within valid ranges
         /// 
         /// # Returns
         /// - `Ok(())` if validation passes
@@ -11441,7 +10986,7 @@ pub mod pallet {
         pub fn validate_genesis_comprehensive(&self) -> Result<(), String> {
             // Check for empty validator set
             if self.validators.is_empty() {
-                return Err("Genesis configuration must contain at least one validator".into());
+                return Err("Genesis settings must contain at least one validator".into());
             }
 
             // Check for duplicate validators (Requirement 11.1)
@@ -11540,7 +11085,7 @@ pub mod pallet {
                 }
             }
 
-            // Validate epoch configuration parameters
+            // Validate epoch settings parameters
             if self.epoch_config.blocks_per_epoch == 0 {
                 return Err("Epoch length cannot be zero".into());
             }
@@ -11571,10 +11116,10 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Dry-run function that builds genesis configuration and asserts all invariants.
+        /// Dry-run function that builds genesis settings and asserts all invariants.
         /// 
         /// This function simulates the genesis build process without actually modifying
-        /// storage, allowing validation of the complete genesis configuration including
+        /// storage, allowing validation of the complete genesis settings including
         /// all system invariants that would be established at network launch.
         /// 
         /// # Returns
@@ -11583,7 +11128,7 @@ pub mod pallet {
         /// 
         /// # Requirements Coverage
         /// - 11.3: Implements dry-run function that builds genesis and asserts all invariants
-        /// - 11.4: Validates complete genesis configuration without side effects
+        /// - 11.4: Validates complete genesis settings without side effects
         pub fn dry_run_genesis_build(&self) -> Result<GenesisValidationReport<T>, String> {
             // First perform comprehensive validation
             self.validate_genesis_comprehensive()?;
@@ -11652,7 +11197,7 @@ pub mod pallet {
                 MaxValidatorsOf::<T>::get()
             ));
 
-            // Temporal invariant: Epoch configuration is valid
+            // Temporal invariant: Epoch settings is valid
             invariant_checks.push(format!(
                 "Temporal: Epoch length ({}) is within reasonable bounds",
                 self.epoch_config.blocks_per_epoch
@@ -11699,7 +11244,7 @@ pub mod pallet {
             // Warn if validator set is very small
             if self.validators.len() < 3 {
                 warnings.push(format!(
-                    "Small validator set: Only {} validators configured (consider 3+ for better decentralization)",
+                    "Small validator set: Only {} validators set (consider 3+ for better decentralization)",
                     self.validators.len()
                 ));
             }
@@ -11803,13 +11348,13 @@ pub mod pallet {
             true
         }
 
-        /// Validate a genesis configuration without building it.
+        /// Validate a genesis settings without building it.
         /// 
-        /// This function performs comprehensive validation of a genesis configuration
+        /// This function performs comprehensive validation of a genesis settings
         /// to ensure it meets all requirements for a valid DCF network launch.
         /// 
         /// # Arguments
-        /// * `config` - The genesis configuration to validate
+        /// * `config` - The genesis settings to validate
         /// 
         /// # Returns
         /// * `Ok(())` if validation passes
@@ -11828,7 +11373,7 @@ pub mod pallet {
         /// storage, providing detailed validation results and system health analysis.
         /// 
         /// # Arguments
-        /// * `config` - The genesis configuration to dry-run
+        /// * `config` - The genesis settings to dry-run
         /// 
         /// # Returns
         /// * `Ok(GenesisValidationReport<T>)` with detailed validation results
@@ -11909,16 +11454,6 @@ pub mod pallet {
                 ));
             }
 
-            // Check temporal invariants
-            let last_finalized = Self::last_finalized_block();
-            let previous_finalized = Self::previous_finalized_block();
-            
-            if last_finalized < previous_finalized {
-                violations.push(format!(
-                    "Temporal invariant violation: Last finalized block ({}) < previous finalized block ({})",
-                    last_finalized, previous_finalized
-                ));
-            }
 
             if violations.is_empty() {
                 Ok(())
@@ -11996,7 +11531,7 @@ pub mod pallet {
                 let stake = pos::Pallet::<T>::stake(validator);
                 let pos_score = stake.saturated_into::<u64>();
                 
-                // Get fresh PoI score from inference results
+                // Get fresh inference contribution from inference results
                 let poi_score = poi::Pallet::<T>::get_score(validator);
                 
                 // Calculate combined score using current weights
@@ -12086,7 +11621,7 @@ pub mod pallet {
                     
                     // If one component dominates too much, log a warning
                     if pos_contribution > T::MaxPosContribution::get() as u64 {
-                        log::warn!("DCF: Validator {:?} relies heavily on PoS ({}%) - PoI score: {}", 
+                        log::warn!("DCF: Validator {:?} relies heavily on PoS ({}%) - inference contribution: {}", 
                                   validator, pos_contribution, poi_score);
                     } else if poi_contribution > T::MaxPoiContribution::get() as u64 {
                         log::warn!("DCF: Validator {:?} relies heavily on PoI ({}%) - PoS score: {}", 
@@ -12107,7 +11642,7 @@ pub mod pallet {
                 let stake = pos::Pallet::<T>::stake(&account_id);
                 let pos_score = stake.saturated_into::<u64>();
                 
-                // Fetch fresh PoI score from the PoI pallet
+                // Fetch fresh inference contribution from the PoI pallet
                 let poi_score = if let Some((result, _)) = poi::Pallet::<T>::inference_results(&account_id) {
                     result as u64
                 } else {
@@ -12127,7 +11662,7 @@ pub mod pallet {
                     PoiWeight::<T>::get()
                 };
                 
-                // Calculate combined score using configured weights
+                // Calculate combined score using set weights
                 let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
                 
                 // Cap the combined score at maximum allowed
@@ -12145,7 +11680,7 @@ pub mod pallet {
                 (
                     combined_score,      // Fresh calculated combined score
                     pos_score,          // Fresh PoS (stake) score
-                    poi_score,          // Fresh PoI score
+                    poi_score,          // Fresh inference contribution
                     trust_score,        // Current trust score
                     uptime,             // Validator uptime
                     inference_count,    // Number of inferences
@@ -12252,26 +11787,6 @@ pub mod pallet {
             }
         }
 
-        /// Get the last finalized block number.
-        pub fn get_last_finalized_block() -> u32 {
-            Self::last_finalized_block()
-        }
-
-        /// Check if a block is finalized.
-        pub fn is_block_finalized(block_number: u32) -> bool {
-            block_number <= Self::last_finalized_block()
-        }
-
-        /// Get finality information including last finalized block and current epoch.
-        pub fn get_finality_info() -> (u32, u32) {
-            (Self::last_finalized_block(), Self::current_epoch())
-        }
-
-        /// Get the number of blocks since last finalization.
-        pub fn blocks_since_finalization(current_block: u32) -> u32 {
-            current_block.saturating_sub(Self::last_finalized_block())
-        }
-
         /// Get the inference result for a validator.
         pub fn get_inference_result(account_id: T::AccountId) -> Option<u64> {
             ValidatorStates::<T>::get(&account_id).map(|state| state.current.inference_score)
@@ -12342,11 +11857,6 @@ pub mod pallet {
             ValidatorStates::<T>::get(validator)
                 .map(|state| state.history.to_vec())
                 .unwrap_or_default()
-        }
-
-        /// Get finality info
-        pub fn finality_info() -> (u32, u32) {
-            Self::get_finality_info()
         }
 
         // execute_slash_validator, execute_slash_validator_with_reason, distribute_rewards, execute_reward_validator, and execute_reward_validator_with_reason moved to pallet-cerulea-pos.
@@ -12616,7 +12126,7 @@ pub mod pallet {
             })
         }
 
-        /// Get epoch configuration (for runtime API).
+        /// Get epoch settings (for runtime API).
         pub fn get_epoch_config() -> EpochConfig {
             Self::epoch_config()
         }
@@ -12846,7 +12356,7 @@ pub mod pallet {
                 if let Some((lowest_active_validator, lowest_active_score)) = active_with_scores.first() {
                     let score_improvement = inactive_score.saturating_sub(*lowest_active_score);
                     let percentage_threshold = *lowest_active_score / (T::FullPercentage::get() as u64 / T::ScoreImprovementPercentage::get() as u64);
-                    let min_improvement_threshold = percentage_threshold.max(T::ScoreImprovementThreshold::get()); // Configurable improvement threshold
+                    let min_improvement_threshold = percentage_threshold.max(T::ScoreImprovementThreshold::get()); // Adjustable improvement threshold
                     
                     if score_improvement >= min_improvement_threshold &&
                        *inactive_score >= MinValidatorScoreOf::<T>::get() as u64 &&
@@ -13075,7 +12585,7 @@ pub mod pallet {
                 0
             };
             
-            // Only log health metrics at configured intervals to reduce verbosity
+            // Only log health metrics at set intervals to reduce verbosity
             if block_number % T::DetailedLoggingInterval::get() == 0 {
                 log::info!("DCF Health: epoch={}, validators={}/{}, avg_score={}", 
                           current_epoch, active_validators, total_validators, avg_score);
@@ -13105,7 +12615,7 @@ pub mod pallet {
                 // The raw stake (e.g. 8_000_000_000_000_000_000) overflows u64, so
                 // we scale it down to a sane u64 range before storing in stake_score.
                 // We use the same VOTE_WEIGHT_SCALE (32_000) reference point as the
-                // DVF pallet so that stake_score reflects relative weight correctly.
+                // Registry pallet so that stake_score reflects relative weight correctly.
                 let raw_stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
                 // Compute total stake across all validators for normalisation.
                 // (recomputed per-validator loop but cheap — only 3 validators on testnet).
@@ -13119,7 +12629,7 @@ pub mod pallet {
                     0
                 };
 
-                // Update PoI score from inference results
+                // Update inference contribution from inference results
                 let inference_score = poi::Pallet::<T>::get_score(validator);
                 
                 // Update validator state with fresh scores
@@ -13209,36 +12719,13 @@ pub mod pallet {
         }
 
         /// Finalize the previous epoch's best block.
-        fn finalize_previous_epoch(block_number: u32) -> Weight {
+        fn finalize_previous_epoch(_block_number: u32) -> Weight {
             let weight = <T as Config>::WeightInfo::on_initialize();
             
             let current_epoch = Self::current_epoch();
             let previous_epoch = current_epoch.saturating_sub(1);
             
             if previous_epoch > 0 {
-                // Calculate the best block of the previous epoch
-                let previous_epoch_end_block = block_number.saturating_sub(1);
-                
-                // With progressive finalization, we might already be close to current
-                // Only advance finalization if we're behind
-                let current_finalized = Self::last_finalized_block();
-                if current_finalized < previous_epoch_end_block {
-                    match Self::update_finality_markers(previous_epoch_end_block, current_epoch) {
-                        Ok(()) => {
-                            log::info!("DCF: Epoch finalization advanced from {} to {} (end of epoch {})", 
-                                      current_finalized, previous_epoch_end_block, previous_epoch);
-                        },
-                        Err(reason) => {
-                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
-                            log::warn!("DCF: Epoch finalization rejected for block {}: {}", 
-                                      previous_epoch_end_block, reason_str);
-                        }
-                    }
-                } else {
-                    log::info!("DCF: Epoch finalization already at {} (>= {}), no advancement needed", 
-                              current_finalized, previous_epoch_end_block);
-                }
-                
                 // Emit epoch events
                 Self::deposit_event(Event::EpochEnded {
                     epoch: previous_epoch,
@@ -13249,12 +12736,6 @@ pub mod pallet {
                 });
                 
                 log::info!("DCF: Epoch transition completed: {} -> {}", previous_epoch, current_epoch);
-            } else {
-                // First epoch - ensure genesis is finalized
-                if Self::last_finalized_block() == 0 {
-                    // Genesis block should already be finalized by progressive logic
-                    log::info!("DCF: First epoch - genesis finalization already handled by progressive logic");
-                }
             }
             
             weight
@@ -13308,7 +12789,7 @@ pub mod pallet {
                     let _max_score = T::MaxValidatorScore::get();
                     let _min_score = MinValidatorScoreOf::<T>::get() as u64;
                     
-                    // High performer: score > configured high performance threshold
+                    // High performer: score > set high performance threshold
                     if score > T::HighPerformanceScore::get() {
                         high_performers.push(validator.clone());
                     }
@@ -13476,13 +12957,13 @@ pub mod pallet {
         ///
         /// This enhanced trust score calculation implements robust bounds and stability mechanisms
         /// to prevent explosive growth, rapid decay, and score volatility. The calculation uses
-        /// configurable weights and bounds to ensure long-term fairness and system stability.
+        /// adjustable weights and bounds to ensure long-term fairness and system stability.
         ///
         /// # Enhanced Features
         /// - **Bounded Growth**: Limits score increases per epoch to prevent gaming
         /// - **Bounded Decay**: Limits score decreases to allow recovery from temporary issues
         /// - **Stability Smoothing**: Reduces volatility through weighted averaging
-        /// - **Absolute Bounds**: Ensures scores stay within configured min/max range
+        /// - **Absolute Bounds**: Ensures scores stay within set min/max range
         /// - **Clamping**: Final safety net against out-of-bounds values
         ///
         /// # Calculation Formula with Bounds
@@ -13569,7 +13050,7 @@ pub mod pallet {
                 }
             };
 
-            // Calculate weighted score using configurable weights
+            // Calculate weighted score using adjustable weights
             let total_positive_weight = config.uptime_weight.saturating_add(config.inference_weight);
             if total_positive_weight == 0 {
                 return T::MinTrustScore::get(); // Return minimum instead of 0
@@ -13604,15 +13085,15 @@ pub mod pallet {
         /// - **Growth Rate Limiting**: Prevents explosive score increases that could indicate gaming
         /// - **Decay Rate Limiting**: Prevents rapid score degradation from temporary issues
         /// - **Stability Smoothing**: Reduces volatility through weighted averaging with previous scores
-        /// - **Absolute Bounds**: Ensures scores never exceed configured min/max values
+        /// - **Absolute Bounds**: Ensures scores never exceed set min/max values
         ///
         /// # Parameters
         /// - `new_score`: The newly calculated raw trust score before bounds are applied
         /// - `previous_score`: The validator's previous trust score for comparison and smoothing
-        /// - `bounds`: The current trust score bounds configuration with rate limits and ranges
+        /// - `bounds`: The current trust score bounds settings with rate limits and ranges
         ///
         /// # Returns
-        /// The bounded and stabilized trust score that respects all configured limits
+        /// The bounded and stabilized trust score that respects all set limits
         ///
         /// # Algorithm Details
         /// 1. **First Score Handling**: If no previous score exists, return new score within bounds
@@ -13859,7 +13340,7 @@ pub mod pallet {
         /// Update trust score for a validator and store in history.
         ///
         /// This function recalculates the trust score for a validator using the current
-        /// trust score configuration and updates both the current score storage and
+        /// trust score settings and updates both the current score storage and
         /// the historical record for trend analysis.
         ///
         /// The function is called during:
@@ -13989,14 +13470,14 @@ pub mod pallet {
             weight
         }
 
-        /// Get the current value of a parameter from the governance configuration.
+        /// Get the current value of a parameter from the governance settings.
         /// 
         /// This function retrieves the current value of any DCF parameter from the
-        /// governance configuration storage. The value is encoded as bytes to handle
+        /// governance settings storage. The value is encoded as bytes to handle
         /// different parameter types in a type-safe manner.
         /// 
         /// # Parameters
-        /// - `config`: Reference to the governance configuration
+        /// - `config`: Reference to the governance settings
         /// - `parameter`: The parameter type to retrieve
         /// 
         /// # Returns
@@ -14037,7 +13518,7 @@ pub mod pallet {
             BoundedVec::try_from(value_bytes).map_err(|_| Error::<T>::InvalidGovernanceConfig)
         }
 
-        /// Validate a parameter value against its allowed range and update the configuration.
+        /// Validate a parameter value against its allowed range and update the settings.
         /// 
         /// This function performs comprehensive validation of parameter updates including:
         /// - Range validation against min/max bounds
@@ -14046,7 +13527,7 @@ pub mod pallet {
         /// - Safety constraint enforcement
         /// 
         /// # Parameters
-        /// - `config`: Mutable reference to governance configuration
+        /// - `config`: Mutable reference to governance settings
         /// - `parameter`: The parameter type being updated
         /// - `value`: New value encoded as bytes
         /// 
@@ -14333,9 +13814,9 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Apply a parameter change to the active system configuration.
+        /// Apply a parameter change to the active system settings.
         /// 
-        /// This function updates the active system configuration to reflect parameter
+        /// This function updates the active system settings to reflect parameter
         /// changes made through governance. Some parameters take effect immediately,
         /// while others may be scheduled for the next epoch boundary.
         /// 

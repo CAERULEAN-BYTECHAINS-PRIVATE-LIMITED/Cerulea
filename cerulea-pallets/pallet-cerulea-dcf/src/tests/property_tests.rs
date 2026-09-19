@@ -224,8 +224,8 @@ fn fuzz_test_random_block_numbers() {
         for block_num in test_blocks {
             // Expected author queries should handle any block number
             let expected_author = DcfPallet::expected_author(block_num);
-            let is_finalized = DcfPallet::is_block_finalized(block_num);
-            let blocks_since_final = DcfPallet::blocks_since_finalization(block_num);
+            let threshold = DcfPallet::assurance_class_table()
+                .threshold_percent(crate::engines::assurance::TransactionClass::Routine);
             
             // Should not panic
             match expected_author {
@@ -240,9 +240,8 @@ fn fuzz_test_random_block_numbers() {
                 }
             }
             
-            // Finality queries should always work
-            assert!(is_finalized || !is_finalized);
-            assert!(blocks_since_final >= 0);
+            // The Assurance Engine holds the routine share above half.
+            assert!(threshold > 50);
         }
     });
 }

@@ -49,8 +49,9 @@ pub mod commit;
 pub mod execution;
 
 pub use authoring::{
-    derive_slot_seed, draw, draw_from_keystore, draw_value, verify_draw, verify_result,
-    weighted_draw, CommitteeDraw, DrawInput, DrawProof, DrawResult, SlotCommittee,
+    derive_slot_seed, draw, draw_from_keystore, draw_value, epoch_draw, epoch_draw_from_keystore,
+    verify_draw, verify_epoch_draw, verify_result, weighted_draw, CommitteeDraw, DrawInput,
+    DrawProof, DrawResult, SlotCommittee,
 };
 
 pub use commit::{
@@ -84,7 +85,7 @@ use scale_info::TypeInfo;
 use thiserror::Error;
 
 /// The number of validators drawn into the committee for one slot.
-pub const COMMITTEE_SIZE: usize = 5;
+pub const COMMITTEE_SIZE: usize = cerulea_primitives::COMMITTEE_SIZE;
 
 /// The multiple that sets the fault bound.
 ///

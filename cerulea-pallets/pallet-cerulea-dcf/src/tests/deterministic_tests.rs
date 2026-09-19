@@ -196,26 +196,22 @@ fn deterministic_block_authorship_works() {
     });
 }
 
-/// Tests deterministic finality information
+/// The Assurance Engine answers one class the same way every time.
 #[test]
-fn deterministic_finality_information_works() {
+fn deterministic_assurance_thresholds_work() {
     new_test_ext().execute_with(|| {
-        let finalized1 = DcfPallet::last_finalized_block();
-        let finalized2 = DcfPallet::last_finalized_block();
-        
-        assert_eq!(finalized1, finalized2);
-        
-        let finality_info1 = DcfPallet::finality_info();
-        let finality_info2 = DcfPallet::finality_info();
-        
-        assert_eq!(finality_info1, finality_info2);
-        
-        // Test finality check determinism
-        for block_num in 0..=5 {
-            let is_finalized1 = DcfPallet::is_block_finalized(block_num);
-            let is_finalized2 = DcfPallet::is_block_finalized(block_num);
-            
-            assert_eq!(is_finalized1, is_finalized2);
+        use crate::engines::assurance::TransactionClass;
+
+        for class in [
+            TransactionClass::Routine,
+            TransactionClass::Financial,
+            TransactionClass::Structural,
+            TransactionClass::Constitutional,
+        ] {
+            let one = DcfPallet::assurance_class_table().threshold_percent(class);
+            let two = DcfPallet::assurance_class_table().threshold_percent(class);
+            assert_eq!(one, two);
+            assert!(one >= 51);
         }
     });
 }

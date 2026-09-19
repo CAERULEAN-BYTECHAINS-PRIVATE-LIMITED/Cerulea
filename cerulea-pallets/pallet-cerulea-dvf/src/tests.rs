@@ -7,22 +7,22 @@ use sp_runtime::BuildStorage;
 fn test_is_checkpoint_block() {
     new_test_ext().execute_with(|| {
         // Block 0 is a checkpoint (0 % 10 == 0)
-        assert!(Dvf::is_checkpoint_block(0));
+        assert!(Registry::is_checkpoint_block(0));
         
         // Block 10 is a checkpoint
-        assert!(Dvf::is_checkpoint_block(10));
+        assert!(Registry::is_checkpoint_block(10));
         
         // Block 20 is a checkpoint
-        assert!(Dvf::is_checkpoint_block(20));
+        assert!(Registry::is_checkpoint_block(20));
         
         // Block 5 is not a checkpoint
-        assert!(!Dvf::is_checkpoint_block(5));
+        assert!(!Registry::is_checkpoint_block(5));
         
         // Block 15 is not a checkpoint
-        assert!(!Dvf::is_checkpoint_block(15));
+        assert!(!Registry::is_checkpoint_block(15));
         
         // Block 99 is not a checkpoint
-        assert!(!Dvf::is_checkpoint_block(99));
+        assert!(!Registry::is_checkpoint_block(99));
     });
 }
 
@@ -31,23 +31,23 @@ fn test_is_block_finalized() {
     new_test_ext().execute_with(|| {
         // Initially, no blocks are finalized (finalized block number is 0)
         // Block 0 is finalized by default since it's the genesis
-        assert!(Dvf::is_block_finalized(0));
+        assert!(Registry::is_block_finalized(0));
         
         // Blocks after 0 should not be finalized initially
-        assert!(!Dvf::is_block_finalized(10));
-        assert!(!Dvf::is_block_finalized(20));
+        assert!(!Registry::is_block_finalized(10));
+        assert!(!Registry::is_block_finalized(20));
         
         // Simulate finalization of block 20
         crate::FinalizedBlockNumber::<Test>::put(20);
         
         // All blocks up to 20 should be finalized
-        assert!(Dvf::is_block_finalized(0));
-        assert!(Dvf::is_block_finalized(10));
-        assert!(Dvf::is_block_finalized(20));
+        assert!(Registry::is_block_finalized(0));
+        assert!(Registry::is_block_finalized(10));
+        assert!(Registry::is_block_finalized(20));
         
         // Blocks after 20 should not be finalized
-        assert!(!Dvf::is_block_finalized(21));
-        assert!(!Dvf::is_block_finalized(30));
+        assert!(!Registry::is_block_finalized(21));
+        assert!(!Registry::is_block_finalized(30));
     });
 }
 
@@ -55,7 +55,7 @@ fn test_is_block_finalized() {
 fn test_get_finality_info() {
     new_test_ext().execute_with(|| {
         // Initially, no blocks are finalized
-        let info = Dvf::get_finality_info(10);
+        let info = Registry::get_finality_info(10);
         assert!(!info.is_finalized);
         assert_eq!(info.finalized_by_checkpoint, None);
         assert_eq!(info.finalized_checkpoint_hash, None);
@@ -66,23 +66,23 @@ fn test_get_finality_info() {
         crate::FinalizedBlockHash::<Test>::put(block_hash);
         
         // Block 10 should be finalized by checkpoint 10
-        let info = Dvf::get_finality_info(10);
+        let info = Registry::get_finality_info(10);
         assert!(info.is_finalized);
         assert_eq!(info.finalized_by_checkpoint, Some(10));
         assert_eq!(info.finalized_checkpoint_hash, Some(block_hash));
         
         // Block 15 should be finalized by checkpoint 10
-        let info = Dvf::get_finality_info(15);
+        let info = Registry::get_finality_info(15);
         assert!(info.is_finalized);
         assert_eq!(info.finalized_by_checkpoint, Some(10));
         
         // Block 20 should be finalized by checkpoint 20
-        let info = Dvf::get_finality_info(20);
+        let info = Registry::get_finality_info(20);
         assert!(info.is_finalized);
         assert_eq!(info.finalized_by_checkpoint, Some(20));
         
         // Block 25 should not be finalized
-        let info = Dvf::get_finality_info(25);
+        let info = Registry::get_finality_info(25);
         assert!(!info.is_finalized);
         assert_eq!(info.finalized_by_checkpoint, None);
     });
@@ -96,7 +96,7 @@ fn test_checkpoint_validation_in_vote_submission() {
         
         // Set up validator with weight
         let validators = vec![(validator.clone(), 1000u128, 100u128)];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create a vote for a non-checkpoint block (block 15)
         let mut vote = crate::DvfVote {
@@ -124,7 +124,7 @@ fn test_checkpoint_validation_in_vote_submission() {
         
         // Attempt to submit vote for non-checkpoint block should fail
         assert_noop!(
-            Dvf::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote.clone()),
+            Registry::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote.clone()),
             Error::<Test>::NonCheckpointBlock
         );
         
@@ -145,7 +145,7 @@ fn test_checkpoint_validation_in_vote_submission() {
         vote.signature = sp_runtime::MultiSignature::Sr25519(signature);
         
         // Submitting vote for checkpoint block should succeed
-        assert_ok!(Dvf::submit_dvf_vote(RuntimeOrigin::signed(validator), vote));
+        assert_ok!(Registry::submit_dvf_vote(RuntimeOrigin::signed(validator), vote));
     });
 }
 
@@ -160,7 +160,7 @@ fn test_checkpoint_validation_rejects_non_checkpoint_votes() {
         
         // Set up validator with weight
         let validators = vec![(validator.clone(), 1000u128, 100u128)];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create a vote for a non-checkpoint block
         let mut vote = crate::DvfVote {
@@ -188,7 +188,7 @@ fn test_checkpoint_validation_rejects_non_checkpoint_votes() {
         
         // Attempt to submit vote for non-checkpoint block should fail
         assert_noop!(
-            Dvf::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote.clone()),
+            Registry::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote.clone()),
             Error::<Test>::NonCheckpointBlock
         );
     });
@@ -213,7 +213,7 @@ fn test_submit_justification_success() {
             (bob.clone(), 1000u128, 100u128),
             (charlie.clone(), 1000u128, 100u128),
         ];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create votes for checkpoint block 10
         let block_number = 10u32;
@@ -257,7 +257,7 @@ fn test_submit_justification_success() {
         };
         
         // Submit justification
-        assert_ok!(Dvf::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
+        assert_ok!(Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
         
         // Verify finality state was updated
         assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 10);
@@ -292,7 +292,7 @@ fn test_submit_justification_empty_votes() {
         
         // Submit should fail
         assert_noop!(
-            Dvf::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
             Error::<Test>::EmptyJustification
         );
     });
@@ -305,7 +305,7 @@ fn test_submit_justification_non_checkpoint_block() {
         let alice_pair = sr25519::Pair::from_string("//Alice", None).unwrap();
         
         let validators = vec![(alice.clone(), 1000u128, 100u128)];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create vote for non-checkpoint block 15
         let mut vote = crate::DvfVote {
@@ -339,7 +339,7 @@ fn test_submit_justification_non_checkpoint_block() {
         
         // Submit should fail
         assert_noop!(
-            Dvf::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
             Error::<Test>::NonCheckpointBlock
         );
     });
@@ -352,7 +352,7 @@ fn test_submit_justification_already_finalized() {
         let alice_pair = sr25519::Pair::from_string("//Alice", None).unwrap();
         
         let validators = vec![(alice.clone(), 1000u128, 100u128)];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Finalize block 10
         crate::FinalizedBlockNumber::<Test>::put(10);
@@ -389,7 +389,7 @@ fn test_submit_justification_already_finalized() {
         
         // Submit should fail
         assert_noop!(
-            Dvf::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
             Error::<Test>::BlockAlreadyFinalized
         );
     });
@@ -402,7 +402,7 @@ fn test_submit_justification_duplicate_validators() {
         let alice_pair = sr25519::Pair::from_string("//Alice", None).unwrap();
         
         let validators = vec![(alice.clone(), 1000u128, 100u128)];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create two votes from the same validator
         let mut vote1 = crate::DvfVote {
@@ -439,7 +439,7 @@ fn test_submit_justification_duplicate_validators() {
         
         // Submit should fail
         assert_noop!(
-            Dvf::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
             Error::<Test>::DuplicateValidator
         );
     });
@@ -460,7 +460,7 @@ fn test_submit_justification_threshold_not_reached() {
             (bob.clone(), 1000u128, 100u128),
             (charlie.clone(), 1000u128, 100u128),
         ];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Create vote from only one validator (not enough for 2/3 threshold)
         let mut vote = crate::DvfVote {
@@ -494,7 +494,7 @@ fn test_submit_justification_threshold_not_reached() {
         
         // Submit should fail (1/3 < 2/3 threshold)
         assert_noop!(
-            Dvf::submit_justification(RuntimeOrigin::signed(alice), justification),
+            Registry::submit_justification(RuntimeOrigin::signed(alice), justification),
             Error::<Test>::ThresholdNotReached
         );
     });
@@ -519,7 +519,7 @@ fn test_vote_record_pruning() {
             (bob.clone(), 1000u128, 100u128),
             (charlie.clone(), 1000u128, 100u128),
         ];
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Submit votes for round 0
         for (validator, pair) in &[(alice.clone(), &alice_pair), (bob.clone(), &bob_pair)] {
@@ -545,7 +545,7 @@ fn test_vote_record_pruning() {
             let signature = pair.sign(&encoded_payload);
             vote.signature = sp_runtime::MultiSignature::Sr25519(signature);
             
-            assert_ok!(Dvf::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote));
+            assert_ok!(Registry::submit_dvf_vote(RuntimeOrigin::signed(validator.clone()), vote));
         }
         
         // Verify votes are recorded
@@ -586,7 +586,7 @@ fn test_vote_record_pruning() {
             votes,
         };
         
-        assert_ok!(Dvf::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
+        assert_ok!(Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification));
         
         // Verify round was incremented
         assert_eq!(crate::CurrentRound::<Test>::get(), 1);
@@ -618,7 +618,7 @@ fn test_vote_record_pruning() {
 /// When the fix is implemented, this test will PASS, confirming the bug is resolved.
 #[test]
 fn test_genesis_weight_initialization_bug_condition() {
-    // Create a test environment that simulates genesis with validators configured
+    // Create a test environment that simulates genesis with validators set
     // This mimics what would happen in a real chain genesis with DCF validators
     let mut ext = new_test_ext();
     
@@ -626,7 +626,7 @@ fn test_genesis_weight_initialization_bug_condition() {
         // Simulate genesis block
         System::set_block_number(0);
         
-        // Define validators that would be configured at genesis (from DCF pallet)
+        // Define validators that would be set at genesis (from DCF pallet)
         let alice = account_key("Alice");
         let bob = account_key("Bob");
         let charlie = account_key("Charlie");
@@ -735,7 +735,7 @@ fn test_genesis_weight_initialization_bug_condition() {
         
         // Attempt to finalize block 10
         // On unfixed code, this will fail because validators have no weights
-        let result = Dvf::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
+        let result = Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
         assert!(
             result.is_ok(),
             "Bug detected: Finalization of block 10 failed. Expected success with genesis-initialized weights. Error: {:?}",
@@ -796,7 +796,7 @@ fn test_preservation_epoch_transition_updates_weights() {
             ];
             
             // Call freeze_epoch_weights (simulating epoch transition)
-            Dvf::freeze_epoch_weights(epoch, &validators);
+            Registry::freeze_epoch_weights(epoch, &validators);
             
             // Verify weights are updated correctly
             for (validator, stake, score) in &validators {
@@ -863,7 +863,7 @@ fn test_preservation_weight_calculation_formula() {
             ];
             
             // Freeze weights for epoch (simulating epoch transition)
-            Dvf::freeze_epoch_weights(i as u32 + 1, &validators);
+            Registry::freeze_epoch_weights(i as u32 + 1, &validators);
             
             // Verify Alice's weight matches expected formula
             let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice);
@@ -895,7 +895,7 @@ fn test_preservation_validator_set_id_increments() {
             (bob.clone(), 1_000_000u128, 80u128),
         ];
         
-        Dvf::freeze_epoch_weights(1, &validators_epoch1);
+        Registry::freeze_epoch_weights(1, &validators_epoch1);
         let initial_id = crate::ValidatorSetId::<Test>::get();
         
         // Same validator set (no change expected)
@@ -904,7 +904,7 @@ fn test_preservation_validator_set_id_increments() {
             (bob.clone(), 1_000_000u128, 80u128),
         ];
         
-        Dvf::freeze_epoch_weights(2, &validators_epoch2);
+        Registry::freeze_epoch_weights(2, &validators_epoch2);
         let id_after_no_change = crate::ValidatorSetId::<Test>::get();
         
         assert_eq!(
@@ -920,7 +920,7 @@ fn test_preservation_validator_set_id_increments() {
             (charlie.clone(), 1_000_000u128, 80u128), // New validator
         ];
         
-        Dvf::freeze_epoch_weights(3, &validators_epoch3);
+        Registry::freeze_epoch_weights(3, &validators_epoch3);
         let id_after_change = crate::ValidatorSetId::<Test>::get();
         
         assert_eq!(
@@ -936,7 +936,7 @@ fn test_preservation_validator_set_id_increments() {
             (charlie.clone(), 1_000_000u128, 80u128),
         ];
         
-        Dvf::freeze_epoch_weights(4, &validators_epoch4);
+        Registry::freeze_epoch_weights(4, &validators_epoch4);
         let id_after_replacement = crate::ValidatorSetId::<Test>::get();
         
         assert_eq!(
@@ -950,7 +950,7 @@ fn test_preservation_validator_set_id_increments() {
 /// **Property 2.4: Finalization After First Epoch Preservation**
 /// 
 /// For all blocks after first epoch boundary (block 10+), finalization uses
-/// standard DVF protocol. This test verifies that finalization works correctly
+/// standard Registry protocol. This test verifies that finalization works correctly
 /// after epoch transitions.
 #[test]
 fn test_preservation_finalization_after_epoch_boundary() {
@@ -972,7 +972,7 @@ fn test_preservation_finalization_after_epoch_boundary() {
             (charlie.clone(), 6_000_000u128, 80u128),
         ];
         
-        Dvf::freeze_epoch_weights(1, &validators);
+        Registry::freeze_epoch_weights(1, &validators);
         
         // Test finalization at block 20 (second checkpoint after epoch boundary)
         System::set_block_number(20);
@@ -1018,7 +1018,7 @@ fn test_preservation_finalization_after_epoch_boundary() {
         };
         
         // Finalization should succeed after epoch boundary
-        let result = Dvf::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
+        let result = Registry::submit_justification(RuntimeOrigin::signed(alice.clone()), justification);
         assert!(
             result.is_ok(),
             "Preservation check: Finalization should succeed after epoch boundary. Error: {:?}",
@@ -1058,7 +1058,7 @@ fn test_preservation_multiple_epoch_transitions() {
                 (charlie.clone(), 6_000_000u128, 80u128),
             ];
             
-            Dvf::freeze_epoch_weights(epoch, &validators);
+            Registry::freeze_epoch_weights(epoch, &validators);
             
             // Verify weights are correct after each transition
             let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice);
@@ -1105,7 +1105,7 @@ fn test_preservation_weight_recalculation_on_changes() {
             (bob.clone(), 3_000_000u128, 60u128),
         ];
         
-        Dvf::freeze_epoch_weights(1, &validators_epoch1);
+        Registry::freeze_epoch_weights(1, &validators_epoch1);
         
         let alice_weight_epoch1 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
         let expected_alice_epoch1 = 5_000_000 + (70 * 100);
@@ -1121,7 +1121,7 @@ fn test_preservation_weight_recalculation_on_changes() {
             (bob.clone(), 2_000_000u128, 50u128),   // Bob's stake and score decreased
         ];
         
-        Dvf::freeze_epoch_weights(2, &validators_epoch2);
+        Registry::freeze_epoch_weights(2, &validators_epoch2);
         
         let alice_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
         let expected_alice_epoch2 = 8_000_000 + (90 * 100);
@@ -1226,6 +1226,7 @@ fn test_genesis_five_validators() {
         .unwrap();
     
     crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
     }
     .assimilate_storage(&mut t)
@@ -1267,6 +1268,7 @@ fn test_genesis_ten_validators() {
         .unwrap();
     
     crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
     }
     .assimilate_storage(&mut t)
@@ -1292,13 +1294,14 @@ fn test_genesis_ten_validators() {
 
 /// Test that genesis validation rejects empty validator set
 #[test]
-#[should_panic(expected = "DVF genesis requires at least one validator")]
+#[should_panic(expected = "Registry genesis requires at least one validator")]
 fn test_genesis_rejects_empty_validator_set() {
     let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
     
     crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![], // Empty validator set
     }
     .assimilate_storage(&mut t)
@@ -1314,6 +1317,7 @@ fn test_genesis_rejects_zero_stake() {
         .unwrap();
     
     crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![
             (account_key("Alice"), 0, 80), // Zero stake
         ],
@@ -1331,6 +1335,7 @@ fn test_genesis_rejects_invalid_score() {
         .unwrap();
     
     crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![
             (account_key("Alice"), 1000, 101), // Score > 100
         ],

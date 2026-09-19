@@ -32,7 +32,9 @@ use crate::engines::{
 ///
 /// The floor is what keeps a validator with no standing in the draw. The scale
 /// factor at full standing is the floor divided by the floor plus one million.
-pub const STANDING_FLOOR: u128 = (TrustScore::FULL / 3) as u128;
+/// The shared primitives crate carries the value, so the runtime scales the
+/// same way.
+pub const STANDING_FLOOR: u128 = cerulea_primitives::STANDING_FLOOR;
 
 /// The committee drawn for one slot.
 pub type SlotCommittee = Committee<Public>;
@@ -42,14 +44,7 @@ pub type SlotCommittee = Committee<Public>;
 /// The arithmetic stays exact across the whole number range. The quotient and
 /// the remainder scale on their own, so no product ever runs past the range.
 pub fn weighted_draw(raw: u128, standing: TrustScore) -> u128 {
-    let full = TrustScore::FULL as u128;
-    let numerator = full
-        .saturating_sub(standing.weight())
-        .saturating_add(STANDING_FLOOR);
-    let denominator = full.saturating_add(STANDING_FLOOR);
-    let whole = (raw / denominator).saturating_mul(numerator);
-    let part = (raw % denominator).saturating_mul(numerator) / denominator;
-    whole.saturating_add(part)
+    cerulea_primitives::weighted_draw(raw, standing.parts_per_million())
 }
 
 /// The Authoring Engine committee builder.

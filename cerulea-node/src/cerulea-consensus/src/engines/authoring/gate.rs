@@ -40,12 +40,20 @@ pub struct AuthorTicket {
     pub keys: ValidatorKeys,
     /// The slot draw the local node produced.
     pub draw: DrawResult,
+    /// The moment the gate opened, in milliseconds.
+    pub moment_ms: u64,
 }
 
 impl AuthorTicket {
     /// The seal claim this ticket carries into the seal step.
     pub fn seal_claim(&self) -> SealClaim {
-        SealClaim::new(self.slot, self.rank, self.keys.seal, self.draw.clone())
+        SealClaim::new(
+            self.slot,
+            self.rank,
+            self.keys.seal,
+            self.draw.clone(),
+            self.moment_ms,
+        )
     }
 }
 
@@ -187,6 +195,7 @@ impl AuthorGate {
             rank,
             keys,
             draw,
+            moment_ms,
         })))
     }
 }

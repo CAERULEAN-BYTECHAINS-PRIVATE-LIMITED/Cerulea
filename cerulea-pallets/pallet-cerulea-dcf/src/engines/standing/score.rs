@@ -154,6 +154,13 @@ impl TrustScore {
         self.total.deconstruct()
     }
 
+    /// Read the total as parts per million.
+    ///
+    /// The Authoring Engine scales each seat value by this number.
+    pub fn parts_per_million(&self) -> u32 {
+        self.total.deconstruct() / 1_000
+    }
+
     /// Read the total as a voting weight.
     ///
     /// The Commit Engine aggregates this weight across signers.

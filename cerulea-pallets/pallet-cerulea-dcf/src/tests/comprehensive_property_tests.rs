@@ -117,7 +117,7 @@ fn prop_consensus_weight_invariants() {
 fn prop_finality_marker_advancement() {
     new_test_ext().execute_with(|| {
         let blocks = 50u32;
-        let mut last_finalized = DcfPallet::last_finalized_block();
+        let mut last_score = DcfPallet::trust_score(&1u64).parts_per_million();
         
         // Advance through blocks
         for block in 1..=blocks {
@@ -125,12 +125,13 @@ fn prop_finality_marker_advancement() {
             let _ = DcfPallet::on_initialize(block as u64);
             DcfPallet::on_finalize(block as u64);
             
-            let current_finalized = DcfPallet::last_finalized_block();
+            let current_score = DcfPallet::trust_score(&1u64).parts_per_million();
             
-            // Property: Finalized block should never decrease
-            assert!(current_finalized >= last_finalized);
-            
-            last_finalized = current_finalized;
+            // Property: the Trust Score stays inside its range.
+            assert!(current_score <= 1_000_000);
+            assert!(last_score <= 1_000_000);
+
+            last_score = current_score;
         }
     });
 }

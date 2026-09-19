@@ -14,7 +14,7 @@ use sp_runtime::{
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// Configure a mock runtime to test the pallet.
+// Set a mock runtime to test the pallet.
 frame_support::construct_runtime!(
     pub enum Test
     {
@@ -541,7 +541,6 @@ impl crate::traits::ValidatorRegistryProvider<u64, u128, u64> for TestValidatorR
 impl Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightFreezer = TestWeightFreezer;
-    type DvfFinalizedBlockProvider = ();
     type ValidatorRegistry = TestValidatorRegistry;
     type Balance = u128;
     type WeightInfo = MockWeightInfo;
@@ -841,9 +840,6 @@ const _: fn() = || {
 
     fn weight_freezer_holds<T: crate::traits::WeightFreezer<u64>>() {}
     weight_freezer_holds::<<Test as crate::Config>::WeightFreezer>();
-
-    fn finality_marker_holds<T: crate::traits::DvfFinalizedBlockProvider>() {}
-    finality_marker_holds::<<Test as crate::Config>::DvfFinalizedBlockProvider>();
 
     fn stake_settings_hold<T: pallet_cerulea_pos::Config>() {}
     stake_settings_hold::<Test>();

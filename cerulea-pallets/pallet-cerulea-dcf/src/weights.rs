@@ -3,10 +3,10 @@
 //! This file contains comprehensive weight calculations for all DCF pallet dispatchables.
 //! All weights are calculated based on worst-case scenarios to ensure safe block production.
 //!
-//! ## Worst-Case Assumptions (Cross-Checked with Runtime Configuration)
+//! ## Worst-Case Assumptions (Cross-Checked with Runtime Settings)
 //!
 //! The following assumptions are used for weight calculations and have been verified
-//! against the actual runtime configuration in `cerulea-runtime/src/configs/mod.rs`:
+//! against the actual runtime settings in `cerulea-runtime/src/configs/mod.rs`:
 //!
 //! ### Validator Set Limits
 //! - **MaxValidators**: 100 validators (runtime constant: `MaxValidators = 100`)
@@ -27,7 +27,7 @@
 //! - **MaxEvidenceLength**: 1024 bytes per misbehavior evidence (runtime constant)
 //! - **MaxMisbehaviorReports**: 10 reports per validator (estimated worst-case)
 //!
-//! ### Epoch and Timing Configuration
+//! ### Epoch and Timing Settings
 //! - **EpochLength**: 2400 blocks per epoch (runtime: `EpochLength = 2400`)
 //! - **LeaveCooldown**: 1000 blocks cooldown period (runtime: `LeaveCooldown = 1000`)
 //! - **MaxMissedBlocksPerEpoch**: 50 missed blocks per epoch
@@ -253,7 +253,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     /// Storage: ValidatorSet (r:1 w:0)
     /// Storage: ValidatorStates (r:MaxValidators w:MaxValidators)
     /// Storage: RateLimitConfigStorage (r:1 w:0)
-    /// Proof: Worst case processes all MaxValidators (100) with PoI score updates
+    /// Proof: Worst case processes all MaxValidators (100) with inference contribution updates
     fn apply_offchain_poi_scores() -> Weight {
         Weight::from_parts(50_000, 0)
             .saturating_add(Weight::from_parts(15_000, 0).saturating_mul(100u64)) // 100 = MaxValidators
@@ -502,7 +502,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     /// Storage: ValidatorLeaveRequests (r:MaxValidators w:MaxValidators) - Process leave requests
     /// Storage: RecentlyRemovedValidators (r:MaxValidators w:MaxValidators) - Cleanup cooldowns
     /// Storage: EpochHistories (r:1 w:1) - Store epoch history
-    /// Storage: LastFinalizedBlock (r:1 w:1) - Update finality marker
     /// Storage: PosWeight (r:1 w:0) - Read for score calculations
     /// Storage: PoiWeight (r:1 w:0) - Read for score calculations
     /// Storage: Proposals (r:MaxProposalQueue w:MaxProposalQueue) - Process epoch proposals

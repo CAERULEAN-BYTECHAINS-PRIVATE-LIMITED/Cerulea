@@ -1,292 +1,220 @@
-//! Finality and consensus tests
+//! Tests of the engines that carry agreement inside this pallet.
+//!
+//! The framework pallet held a second finality marker for a while. The Commit
+//! Engine carries the one commit path now, and the registry pallet records the
+//! committed head. This file therefore asserts on the two engines that live
+//! here and decide when a domain commits. The Assurance Engine sets the share
+//! of validator weight each transaction class needs. The Standing Engine sets
+//! the Trust Score that weight is measured in.
 
+use crate::engines::assurance::TransactionClass;
 use crate::mock::*;
 use frame_support::traits::{Get, OnFinalize, OnInitialize};
 
-/// Tests basic finality information
-#[test]
-fn basic_finality_information_works() {
-    new_test_ext().execute_with(|| {
-        let last_finalized = DcfPallet::last_finalized_block();
-        assert!(last_finalized >= 0);
-        
-        let finality_info = DcfPallet::finality_info();
-        let (finalized_block, current_block) = finality_info;
-        
-        assert_eq!(finalized_block, last_finalized);
-        assert!(current_block >= finalized_block);
-    });
-}
+const EVERY_CLASS: [TransactionClass; 4] = [
+    TransactionClass::Routine,
+    TransactionClass::Financial,
+    TransactionClass::Structural,
+    TransactionClass::Constitutional,
+];
 
-/// Tests block finality status
+/// Every threshold sits above half the total weight.
+///
+/// Two signer sets each carrying more than half the weight share a member. A
+/// validator signs one block per slot. Two blocks at one height therefore never
+/// both cross a threshold.
 #[test]
-fn block_finality_status_works() {
+fn every_threshold_sits_above_half_the_weight() {
     new_test_ext().execute_with(|| {
-        // Test finality status for various blocks
-        let is_block_0_finalized = DcfPallet::is_block_finalized(0);
-        let is_block_1_finalized = DcfPallet::is_block_finalized(1);
-        let is_future_block_finalized = DcfPallet::is_block_finalized(1000);
-        
-        // Block 0 might be finalized (genesis)
-        assert!(is_block_0_finalized || !is_block_0_finalized);
-        
-        // Future blocks should not be finalized
-        assert!(!is_future_block_finalized);
-    });
-}
-
-/// Tests finality progression
-#[test]
-fn finality_progression_works() {
-    new_test_ext().execute_with(|| {
-        let initial_finalized = DcfPallet::last_finalized_block();
-        
-        // Process several blocks
-        for block_num in 1..=10 {
-            System::set_block_number(block_num);
-            let _ = DcfPallet::on_initialize(block_num);
-            DcfPallet::on_finalize(block_num);
-            
-            let current_finalized = DcfPallet::last_finalized_block();
-            
-            // Finality should never go backwards
-            assert!(current_finalized >= initial_finalized);
+        let table = DcfPallet::assurance_class_table();
+        for class in EVERY_CLASS {
+            let percent = table.threshold_percent(class);
+            assert!(percent > 50, "{:?} sits at {}", class, percent);
+            assert!(percent <= 100);
         }
     });
 }
 
-/// Tests consensus participation
+/// The class table carries the starting profile.
+#[test]
+fn the_class_table_carries_the_starting_profile() {
+    new_test_ext().execute_with(|| {
+        let table = DcfPallet::assurance_class_table();
+        assert_eq!(table.threshold_percent(TransactionClass::Routine), 51);
+        assert_eq!(table.threshold_percent(TransactionClass::Financial), 67);
+        assert_eq!(table.threshold_percent(TransactionClass::Structural), 80);
+        assert_eq!(
+            table.threshold_percent(TransactionClass::Constitutional),
+            90
+        );
+    });
+}
+
+/// A routine domain commits at a weight that leaves a constitutional domain waiting.
+#[test]
+fn a_routine_domain_commits_before_a_constitutional_domain() {
+    new_test_ext().execute_with(|| {
+        let total = 1_000u128;
+        let signed = 600u128;
+        assert!(DcfPallet::domain_reaches_threshold(
+            vec![TransactionClass::Routine],
+            total,
+            signed
+        ));
+        assert!(!DcfPallet::domain_reaches_threshold(
+            vec![TransactionClass::Constitutional],
+            total,
+            signed
+        ));
+    });
+}
+
+/// A domain carrying several classes commits at the highest class present.
+#[test]
+fn a_domain_commits_at_the_highest_class_it_carries() {
+    new_test_ext().execute_with(|| {
+        let total = 1_000u128;
+        let mixed = vec![TransactionClass::Routine, TransactionClass::Structural];
+        let assurance = DcfPallet::domain_assurance(mixed.clone(), total)
+            .expect("the domain resolves against the class table");
+        assert_eq!(assurance.highest_class, TransactionClass::Structural);
+        assert!(!DcfPallet::domain_reaches_threshold(
+            mixed.clone(),
+            total,
+            700
+        ));
+        assert!(DcfPallet::domain_reaches_threshold(mixed, total, 800));
+    });
+}
+
+/// The Trust Score of every validator stays inside its range.
+#[test]
+fn every_trust_score_stays_inside_its_range() {
+    new_test_ext().execute_with(|| {
+        for validator in DcfPallet::active_validators().iter() {
+            let score = DcfPallet::trust_score(validator);
+            assert!(score.parts_per_million() <= 1_000_000);
+            assert!(score.weight() <= 1_000_000_000u128);
+        }
+    });
+}
+
+/// The Trust Score answers the same way on repeated reads.
+#[test]
+fn the_trust_score_answers_the_same_way_twice() {
+    new_test_ext().execute_with(|| {
+        for validator in DcfPallet::active_validators().iter() {
+            let first = DcfPallet::trust_score(validator);
+            let second = DcfPallet::trust_score(validator);
+            assert_eq!(first, second);
+        }
+    });
+}
+
+/// Block progress leaves the validator set and the class table standing.
+#[test]
+fn block_progress_leaves_the_engines_standing() {
+    new_test_ext().execute_with(|| {
+        let initial_validators = DcfPallet::active_validators();
+        let initial_table = DcfPallet::assurance_class_table();
+
+        for block_num in 1..=15u64 {
+            System::set_block_number(block_num);
+            let _ = DcfPallet::on_initialize(block_num);
+            DcfPallet::on_finalize(block_num);
+
+            let current = DcfPallet::active_validators();
+            assert!(!current.is_empty());
+            assert_eq!(current.len(), initial_validators.len());
+            assert_eq!(
+                DcfPallet::assurance_class_table().threshold_percent(TransactionClass::Routine),
+                initial_table.threshold_percent(TransactionClass::Routine)
+            );
+        }
+    });
+}
+
+/// Every active validator reports as active and carries participation counts.
 #[test]
 fn consensus_participation_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
-        // All active validators should participate in consensus
+        assert!(!active_validators.is_empty());
+
         for validator in &active_validators {
-            let is_active = DcfPallet::is_validator_active(validator);
-            assert!(is_active);
-            
+            assert!(DcfPallet::is_validator_active(validator));
             let (authored, missed) = DcfPallet::validator_participation(validator);
-            assert!(authored >= 0);
-            assert!(missed >= 0);
+            assert!(authored < u32::MAX);
+            assert!(missed < u32::MAX);
         }
     });
 }
 
-/// Tests consensus weight distribution
-#[test]
-fn consensus_weight_distribution_works() {
-    new_test_ext().execute_with(|| {
-        let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
-        
-        // Weights should be properly distributed
-        assert!(pos_weight > 0);
-        assert!(poi_weight > 0);
-        assert_eq!(pos_weight + poi_weight, 10000);
-        
-        // Should reflect configured defaults
-        let default_pos = <Test as crate::Config>::DefaultPosWeight::get();
-        let default_poi = <Test as crate::Config>::DefaultPoiWeight::get();
-        
-        assert_eq!(pos_weight, default_pos);
-        assert_eq!(poi_weight, default_poi);
-    });
-}
-
-/// Tests expected block authorship
+/// The scheduled author of a block sits in the active validator set.
 #[test]
 fn expected_block_authorship_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
-        // Test expected authors for various blocks
+
         for block_num in 1..=10 {
-            let expected_author = DcfPallet::expected_author(block_num);
-            
-            match expected_author {
-                Some(author) => {
-                    // Author should be an active validator
-                    assert!(active_validators.contains(&author));
-                },
-                None => {
-                    // No expected author determined yet (acceptable)
-                    assert!(true);
-                }
+            if let Some(author) = DcfPallet::expected_author(block_num) {
+                assert!(active_validators.contains(&author));
             }
         }
     });
 }
 
-/// Tests block author validation
-#[test]
-fn block_author_validation_works() {
-    new_test_ext().execute_with(|| {
-        let active_validators = DcfPallet::active_validators();
-        
-        for block_num in 1..=5 {
-            for validator in &active_validators {
-                // Validate if this validator can be a block author
-                let validation_result = DcfPallet::validate_expected_author(block_num, *validator);
-                
-                // Should return true or false without panicking
-                assert!(validation_result || !validation_result);
-            }
-        }
-    });
-}
-
-/// Tests consensus mechanism stability
-#[test]
-fn consensus_mechanism_stability_works() {
-    new_test_ext().execute_with(|| {
-        let initial_validators = DcfPallet::active_validators();
-        let initial_weights = DcfPallet::consensus_weights();
-        
-        // Process multiple blocks
-        for block_num in 1..=15 {
-            System::set_block_number(block_num);
-            let _ = DcfPallet::on_initialize(block_num);
-            DcfPallet::on_finalize(block_num);
-            
-            let current_validators = DcfPallet::active_validators();
-            let current_weights = DcfPallet::consensus_weights();
-            
-            // Consensus should remain stable
-            assert!(!current_validators.is_empty());
-            assert_eq!(current_weights.0 + current_weights.1, 10000);
-            
-            // Validator set should be stable without external changes
-            assert_eq!(current_validators.len(), initial_validators.len());
-        }
-    });
-}
-
-/// Tests finality lag calculation
-#[test]
-fn finality_lag_calculation_works() {
-    new_test_ext().execute_with(|| {
-        let current_block = System::block_number();
-        let finality_lag = DcfPallet::blocks_since_finalization(current_block as u32);
-        
-        // Lag should be non-negative
-        assert!(finality_lag >= 0);
-        
-        // Test with various block numbers
-        for block_num in 1..=10 {
-            let lag = DcfPallet::blocks_since_finalization(block_num);
-            assert!(lag >= 0);
-        }
-    });
-}
-
-/// Tests consensus efficiency metrics
-#[test]
-fn consensus_efficiency_metrics_work() {
-    new_test_ext().execute_with(|| {
-        let active_validators = DcfPallet::active_validators();
-        let total_participation: u32 = active_validators.iter()
-            .map(|v| {
-                let (authored, missed) = DcfPallet::validator_participation(v);
-                authored + missed
-            })
-            .sum();
-        
-        // Should have some consensus activity (or zero if just started)
-        assert!(total_participation >= 0);
-        
-        // Check individual validator efficiency
-        for validator in &active_validators {
-            let (authored, missed) = DcfPallet::validator_participation(validator);
-            
-            // Participation data should be consistent
-            assert!(authored >= 0);
-            assert!(missed >= 0);
-        }
-    });
-}
-
-/// Tests consensus algorithm correctness
+/// The validator set meets the floor the deployment profile carries.
 #[test]
 fn consensus_algorithm_correctness_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
-        
-        // Should have sufficient validators for consensus
+        let min_validators =
+            <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as Get<u32>>::get();
+
         assert!(active_validators.len() >= min_validators as usize);
-        
-        // All validators should be properly configured
+
         for validator in &active_validators {
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
-            
             assert!(stake >= min_stake);
             assert!(DcfPallet::is_validator_active(validator));
         }
     });
 }
 
-/// Tests finality safety guarantees
-#[test]
-fn finality_safety_guarantees_work() {
-    new_test_ext().execute_with(|| {
-        let initial_finalized = DcfPallet::last_finalized_block();
-        
-        // Process blocks and check finality never goes backwards
-        let mut previous_finalized = initial_finalized;
-        
-        for block_num in 1..=10 {
-            System::set_block_number(block_num);
-            let _ = DcfPallet::on_initialize(block_num);
-            DcfPallet::on_finalize(block_num);
-            
-            let current_finalized = DcfPallet::last_finalized_block();
-            
-            // Safety: finality never decreases
-            assert!(current_finalized >= previous_finalized);
-            previous_finalized = current_finalized;
-        }
-    });
-}
-
-/// Tests consensus liveness properties
+/// The chain keeps making progress across several blocks.
 #[test]
 fn consensus_liveness_properties_work() {
     new_test_ext().execute_with(|| {
-        let active_validators = DcfPallet::active_validators();
-        
-        // Liveness: system should continue making progress
         let initial_epoch = DcfPallet::current_epoch();
-        
-        for block_num in 1..=5 {
+
+        for block_num in 1..=5u64 {
             System::set_block_number(block_num);
             let _ = DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
         }
-        
-        // System should remain live
-        let current_validators = DcfPallet::active_validators();
-        let current_epoch = DcfPallet::current_epoch();
-        
-        assert!(!current_validators.is_empty());
-        assert!(current_epoch >= initial_epoch);
+
+        assert!(!DcfPallet::active_validators().is_empty());
+        assert!(DcfPallet::current_epoch() >= initial_epoch);
     });
 }
 
-/// Tests consensus agreement properties
+/// Repeated queries reach the same answer, so every node agrees.
 #[test]
 fn consensus_agreement_properties_work() {
     new_test_ext().execute_with(|| {
-        // All validators should agree on system state
         let active_validators = DcfPallet::active_validators();
         let current_epoch = DcfPallet::current_epoch();
-        let consensus_weights = DcfPallet::consensus_weights();
-        
-        // Agreement: all queries should return consistent results
+        let routine = DcfPallet::assurance_class_table().threshold_percent(TransactionClass::Routine);
+
         for _ in 0..5 {
             assert_eq!(DcfPallet::active_validators(), active_validators);
             assert_eq!(DcfPallet::current_epoch(), current_epoch);
-            assert_eq!(DcfPallet::consensus_weights(), consensus_weights);
+            assert_eq!(
+                DcfPallet::assurance_class_table().threshold_percent(TransactionClass::Routine),
+                routine
+            );
         }
     });
 }

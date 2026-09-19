@@ -90,14 +90,14 @@ fn validator_set_constraints_work() {
     });
 }
 
-/// Tests epoch length configuration
+/// Tests epoch length settings
 #[test]
 fn epoch_length_configuration_works() {
     new_test_ext().execute_with(|| {
-        // Test that epoch length is properly configured
+        // Test that epoch length is properly set
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         assert!(epoch_length > 0);
-        assert_eq!(epoch_length, 2400); // From mock configuration
+        assert_eq!(epoch_length, 2400); // From mock settings
     });
 }
 
@@ -356,7 +356,7 @@ fn epoch_management_basic() {
         let current_epoch = DcfPallet::current_epoch();
         assert_eq!(current_epoch, 0);
         
-        // Test epoch configuration
+        // Test epoch settings
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         assert!(epoch_length > 0);
         
@@ -365,11 +365,11 @@ fn epoch_management_basic() {
     });
 }
 
-/// Tests configuration constants and their relationships
+/// Tests settings constants and their relationships
 #[test]
 fn configuration_constants_validation() {
     new_test_ext().execute_with(|| {
-        // Test that configuration constants have reasonable values
+        // Test that settings constants have reasonable values
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_validators = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();

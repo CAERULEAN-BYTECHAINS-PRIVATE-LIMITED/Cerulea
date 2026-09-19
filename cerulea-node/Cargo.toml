@@ -114,6 +114,8 @@ sc-transaction-pool.workspace = true        # Use workspace version
 # === Runtime ===
 cerulea-runtime.workspace = true                # CBC runtime
 cerulea-consensus = { path = "src/cerulea-consensus" } # CBC consensus implementation
+cerulea-primitives = { workspace = true, features = ["std"] }
+sp-keystore = { version = "0.42.0", default-features = true }
 
 # === Substrate Primitives ===
 sp-api.default-features = true              # Substrate API primitives
@@ -142,6 +144,7 @@ substrate-frame-rpc-system.default-features = true # FRAME RPC system
 substrate-frame-rpc-system.workspace = true       # Use workspace version
 
 [dev-dependencies]
+cerulea-node = { path = ".", features = ["test-harness"] }
 proptest = "1.0"
 env_logger = "0.10"
 tokio-test = "0.4"
@@ -156,7 +159,11 @@ substrate-build-script-utils.workspace = true       # Use workspace version
 
 [features]
 # === Default Features ===
-default = ["std"]                      # Default feature set includes standard library support
+default = ["std"]
+
+# === Engine test harness ===
+# The in-process network of validator nodes the engine tests build on.
+test-harness = []
 std = ["cerulea-runtime/std"]              # Enable standard library support for the runtime
 
 # === Runtime Benchmarking ===

@@ -30,6 +30,7 @@ sc-basic-authorship = { workspace = true }
 sc-client-api = { workspace = true }
 serde = { workspace = true, features = ["derive", "std"] }
 cerulea-runtime = { features = ["std"], workspace = true }
+cerulea-primitives = { features = ["std"], workspace = true }
 tokio = { version = "1.37", features = ["rt", "macros", "time"] }
 log = "0.4"
 thiserror = "1.0"
@@ -63,6 +64,7 @@ pallet-timestamp = { workspace = true }
 default = ["std"]
 std = [
 	"codec/std",
+	"cerulea-primitives/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",

@@ -16,9 +16,11 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 pallet-cerulea-dcf = { path = "../pallet-cerulea-dcf", default-features = false }
+cerulea-primitives = { path = "../../cerulea-primitives", default-features = false }
 pallet-cerulea-pos = { path = "../pallet-cerulea-pos", default-features = false }
 sp-api = { workspace = true }
 log = { version = "0.4", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
 
 [dev-dependencies]
 sp-io = { workspace = true, default-features = true }
@@ -30,6 +32,8 @@ pallet-balances = { workspace = true, default-features = true }
 default = ["std"]
 std = [
 	"codec/std",
+	"serde/std",
+	"cerulea-primitives/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",

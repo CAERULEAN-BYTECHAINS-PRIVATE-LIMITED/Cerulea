@@ -111,6 +111,20 @@ impl SlotSchedule {
         }
     }
 
+    /// Build the schedule of one slot from the slot number alone.
+    ///
+    /// Slots tile the clock from the epoch of the operating system. Slot number
+    /// N opens at N times the slot span. Every node therefore builds the same
+    /// schedule for a slot without asking any peer.
+    pub fn for_slot(slot: Slot, policy: AuthoringPolicy) -> Self {
+        SlotSchedule::new(slot, slot.0.saturating_mul(policy.slot_span_ms()), policy)
+    }
+
+    /// The slot holding one moment.
+    pub fn slot_at(moment_ms: u64, policy: AuthoringPolicy) -> Slot {
+        Slot(moment_ms / policy.slot_span_ms())
+    }
+
     /// The window one rank holds.
     ///
     /// The call reports nothing for a rank outside the committee.

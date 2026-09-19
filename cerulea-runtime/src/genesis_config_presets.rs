@@ -1,5 +1,5 @@
 // This file is part of the Cerulea Runtime.
-// It defines functions for generating JSON-based genesis configurations used by the blockchain node
+// It defines functions for generating JSON-based genesis settings used by the blockchain node
 // when starting a development or local testnet chain.
 
 use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, Cerulea}; // Runtime-specific types
@@ -7,9 +7,9 @@ use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
 use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
 use sp_genesis_builder::{self, PresetId}; // Genesis builder utilities and PresetId for pre-defined configs
-use sp_keyring::Ed25519Keyring; // Keyring to easily access dev accounts
+use sp_keyring::{Ed25519Keyring, Sr25519Keyring}; // Keyring to easily access dev accounts
 
-/// Returns a genesis configuration in JSON format with the specified authorities,
+/// Returns a genesis settings in JSON format with the specified authorities,
 /// endowed accounts, and sudo (root) key.
 fn testnet_genesis(
 	initial_validators: Vec<AccountId>, // Validator accounts
@@ -24,7 +24,7 @@ fn testnet_genesis(
 	)
 }
 
-/// Returns a genesis configuration with custom validator stakes
+/// Returns a genesis settings with custom validator stakes
 fn testnet_genesis_with_stakes(
 	initial_validators: Vec<AccountId>, // Validator accounts
 	endowed_accounts: Vec<AccountId>,   // Accounts pre-funded with balance
@@ -40,7 +40,7 @@ fn testnet_genesis_with_stakes(
 	)
 }
 
-/// Returns a genesis configuration with custom validator stakes and names
+/// Returns a genesis settings with custom validator stakes and names
 fn testnet_genesis_with_stakes_and_names(
 	initial_validators: Vec<AccountId>, // Validator accounts
 	endowed_accounts: Vec<AccountId>,   // Accounts pre-funded with balance
@@ -76,8 +76,31 @@ fn testnet_genesis_with_stakes_and_names(
 		.map(|acc| (acc.clone(), 80)) // Consistent with validator_scores
 		.collect::<Vec<_>>();
 
-	// Create DVF initial weights synchronized with DCF validators
-	// This ensures DVF voting weights match DCF validator data at genesis
+	// The Authoring Engine reads a draw key and a seal key for each validator.
+	// The seal key of a development validator is the key its account came from.
+	// The draw key is the sr25519 key of the same well known name.
+	let validator_keys: Vec<(AccountId, pallet_cerulea_dvf::keys::ValidatorKeySet)> =
+		initial_validators
+			.iter()
+			.filter_map(|account| {
+				let seal: [u8; 32] = *account.as_ref();
+				Ed25519Keyring::iter()
+					.zip(Sr25519Keyring::iter())
+					.find(|(sealer, _)| sealer.to_account_id() == *account)
+					.map(|(_, drawer)| {
+						(
+							account.clone(),
+							pallet_cerulea_dvf::keys::ValidatorKeySet::new(
+								drawer.public().0,
+								seal,
+							),
+						)
+					})
+			})
+			.collect();
+
+	// Create Registry initial weights synchronized with DCF validators
+	// This ensures Registry voting weights match DCF validator data at genesis
 	let dvf_initial_weights: Vec<(AccountId, u128, u128)> = initial_validators
 		.iter()
 		.zip(stakes.iter())
@@ -86,7 +109,7 @@ fn testnet_genesis_with_stakes_and_names(
 		.collect();
 
 	build_struct_json_patch!(RuntimeGenesisConfig {
-		// Configure initial balances for all endowed accounts with large amounts of tokens
+		// Set initial balances for all endowed accounts with large amounts of tokens
 		balances: BalancesConfig {
 			balances: endowed_accounts
 				.iter()
@@ -111,29 +134,30 @@ fn testnet_genesis_with_stakes_and_names(
 			validator_names: names,     // Use provided names or defaults
 			strict_validation: true,    // Enable strict validation
 		},
-		// Configure initial validators
+		// Set initial validators
 		pos: pallet_cerulea_pos::GenesisConfig {
 			validators: initial_validators.clone(),
 			validator_scores,
 			current_epoch: 0,
 			slashing_count: vec![],
 		},
-		// Configure initial inference results
+		// Set initial inference results
 		poi: pallet_cerulea_poi::GenesisConfig {
 			inference_results,
 			challenges: vec![],
 			current_epoch: 0,
 		},
-		// Configure DVF initial validator weights
+		// Set Registry initial validator weights
 		// Synchronized with DCF validators to ensure consistency between
 		// validator set membership and voting weights at genesis
 		registry: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
+			initial_validator_keys: validator_keys,
 		},
 	})
 }
 
-/// Returns a basic development configuration suitable for running a single-node dev chain.
+/// Returns a basic development settings suitable for running a single-node dev chain.
 /// - Uses Alice as the sole validator and sudo.
 /// - Endows Alice, Bob, and their stash accounts with tokens.
 pub fn development_config_genesis() -> Value {
@@ -149,7 +173,7 @@ pub fn development_config_genesis() -> Value {
 	)
 }
 
-/// Returns a local testnet configuration:
+/// Returns a local testnet settings:
 /// - Alice and Bob are set as validators.
 /// - Endows all keyring accounts (except One and Two) with tokens.
 /// - Alice is the sudo key.
@@ -186,7 +210,7 @@ pub fn get_preset(id: &Option<PresetId>) -> Option<Vec<u8>> {
     }
 }
 
-/// Returns a multi-validator testnet configuration with custom stakes
+/// Returns a multi-validator testnet settings with custom stakes
 pub fn multi_validator_config_genesis() -> Value {
 	let initial_validators = vec![
 		Ed25519Keyring::Alice.to_account_id(),
@@ -227,7 +251,7 @@ pub fn multi_validator_config_genesis() -> Value {
 	)
 }
 
-/// Returns a high-stake validator configuration for stress testing
+/// Returns a high-stake validator settings for stress testing
 pub fn high_stake_config_genesis() -> Value {
 	let initial_validators = vec![
 		Ed25519Keyring::Alice.to_account_id(),

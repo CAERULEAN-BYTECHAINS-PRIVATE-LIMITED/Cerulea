@@ -77,7 +77,7 @@ fn production_security_test() {
 #[test]
 fn production_deployment_requirements_test() {
     new_test_ext().execute_with(|| {
-        // Verify configuration is production-ready
+        // Verify settings is production-ready
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
@@ -105,8 +105,8 @@ fn production_monitoring_readiness_test() {
         let _ = DcfPallet::get_total_validators_count();
         let _ = DcfPallet::get_validator_set_info();
         let _ = DcfPallet::get_validators_by_score();
-        let _ = DcfPallet::last_finalized_block();
-        let _ = DcfPallet::get_finality_info();
+        let _ = DcfPallet::trust_score(&1u64);
+        let _ = DcfPallet::assurance_class_table();
         
         assert!(true); // All monitoring APIs available
     });

@@ -55,10 +55,6 @@ pub struct SystemMetrics<T: Config> {
     pub high_performance_validators: u32,
     
     // Network health metrics
-    /// Current finalized block number
-    pub finalized_block: u32,
-    /// Blocks since last finality advancement
-    pub blocks_since_finality: u32,
     /// Number of invariant violations in current epoch
     pub invariant_violations_count: u32,
     /// Overall system health score (0-10000)
@@ -90,8 +86,6 @@ impl<T: Config> Default for SystemMetrics<T> {
             highest_validator_score: 0,
             lowest_validator_score: 0,
             high_performance_validators: 0,
-            finalized_block: 0,
-            blocks_since_finality: 0,
             invariant_violations_count: 0,
             system_health_score: 10000, // Perfect health initially
             active_proposals: 0,
@@ -211,12 +205,9 @@ impl<T: Config> Pallet<T> {
             Self::calculate_score_metrics(&active_validators);
         
         // Calculate network health metrics
-        let finalized_block = Self::last_finalized_block();
-        let blocks_since_finality = current_block.saturating_sub(finalized_block);
         let invariant_violations = Self::count_current_epoch_violations(current_epoch);
         let system_health = Self::calculate_system_health_score(
             active_validator_count,
-            blocks_since_finality,
             invariant_violations,
         );
         
@@ -240,8 +231,6 @@ impl<T: Config> Pallet<T> {
             highest_validator_score: highest_score,
             lowest_validator_score: lowest_score,
             high_performance_validators: high_perf_count,
-            finalized_block,
-            blocks_since_finality,
             invariant_violations_count: invariant_violations,
             system_health_score: system_health,
             active_proposals,
@@ -372,7 +361,6 @@ impl<T: Config> Pallet<T> {
     /// Calculate system health score based on various factors
     fn calculate_system_health_score(
         active_validators: u32,
-        blocks_since_finality: u32,
         invariant_violations: u32,
     ) -> u32 {
         let mut health_score = 10000u32; // Start with perfect health
@@ -381,12 +369,6 @@ impl<T: Config> Pallet<T> {
         let min_validators = T::MinActiveValidators::get();
         if active_validators < min_validators {
             health_score = health_score.saturating_sub(2000); // -20% for insufficient validators
-        }
-        
-        // Penalize for finality lag
-        if blocks_since_finality > 10 {
-            let penalty = std::cmp::min(blocks_since_finality.saturating_mul(100), 3000);
-            health_score = health_score.saturating_sub(penalty);
         }
         
         // Penalize for invariant violations
@@ -704,15 +686,15 @@ mod tests {
     fn test_system_health_calculation() {
         new_test_ext().execute_with(|| {
             // Test perfect health
-            let health = DcfModule::calculate_system_health_score(5, 0, 0);
+            let health = DcfModule::calculate_system_health_score(5, 0);
             assert_eq!(health, 10000);
-            
-            // Test with finality lag
-            let health_with_lag = DcfModule::calculate_system_health_score(5, 20, 0);
-            assert!(health_with_lag < 10000);
-            
-            // Test with invariant violations
-            let health_with_violations = DcfModule::calculate_system_health_score(5, 0, 2);
+
+            // A validator set below the floor lowers the score.
+            let health_with_few = DcfModule::calculate_system_health_score(0, 0);
+            assert!(health_with_few < 10000);
+
+            // An invariant violation lowers the score.
+            let health_with_violations = DcfModule::calculate_system_health_score(5, 2);
             assert!(health_with_violations < 10000);
         });
     }

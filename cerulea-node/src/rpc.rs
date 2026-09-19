@@ -646,12 +646,12 @@ where
                 None::<()>
             ))?;
         
-        // Get PoI score from inference result
+        // Get inference contribution from inference result
         let poi_score = match <C::Api as cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>>::get_inference_result(&api, best_hash, validator.clone()) {
             Ok(Some((_result, confidence))) => confidence as u64,
             Ok(None) => 0,
             Err(e) => {
-                log::warn!("Failed to get PoI score for validator {:?}: {:?}", validator, e);
+                log::warn!("Failed to get inference contribution for validator {:?}: {:?}", validator, e);
                 0
             }
         };
@@ -729,7 +729,7 @@ where
             Ok(Some((_result, confidence))) => confidence as u64,
             Ok(None) => 0,
             Err(e) => {
-                log::warn!("Failed to get PoI score: {:?}", e);
+                log::warn!("Failed to get inference contribution: {:?}", e);
                 0
             }
         };
@@ -954,11 +954,11 @@ where
             },
             RpcMethodDescription {
                 name: "dcf_getConsensusWeights".to_string(),
-                description: "Get current PoS and PoI weight distribution".to_string(),
+                description: "Get current PoS and inference share distribution".to_string(),
                 params: vec![],
                 returns: "ConsensusWeights".to_string(),
             },
-            // DVF methods
+            // Registry methods
             RpcMethodDescription {
                 name: "dvf_getFinalizedHead".to_string(),
                 description: "Get current finalized block number".to_string(),
@@ -979,7 +979,7 @@ where
             },
             RpcMethodDescription {
                 name: "dvf_getCurrentRound".to_string(),
-                description: "Get current DVF voting round".to_string(),
+                description: "Get current Registry voting round".to_string(),
                 params: vec![],
                 returns: "u32".to_string(),
             },
@@ -1158,7 +1158,7 @@ where
     }
 }
 
-// DVF RPC API
+// Registry RPC API
 #[rpc(server)]
 pub trait DvfRpcApi {
     #[method(name = "cerulea_getFinalizedHead")]
@@ -1552,7 +1552,7 @@ where
         let cerulea_api = CeruleaRpcApiImpl::new(client.clone(), rpc_config.clone());
         module.merge(CeruleaRpcApiServer::into_rpc(cerulea_api))?;
         
-        // Register DVF RPC handler
+        // Register Registry RPC handler
         let dvf_api = DvfRpcApiImpl::new(client.clone(), rpc_config.clone());
         module.merge(DvfRpcApiServer::into_rpc(dvf_api))?;
         

@@ -14,14 +14,14 @@ type Signature = MultiSignature;
 type AccountPublic = <Signature as Verify>::Signer;
 pub type AccountId = <AccountPublic as IdentifyAccount>::AccountId;
 
-// Configure a mock runtime to test the pallet.
+// Set a mock runtime to test the pallet.
 frame_support::construct_runtime!(
     pub enum Test
     {
         System: frame_system,
         Balances: pallet_balances,
         PalletCeruleaPos: pallet_cerulea_pos,
-        Dvf: pallet_cerulea_dvf,
+        Registry: pallet_cerulea_dvf,
     }
 );
 
@@ -168,9 +168,27 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage()
         .unwrap();
 
-    // Initialize DVF genesis configuration
+    // Initialize Registry genesis settings
+    // Each test validator carries a draw key and a seal key, so the Authoring
+    // Engine draws a committee from the first block.
+    let test_validator_keys: Vec<(AccountId, crate::keys::ValidatorKeySet)> =
+        test_validator_weights
+            .iter()
+            .enumerate()
+            .map(|(index, (account, _, _))| {
+                let seed = index as u8 + 1;
+                let draw = sp_core::sr25519::Pair::from_seed(&[seed; 32]).public().0;
+                let seal = sp_core::ed25519::Pair::from_seed(&[seed; 32]).public().0;
+                (
+                    account.clone(),
+                    crate::keys::ValidatorKeySet::new(draw, seal),
+                )
+            })
+            .collect();
+
     crate::GenesisConfig::<Test> {
         initial_validator_weights: test_validator_weights,
+        initial_validator_keys: test_validator_keys,
     }
     .assimilate_storage(&mut t)
     .unwrap();

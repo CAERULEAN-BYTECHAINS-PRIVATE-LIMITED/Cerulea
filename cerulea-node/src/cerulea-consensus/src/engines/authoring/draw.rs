@@ -26,11 +26,14 @@ use sp_keystore::KeystorePtr;
 use crate::engines::{EngineError, Slot, SlotSeed};
 use crate::CERULEA_KEY_TYPE;
 
-/// The label of the Cerulea slot draw transcript.
-pub const DRAW_LABEL: &[u8] = b"cerulea.authoring.draw.v1";
+/// The label of the Cerulea draw transcript.
+///
+/// The shared primitives crate owns the label. The node and the pallet set read
+/// the same value, so a draw made on one side checks on the other.
+pub const DRAW_LABEL: &[u8] = cerulea_primitives::DRAW_LABEL;
 
 /// The context the draw output bytes are taken under.
-pub const DRAW_OUTPUT_CONTEXT: &[u8] = b"cerulea.authoring.draw.output.v1";
+pub const DRAW_OUTPUT_CONTEXT: &[u8] = cerulea_primitives::DRAW_OUTPUT_CONTEXT;
 
 /// The domain of the slot number inside the transcript.
 pub const SLOT_DOMAIN: &[u8] = b"slot";
@@ -39,19 +42,55 @@ pub const SLOT_DOMAIN: &[u8] = b"slot";
 pub const SEED_DOMAIN: &[u8] = b"seed";
 
 /// The separator mixed into every derived slot seed.
-pub const SEED_DERIVATION_DOMAIN: &[u8] = b"cerulea.authoring.seed.v1";
+pub const SEED_DERIVATION_DOMAIN: &[u8] = cerulea_primitives::SEED_DERIVATION_DOMAIN;
 
 /// Derive the seed of one slot from the parent block hash.
 ///
 /// Every node holds the parent hash and the slot number, so every node derives
 /// the same seed without coordination. A new parent gives a new seed, so the
-/// committee of the next slot stays unpredictable.
+/// committee of the next slot stays unpredictable. The shared primitives crate
+/// carries the derivation, so the runtime reaches the same seed.
 pub fn derive_slot_seed(parent_hash: &[u8], slot: Slot) -> SlotSeed {
-    let mut preimage = Vec::with_capacity(SEED_DERIVATION_DOMAIN.len() + parent_hash.len() + 8);
-    preimage.extend_from_slice(SEED_DERIVATION_DOMAIN);
-    preimage.extend_from_slice(parent_hash);
-    preimage.extend_from_slice(&slot.0.to_be_bytes());
-    SlotSeed(sp_core::hashing::blake2_256(&preimage))
+    SlotSeed(cerulea_primitives::derive_slot_seed(parent_hash, slot.0))
+}
+
+/// Produce the epoch draw of one validator holding its key in the keystore.
+///
+/// Each active validator publishes one draw per epoch. The draw covers the
+/// epoch number alone, so a validator publishes in good time before the epoch
+/// opens. The chain checks the proof once at publication and stores the output.
+/// The committee of each slot then mixes that output with the slot seed.
+pub fn epoch_draw_from_keystore(
+    keystore: &KeystorePtr,
+    validator: &Public,
+    epoch: u32,
+) -> Result<VrfSignature, EngineError> {
+    let data = cerulea_primitives::epoch_draw_sign_data(epoch);
+    keystore
+        .sr25519_vrf_sign(CERULEA_KEY_TYPE, validator, &data)
+        .map_err(|reason| EngineError::KeystoreRefused {
+            detail: format!("{:?}", reason),
+        })?
+        .ok_or(EngineError::DrawKeyAbsent)
+}
+
+/// Produce the epoch draw of one validator holding its key pair.
+pub fn epoch_draw(pair: &Pair, epoch: u32) -> VrfSignature {
+    pair.vrf_sign(&cerulea_primitives::epoch_draw_sign_data(epoch))
+}
+
+/// Check one published epoch draw and read its output.
+///
+/// The check reads the validator draw key alone. A proof that fails the check
+/// reports a problem. The fix is to publish a draw made with the registered
+/// draw key.
+pub fn verify_epoch_draw(
+    validator: &Public,
+    epoch: u32,
+    signature: &VrfSignature,
+) -> Result<[u8; 32], EngineError> {
+    cerulea_primitives::verify_epoch_draw(validator, epoch, signature)
+        .ok_or(EngineError::DrawProofRejected { slot: epoch as u64 })
 }
 
 /// The input of one slot draw.
@@ -118,10 +157,11 @@ impl DrawResult {
 }
 
 /// Read a draw output as a number.
+///
+/// The shared primitives crate carries the reading, so the runtime reaches the
+/// same number.
 pub fn draw_value(output: &[u8; 32]) -> u128 {
-    let mut head = [0u8; 16];
-    head.copy_from_slice(&output[..16]);
-    u128::from_be_bytes(head)
+    cerulea_primitives::draw_value(output)
 }
 
 /// Produce the draw of one validator holding its key pair.

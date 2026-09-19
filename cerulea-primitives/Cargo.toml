@@ -1,0 +1,22 @@
+[package]
+name = "cerulea-primitives"
+version = "0.1.0"
+description = "Shared Dynamic Consensus Framework primitives. The node and the pallet set read the same derivation."
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-core = { workspace = true }
+
+[features]
+default = ["std"]
+std = ["codec/std", "scale-info/std", "sp-core/std"]

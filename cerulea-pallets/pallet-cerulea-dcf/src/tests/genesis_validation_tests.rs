@@ -1,13 +1,13 @@
-//! Genesis configuration validation tests
+//! Genesis settings validation tests
 
 use crate::mock::*;
 use frame_support::traits::{Get, OnFinalize, OnInitialize};
 
-/// Tests basic genesis configuration
+/// Tests basic genesis settings
 #[test]
 fn basic_genesis_configuration_works() {
     new_test_ext().execute_with(|| {
-        // Check that genesis configuration was applied correctly
+        // Check that genesis settings was applied correctly
         let active_validators = DcfPallet::active_validators();
         assert_eq!(active_validators.len(), 3); // From mock genesis
         assert!(active_validators.contains(&1));
@@ -36,16 +36,16 @@ fn genesis_validator_initialization_works() {
     });
 }
 
-/// Tests genesis epoch configuration
+/// Tests genesis epoch settings
 #[test]
 fn genesis_epoch_configuration_works() {
     new_test_ext().execute_with(|| {
         let current_epoch = DcfPallet::current_epoch();
         assert_eq!(current_epoch, 0); // Should start at epoch 0
         
-        // Check epoch length configuration
+        // Check epoch length settings
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        assert_eq!(epoch_length, 2400); // From mock configuration
+        assert_eq!(epoch_length, 2400); // From mock settings
     });
 }
 
@@ -55,7 +55,7 @@ fn genesis_consensus_weights_work() {
     new_test_ext().execute_with(|| {
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         
-        // Should match configured defaults
+        // Should match set defaults
         let default_pos = <Test as crate::Config>::DefaultPosWeight::get();
         let default_poi = <Test as crate::Config>::DefaultPoiWeight::get();
         
@@ -65,7 +65,7 @@ fn genesis_consensus_weights_work() {
     });
 }
 
-/// Tests genesis stake configuration
+/// Tests genesis stake settings
 #[test]
 fn genesis_stake_configuration_works() {
     new_test_ext().execute_with(|| {
@@ -110,10 +110,10 @@ fn genesis_validator_set_constraints_work() {
     });
 }
 
-/// Tests custom genesis configuration
+/// Tests custom genesis settings
 #[test]
 fn custom_genesis_configuration_works() {
-    // Test with custom genesis configuration
+    // Test with custom genesis settings
     let custom_genesis = crate::GenesisConfig::<Test> {
         validators: vec![10, 11, 12, 13],
         validator_scores: vec![5000, 6000, 7000, 8000],
@@ -170,7 +170,7 @@ fn genesis_validation_edge_cases_work() {
     new_test_ext_with_genesis(minimal_genesis).execute_with(|| {
         let active_validators = DcfPallet::active_validators();
         
-        // Should handle minimal configuration
+        // Should handle minimal settings
         assert_eq!(active_validators.len(), 1);
         assert!(active_validators.contains(&20));
         
@@ -208,11 +208,11 @@ fn genesis_state_consistency_works() {
     });
 }
 
-/// Tests genesis configuration parameter validation
+/// Tests genesis settings parameter validation
 #[test]
 fn genesis_configuration_parameter_validation_works() {
     new_test_ext().execute_with(|| {
-        // Validate that all configuration parameters are reasonable
+        // Validate that all settings parameters are reasonable
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();

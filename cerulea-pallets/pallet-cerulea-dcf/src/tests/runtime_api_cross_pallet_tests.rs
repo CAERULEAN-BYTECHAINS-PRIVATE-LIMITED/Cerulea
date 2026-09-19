@@ -404,7 +404,7 @@ fn runtime_api_finality_integration() {
         ));
         
         // Test finality APIs
-        let initial_finalized = DcfPallet::get_last_finalized_block();
+        let initial_score = DcfPallet::trust_score(&1u64).parts_per_million();
         let initial_current = System::block_number();
         
         // Advance blocks and test finality tracking
@@ -413,19 +413,11 @@ fn runtime_api_finality_integration() {
             DcfPallet::on_initialize(block);
             DcfPallet::on_finalize(block);
             
-            let current_finalized = DcfPallet::get_last_finalized_block();
-            let is_finalized = DcfPallet::is_block_finalized(block as u32);
-            let blocks_since = DcfPallet::blocks_since_finalization(block as u32);
+            let current_score = DcfPallet::trust_score(&1u64).parts_per_million();
             
-            // Finality should progress or stay same
-            assert!(current_finalized >= initial_finalized);
-            
-            // Block finality status should be boolean
-            assert!(is_finalized || !is_finalized);
-            
-            // Blocks since finalization should be reasonable
-            assert!(blocks_since >= 0);
-            assert!(blocks_since <= block as u32);
+            // The Trust Score stays inside its range at every block.
+            assert!(current_score <= 1_000_000);
+            assert!(initial_score <= 1_000_000);
             
             // Test expected author for block
             let expected_author = DcfPallet::get_expected_author(block as u32);
@@ -441,9 +433,17 @@ fn runtime_api_finality_integration() {
             }
         }
         
-        // Test finality info API
-        let (finalized_block, current_block) = DcfPallet::get_finality_info();
-        assert!(finalized_block <= current_block);
+        // The Assurance Engine answers every class above half the weight.
+        let threshold_table = DcfPallet::assurance_class_table();
+        let current_block = System::block_number() as u32;
+        for class in [
+            crate::engines::assurance::TransactionClass::Routine,
+            crate::engines::assurance::TransactionClass::Financial,
+            crate::engines::assurance::TransactionClass::Structural,
+            crate::engines::assurance::TransactionClass::Constitutional,
+        ] {
+            assert!(threshold_table.threshold_percent(class) > 50);
+        }
         assert!(current_block as u64 >= initial_current);
         
         // Test with validator participation
@@ -531,7 +531,7 @@ fn runtime_api_epoch_synchronization() {
     });
 }
 
-/// Tests runtime API configuration consistency
+/// Tests runtime API settings consistency
 #[test]
 fn runtime_api_configuration_consistency() {
     new_test_ext().execute_with(|| {
@@ -541,7 +541,7 @@ fn runtime_api_configuration_consistency() {
         assert!(pos_weight > 0);
         assert!(poi_weight > 0);
         
-        // Test configuration parameters
+        // Test settings parameters
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
@@ -553,7 +553,7 @@ fn runtime_api_configuration_consistency() {
         assert!(min_stake > 0);
         assert!(min_active <= max_validators);
         
-        // Test PoS configuration
+        // Test PoS settings
         let pos_min_score: u32 = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get();
         let pos_max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let pos_min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
@@ -562,7 +562,7 @@ fn runtime_api_configuration_consistency() {
         assert!(pos_max_validators > 0);
         assert!(pos_min_active > 0);
         
-        // Test PoI configuration
+        // Test PoI settings
         let poi_min_confidence: u32 = <Test as pallet_cerulea_poi::Config>::MinInferenceConfidence::get();
         let poi_challenge_window: u32 = <Test as pallet_cerulea_poi::Config>::ChallengeWindow::get();
         let poi_max_age: u32 = <Test as pallet_cerulea_poi::Config>::MaxInferenceAge::get();
@@ -571,7 +571,7 @@ fn runtime_api_configuration_consistency() {
         assert!(poi_challenge_window > 0);
         assert!(poi_max_age > 0);
         
-        // Test configuration relationships
+        // Test settings relationships
         assert!(pos_max_validators >= max_validators); // PoS should support at least as many
         assert!(pos_min_active <= min_active); // PoS minimum should not exceed DCF minimum
         

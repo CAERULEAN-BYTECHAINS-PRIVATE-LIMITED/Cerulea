@@ -23,12 +23,12 @@ fn consensus_weight_parameters_work() {
     new_test_ext().execute_with(|| {
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         
-        // Weights should be properly configured
+        // Weights should be properly set
         assert!(pos_weight > 0);
         assert!(poi_weight > 0);
         assert_eq!(pos_weight + poi_weight, 10000); // Should sum to 100%
         
-        // Check against configured defaults
+        // Check against set defaults
         let default_pos = <Test as crate::Config>::DefaultPosWeight::get();
         let default_poi = <Test as crate::Config>::DefaultPoiWeight::get();
         
@@ -64,19 +64,19 @@ fn validator_score_parameter_bounds_work() {
     });
 }
 
-/// Tests epoch configuration parameters
+/// Tests epoch settings parameters
 #[test]
 fn epoch_configuration_parameters_work() {
     new_test_ext().execute_with(|| {
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         let current_epoch = DcfPallet::current_epoch();
         
-        // Epoch configuration should be reasonable
+        // Epoch settings should be reasonable
         assert!(epoch_length > 0);
         assert!(epoch_length < 1_000_000); // Not too large
         assert!(current_epoch >= 0);
         
-        // Should match mock configuration
+        // Should match mock settings
         assert_eq!(epoch_length, 2400);
     });
 }
@@ -122,7 +122,7 @@ fn economic_parameters_work() {
     });
 }
 
-/// Tests trust score configuration parameters
+/// Tests trust score settings parameters
 #[test]
 fn trust_score_configuration_parameters_work() {
     new_test_ext().execute_with(|| {
@@ -131,7 +131,7 @@ fn trust_score_configuration_parameters_work() {
         let slashing_weight: u64 = <Test as crate::Config>::TrustScoreSlashingWeight::get();
         let max_trust_score: u64 = <Test as crate::Config>::MaxTrustScore::get();
         
-        // Trust score weights should be configured
+        // Trust score weights should be set
         assert!(uptime_weight > 0);
         assert!(inference_weight > 0);
         assert!(slashing_weight > 0);
@@ -218,7 +218,7 @@ fn interval_timing_parameters_work() {
     });
 }
 
-/// Tests parameter consistency across configuration
+/// Tests parameter consistency across settings
 #[test]
 fn parameter_consistency_across_configuration_works() {
     new_test_ext().execute_with(|| {

@@ -279,7 +279,8 @@ mod tests {
             ),
             &network.context.input,
         );
-        let claim = SealClaim::new(Slot(SLOT), rank, seal_key, result);
+        let moment_ms = SLOT_OPENS_MS + (rank.index() as u64) * DEFAULT_RANK_TIMEOUT_MS;
+        let claim = SealClaim::new(Slot(SLOT), rank, seal_key, result, moment_ms);
         let mut head = header();
         let seal = seal_and_apply(&network.keystore, &mut head, claim)
             .expect("the keystore seals the header");
@@ -365,6 +366,7 @@ mod tests {
             Rank::FIRST,
             outsider_seal,
             draw(&outsider, &network.context.input),
+            SLOT_OPENS_MS,
         );
         let memory = MemoryKeystore::new();
         memory
@@ -407,6 +409,7 @@ mod tests {
             Rank(2),
             seal_key,
             draw(&draw_pair(seed), &network.context.input),
+            SLOT_OPENS_MS + DEFAULT_RANK_TIMEOUT_MS,
         );
         let mut head = header();
         let seal = seal_and_apply(&network.keystore, &mut head, claim)

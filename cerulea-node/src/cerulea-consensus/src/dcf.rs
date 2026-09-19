@@ -12,7 +12,16 @@ use crate::{
 use cerulea_runtime::AccountId;
 use codec::Encode;
 use log::{debug, error, info, warn};
+use crate::engines::authoring::fallback::{AuthoringPolicy, FallbackTracker, SlotSchedule};
+use crate::engines::authoring::gate::{AuthorGate, AuthorTicket, GateDecision};
+use crate::engines::authoring::seal::{seal_header, BlockSeal};
+use crate::engines::authoring::verify::SlotContext;
+use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
+use crate::import_queue::{committee_from_seats, registry_from_keys};
+use crate::engines::Slot;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::CeruleaAuthoringApi;
+use sp_keystore::KeystorePtr;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
@@ -30,7 +39,9 @@ pub struct DcfConsensus<B, C, P, TP>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + sp_block_builder::BlockBuilder<B>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + CeruleaAuthoringApi<B, AccountId>
+        + sp_block_builder::BlockBuilder<B>,
     P: Pair,
     TP: TransactionPool<Block = B> + 'static,
 {
@@ -44,6 +55,9 @@ where
     current_slot: u64,
     last_metrics_update_slot: u64,
     last_score_refresh_slot: u64,
+    keystore: KeystorePtr,
+    authoring_policy: AuthoringPolicy,
+    last_authored_slot: Option<Slot>,
     _phantom: std::marker::PhantomData<(B, P, TP)>,
 }
 
@@ -51,7 +65,9 @@ impl<B, C, P, TP> DcfConsensus<B, C, P, TP>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + sp_block_builder::BlockBuilder<B>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + CeruleaAuthoringApi<B, AccountId>
+        + sp_block_builder::BlockBuilder<B>,
     P: Pair,
     TP: TransactionPool<Block = B> + 'static,
 {
@@ -61,6 +77,7 @@ where
         transaction_pool: Arc<TP>,
         block_import: Arc<dyn BlockImport<B, Error = sp_consensus::Error> + Send + Sync>,
         params: ConsensusParams,
+        keystore: KeystorePtr,
     ) -> Self {
         // Initialize last_block_time to 0 so the first block can be produced immediately
         let last_block_time = Duration::from_secs(0);
@@ -83,6 +100,9 @@ where
             current_slot: 0,
             last_metrics_update_slot: 0,
             last_score_refresh_slot: 0,
+            keystore,
+            authoring_policy: AuthoringPolicy::standard(),
+            last_authored_slot: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -93,6 +113,7 @@ where
         transaction_pool: Arc<TP>,
         block_import: Arc<dyn BlockImport<B, Error = sp_consensus::Error> + Send + Sync>,
         params: ConsensusParams,
+        keystore: KeystorePtr,
         consensus_metrics: ConsensusMetrics,
     ) -> Self {
         // Initialize last_block_time to 0 so the first block can be produced immediately
@@ -116,166 +137,100 @@ where
             current_slot: 0,
             last_metrics_update_slot: 0,
             last_score_refresh_slot: 0,
+            keystore,
+            authoring_policy: AuthoringPolicy::standard(),
+            last_authored_slot: None,
             _phantom: std::marker::PhantomData,
         }
     }
 
-    /// Start the DCF consensus engine
+    /// Start the DCF consensus engine.
+    ///
+    /// Each pass reads the clock, names the slot and asks the Authoring Engine
+    /// gate whether this node authors. The gate opens only where the local
+    /// keystore holds both keys of the validator the committee gives that rank.
+    /// Every other node stands down and waits.
     pub async fn run(&mut self) {
         loop {
-            // Check if we should produce a block
-            if self.should_produce_block() {
-                // Get current runtime state
-                let best_hash = self.client.info().best_hash;
-                let _best_number = self.client.info().best_number;
+            let moment_ms = Self::now_ms();
+            let slot = SlotSchedule::slot_at(moment_ms, self.authoring_policy);
+            self.current_slot = slot.0;
+
+            if self.last_authored_slot != Some(slot) && self.should_produce_block() {
                 let block_number = self.client.info().best_number.saturated_into::<u32>() + 1;
 
-                // STEP 40: Consensus loop iteration started
                 let mut metadata = TraceMetadata::new();
                 metadata.block_number = Some(block_number);
                 LifecycleTracer::global().trace_step(
                     40,
                     "dcf.rs::run",
-                    &format!(
-                        "Consensus loop iteration started for block {}",
-                        block_number
-                    ),
+                    &format!("Slot {} opened for block {}", slot.0, block_number),
                     Some(metadata),
                 );
 
-                // Get active validators from runtime
-                let active_validators = {
-                    let api = self.client.runtime_api();
-                    api.get_active_validators(best_hash)
-                };
-
-                match active_validators {
-                    Ok(validators) => {
-                        // STEP 41: Active validators retrieved
+                match self.open_author_gate(slot, moment_ms) {
+                    Ok(GateDecision::Author(ticket)) => {
                         let mut metadata = TraceMetadata::new();
                         metadata.block_number = Some(block_number);
-                        metadata
-                            .custom
-                            .insert("validator_count".to_string(), validators.len().to_string());
+                        metadata.author = Some(format!("{:?}", ticket.keys.seal));
                         LifecycleTracer::global().trace_step(
-                            41,
+                            43,
                             "dcf.rs::run",
                             &format!(
-                                "Active validators retrieved: {} validators",
-                                validators.len()
+                                "The gate opened at rank {} for block {}",
+                                ticket.rank.0, block_number
                             ),
                             Some(metadata),
                         );
 
-                        if validators.is_empty() {
-                            error!("DCF: No active validators available for block production");
-                        } else {
-                            // STEP 42: Author selection started
-                            let mut metadata = TraceMetadata::new();
-                            metadata.block_number = Some(block_number);
-                            LifecycleTracer::global().trace_step(
-                                42,
-                                "dcf.rs::run",
-                                &format!("Author selection for block {} started", block_number),
-                                Some(metadata),
+                        let current_best: u32 =
+                            self.client.info().best_number.saturated_into::<u32>();
+                        if current_best >= block_number {
+                            debug!(
+                                "Authoring Engine: block {} already arrived from a peer",
+                                block_number
                             );
-
-                            // Select next author using runtime logic
-                            match self.select_next_author_from_runtime(&validators) {
-                                Ok(author) => {
-                                    // STEP 43: Expected author selected
-                                    let author_account: AccountId = author.into();
-                                    let mut metadata = TraceMetadata::new();
-                                    metadata.block_number = Some(block_number);
-                                    metadata.author = Some(format!("{:?}", author_account));
-                                    metadata.custom.insert(
-                                        "selection_method".to_string(),
-                                        "runtime_deterministic".to_string(),
-                                    );
-                                    LifecycleTracer::global().trace_step(
-                                        43,
-                                        "dcf.rs::run",
-                                        &format!("Expected author selected: {:?} (method: runtime_deterministic)", author_account),
-                                        Some(metadata),
-                                    );
-
-                                    // STEP 44: Block production triggered
-                                    let mut metadata = TraceMetadata::new();
-                                    metadata.block_number = Some(block_number);
-                                    metadata.author = Some(format!("{:?}", author_account));
-                                    LifecycleTracer::global().trace_step(
+                            self.last_block_time = Duration::from_millis(moment_ms);
+                        } else {
+                            self.last_authored_slot = Some(slot);
+                            match self.produce_block_with_validation(&ticket).await {
+                                Ok(()) => debug!(
+                                    "Authoring Engine: block {} sealed at rank {}",
+                                    block_number, ticket.rank.0
+                                ),
+                                Err(e) => {
+                                    LifecycleTracer::global().trace_error(
                                         44,
                                         "dcf.rs::run",
-                                        &format!(
-                                            "Block production triggered for block {}",
-                                            block_number
-                                        ),
-                                        Some(metadata),
+                                        &e,
+                                        "Block production failed",
                                     );
-
-                                    // Requirement 11: Double block production guard.
-                                    // Re-read best_number immediately before producing to catch any
-                                    // block that a peer may have imported since we entered this branch.
-                                    let current_best: u32 =
-                                        self.client.info().best_number.saturated_into::<u32>();
-                                    if current_best >= block_number {
+                                    let author = AccountId::from(ticket.keys.seal.0);
+                                    if let Err(state_err) =
+                                        self.handle_block_production_failure(&author).await
+                                    {
                                         debug!(
-                                            "DCF: Block {} already produced by peer, skipping",
-                                            block_number
+                                            "Authoring Engine: the failure report failed: {:?}",
+                                            state_err
                                         );
-                                        // Advance timing so we don't spin-produce on the next loop tick.
-                                        self.last_block_time = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            // FB-13: Zero would immediately re-trigger production;
-                                            // log loudly if the system clock is before UNIX epoch.
-                                            .unwrap_or_else(|e| {
-                                                error!("DCF: System clock before UNIX epoch ({:?}). Using zero — may cause immediate block production.", e);
-                                                Duration::ZERO
-                                            });
-                                    } else {
-                                        match self.produce_block_with_validation(&author).await {
-                                            Ok(()) => {
-                                                debug!(
-                                                    "Block production successful for author {:?}",
-                                                    author
-                                                );
-                                            }
-                                            Err(e) => {
-                                                LifecycleTracer::global().trace_error(
-                                                    44,
-                                                    "dcf.rs::run",
-                                                    &e,
-                                                    "Block production failed",
-                                                );
-                                                debug!(
-                                                    "Block production failed for author {:?}: {:?}",
-                                                    author, e
-                                                );
-                                                // Update consensus state to handle the failure
-                                                let author_account: AccountId = author.into();
-                                                if let Err(state_err) = self
-                                                    .handle_block_production_failure(
-                                                        &author_account,
-                                                    )
-                                                    .await
-                                                {
-                                                    debug!("Failed to handle block production failure: {:?}", state_err);
-                                                }
-                                            }
-                                        }
-                                    } // end else (double block production guard)
-                                } // end Ok(author)
-                                Err(e) => debug!("Failed to select next author: {:?}", e),
+                                    }
+                                }
                             }
                         }
                     }
-                    Err(e) => error!("DCF: Failed to get active validators: {:?}", e),
+                    Ok(GateDecision::StandDown(reason)) => {
+                        debug!(
+                            "Authoring Engine: slot {} stands down. {}",
+                            slot.0,
+                            reason.reason()
+                        );
+                    }
+                    Err(e) => {
+                        debug!("Authoring Engine: the gate reported a problem: {:?}", e);
+                    }
                 }
-
-                // Epoch transitions are handled exclusively by on_initialize; do not trigger from the consensus loop
             }
 
-            // Update validator metrics periodically
             if self.current_slot % self.params.metrics_update_interval == 0
                 && self.last_metrics_update_slot != self.current_slot
             {
@@ -283,7 +238,6 @@ where
                 self.last_metrics_update_slot = self.current_slot;
             }
 
-            // Refresh validator scores periodically to ensure fresh PoS/PoI data
             if self.current_slot % self.params.score_refresh_interval == 0
                 && self.last_score_refresh_slot != self.current_slot
             {
@@ -295,6 +249,68 @@ where
 
             sleep(Duration::from_millis(self.params.consensus_loop_interval)).await;
         }
+    }
+
+    /// The moment now, in milliseconds since the operating system epoch.
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|e| {
+                error!(
+                    "Authoring Engine: the system clock sits before its epoch ({:?}). Fix: set the system clock forward.",
+                    e
+                );
+                Duration::ZERO
+            })
+            .as_millis() as u64
+    }
+
+    /// Build the slot context this node reads from the chain.
+    ///
+    /// The chain publishes the committee drawn for the slot and the key set of
+    /// every active validator. Every node builds the same context from the same
+    /// chain state.
+    pub fn slot_context(&self, slot: Slot) -> ConsensusResult<(SlotContext, crate::engines::authoring::verify::KeyRegistry)> {
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        let parent = self.client.info().best_hash;
+        let reference = parent.as_ref();
+        let mut parent_bytes = [0u8; 32];
+        if reference.len() != parent_bytes.len() {
+            return Err(ConsensusError::AuthorSelection(format!(
+                "The parent hash carries {} bytes. Fix: run a node whose block hash is thirty two bytes wide.",
+                reference.len()
+            )));
+        }
+        parent_bytes.copy_from_slice(reference);
+
+        let seats = api
+            .slot_committee(best_hash, slot.0, parent_bytes)
+            .map_err(|e| ConsensusError::AuthorSelection(format!("The slot committee failed to load: {:?}. Fix: check that the node runtime matches the chain specification.", e)))?;
+        let key_sets = api
+            .active_validator_keys(best_hash)
+            .map_err(|e| ConsensusError::AuthorSelection(format!("The validator key records failed to load: {:?}. Fix: check that the node runtime matches the chain specification.", e)))?;
+
+        let seed = derive_slot_seed(reference, slot);
+        let input = DrawInput::new(slot, seed);
+        let committee = committee_from_seats(slot, &seats);
+        let registry = registry_from_keys(&key_sets);
+        let schedule = SlotSchedule::for_slot(slot, self.authoring_policy);
+        Ok((SlotContext::new(input, committee, schedule), registry))
+    }
+
+    /// Ask the Authoring Engine gate whether this node authors the slot.
+    fn open_author_gate(&self, slot: Slot, moment_ms: u64) -> ConsensusResult<GateDecision> {
+        let (context, registry) = self.slot_context(slot)?;
+        if context.committee.is_empty() {
+            return Ok(GateDecision::StandDown(
+                crate::engines::authoring::gate::StandDown::RankEmpty { rank: 1 },
+            ));
+        }
+        let tracker = FallbackTracker::new(context.schedule);
+        let gate = AuthorGate::new(self.keystore.clone());
+        gate.decide(&context, &registry, &tracker, moment_ms)
+            .map_err(|e| ConsensusError::AuthorSelection(e.to_string()))
     }
 
     /// Check if it's time to produce a new block
@@ -495,171 +511,98 @@ where
         }
     }
 
-    /// Select the next block author from active validators using runtime logic
-    fn select_next_author_from_runtime(
-        &mut self,
-        active_validators: &[AccountId],
-    ) -> ConsensusResult<Public> {
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        let block_number = self.client.info().best_number.saturated_into::<u32>() + 1;
-
-        // Try to get expected author from runtime
-        match api.get_expected_author(best_hash, block_number) {
-            Ok(Some(account_id)) => {
-                // Verify the author is in active validators
-                if active_validators.contains(&account_id) {
-                    Ok(Public::from_raw(*account_id.as_ref()))
-                } else {
-                    error!(
-                        "DCF: Expected author {:?} is not in active validator set",
-                        account_id
-                    );
-                    self.fallback_author_selection(active_validators)
-                }
-            }
-            Ok(None) => {
-                // FB-05/06: Runtime has no queued author for this slot.
-                // Do NOT elect an author locally — two nodes with different API outcomes
-                // would pick different authors, breaking global agreement.
-                // Correct behaviour is to skip production and wait for the next slot.
-                warn!(
-                    "DCF: No expected author scheduled for block {} — skipping slot.",
-                    block_number
-                );
-                Err(ConsensusError::AuthorSelection(
-                    "No author scheduled for this slot".into(),
-                ))
-            }
-            Err(e) => {
-                // FB-05: Runtime API error — skip slot rather than elect locally.
-                error!("DCF: Runtime API error getting expected author for block {}: {:?}. Skipping slot.", block_number, e);
-                Err(ConsensusError::AuthorSelection(format!(
-                    "Runtime API error: {:?}",
-                    e
-                )))
-            }
-        }
-    }
-
-    /// Fallback author selection using round-robin
-    fn fallback_author_selection(
-        &self,
-        active_validators: &[AccountId],
-    ) -> ConsensusResult<Public> {
-        if active_validators.is_empty() {
-            return Err(ConsensusError::AuthorSelection(
-                "No active validators available".into(),
-            ));
-        }
-
-        // FB-07: use chain-agreed best_number as seed, not the local unsynchronised
-        // current_slot counter. Two nodes that restart at different times will have
-        // different current_slot values and would pick different round-robin indices.
-        let best_number = self.client.info().best_number.saturated_into::<u64>();
-        let index = (best_number as usize) % active_validators.len();
-        let selected_validator = &active_validators[index];
-
-        debug!(
-            "Using fallback selection (best_number={}) — validator {} of {}",
-            best_number,
-            index + 1,
-            active_validators.len()
-        );
-        Ok(Public::from_raw(*selected_validator.as_ref()))
-    }
-
-    /// Produce a new block with DCF validation
-    async fn produce_block_with_validation(&mut self, author: &Public) -> ConsensusResult<()> {
-        // Task 8 requirement: Record block production time
+    /// Produce one block, seal it and import it.
+    ///
+    /// The ticket carries the slot, the rank, the two keys of this validator
+    /// and the slot draw this node produced from its own keystore. The seal
+    /// signs all of that beside the pre-seal header hash. A node without the
+    /// author key produces no signature, so authorship is no longer forgeable.
+    async fn produce_block_with_validation(&mut self, ticket: &AuthorTicket) -> ConsensusResult<()> {
         let production_start = std::time::Instant::now();
 
-        let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
+        let author = ticket.keys.seal;
+        let author_account_id: AccountId = AccountId::from(author.0);
         let best_number = self.client.info().best_number;
-        let author_account_id: AccountId = (*author).into();
         let block_number = (best_number + 1u32.into()).saturated_into::<u32>();
 
-        // Only log every 10th block to reduce noise
         if block_number % 10 == 1 {
             info!(
-                "Producing block #{} with author {:?}",
-                block_number, author_account_id
+                "Authoring Engine: producing block #{} at slot {} rank {}",
+                block_number, ticket.slot.0, ticket.rank.0
             );
         } else {
             log::trace!(
-                "Producing block #{} with author {:?}",
+                "Authoring Engine: producing block #{} at slot {} rank {}",
                 block_number,
-                author_account_id
+                ticket.slot.0,
+                ticket.rank.0
             );
         }
 
-        // Validate block authorship through runtime
-        api.validate_block_author(best_hash, block_number, author_account_id.clone())
-            .map_err(|e| {
-                ConsensusError::BlockProduction(format!("Author validation failed: {:?}", e))
-            })?;
+        // Build the block. The proposer gathers the inherents and the ready
+        // transactions and settles the state root.
+        let block = self.create_block_proposal(&author, block_number).await?;
 
-        // Get and update validator metrics
-        if let Ok(scores) = api.get_validator_scores(best_hash) {
-            if let Some((_, final_score)) = scores.iter().find(|(a, _)| a == &author_account_id) {
-                self.metrics.update_validator_score(
-                    *author,
-                    0,
-                    0,
-                    (*final_score).try_into().unwrap_or(0),
-                );
-                debug!(
-                    "DCF: Author {:?} has final score: {}",
-                    author_account_id, final_score
-                );
-            }
-        }
+        // Seal the header with the author key held in the node keystore.
+        let (header, extrinsics) = block.deconstruct();
+        let claim = ticket.seal_claim();
+        let seal = seal_header(&self.keystore, &header, claim)
+            .map_err(|e| ConsensusError::BlockProduction(e.to_string()))?;
 
-        // Get validator profile for additional metrics
-        if let Ok(Some(profile)) = api.get_validator_profile(best_hash, author_account_id.clone()) {
-            let combined_score = profile.final_score;
-            let pos_score = self.get_pos_score(&author_account_id);
-            let poi_score = profile.poi_score as u64;
-            let trust_score = profile.trust_score;
-            let uptime = self.calculate_validator_uptime(&author_account_id);
-            let inference_count = profile.inference_count;
-            let (participation_rate, _) =
-                self.get_validator_participation_metrics(&author_account_id);
-            let (_, missed_blocks) = self.get_validator_participation_metrics(&author_account_id);
-            debug!("DCF: Validator profile - Combined: {}, PoS: {}, PoI: {}, Trust: {}, Uptime: {}, Inferences: {}, Participation: {}%, Missed: {}", 
-                  combined_score, pos_score, poi_score, trust_score, uptime, inference_count, participation_rate, missed_blocks);
+        self.import_sealed_block(header, extrinsics, seal).await?;
 
-            // Used to have Trace 7 here, removed to avoid duplicate since traces 7 and 8 are handled dynamically in the pallet.
-        }
-
-        // 1. Create block proposal with transactions from the pool (includes signing)
-        let signed_block = self.create_block_proposal(author, block_number).await?;
-
-        // 2. Import the block through the consensus pipeline
-        self.import_consensus_block(signed_block).await?;
-
-        // 3. Update consensus state after successful block production
         self.update_consensus_state(block_number, &author_account_id)
             .await?;
 
-        // if let Ok(Some(profile)) = self.client.runtime_api().get_validator_profile(best_hash, author_account_id.clone()) {
-        //     let combined_score = profile.final_score;
-        //     let pos_score = self.get_pos_score(&author_account_id);
-        //     let poi_score = profile.poi_score as u64;
-        // }
-
-        // Task 8 requirement: Record block production time metric
         let production_duration = production_start.elapsed();
         if let Some(ref metrics) = self.consensus_metrics {
             metrics.record_block_production_time(production_duration.as_secs_f64());
         }
 
         debug!(
-            "Block #{} produced by {:?} in {:?}",
+            "Authoring Engine: block #{} sealed by {:?} in {:?}",
             block_number, author_account_id, production_duration
         );
         Ok(())
+    }
+
+    /// Import one sealed block through the block import pipeline.
+    ///
+    /// The seal travels as a post digest. Execution reads the header without
+    /// the seal, so the state root the author settled stays the state root
+    /// every node reaches.
+    async fn import_sealed_block(
+        &self,
+        header: B::Header,
+        extrinsics: Vec<B::Extrinsic>,
+        seal: BlockSeal,
+    ) -> ConsensusResult<()> {
+        let block_number = *header.number();
+        let mut import_params =
+            BlockImportParams::new(sp_consensus::BlockOrigin::Own, header);
+        import_params.post_digests.push(seal.digest_item());
+        import_params.body = Some(extrinsics);
+        import_params.finalized = false;
+        import_params.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
+
+        match self.block_import.import_block(import_params).await {
+            Ok(ImportResult::Imported(_)) => {
+                debug!("Commit Engine: block #{} imported", block_number);
+                Ok(())
+            }
+            Ok(ImportResult::AlreadyInChain) => {
+                debug!("Commit Engine: block #{} already sits in the chain", block_number);
+                Ok(())
+            }
+            Ok(other) => {
+                debug!("Commit Engine: block #{} import reported {:?}", block_number, other);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Commit Engine: block #{} failed to import: {:?}", block_number, e);
+                Err(ConsensusError::BlockImport(format!("Import failed: {:?}", e)))
+            }
+        }
     }
 
     /// Create block proposal with transactions from the pool
@@ -1401,10 +1344,13 @@ pub async fn start_dcf_consensus<B, C, TP, BE>(
     client: Arc<C>,
     transaction_pool: Arc<TP>,
     params: ConsensusParams,
+    keystore: KeystorePtr,
 ) where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + sp_block_builder::BlockBuilder<B>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + CeruleaAuthoringApi<B, AccountId>
+        + sp_block_builder::BlockBuilder<B>,
     TP: TransactionPool<Block = B> + 'static,
     BE: sc_client_api::Backend<B> + 'static,
 {
@@ -1413,6 +1359,6 @@ pub async fn start_dcf_consensus<B, C, TP, BE>(
         client.clone(),
     ));
     let mut consensus: DcfConsensus<B, C, sp_core::ed25519::Pair, TP> =
-        DcfConsensus::new(client, transaction_pool, block_import, params);
+        DcfConsensus::new(client, transaction_pool, block_import, params, keystore);
     consensus.run().await;
 }

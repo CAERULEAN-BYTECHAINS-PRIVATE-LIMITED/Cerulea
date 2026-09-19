@@ -62,16 +62,29 @@ pub struct SealClaim {
     pub author: ed25519::Public,
     /// The slot draw of the author, with its proof.
     pub draw: DrawResult,
+    /// The moment the author took the slot, in milliseconds.
+    ///
+    /// Import compares this moment against the window the claimed rank holds.
+    /// The signature covers the moment, so a block cannot move to another rank
+    /// window after the author signed it.
+    pub moment_ms: u64,
 }
 
 impl SealClaim {
     /// Build a claim.
-    pub fn new(slot: Slot, rank: Rank, author: ed25519::Public, draw: DrawResult) -> Self {
+    pub fn new(
+        slot: Slot,
+        rank: Rank,
+        author: ed25519::Public,
+        draw: DrawResult,
+        moment_ms: u64,
+    ) -> Self {
         SealClaim {
             slot,
             rank,
             author,
             draw,
+            moment_ms,
         }
     }
 
@@ -232,7 +245,7 @@ mod tests {
     fn claim(author: ed25519::Public, slot: u64, rank: u8) -> SealClaim {
         let pair = sr25519::Pair::from_seed(&[3u8; 32]);
         let input = DrawInput::new(Slot(slot), SlotSeed([1u8; 32]));
-        SealClaim::new(Slot(slot), Rank(rank), author, draw(&pair, &input))
+        SealClaim::new(Slot(slot), Rank(rank), author, draw(&pair, &input), 0)
     }
 
     #[test]

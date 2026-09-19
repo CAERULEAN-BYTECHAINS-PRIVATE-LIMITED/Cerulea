@@ -36,8 +36,8 @@ fn ci_initialization_no_panic() {
         let _ = DcfPallet::get_governance_mode();
         let _ = DcfPallet::get_total_validators_count();
         let _ = DcfPallet::get_validator_set_info();
-        let _ = DcfPallet::last_finalized_block();
-        let _ = DcfPallet::get_finality_info();
+        let _ = DcfPallet::trust_score(&1u64);
+        let _ = DcfPallet::standing_share(&1u64);
         
         // Test per-validator operations
         let active_validators = DcfPallet::active_validators();
@@ -110,13 +110,12 @@ fn ci_error_handling_graceful() {
         let invalid_blocks = vec![u32::MAX, 999999];
         for invalid_block in invalid_blocks {
             let expected_author = DcfPallet::get_expected_author(invalid_block);
-            let is_finalized = DcfPallet::is_block_finalized(invalid_block);
-            let blocks_since = DcfPallet::blocks_since_finalization(invalid_block);
-            
+            let threshold = DcfPallet::assurance_class_table()
+                .threshold_percent(crate::engines::assurance::TransactionClass::Routine);
+
             // Should handle gracefully
             assert!(expected_author.is_some() || expected_author.is_none());
-            assert!(is_finalized || !is_finalized);
-            assert!(blocks_since >= 0);
+            assert_eq!(threshold, 51);
         }
     });
 }
@@ -148,18 +147,18 @@ fn ci_performance_benchmarks() {
         for _ in 0..25 {
             let _ = DcfPallet::get_validators_by_score();
             let _ = DcfPallet::get_validator_set_info();
-            let _ = DcfPallet::get_finality_info();
+            let _ = DcfPallet::trust_score(&1u64);
         }
         
         assert!(true); // All performance tests completed
     });
 }
 
-/// Tests that all configuration parameters are valid
+/// Tests that all settings parameters are valid
 #[test]
 fn ci_configuration_validation() {
     new_test_ext().execute_with(|| {
-        // Validate all configuration parameters
+        // Validate all settings parameters
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
@@ -315,11 +314,9 @@ fn ci_public_api_coverage() {
         let validators_by_score = DcfPallet::get_validators_by_score();
         assert!(!validators_by_score.is_empty());
         
-        let finalized_block = DcfPallet::last_finalized_block();
-        assert!(finalized_block >= 0);
-        
-        let (fin_block, cur_block) = DcfPallet::get_finality_info();
-        assert!(cur_block >= fin_block);
+        // The Standing Engine owns the one measure that drives the engines.
+        let score = DcfPallet::trust_score(&active_validators[0]);
+        assert!(score.parts_per_million() <= 1_000_000);
         
         // Per-validator APIs
         for validator in &active_validators {
@@ -374,9 +371,9 @@ fn ci_multi_epoch_validation() {
                 let active_validators = DcfPallet::active_validators();
                 assert!(!active_validators.is_empty());
                 
-                // Test finality progression
-                let last_finalized = DcfPallet::last_finalized_block();
-                assert!(last_finalized >= 0);
+                // The Standing Engine holds every Trust Score inside range.
+                let score = DcfPallet::trust_score(&active_validators[0]);
+                assert!(score.parts_per_million() <= 1_000_000);
                 
                 // Test validator consistency
                 for validator in &active_validators {
@@ -428,10 +425,18 @@ fn ci_comprehensive_invariant_validation() {
         assert!(pos_weight > 0);
         assert!(poi_weight > 0);
         
-        // Test finality invariants
-        let last_finalized = DcfPallet::last_finalized_block();
-        let current_block = System::block_number();
-        assert!(u64::from(last_finalized) <= current_block);
+        // The Assurance Engine holds every threshold above half the weight.
+        let table = DcfPallet::assurance_class_table();
+        for class in [
+            crate::engines::assurance::TransactionClass::Routine,
+            crate::engines::assurance::TransactionClass::Financial,
+            crate::engines::assurance::TransactionClass::Structural,
+            crate::engines::assurance::TransactionClass::Constitutional,
+        ] {
+            let percent = table.threshold_percent(class);
+            assert!(percent >= 51);
+            assert!(percent <= 100);
+        }
         
         // Test governance invariants
         let governance_mode = DcfPallet::get_governance_mode();
@@ -508,8 +513,7 @@ fn ci_error_recovery_test() {
         let invalid_blocks = vec![u32::MAX, 0, 999999];
         for invalid_block in invalid_blocks {
             let _ = DcfPallet::get_expected_author(invalid_block);
-            let _ = DcfPallet::is_block_finalized(invalid_block);
-            let _ = DcfPallet::blocks_since_finalization(invalid_block);
+            let _ = DcfPallet::trust_score(&1u64);
         }
         
         // Test extreme values

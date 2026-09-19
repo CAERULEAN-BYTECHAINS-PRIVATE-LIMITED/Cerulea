@@ -10,34 +10,71 @@
 //!
 //! 1. **The header carries a Cerulea seal.** A header without one never
 //!    imports.
-//! 2. **The seal verifies against the author key.** The signature covers the
-//!    pre-seal header hash and the seal claim.
-//! 3. **The slot draw of the author verifies.** The draw proof covers the slot
-//!    number and the slot seed derived from the parent hash.
-//! 4. **The author is the scheduled author.** The framework pallet names the
-//!    validator scheduled for that block, and the seal author matches it.
-//! 5. **The author holds a seat.** The framework pallet lists the active
-//!    validator set, and the seal author sits in it.
+//! 2. **Membership.** The chain publishes the committee drawn for the slot.
+//!    The named author holds a seat in that committee.
+//! 3. **Signature.** The seal verifies against the author public key, and the
+//!    chain records that key against the draw key that won the seat.
+//! 4. **Timing.** The rank the author claimed holds the slot at the moment the
+//!    seal carries.
+//! 5. **Membership of the active set.** The framework pallet lists the active
+//!    validators, and the seal author sits in that list.
 //!
-//! The committee membership check and the rank timing check live in
-//! `engines::authoring::verify`. Import reaches those two once the framework
-//! pallet publishes the slot committee and the slot seed.
+//! Checks two, three and four run inside `engines::authoring::verify`. Import
+//! builds the slot context from the chain and hands the work to the engine.
 
-use crate::engines::authoring::draw::{derive_slot_seed, verify_result, DrawInput};
-use crate::engines::authoring::seal::{check_seal_signature, extract_seal, BlockSeal};
-use crate::engines::Slot;
+use crate::engines::authoring::committee::SlotCommittee;
+use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
+use crate::engines::authoring::fallback::{AuthoringPolicy, SlotSchedule};
+use crate::engines::authoring::seal::{extract_seal, BlockSeal, ValidatorKeys};
+use crate::engines::authoring::verify::{verify_seal, KeyRegistry};
+use crate::engines::{CommitteeMember, Rank, Slot};
 use crate::metrics::ConsensusMetrics;
 use crate::types::ValidatorMetrics;
 use cerulea_runtime::AccountId;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use pallet_cerulea_dvf::CeruleaAuthoringApi;
 use sc_client_api::Backend;
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult, Verifier};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::Error;
+use sp_core::{ed25519, sr25519};
 use sp_runtime::traits::{Block as BlockTrait, Header as HeaderT, NumberFor, SaturatedConversion};
 use std::sync::Arc;
+
+/// Build the committee of one slot from the seats the chain published.
+///
+/// Each seat names a validator, the draw key that won the seat and the rank the
+/// validator holds. Every node reads the same seats from the same chain state.
+pub fn committee_from_seats(
+    slot: Slot,
+    seats: &[pallet_cerulea_dvf::keys::SlotCommitteeSeat<AccountId>],
+) -> SlotCommittee {
+    SlotCommittee {
+        slot,
+        members: seats
+            .iter()
+            .map(|seat| CommitteeMember {
+                validator: sr25519::Public::from_raw(seat.keys.draw),
+                rank: Rank(seat.rank),
+                weighted_draw: seat.seat_value,
+            })
+            .collect(),
+    }
+}
+
+/// Build the key registry from the key sets the chain published.
+pub fn registry_from_keys(
+    keys: &[(AccountId, pallet_cerulea_dvf::keys::ValidatorKeySet)],
+) -> KeyRegistry {
+    KeyRegistry::from_pairs(keys.iter().map(|(_, set)| {
+        ValidatorKeys::new(
+            sr25519::Public::from_raw(set.draw),
+            ed25519::Public::from_raw(set.seal),
+        )
+    }))
+}
 
 /// What import learned about the author of one block.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,7 +97,7 @@ pub struct DcfImportQueue<B, C, BE>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + CeruleaAuthoringApi<B, AccountId>,
     BE: Backend<B>,
 {
     client: Arc<C>,
@@ -73,7 +110,7 @@ impl<B, C, BE> DcfImportQueue<B, C, BE>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + CeruleaAuthoringApi<B, AccountId>,
     BE: Backend<B>,
 {
     /// Build an import queue over a client.
@@ -122,20 +159,68 @@ where
             )
         })?;
 
-        // Check two. The seal verifies against the author key it names.
-        check_seal_signature(header, &seal).map_err(|reason| reason.to_string())?;
-
-        // Check three. The slot draw of the author verifies against the slot
-        // seed derived from the parent hash.
-        let seed = derive_slot_seed(header.parent_hash().as_ref(), seal.claim.slot);
-        let input = DrawInput::new(seal.claim.slot, seed);
-        verify_result(&input, &seal.claim.draw).map_err(|reason| reason.to_string())?;
-
-        let author = author_account(&seal);
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
+        let parent_hash = *header.parent_hash();
+        let mut parent_bytes = [0u8; 32];
+        let reference = parent_hash.as_ref();
+        if reference.len() != parent_bytes.len() {
+            return Err(format!(
+                "Block {} carries a parent hash of {} bytes. Fix: run a node whose block hash is \
+                 thirty two bytes wide.",
+                block_number,
+                reference.len()
+            ));
+        }
+        parent_bytes.copy_from_slice(reference);
 
-        // Check four. The author holds a seat in the active validator set.
+        // The chain publishes the committee for the slot and the key set of
+        // every active validator. Import reads both and hands them to the
+        // Authoring Engine.
+        let seats = api
+            .slot_committee(best_hash, seal.claim.slot.0, parent_bytes)
+            .map_err(|reason| {
+                format!(
+                    "The slot committee failed to load: {:?}. Fix: check that the node runtime \
+                     matches the chain specification.",
+                    reason
+                )
+            })?;
+        if seats.is_empty() {
+            return Err(format!(
+                "Block {} arrived while slot {} holds no drawn committee. Fix: have each active \
+                 validator publish its draw for the epoch that runs now.",
+                block_number, seal.claim.slot.0
+            ));
+        }
+        let key_sets = api.active_validator_keys(best_hash).map_err(|reason| {
+            format!(
+                "The validator key records failed to load: {:?}. Fix: check that the node runtime \
+                 matches the chain specification.",
+                reason
+            )
+        })?;
+
+        let seed = derive_slot_seed(reference, seal.claim.slot);
+        let input = DrawInput::new(seal.claim.slot, seed);
+        let committee = committee_from_seats(seal.claim.slot, &seats);
+        let registry = registry_from_keys(&key_sets);
+        let schedule = SlotSchedule::for_slot(seal.claim.slot, AuthoringPolicy::standard());
+        let context = crate::engines::authoring::verify::SlotContext::new(input, committee, schedule);
+
+        // Checks two, three and four. Membership, signature and rank timing.
+        let verified = verify_seal(
+            header,
+            &seal,
+            &context,
+            &registry,
+            seal.claim.moment_ms,
+        )
+        .map_err(|reason| reason.to_string())?;
+
+        let author = author_account(&seal);
+
+        // Check five. The author holds a seat in the active validator set.
         let active = api.get_active_validators(best_hash).map_err(|reason| {
             format!(
                 "The active validator set failed to load: {:?}. Fix: check that the node runtime \
@@ -150,7 +235,21 @@ where
                 block_number
             ));
         }
-        if !active.contains(&author) {
+        let seated = seats
+            .iter()
+            .find(|seat| seat.keys.draw == verified.keys.draw.0)
+            .map(|seat| seat.validator.clone())
+            .ok_or_else(|| {
+                format!(
+                    "Block {} names a draw key with no seat record. Fix: register the validator \
+                     keys through the Admission Engine before authoring.",
+                    block_number
+                )
+            })?;
+        if !active.contains(&seated) {
+            if let Some(metrics) = &self.consensus_metrics {
+                metrics.record_author_mismatch();
+            }
             return Err(format!(
                 "Block {} names an author outside the active validator set. Fix: admit the \
                  validator through the Admission Engine before it authors.",
@@ -158,39 +257,10 @@ where
             ));
         }
 
-        // Check five. The author is the validator scheduled for that block.
-        let scheduled = api
-            .get_expected_author(best_hash, block_number)
-            .map_err(|reason| {
-                format!(
-                    "The scheduled author failed to load: {:?}. Fix: check that the node runtime \
-                     matches the chain specification.",
-                    reason
-                )
-            })?;
-        if scheduled.as_ref() != Some(&author) {
-            if let Some(metrics) = &self.consensus_metrics {
-                metrics.record_author_mismatch();
-            }
-            if let Err(reason) =
-                api.report_author_mismatch(best_hash, block_number, scheduled.clone(), author)
-            {
-                warn!(
-                    "Commit Engine import: the mismatch report failed: {:?}",
-                    reason
-                );
-            }
-            return Err(format!(
-                "Block {} names an author other than the scheduled one. Fix: let the scheduled \
-                 validator author that slot.",
-                block_number
-            ));
-        }
-
         Ok(SealedAuthorship {
             author,
-            slot: seal.claim.slot,
-            rank: seal.claim.rank.0,
+            slot: verified.slot,
+            rank: verified.rank.0,
         })
     }
 }
@@ -200,7 +270,7 @@ impl<B, C, BE> BlockImport<B> for DcfImportQueue<B, C, BE>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + CeruleaAuthoringApi<B, AccountId>,
     BE: Backend<B>,
 {
     type Error = Error;
@@ -268,7 +338,7 @@ impl<B, C, BE> Verifier<B> for DcfImportQueue<B, C, BE>
 where
     B: BlockTrait,
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
-    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>> + CeruleaAuthoringApi<B, AccountId>,
     BE: Backend<B>,
 {
     async fn verify(

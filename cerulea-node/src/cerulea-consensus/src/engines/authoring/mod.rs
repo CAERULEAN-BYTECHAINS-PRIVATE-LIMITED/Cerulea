@@ -29,6 +29,6 @@ pub use verify::{
 pub use gate::{AuthorGate, AuthorTicket, GateDecision, StandDown};
 
 pub use draw::{
-    derive_slot_seed, draw, draw_from_keystore, draw_value, verify_draw, verify_result, DrawInput,
-    DrawProof, DrawResult,
+    derive_slot_seed, draw, draw_from_keystore, draw_value, epoch_draw, epoch_draw_from_keystore,
+    verify_draw, verify_epoch_draw, verify_result, DrawInput, DrawProof, DrawResult,
 };

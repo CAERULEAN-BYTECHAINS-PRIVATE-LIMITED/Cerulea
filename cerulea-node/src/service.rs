@@ -1,7 +1,7 @@
 #![allow(unused_variables, static_mut_refs)]
 use futures::FutureExt;
 use sc_client_api::{Backend, Finalizer};
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Settings, TaskManager};
 use sc_telemetry::TelemetryWorker;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use cerulea_runtime::{self, apis::RuntimeApi, opaque::Block, AccountId, Hash};
@@ -37,7 +37,7 @@ pub struct NodeConfig {
 }
 
 pub fn new_partial(
-    config: &Configuration,
+    config: &Settings,
     node_config: &NodeConfig,
 ) -> Result<Service, ServiceError> {
     use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
@@ -65,12 +65,12 @@ pub fn new_partial(
             e
         })?;
 
-    // STEP 8: Telemetry endpoints configured
+    // STEP 8: Telemetry endpoints set
     if telemetry.is_some() {
         LifecycleTracer::global().trace_step(
             8,
             "service.rs::new_partial",
-            "Telemetry endpoints configured",
+            "Telemetry endpoints set",
             Some(TraceMetadata::new().with_custom(
                 "telemetry_enabled".to_string(),
                 "true".to_string(),
@@ -80,7 +80,7 @@ pub fn new_partial(
         LifecycleTracer::global().trace_step(
             8,
             "service.rs::new_partial",
-            "Telemetry endpoints configured (none)",
+            "Telemetry endpoints set (none)",
             None,
         );
     }
@@ -256,7 +256,7 @@ pub fn new_partial(
 }
 
 pub fn new_full<N>(
-    config: Configuration,
+    config: Settings,
     node_config: &NodeConfig,
 ) -> Result<TaskManager, ServiceError>
 where
@@ -286,15 +286,15 @@ where
         e
     })?;
 
-    // Validate DVF configuration parameters
+    // Validate Registry settings parameters
     // This ensures all parameters meet requirements for correct operation
     {
         use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
         use sp_api::ProvideRuntimeApi;
         
-        log::info!("DVF: Validating configuration parameters...");
+        log::info!("Registry: Validating settings parameters...");
         
-        // Query runtime for DVF configuration values
+        // Query runtime for Registry settings values
         let api = client.runtime_api();
         let best_hash = client.info().best_hash;
         
@@ -318,20 +318,20 @@ where
             vote_retention_rounds,
         };
         
-        // Validate configuration
+        // Validate settings
         if let Err(e) = dvf_config.validate() {
-            log::error!("DVF Configuration Validation Failed: {}", e);
-            log::error!("Node startup aborted due to invalid DVF configuration.");
+            log::error!("Registry Settings Validation Failed: {}", e);
+            log::error!("Node startup aborted due to invalid Registry settings.");
             return Err(ServiceError::Other(format!(
-                "Invalid DVF configuration: {}",
+                "Invalid Registry settings: {}",
                 e
             )));
         }
         
-        // Log all configuration parameters
+        // Log all settings parameters
         dvf_config.log_configuration();
         
-        log::info!("DVF: Configuration validation passed successfully");
+        log::info!("Registry: Settings validation passed successfully");
     }
 
     let mut net_config = sc_network::config::FullNetworkConfiguration::<
@@ -340,11 +340,11 @@ where
         N,
     >::new(&config.network, config.prometheus_registry().cloned());
 
-    // STEP 17: Network configuration prepared
+    // STEP 17: Network settings prepared
     LifecycleTracer::global().trace_step(
         17,
         "service.rs::new_full",
-        "Network configuration prepared",
+        "Network settings prepared",
         Some(TraceMetadata::new()
             .with_custom("listen_addresses".to_string(), format!("{:?}", config.network.listen_addresses))
             .with_custom("public_addresses".to_string(), format!("{:?}", config.network.public_addresses))
@@ -354,7 +354,7 @@ where
     let metrics = N::register_notification_metrics(config.prometheus_registry());
     let _peer_store_handle = net_config.peer_store_handle();
 
-	// Register DVF gossip protocol — backend-agnostic API (works for both libp2p & litep2p).
+	// Register Registry gossip protocol — backend-agnostic API (works for both libp2p & litep2p).
 	let (dvf_notification_config, dvf_notification_service) = N::notification_config(
 		cerulea_consensus::dvf_gossip::DVF_PROTOCOL_NAME.into(),
 		Vec::new(),
@@ -388,7 +388,7 @@ where
             e
         })?;
 
-	// Initialize DVF Gossip Components
+	// Initialize Registry Gossip Components
 	let dvf_gossip_pool = DvfVotePool::<Hash, AccountId>::new();
 	let dvf_gossip_validator: Arc<dyn sc_network_gossip::Validator<Block>> =
 		Arc::new(DvfGossipValidator::new(dvf_gossip_pool.clone(), client.clone()));
@@ -402,7 +402,7 @@ where
 	);
 	let dvf_gossip_engine = Arc::new(Mutex::new(dvf_gossip_engine));
 
-	// Spawn DVF Gossip Service Task
+	// Spawn Registry Gossip Service Task
 	{
 		let dvf_gossip_engine = dvf_gossip_engine.clone();
 		task_manager.spawn_handle().spawn(
@@ -419,15 +419,15 @@ where
 		);
 	}
 
-	// Start DVF Vote Creator Service (if node is authority)
+	// Start Registry Vote Creator Service (if node is authority)
 	if config.role.is_authority() {
 		// Get validator account from keystore
 		let keystore = keystore_container.keystore();
 		let mut public_keys = keystore.ed25519_public_keys(cerulea_consensus::CERULEA_KEY_TYPE);
 		
-		// If no Cerulea DVF ed25519 keys exist, generate and insert one automatically.
+		// If no Cerulea Registry ed25519 keys exist, generate and insert one automatically.
 		// This mirrors how Substrate handles GRANDPA keys: the node generates its own
-		// ed25519 keypair under the Cerulea DVF key type (b"cerk") on first start.
+		// ed25519 keypair under the Cerulea Registry key type (b"cerk") on first start.
 		if public_keys.is_empty() {
 			use sp_core::crypto::{Ss58Codec, Pair};
 			use sp_core::ed25519;
@@ -439,25 +439,25 @@ where
 			let node_name = config.network.node_name.to_lowercase();
 			
 			let deterministic_seed: Option<&str> = if config.chain_spec.chain_type() == sc_service::ChainType::Development {
-				log::info!("Cerulea DVF: Dev mode — using //Alice deterministic key");
+				log::info!("Cerulea Registry: Dev mode — using //Alice deterministic key");
 				Some("//Alice")
 			} else if node_name.contains("alice") {
-				log::info!("Cerulea DVF: Using deterministic key for Alice");
+				log::info!("Cerulea Registry: Using deterministic key for Alice");
 				Some("//Alice")
 			} else if node_name.contains("bob") {
-				log::info!("Cerulea DVF: Using deterministic key for Bob");
+				log::info!("Cerulea Registry: Using deterministic key for Bob");
 				Some("//Bob")
 			} else if node_name.contains("charlie") {
-				log::info!("Cerulea DVF: Using deterministic key for Charlie");
+				log::info!("Cerulea Registry: Using deterministic key for Charlie");
 				Some("//Charlie")
 			} else if node_name.contains("dave") {
-				log::info!("Cerulea DVF: Using deterministic key for Dave");
+				log::info!("Cerulea Registry: Using deterministic key for Dave");
 				Some("//Dave")
 			} else if node_name.contains("eve") {
-				log::info!("Cerulea DVF: Using deterministic key for Eve");
+				log::info!("Cerulea Registry: Using deterministic key for Eve");
 				Some("//Eve")
 			} else if node_name.contains("ferdie") {
-				log::info!("Cerulea DVF: Using deterministic key for Ferdie");
+				log::info!("Cerulea Registry: Using deterministic key for Ferdie");
 				Some("//Ferdie")
 			} else {
 				None
@@ -466,13 +466,22 @@ where
 			match deterministic_seed {
 				Some(seed) => {
 					let pair = ed25519::Pair::from_string(seed, None)
-						.expect("Cerulea DVF: Failed to derive ed25519 pair from well-known seed");
+						.expect("Cerulea: the well known seed yields a seal key");
 					keystore.insert(
 						cerulea_consensus::CERULEA_KEY_TYPE,
 						seed,
 						pair.public().as_ref(),
-					).expect("Cerulea DVF: Failed to insert deterministic ed25519 key into keystore");
-					log::info!("Cerulea DVF: Inserted deterministic ed25519 key: {}", pair.public().to_ss58check());
+					).expect("Cerulea: the keystore takes the seal key");
+					// The Authoring Engine draws the slot committee with the sr25519
+					// draw key of the same well known name.
+					let draw = sp_core::sr25519::Pair::from_string(seed, None)
+						.expect("Cerulea: the well known seed yields a draw key");
+					keystore.insert(
+						cerulea_consensus::CERULEA_KEY_TYPE,
+						seed,
+						draw.public().as_ref(),
+					).expect("Cerulea: the keystore takes the draw key");
+					log::info!("Cerulea: seal key {} and draw key recorded", pair.public().to_ss58check());
 				}
 				None => {
 					// Unknown node name — generate a fresh random ed25519 keypair.
@@ -484,13 +493,20 @@ where
 						cerulea_consensus::CERULEA_KEY_TYPE,
 						&seed_phrase,
 						pair.public().as_ref(),
-					).expect("Cerulea DVF: Failed to insert generated ed25519 key into keystore");
+					).expect("Cerulea: the keystore takes the seal key");
+					let draw = sp_core::sr25519::Pair::from_string(&seed_phrase, None)
+						.expect("Cerulea: the generated phrase yields a draw key");
+					keystore.insert(
+						cerulea_consensus::CERULEA_KEY_TYPE,
+						&seed_phrase,
+						draw.public().as_ref(),
+					).expect("Cerulea: the keystore takes the draw key");
 					log::info!(
-						"Cerulea DVF: Auto-generated ed25519 key for new validator: {}",
+						"Cerulea Registry: Auto-generated ed25519 key for new validator: {}",
 						pair.public().to_ss58check()
 					);
 					log::warn!(
-						"Cerulea DVF: IMPORTANT — back up this seed phrase to recover your validator key: {}",
+						"Cerulea Registry: IMPORTANT — back up this seed phrase to recover your validator key: {}",
 						seed_phrase
 					);
 				}
@@ -505,7 +521,7 @@ where
 			// In Substrate, AccountId32 is typically derived from the public key
 			let validator_account = AccountId::from(public_keys[0].0);
 			
-			// Create DVF Finality Notifier
+			// Create Registry Finality Notifier
 			let finality_notifier = Arc::new(cerulea_consensus::FinalityNotifier::new());
 			
 			let vote_creator = cerulea_consensus::VoteCreatorService::new(
@@ -524,15 +540,15 @@ where
 				}
 			);
 			
-			log::info!("DVF: Vote Creator Service started for validator {:?}", validator_account);
+			log::info!("Registry: Vote Creator Service started for validator {:?}", validator_account);
 			
-			// Create DVF Justification Builder
+			// Create Registry Justification Builder
 			let justification_builder = Arc::new(cerulea_consensus::justification_builder::JustificationBuilder::new(
 				client.clone(),
 				dvf_gossip_pool.clone(),
 			));
 			
-			// Start DVF Vote Aggregator Service
+			// Start Registry Vote Aggregator Service
 			let vote_aggregator = cerulea_consensus::VoteAggregatorService::new(
 				client.clone(),
 				dvf_gossip_pool.clone(),
@@ -549,9 +565,9 @@ where
 				}
 			);
 			
-			log::info!("DVF: Vote Aggregator Service started");
+			log::info!("Registry: Vote Aggregator Service started");
 			
-			// Start DVF Vote Pool Pruning Service
+			// Start Registry Vote Pool Pruning Service
 			let pruning_service = cerulea_consensus::VotePoolPruningService::new(
 				client.clone(),
 				dvf_gossip_pool.clone(),
@@ -566,9 +582,9 @@ where
 				}
 			);
 			
-			log::info!("DVF: Vote Pool Pruning Service started");
+			log::info!("Registry: Vote Pool Pruning Service started");
 		} else {
-			log::warn!("DVF: No ed25519 keys found in keystore, Vote Creator Service not started");
+			log::warn!("Registry: No ed25519 keys found in keystore, Vote Creator Service not started");
 		}
 	}
 
@@ -680,6 +696,7 @@ where
                 transaction_pool.clone(),
                 dcf_block_import_arc.clone(), // Use real import queue
                 consensus_params.clone(),
+                keystore_container.keystore(),
                 metrics,
             )
         } else {
@@ -688,6 +705,7 @@ where
                 transaction_pool.clone(),
                 dcf_block_import_arc.clone(), // Use real import queue
                 consensus_params.clone(),
+                keystore_container.keystore(),
             )
         };
         
@@ -804,10 +822,10 @@ where
             "dvf-finality-sync",
             None,
             async move {
-                log::info!("DVF: Starting finality sync service");
+                log::info!("Registry: Starting finality sync service");
                 
                 // Perform initial sync on startup to restore finalized head
-                log::info!("DVF: Performing initial finality sync on startup");
+                log::info!("Registry: Performing initial finality sync on startup");
                 let api = finality_client.runtime_api();
                 let best_hash = finality_client.info().best_hash;
                 
@@ -818,7 +836,7 @@ where
                         
                         if dvf_finalized > client_finalized {
                             log::info!(
-                                "DVF Startup Sync: Client at block #{}, DVF finalized up to #{}, restoring...",
+                                "Registry Startup Sync: Client at block #{}, Registry finalized up to #{}, restoring...",
                                 client_finalized,
                                 dvf_finalized
                             );
@@ -829,11 +847,11 @@ where
                                     Ok(Some(block_hash)) => {
                                         match finality_client.finalize_block(block_hash, None, true) {
                                             Ok(_) => {
-                                                log::debug!("DVF Startup Sync: Restored finalized block #{}", block_num);
+                                                log::debug!("Registry Startup Sync: Restored finalized block #{}", block_num);
                                             }
                                             Err(e) => {
                                                 log::error!(
-                                                    "DVF Startup Sync: Failed to restore block #{}: {:?}",
+                                                    "Registry Startup Sync: Failed to restore block #{}: {:?}",
                                                     block_num,
                                                     e
                                                 );
@@ -842,13 +860,13 @@ where
                                     }
                                     Ok(None) => {
                                         log::warn!(
-                                            "DVF Startup Sync: Block #{} hash not found, skipping",
+                                            "Registry Startup Sync: Block #{} hash not found, skipping",
                                             block_num
                                         );
                                     }
                                     Err(e) => {
                                         log::error!(
-                                            "DVF Startup Sync: Failed to get hash for block #{}: {:?}",
+                                            "Registry Startup Sync: Failed to get hash for block #{}: {:?}",
                                             block_num,
                                             e
                                         );
@@ -856,13 +874,13 @@ where
                                 }
                             }
                             
-                            log::info!("DVF Startup Sync: Finalized head restored to block #{}", dvf_finalized);
+                            log::info!("Registry Startup Sync: Finalized head restored to block #{}", dvf_finalized);
                         } else {
-                            log::info!("DVF Startup Sync: Client finalized head is up to date at block #{}", client_finalized);
+                            log::info!("Registry Startup Sync: Client finalized head is up to date at block #{}", client_finalized);
                         }
                     }
                     Err(e) => {
-                        log::error!("DVF Startup Sync: Failed to get DVF finalized block: {:?}", e);
+                        log::error!("Registry Startup Sync: Failed to get Registry finalized block: {:?}", e);
                     }
                 }
                 
@@ -882,17 +900,17 @@ where
                         Some(crate::lifecycle_tracer::TraceMetadata::new()),
                     );
                     
-                    // Get DVF's finalized block number
+                    // Get Registry's finalized block number
                     let api = finality_client.runtime_api();
                     let best_hash = finality_client.info().best_hash;
                     
                     match api.get_dvf_finalized_block(best_hash) {
                         Ok(dvf_finalized) => {
-                            // STEP 66: DVF finalized block retrieved
+                            // STEP 66: Registry finalized block retrieved
                             crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
                                 66,
                                 "service.rs::dvf-finality-sync",
-                                &format!("DVF finalized block retrieved (block {})", dvf_finalized),
+                                &format!("Registry finalized block retrieved (block {})", dvf_finalized),
                                 Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(dvf_finalized)),
                             );
 
@@ -919,7 +937,7 @@ where
                                 );
                                 
                                 log::info!(
-                                    "DVF Finality Sync: Client at block #{}, DVF finalized up to #{}, syncing...",
+                                    "Registry Finality Sync: Client at block #{}, Registry finalized up to #{}, syncing...",
                                     client_finalized,
                                     dvf_finalized
                                 );
@@ -947,11 +965,11 @@ where
                                                         &format!("Block {} finalized successfully", block_num),
                                                         Some(crate::lifecycle_tracer::TraceMetadata::new().with_block_number(block_num)),
                                                     );
-                                                    log::debug!("DVF Finality Sync: Finalized block #{}", block_num);
+                                                    log::debug!("Registry Finality Sync: Finalized block #{}", block_num);
                                                 }
                                                 Err(e) => {
                                                     log::error!(
-                                                        "DVF Finality Sync: Failed to finalize block #{}: {:?}",
+                                                        "Registry Finality Sync: Failed to finalize block #{}: {:?}",
                                                         block_num,
                                                         e
                                                     );
@@ -984,11 +1002,11 @@ where
                                 );
                             } else if dvf_finalized == client_finalized {
                                 // Already in sync, just log occasionally
-                                log::trace!("DVF and Client finality are in sync at #{}", dvf_finalized);
+                                log::trace!("Registry and Client finality are in sync at #{}", dvf_finalized);
                             } else {
-                                // This is normal: DCF (Deterministic Finality) is faster than DVF (Vote-based Finality)
+                                // This is normal: DCF (Deterministic Finality) is faster than Registry (Vote-based Finality)
                                 log::info!(
-                                    "DVF Sync Status: Client head (#{}) is ahead of DVF head (#{}). Normal behavior.",
+                                    "Registry Sync Status: Client head (#{}) is ahead of Registry head (#{}). Normal behavior.",
                                     client_finalized,
                                     dvf_finalized
                                 );
@@ -1034,11 +1052,11 @@ where
         })
     };
 
-    // STEP 27: RPC extensions configured
+    // STEP 27: RPC extensions set
     LifecycleTracer::global().trace_step(
         27,
         "service.rs::new_full",
-        "RPC extensions configured",
+        "RPC extensions set",
         None,
     );
 
