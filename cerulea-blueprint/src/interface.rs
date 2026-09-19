@@ -19,8 +19,9 @@ use crate::{
     identities::Identities,
     permissions::ROW_BINDING,
     types::{
-        ActionId, BreakpointId, CollectionId, ComponentId, EventId, FieldPath, ParamName, RoleId,
-        ScreenId, StateId, TokenName, TypeExpr, TypeRegistry, ViewId, WorkflowId,
+        ActionId, BreakpointId, CollectionId, ComponentId, EventId, FieldPath, ParamName,
+        PropertyName, RoleId, ScreenId, StateId, TokenName, TypeExpr, TypeRegistry, ViewId,
+        WorkflowId,
     },
     views::ViewRegistry,
     workflows::WorkflowRegistry,
@@ -546,12 +547,16 @@ impl ComponentKind {
     }
 
     /// Report whether the component places other components inside itself.
+    ///
+    /// A layout component places any component. A data component places the
+    /// field components that form its columns, its cells or its rows. Four
+    /// input components wrap an inner input, one for the element of a list,
+    /// one for the value of a map, one for the payload of a sum alternative
+    /// and one for the value a person leaves out.
     pub fn holds_children(&self) -> bool {
         use ComponentKind::*;
-        matches!(
-            self,
-            Page | Section | Grid | Stack | Split | Tabs | Accordion | Modal | Drawer
-        )
+        matches!(self.group(), ComponentGroup::Layout | ComponentGroup::Data)
+            || matches!(self, ListInput | MapInput | OptionalInput | SumInput)
     }
 
     /// What the component binds to.
@@ -845,6 +850,42 @@ impl BreakpointOverride {
     }
 }
 
+/// One named property of a placed component.
+///
+/// A property carries a choice the model cannot infer. A sort direction. A
+/// page size. The measure a chart draws. The name and the value are both
+/// text, so the set grows without a change to the encoding.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub struct Property {
+    /// The name the renderer reads.
+    pub name: PropertyName,
+    /// The value the name carries.
+    pub value: String,
+}
+
+impl Property {
+    /// Build a property.
+    pub fn new(name: &str, value: &str) -> Self {
+        Property {
+            name: PropertyName::new(name),
+            value: value.to_string(),
+        }
+    }
+}
+
 /// One component placed on a screen.
 #[derive(
     Clone,
@@ -873,6 +914,8 @@ pub struct ComponentNode {
     pub visibility: Vec<VisibilityRule>,
     /// The per-breakpoint changes.
     pub overrides: Vec<BreakpointOverride>,
+    /// The named properties the renderer reads.
+    pub properties: Vec<Property>,
     /// The components placed inside this one.
     pub children: Vec<ComponentNode>,
 }
@@ -887,6 +930,7 @@ impl ComponentNode {
             label_key: None,
             visibility: Vec::new(),
             overrides: Vec::new(),
+            properties: Vec::new(),
             children: Vec::new(),
         }
     }
@@ -2080,6 +2124,31 @@ impl Interface {
             }
         }
 
+        let mut named: BTreeSet<&str> = BTreeSet::new();
+        for (position, property) in node.properties.iter().enumerate() {
+            let here = path.field("properties").index(position);
+            report.absorb(property.name.validate(&here.field("name")));
+            if !named.insert(property.name.as_str()) {
+                report.push(Diagnostic::at(
+                    DiagnosticCode::DuplicateName,
+                    here.field("name").location(),
+                    format!(
+                        "The component `{}` carries the property `{}` twice.",
+                        node.id, property.name
+                    ),
+                    format!("Keep one `{}` property.", property.name),
+                ));
+            }
+            if property.value.is_empty() {
+                report.push(Diagnostic::at(
+                    DiagnosticCode::MissingValue,
+                    here.field("value").location(),
+                    format!("The property `{}` carries an empty value.", property.name),
+                    "Give the property a value, or remove it.".to_string(),
+                ));
+            }
+        }
+
         for (position, child) in node.children.iter().enumerate() {
             Interface::check_node(
                 child,
@@ -2534,6 +2603,32 @@ mod tests {
         assert!(LanguageTag::new("English")
             .validate(&Path::root().field("language"))
             .is_err());
+    }
+
+    #[test]
+    fn a_property_written_twice_is_caught() {
+        let mut interface = sample();
+        interface.screens[0].components[0].children[0].properties = vec![
+            Property::new("sort_direction", "ascending"),
+            Property::new("sort_direction", "descending"),
+        ];
+        let report = run(&interface);
+        let found = report
+            .find("interface.screens[0].components[0].children[0].properties[1].name")
+            .expect("the diagnostic sits on the property");
+        assert_eq!(found.code, DiagnosticCode::DuplicateName);
+    }
+
+    #[test]
+    fn a_property_carrying_an_empty_value_is_caught() {
+        let mut interface = sample();
+        interface.screens[0].components[0].children[0].properties =
+            vec![Property::new("page_size", "")];
+        let report = run(&interface);
+        let found = report
+            .find("interface.screens[0].components[0].children[0].properties[0].value")
+            .expect("the diagnostic sits on the value");
+        assert_eq!(found.code, DiagnosticCode::MissingValue);
     }
 
     #[test]

@@ -202,6 +202,11 @@ declare_identifier!(
     "The name of one responsive breakpoint."
 );
 declare_identifier!(TokenName, "token", "The name of one theme token.");
+declare_identifier!(
+    PropertyName,
+    "property",
+    "The name of one property of a placed component."
+);
 
 /// A path to a field inside a record.
 ///

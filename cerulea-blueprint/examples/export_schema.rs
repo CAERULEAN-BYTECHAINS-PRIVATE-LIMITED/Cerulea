@@ -2226,6 +2226,16 @@ fn definitions() -> Vec<(String, Json)> {
         ),
     );
     push(
+        "Property",
+        record(
+            "One named property of a placed component.",
+            vec![
+                ("name", r("Identifier")),
+                ("value", text_field("The value the name carries.")),
+            ],
+        ),
+    );
+    push(
         "ComponentNode",
         record(
             "One component placed on a screen.",
@@ -2236,6 +2246,7 @@ fn definitions() -> Vec<(String, Json)> {
                 ("label_key", nullable(r("StringKey"))),
                 ("visibility", arr(r("VisibilityRule"))),
                 ("overrides", arr(r("BreakpointOverride"))),
+                ("properties", arr(r("Property"))),
                 ("children", arr(r("ComponentNode"))),
             ],
         ),
