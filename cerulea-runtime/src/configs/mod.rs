@@ -478,15 +478,15 @@ impl pallet_cerulea_identity::Config for Runtime {
 // Timers and deadlines enter one schedule held in due order, and the block
 // hook runs a bounded count of steps. A failed process runs its
 // compensating steps in reverse order, a bounded count per block.
-// The permission module joins the runtime later, so the resolver refuses
-// every request until it does.
+// The permission module resolves every change the module makes to a
+// record.
 impl pallet_cerulea_workflow::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cerulea_workflow::weights::CeruleaWeight<Runtime>;
     type Schema = crate::Schema;
     type Records = crate::State;
     type Identities = crate::Identity;
-    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Permissions = crate::Permission;
     type Guards = pallet_cerulea_workflow::MeteredGuards;
     type Actions = pallet_cerulea_workflow::QueuedActions<Runtime>;
     type Audit = crate::Audit;
@@ -656,7 +656,7 @@ impl pallet_cerulea_relayer::Config for Runtime {
 impl pallet_cerulea_operator::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cerulea_operator::weights::CeruleaWeight<Runtime>;
-    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Permissions = crate::Permission;
     type Versions = crate::Evolution;
     type Licences = crate::Tier;
     type Audit = crate::Audit;
