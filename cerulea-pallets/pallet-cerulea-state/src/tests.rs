@@ -718,3 +718,137 @@ fn a_migration_rebuilds_every_index_entry() {
         assert_eq!(found, vec![key_of(&record)]);
     });
 }
+
+#[test]
+fn a_record_missing_a_field_names_its_location_and_fix() {
+    // Blueprint assertion six. A write violating the registered schema
+    // aborts the transaction.
+    new_test_ext().execute_with(|| {
+        install();
+        let short = Value::record(
+            TypeId::new("parcel"),
+            vec![
+                (
+                    FieldName::new("survey_number"),
+                    Value::Text("12/3".to_string()),
+                ),
+                (FieldName::new("holder"), Value::Text("Anitha".to_string())),
+            ],
+        );
+        assert_noop!(insert(&short), Error::<Test>::RecordInvalid);
+        let report =
+            Pallet::<Test>::check_record(&DEPLOYMENT, &CollectionId::new("parcel"), &short)
+                .expect_err("a short record raises a diagnostic");
+        assert!(!report.is_clean());
+        let first = &report.diagnostics[0];
+        assert!(first.location.as_str().starts_with("record"));
+        assert!(!first.fix.is_empty());
+    });
+}
+
+#[test]
+fn a_field_of_another_type_aborts_the_write() {
+    new_test_ext().execute_with(|| {
+        install();
+        let wrong = Value::record(
+            TypeId::new("parcel"),
+            vec![
+                (
+                    FieldName::new("survey_number"),
+                    Value::Text("12/3".to_string()),
+                ),
+                (FieldName::new("holder"), Value::Text("Anitha".to_string())),
+                (FieldName::new("area"), Value::Text("four".to_string())),
+            ],
+        );
+        assert_noop!(insert(&wrong), Error::<Test>::RecordInvalid);
+        let report =
+            Pallet::<Test>::check_record(&DEPLOYMENT, &CollectionId::new("parcel"), &wrong)
+                .expect_err("a wrong field type raises a diagnostic");
+        assert_eq!(
+            report.diagnostics[0].code,
+            cerulea_blueprint::DiagnosticCode::TypeMismatch
+        );
+    });
+}
+
+#[test]
+fn a_value_that_is_not_a_record_aborts_the_write() {
+    new_test_ext().execute_with(|| {
+        install();
+        let report = Pallet::<Test>::check_record(
+            &DEPLOYMENT,
+            &CollectionId::new("parcel"),
+            &Value::Integer(7),
+        )
+        .expect_err("a bare integer raises a diagnostic");
+        assert!(!report.is_clean());
+    });
+}
+
+#[test]
+fn a_payload_that_fails_to_decode_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        install();
+        assert_noop!(
+            State::insert(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                collection_name(),
+                bounded(vec![255u8, 255, 255, 255])
+            ),
+            Error::<Test>::RecordUnreadable
+        );
+        let report = crate::validate::decode_record(
+            &[255u8, 255, 255, 255],
+            &cerulea_blueprint::Path::root().field("record"),
+        )
+        .expect_err("the payload declines to decode");
+        assert!(report.diagnostics[0].fix.contains("canonical encoding"));
+    });
+}
+
+#[test]
+fn a_check_against_an_absent_collection_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        let report = Pallet::<Test>::check_record(
+            &DEPLOYMENT,
+            &CollectionId::new("ward"),
+            &parcel("12/3", "Anitha", 400),
+        )
+        .expect_err("an absent collection raises a diagnostic");
+        assert!(report.diagnostics[0]
+            .fix
+            .contains("Register the collection"));
+    });
+}
+
+#[test]
+fn a_clean_record_yields_its_canonical_key_bytes() {
+    new_test_ext().execute_with(|| {
+        install();
+        let record = parcel("12/3", "Anitha", 400);
+        let key = Pallet::<Test>::check_record(&DEPLOYMENT, &CollectionId::new("parcel"), &record)
+            .expect("the record checks");
+        assert_eq!(key, key_of(&record).to_vec());
+    });
+}
+
+#[test]
+fn validation_runs_before_the_store_takes_the_record() {
+    new_test_ext().execute_with(|| {
+        install();
+        let wrong = Value::record(
+            TypeId::new("parcel"),
+            vec![(
+                FieldName::new("survey_number"),
+                Value::Text("12/3".to_string()),
+            )],
+        );
+        assert_noop!(insert(&wrong), Error::<Test>::RecordInvalid);
+        assert_eq!(
+            <Pallet<Test> as RecordStore>::count(&DEPLOYMENT, &CollectionId::new("parcel")),
+            0
+        );
+    });
+}

@@ -27,6 +27,7 @@
 extern crate alloc;
 
 pub mod index;
+pub mod validate;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -495,9 +496,41 @@ impl<T: Config> Pallet<T> {
     }
 
     fn decode_record(bytes: &[u8]) -> Result<Value, DispatchError> {
-        let mut value = Value::decode(&mut &bytes[..]).map_err(|_| Error::<T>::RecordUnreadable)?;
-        value.canonicalise();
-        Ok(value)
+        validate::decode_record(bytes, &Path::root().field("record"))
+            .map_err(|_| Error::<T>::RecordUnreadable.into())
+    }
+
+    /// Check one record against the registered schema and return every
+    /// diagnostic with its location and its fix.
+    ///
+    /// The interface layer calls this entry point to show a person why a
+    /// record was declined, beside the field the person typed into.
+    pub fn check_record(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        record: &Value,
+    ) -> Result<Vec<u8>, cerulea_blueprint::Report> {
+        let definition = match T::Schema::collection(deployment, collection) {
+            Some(held) => held,
+            None => {
+                let mut report = cerulea_blueprint::Report::new();
+                report.push(cerulea_blueprint::Diagnostic::at(
+                    cerulea_blueprint::DiagnosticCode::DanglingReference,
+                    Path::root().field("record").location(),
+                    alloc::format!("The registry lacks the collection `{collection}`."),
+                    alloc::string::String::from(
+                        "Register the collection before writing records to it.",
+                    ),
+                ));
+                return Err(report);
+            }
+        };
+        validate::check_record::<T::Schema>(
+            deployment,
+            &definition,
+            record,
+            &Path::root().field("record"),
+        )
     }
 
     /// The live definition of one collection.
@@ -558,9 +591,7 @@ impl<T: Config> Pallet<T> {
             !T::Schema::is_retired(deployment, collection),
             Error::<T>::CollectionRetired
         );
-        Self::check_shape(deployment, &definition, record)?;
-
-        let derived = key_bytes_of(&definition, record).ok_or(Error::<T>::PrimaryKeyMissing)?;
+        let derived = Self::check_shape(deployment, &definition, record)?;
         let derived: RecordKey =
             BoundedVec::try_from(derived).map_err(|_| Error::<T>::PrimaryKeyTooLong)?;
         if let Some(supplied) = key.as_ref() {
@@ -701,29 +732,48 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    /// Check that a record carries the registered shape.
+    /// Check that a record carries the registered shape and return its
+    /// canonical key bytes.
     ///
-    /// The check decodes the record against the record type the collection
-    /// names. A record carrying another shape aborts the write.
+    /// Step two of the write path calls this. A record carrying another
+    /// shape aborts the write.
     pub fn check_shape(
         deployment: &DeploymentId,
         definition: &Collection,
         record: &Value,
-    ) -> DispatchResult {
-        let defs = T::Schema::type_defs(deployment);
-        let (types, _) = TypeRegistry::build(&defs, &Path::root().field("types"));
-        ensure!(
-            types.record(&definition.record_type).is_some(),
-            Error::<T>::RecordTypeUnknown
-        );
-        record
-            .check(
-                &TypeExpr::Record(definition.record_type.clone()),
-                &types,
-                &Path::root().field("record"),
-            )
-            .map_err(|_| Error::<T>::RecordInvalid)?;
-        Ok(())
+    ) -> Result<Vec<u8>, DispatchError> {
+        validate::check_record::<T::Schema>(
+            deployment,
+            definition,
+            record,
+            &Path::root().field("record"),
+        )
+        .map_err(|report| Self::code_for(&report))
+    }
+
+    /// The error code one report maps to.
+    ///
+    /// The code reaches the caller through the dispatch result. The plain
+    /// sentences reach a person through the check entry point.
+    fn code_for(report: &cerulea_blueprint::Report) -> DispatchError {
+        let first = match report.diagnostics.first() {
+            Some(held) => held,
+            None => return Error::<T>::RecordInvalid.into(),
+        };
+        if first.location.as_str().ends_with("primary_key") {
+            return match first.code {
+                cerulea_blueprint::DiagnosticCode::ValueTooLong => {
+                    Error::<T>::PrimaryKeyTooLong.into()
+                }
+                _ => Error::<T>::PrimaryKeyMissing.into(),
+            };
+        }
+        match first.code {
+            cerulea_blueprint::DiagnosticCode::DanglingReference => {
+                Error::<T>::RecordTypeUnknown.into()
+            }
+            _ => Error::<T>::RecordInvalid.into(),
+        }
     }
 
     /// Read one record as a value.
