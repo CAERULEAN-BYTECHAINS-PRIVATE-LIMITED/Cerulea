@@ -26,6 +26,7 @@
 
 extern crate alloc;
 
+pub mod index;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -56,15 +57,7 @@ use pallet_cerulea_schema::{
 
 /// The metadata the store keeps beside every record.
 #[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    Encode,
-    Decode,
-    DecodeWithMemTracking,
-    TypeInfo,
-    MaxEncodedLen,
+    Clone, Debug, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen,
 )]
 #[scale_info(skip_type_params(BlockNumber, AccountId))]
 pub struct RecordMeta<BlockNumber, AccountId> {
@@ -117,11 +110,8 @@ pub trait RecordStore {
     ///
     /// A sealed record answers with nothing, since the bytes carry
     /// ciphertext rather than a value.
-    fn read(
-        deployment: &DeploymentId,
-        collection: &CollectionId,
-        key: &RecordKey,
-    ) -> Option<Value>;
+    fn read(deployment: &DeploymentId, collection: &CollectionId, key: &RecordKey)
+        -> Option<Value>;
 
     /// Read the stored bytes of one record.
     fn read_bytes(
@@ -155,6 +145,14 @@ pub trait RecordStore {
 
     /// The number of records one collection holds.
     fn count(deployment: &DeploymentId, collection: &CollectionId) -> u32;
+
+    /// The record keys one index entry reaches, in canonical key order.
+    fn by_index(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        index: &cerulea_blueprint::types::IndexName,
+        probe: &[Value],
+    ) -> Vec<RecordKey>;
 
     /// The metadata of one record.
     fn meta(
@@ -231,6 +229,14 @@ pub mod pallet {
         /// The largest number of records one collection holds.
         #[pallet::constant]
         type MaxRecordsPerCollection: Get<u32>;
+
+        /// The largest number of record keys one index entry holds.
+        #[pallet::constant]
+        type MaxIndexEntries: Get<u32>;
+
+        /// The largest number of declared indexes one collection carries.
+        #[pallet::constant]
+        type MaxIndexesPerCollection: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -258,15 +264,8 @@ pub mod pallet {
     /// map returns the keys in canonical order. That order is what a range
     /// read and a proof both need.
     #[pallet::storage]
-    pub type KeyOrder<T: Config> = StorageDoubleMap<
-        _,
-        Blake2_128Concat,
-        CollectionKey,
-        Identity,
-        RecordKey,
-        (),
-        OptionQuery,
-    >;
+    pub type KeyOrder<T: Config> =
+        StorageDoubleMap<_, Blake2_128Concat, CollectionKey, Identity, RecordKey, (), OptionQuery>;
 
     /// The metadata of every record.
     #[pallet::storage]
@@ -284,6 +283,22 @@ pub mod pallet {
     #[pallet::storage]
     pub type RecordCount<T: Config> =
         StorageMap<_, Blake2_128Concat, CollectionKey, u32, ValueQuery>;
+
+    /// Every declared secondary index, materialised as its own map.
+    ///
+    /// The three keys name the collection, the index and the indexed
+    /// value. The value lists the record keys that entry reaches.
+    #[pallet::storage]
+    pub type Indexes<T: Config> = StorageNMap<
+        _,
+        (
+            NMapKey<Blake2_128Concat, CollectionKey>,
+            NMapKey<Blake2_128Concat, BoundedVec<u8, ConstU32<128>>>,
+            NMapKey<Blake2_128Concat, pallet_cerulea_schema::primitives::IndexValue>,
+        ),
+        BoundedVec<RecordKey, T::MaxIndexEntries>,
+        OptionQuery,
+    >;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -368,6 +383,15 @@ pub mod pallet {
         /// The permission module refused the request. Call the explain
         /// entry point to read the problem and the fix in plain language.
         PermissionDenied,
+        /// A unique index already holds another record under that value.
+        /// Give the record a value the index lacks.
+        IndexConflict,
+        /// The index entry holds its full count of record keys. Narrow the
+        /// index, or raise the limit in the runtime.
+        IndexFull,
+        /// The collection declares more indexes than the runtime admits.
+        /// Remove an index, or raise the limit in the runtime.
+        IndexLimitReached,
     }
 
     #[pallet::call]
@@ -403,15 +427,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let id = Self::collection_id(&collection)?;
             let value = Self::decode_record(record.as_slice())?;
-            Self::write(
-                &deployment,
-                &id,
-                &who,
-                Some(key),
-                &value,
-                WriteMode::Update,
-            )
-            .map(|_| ())
+            Self::write(&deployment, &id, &who, Some(key), &value, WriteMode::Update).map(|_| ())
         }
 
         /// Remove one record.
@@ -499,9 +515,7 @@ impl<T: Config> Pallet<T> {
     ///
     /// The interface layer calls this entry point to show a person why a
     /// write was refused.
-    pub fn explain(
-        request: &AccessRequest<'_, T::AccountId>,
-    ) -> Result<AccessGrant, AccessDenial> {
+    pub fn explain(request: &AccessRequest<'_, T::AccountId>) -> Result<AccessGrant, AccessDenial> {
         T::Permissions::resolve(request)
     }
 
@@ -557,7 +571,15 @@ impl<T: Config> Pallet<T> {
         let bytes = record.canonical_bytes();
         let bounded: BoundedVec<u8, T::MaxRecordSize> =
             BoundedVec::try_from(bytes).map_err(|_| Error::<T>::RecordTooLarge)?;
-        Self::store(deployment, collection, actor, &definition, &derived, bounded, mode)?;
+        Self::store(
+            deployment,
+            collection,
+            actor,
+            &definition,
+            &derived,
+            bounded,
+            mode,
+        )?;
         Ok(derived)
     }
 
@@ -565,7 +587,7 @@ impl<T: Config> Pallet<T> {
         deployment: &DeploymentId,
         collection: &CollectionId,
         actor: &T::AccountId,
-        _definition: &Collection,
+        definition: &Collection,
         key: &RecordKey,
         bytes: BoundedVec<u8, T::MaxRecordSize>,
         mode: WriteMode,
@@ -578,6 +600,15 @@ impl<T: Config> Pallet<T> {
                 ensure!(present.is_some(), Error::<T>::RecordAbsent)
             }
         }
+
+        // Step four. Maintain every declared index. A unique index that
+        // already holds another record under the new value aborts here,
+        // and the whole transaction aborts with it.
+        let previous = present
+            .as_ref()
+            .and_then(|held| Value::decode(&mut held.as_slice()).ok());
+        let next = Value::decode(&mut bytes.as_slice()).ok();
+        index::maintain::<T>(&slot, definition, key, previous.as_ref(), next.as_ref())?;
 
         let now = frame_system::Pallet::<T>::block_number();
         let value_hash = sp_crypto_hashing::blake2_256(bytes.as_slice());
@@ -652,6 +683,10 @@ impl<T: Config> Pallet<T> {
             Error::<T>::CollectionRetired
         );
 
+        let definition = Self::definition(deployment, collection)?;
+        if let Some(held) = record.as_ref() {
+            index::maintain::<T>(&slot, &definition, key, Some(held), None)?;
+        }
         Records::<T>::remove(&slot, key);
         Meta::<T>::remove(&slot, key);
         KeyOrder::<T>::remove(&slot, key);
@@ -764,9 +799,7 @@ impl<T: Config> Pallet<T> {
         found.truncate(ceiling);
         found
             .into_iter()
-            .filter_map(|key| {
-                Records::<T>::get(&slot, &key).map(|bytes| (key, bytes.into_inner()))
-            })
+            .filter_map(|key| Records::<T>::get(&slot, &key).map(|bytes| (key, bytes.into_inner())))
             .collect()
     }
 
@@ -776,6 +809,35 @@ impl<T: Config> Pallet<T> {
             KeyRange::Exact(held) => held.as_slice() == key,
             KeyRange::Prefix(held) => key.starts_with(held.as_slice()),
         }
+    }
+
+    /// The record keys one index entry reaches, in canonical key order.
+    ///
+    /// The probe carries one value per field the index names, in the
+    /// declared order. A probe of another shape reaches nothing.
+    pub fn index_lookup(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        name: &cerulea_blueprint::types::IndexName,
+        probe: &[Value],
+    ) -> Vec<RecordKey> {
+        let slot = match Self::storage_key(deployment, collection) {
+            Ok(held) => held,
+            Err(_) => return Vec::new(),
+        };
+        let definition = match T::Schema::collection(deployment, collection) {
+            Some(held) => held,
+            None => return Vec::new(),
+        };
+        let declared = match index::declared(&definition, name) {
+            Some(held) => held,
+            None => return Vec::new(),
+        };
+        let value = match index::index_probe(declared, probe) {
+            Some(held) => held,
+            None => return Vec::new(),
+        };
+        index::lookup::<T>(&slot, name, &value)
     }
 
     /// The number of records one collection holds.
@@ -806,7 +868,14 @@ impl<T: Config> RecordStore for Pallet<T> {
         actor: &Self::AccountId,
         record: &Value,
     ) -> Result<RecordKey, DispatchError> {
-        Pallet::<T>::write(deployment, collection, actor, None, record, WriteMode::Insert)
+        Pallet::<T>::write(
+            deployment,
+            collection,
+            actor,
+            None,
+            record,
+            WriteMode::Insert,
+        )
     }
 
     fn update(
@@ -890,6 +959,15 @@ impl<T: Config> RecordStore for Pallet<T> {
         Pallet::<T>::record_count(deployment, collection)
     }
 
+    fn by_index(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        index: &cerulea_blueprint::types::IndexName,
+        probe: &[Value],
+    ) -> Vec<RecordKey> {
+        Pallet::<T>::index_lookup(deployment, collection, index, probe)
+    }
+
     fn meta(
         deployment: &DeploymentId,
         collection: &CollectionId,
@@ -951,6 +1029,7 @@ impl<T: Config> Pallet<T> {
             cerulea_blueprint::types::Identity([0u8; 32]),
             Self::timestamp(),
         );
+        let previous_definition = Self::definition(deployment, &plan.collection)?;
         let mut keys: Vec<RecordKey> = KeyOrder::<T>::iter_key_prefix(&slot).collect();
         keys.sort();
 
@@ -986,6 +1065,10 @@ impl<T: Config> Pallet<T> {
             let bytes: BoundedVec<u8, T::MaxRecordSize> =
                 BoundedVec::try_from(produced.canonical_bytes())
                     .map_err(|_| Error::<T>::RecordTooLarge)?;
+
+            // The declared indexes follow the record into its new shape.
+            index::maintain::<T>(&slot, &previous_definition, &key, Some(&record), None)?;
+            index::maintain::<T>(&slot, produced_collection, &moved, None, Some(&produced))?;
 
             let meta = Meta::<T>::get(&slot, &key);
             if moved != key {

@@ -1,9 +1,8 @@
 //! The tests of the state module.
 
 use crate::{
-    head_field,
-    key_bytes_of, mock::*, value_at, Error, Meta, Pallet, RecordCount, RecordStore, Records,
-    WriteMode,
+    head_field, key_bytes_of, mock::*, value_at, Error, Meta, Pallet, RecordCount, RecordStore,
+    Records, WriteMode,
 };
 use cerulea_blueprint::{
     collections::{Collection, KeyRange, PurposeDeclaration},
@@ -127,10 +126,7 @@ fn an_inserted_record_takes_the_key_its_primary_key_field_holds() {
             <Pallet<Test> as RecordStore>::read(&DEPLOYMENT, &id, &key),
             Some(record)
         );
-        assert_eq!(
-            <Pallet<Test> as RecordStore>::count(&DEPLOYMENT, &id),
-            1
-        );
+        assert_eq!(<Pallet<Test> as RecordStore>::count(&DEPLOYMENT, &id), 1);
         let meta = Pallet::<Test>::record_meta(&DEPLOYMENT, &id, &key)
             .expect("the store holds the metadata");
         assert_eq!(meta.version, 1);
@@ -476,12 +472,10 @@ fn an_applied_migration_rewrites_every_stored_record() {
             1,
             "The register renames the holder field.",
         )
-        .with(
-            pallet_cerulea_schema::migrate::MigrationStep::RenameField {
-                from: FieldName::new("holder"),
-                to: FieldName::new("owner"),
-            },
-        )
+        .with(pallet_cerulea_schema::migrate::MigrationStep::RenameField {
+            from: FieldName::new("holder"),
+            to: FieldName::new("owner"),
+        })
         .within(0);
         assert_ok!(Schema::propose_migration(
             RuntimeOrigin::signed(STEWARD),
@@ -511,5 +505,216 @@ fn an_applied_migration_rewrites_every_stored_record() {
                 other => unreachable!("the store holds {:?}", other),
             }
         }
+    });
+}
+
+fn indexed_collection(unique: bool) -> Collection {
+    let mut collection = parcel_collection();
+    collection.indexes = vec![cerulea_blueprint::collections::Index {
+        name: cerulea_blueprint::types::IndexName::new("by_holder"),
+        fields: vec![FieldPath::parse("holder")],
+        unique,
+    }];
+    collection
+}
+
+fn install_indexed(unique: bool) {
+    assert_ok!(Schema::register_type(
+        RuntimeOrigin::signed(STEWARD),
+        DEPLOYMENT,
+        bounded(parcel_type().encode())
+    ));
+    assert_ok!(Schema::register_collection(
+        RuntimeOrigin::signed(STEWARD),
+        DEPLOYMENT,
+        bounded(indexed_collection(unique).encode())
+    ));
+}
+
+fn holders_named(name: &str) -> Vec<RecordKey> {
+    <Pallet<Test> as RecordStore>::by_index(
+        &DEPLOYMENT,
+        &CollectionId::new("parcel"),
+        &cerulea_blueprint::types::IndexName::new("by_holder"),
+        &[Value::Text(name.to_string())],
+    )
+}
+
+#[test]
+fn an_index_holds_the_record_after_an_insert() {
+    // Design assertion three. An index is present and correct after every
+    // write, update and delete.
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        assert_eq!(holders_named("Anitha"), vec![key_of(&record)]);
+        assert!(holders_named("Benny").is_empty());
+    });
+}
+
+#[test]
+fn an_index_follows_the_record_through_an_update() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        let key = key_of(&record);
+        let changed = parcel("12/3", "Benny", 400);
+        assert_ok!(State::update(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            collection_name(),
+            key.clone(),
+            bounded(changed.canonical_bytes())
+        ));
+        assert!(holders_named("Anitha").is_empty());
+        assert_eq!(holders_named("Benny"), vec![key]);
+    });
+}
+
+#[test]
+fn an_index_clears_after_a_delete() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        assert_ok!(State::delete(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            collection_name(),
+            key_of(&record)
+        ));
+        assert!(holders_named("Anitha").is_empty());
+    });
+}
+
+#[test]
+fn one_index_entry_holds_every_record_reaching_it() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let first = parcel("12/3", "Anitha", 400);
+        let second = parcel("44/9", "Anitha", 100);
+        assert_ok!(insert(&first));
+        assert_ok!(insert(&second));
+        let mut want = vec![key_of(&first), key_of(&second)];
+        want.sort();
+        assert_eq!(holders_named("Anitha"), want);
+    });
+}
+
+#[test]
+fn a_unique_index_declines_a_second_record_under_one_value() {
+    new_test_ext().execute_with(|| {
+        install_indexed(true);
+        assert_ok!(insert(&parcel("12/3", "Anitha", 400)));
+        assert_noop!(
+            insert(&parcel("44/9", "Anitha", 100)),
+            Error::<Test>::IndexConflict
+        );
+        let id = CollectionId::new("parcel");
+        assert_eq!(<Pallet<Test> as RecordStore>::count(&DEPLOYMENT, &id), 1);
+    });
+}
+
+#[test]
+fn a_probe_of_another_shape_reaches_nothing() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        assert_ok!(insert(&parcel("12/3", "Anitha", 400)));
+        let found = <Pallet<Test> as RecordStore>::by_index(
+            &DEPLOYMENT,
+            &CollectionId::new("parcel"),
+            &cerulea_blueprint::types::IndexName::new("by_holder"),
+            &[],
+        );
+        assert!(found.is_empty());
+        let absent = <Pallet<Test> as RecordStore>::by_index(
+            &DEPLOYMENT,
+            &CollectionId::new("parcel"),
+            &cerulea_blueprint::types::IndexName::new("by_ward"),
+            &[Value::Text("Anitha".to_string())],
+        );
+        assert!(absent.is_empty());
+    });
+}
+
+#[test]
+fn an_index_value_separates_two_field_splits() {
+    let index = cerulea_blueprint::collections::Index {
+        name: cerulea_blueprint::types::IndexName::new("by_pair"),
+        fields: vec![
+            FieldPath::parse("survey_number"),
+            FieldPath::parse("holder"),
+        ],
+        unique: false,
+    };
+    let left = crate::index::index_probe(
+        &index,
+        &[Value::Text("ab".to_string()), Value::Text("c".to_string())],
+    )
+    .expect("the probe builds");
+    let right = crate::index::index_probe(
+        &index,
+        &[Value::Text("a".to_string()), Value::Text("bc".to_string())],
+    )
+    .expect("the probe builds");
+    assert_ne!(left, right);
+}
+
+#[test]
+fn a_sealed_payload_carries_no_index_entry() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        let key = key_of(&record);
+        assert_ok!(<Pallet<Test> as RecordStore>::write_bytes(
+            &DEPLOYMENT,
+            &CollectionId::new("parcel"),
+            &STEWARD,
+            &key,
+            vec![9, 9, 9]
+        ));
+        assert!(holders_named("Anitha").is_empty());
+    });
+}
+
+#[test]
+fn a_migration_rebuilds_every_index_entry() {
+    new_test_ext().execute_with(|| {
+        install_indexed(false);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+
+        let plan = pallet_cerulea_schema::migrate::MigrationPlan::new(
+            "parcel",
+            1,
+            "The register renames the holder field.",
+        )
+        .with(pallet_cerulea_schema::migrate::MigrationStep::RenameField {
+            from: FieldName::new("holder"),
+            to: FieldName::new("owner"),
+        })
+        .within(0);
+        assert_ok!(Schema::propose_migration(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            bounded(plan.encode())
+        ));
+        assert_ok!(Schema::apply_migration(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name_of("parcel").expect("the name fits"),
+            1
+        ));
+
+        let found = <Pallet<Test> as RecordStore>::by_index(
+            &DEPLOYMENT,
+            &CollectionId::new("parcel"),
+            &cerulea_blueprint::types::IndexName::new("by_holder"),
+            &[Value::Text("Anitha".to_string())],
+        );
+        assert_eq!(found, vec![key_of(&record)]);
     });
 }

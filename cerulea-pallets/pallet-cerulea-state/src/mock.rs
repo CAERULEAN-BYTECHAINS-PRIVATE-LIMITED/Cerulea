@@ -15,9 +15,7 @@ use cerulea_blueprint::types::RoleId;
 use codec::{Decode, Encode};
 use core::time::Duration;
 use frame_support::{derive_impl, traits::ConstU32, traits::ConstU64, traits::UnixTime};
-use pallet_cerulea_schema::access::{
-    AccessDenial, AccessGrant, AccessRequest, PermissionGate,
-};
+use pallet_cerulea_schema::access::{AccessDenial, AccessGrant, AccessRequest, PermissionGate};
 use sp_runtime::{traits::IdentityLookup, BuildStorage};
 
 extern crate alloc;
@@ -61,6 +59,8 @@ impl pallet_cerulea_state::Config for Test {
     type MaxRecordSize = ConstU32<8_192>;
     type MaxRangeRead = ConstU32<256>;
     type MaxRecordsPerCollection = ConstU32<1_024>;
+    type MaxIndexEntries = ConstU32<128>;
+    type MaxIndexesPerCollection = ConstU32<8>;
 }
 
 const REFUSED: &[u8] = b"cerulea:test:refused";
