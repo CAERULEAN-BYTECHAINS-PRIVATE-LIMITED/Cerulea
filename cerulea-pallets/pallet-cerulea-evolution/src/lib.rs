@@ -28,6 +28,8 @@ pub mod weights;
 mod mock;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod transition_tests;
 
 pub use bridge::{DryRun, SchemaBridge, SchemaMigrations};
 pub use pallet::*;

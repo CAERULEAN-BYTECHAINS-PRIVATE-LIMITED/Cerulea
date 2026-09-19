@@ -29,6 +29,8 @@ sp-core = { default-features = true, workspace = true }
 sp-io = { default-features = true, workspace = true }
 sp-runtime = { default-features = true, workspace = true }
 pallet-cerulea-state = { default-features = true, workspace = true }
+cerulea-blueprint = { workspace = true, features = ["std"] }
+serde_json = { workspace = true }
 
 [features]
 default = ["std"]
