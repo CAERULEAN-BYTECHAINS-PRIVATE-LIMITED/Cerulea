@@ -19,6 +19,7 @@
 use codec::{Decode, Encode};
 
 use super::aggregate::AggregateSignature;
+use crate::engines::bounds::{admit, MessagePath};
 use crate::engines::{EngineError, Slot};
 
 /// The highest number of signatures one submission carries.
@@ -28,7 +29,8 @@ use crate::engines::{EngineError, Slot};
 pub const MAX_VOTES_PER_SUBMISSION: u32 = 256;
 
 /// The highest number of bytes one submission carries.
-pub const MAX_SUBMISSION_BYTES: usize = 64 * 1024;
+pub const MAX_SUBMISSION_BYTES: usize =
+    cerulea_primitives::bounds::MessagePath::CommitSubmission.max_bytes();
 
 /// The weight units one submission costs before the signature count.
 pub const BASE_WEIGHT_UNITS: u64 = 10_000;
@@ -221,6 +223,26 @@ impl SubmissionGate {
             bytes,
         })
     }
+}
+
+/// Read one commit submission from the network.
+///
+/// The size bound of the path runs before the decoding, so an oversized
+/// message costs one length comparison. The gate then runs over the decoded
+/// value before the pool admits it.
+pub fn read_submission(bytes: &[u8]) -> Result<CommitSubmission, EngineError> {
+    admit(MessagePath::CommitSubmission, bytes.len())?;
+    CommitSubmission::decode(&mut &bytes[..]).map_err(|reason| EngineError::MessageUnreadable {
+        path: MessagePath::CommitSubmission.label(),
+        detail: format!("{}", reason),
+    })
+}
+
+/// Read one commit submission and run the pool gate over it.
+pub fn read_and_admit(bytes: &[u8]) -> Result<(CommitSubmission, Admission), EngineError> {
+    let submission = read_submission(bytes)?;
+    let admitted = SubmissionGate::new().admit(&submission)?;
+    Ok((submission, admitted))
 }
 
 #[cfg(test)]

@@ -1,0 +1,43 @@
+Cerulea chain, control evidence: every network-reachable message path bounded and repriced
+Task P10-004. Run date 2026-09-19. Rust 1.85, release profile.
+Run from chain/ with CARGO_BUILD_JOBS=4.
+
+$ cargo test --release -p cerulea-primitives
+test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+Seven of those tests sit in bounds::tests. They walk every path of the table and
+assert that each one carries a bound and a price, that the price rises with the
+size, and that a message above the bound is refused on its length.
+
+$ cargo test --release -p cerulea-consensus
+test result: ok. 374 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+Six of those tests sit in engines::bounds::tests. They assert that every path
+refuses an oversized message and that an oversized message never reaches the
+decoder.
+
+$ cargo test --release -p cerulea-node --test network_bounds_test
+running 12 tests
+test an_oversized_message_never_reaches_the_decoder ... ok
+test every_path_admits_a_message_at_its_bound ... ok
+test every_path_prices_its_bytes ... ok
+test every_path_rejects_an_oversized_message ... ok
+test the_bridge_proof_path_holds_its_stated_bound ... ok
+test the_custody_answer_path_holds_its_stated_bound ... ok
+test the_enumeration_names_every_path_the_table_holds ... ok
+test the_equivocation_report_path_holds_its_stated_bound ... ok
+test the_extrinsic_body_path_matches_the_runtime_block_length ... ok
+test the_interface_body_path_holds_its_stated_bound ... ok
+test the_propagation_path_holds_its_stated_bound ... ok
+test the_vote_submission_path_holds_its_stated_bound ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+Design assertion 1 of the security domain holds.
+Every network-reachable path rejects an oversized message. The proving test is
+every_path_rejects_an_oversized_message, which walks all ten paths of the
+enumeration at chain/docs/NETWORK_BOUNDS.md.
+The test the_enumeration_names_every_path_the_table_holds reads the document at
+compile time and asserts that it names every path the table holds, so the
+document and the table never drift apart.
+
+Controls implemented, certification not held.

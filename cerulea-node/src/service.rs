@@ -259,7 +259,7 @@ pub fn new_partial(
 }
 
 pub fn new_full<N>(
-    config: ServiceSettings,
+    mut config: ServiceSettings,
     node_config: &NodeConfig,
 ) -> Result<TaskManager, ServiceError>
 where
@@ -337,6 +337,20 @@ where
         log::info!("Registry: Settings validation passed successfully");
     }
 
+    // Bound the interface request body before the server starts. The shared
+    // table names the highest number of bytes one request carries. A request
+    // above that figure is refused before any decoding runs.
+    let interface_body_limit = (cerulea_consensus::engines::bounds::MessagePath::RpcBody
+        .max_bytes()
+        / (1024 * 1024)) as u32;
+    if config.rpc.max_request_size > interface_body_limit {
+        log::info!(
+            "Cerulea: the interface request body limit falls to {} megabytes",
+            interface_body_limit
+        );
+        config.rpc.max_request_size = interface_body_limit;
+    }
+
     let mut net_config = sc_network::config::FullNetworkConfiguration::<
         Block,
         <Block as sp_runtime::traits::Block>::Hash,
@@ -361,7 +375,7 @@ where
 	let (dvf_notification_config, dvf_notification_service) = N::notification_config(
 		cerulea_consensus::dvf_gossip::DVF_PROTOCOL_NAME.into(),
 		Vec::new(),
-		1024 * 1024,
+		cerulea_consensus::engines::bounds::MessagePath::GossipMessage.max_bytes() as u64,
 		None,
 		sc_network::config::SetConfig {
 			in_peers: 0,

@@ -265,6 +265,19 @@ where
         &self,
         message_data: &[u8],
     ) -> Result<DvfVoteMessage<B::Hash, AccountId>, &'static str> {
+        // The size bound of the propagation path runs before the decoding, so
+        // an oversized message costs one length comparison.
+        if let Err(reason) = crate::engines::bounds::admit(
+            crate::engines::bounds::MessagePath::GossipMessage,
+            message_data.len(),
+        ) {
+            warn!("Commit Engine Gossip: {}", reason);
+            if let Some(ref metrics) = self.metrics {
+                metrics.record_vote_rejection("above_bound");
+            }
+            return Err("above_bound");
+        }
+
         let message = DvfVoteMessage::<B::Hash, AccountId>::decode(&mut &message_data[..])
             .map_err(|_| {
                 warn!("Commit Engine Gossip: Failed to decode incoming Commit Engine Vote Message");

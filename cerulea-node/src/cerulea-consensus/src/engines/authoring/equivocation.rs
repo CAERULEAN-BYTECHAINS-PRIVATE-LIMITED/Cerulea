@@ -51,7 +51,8 @@ pub const EQUIVOCATION_PROTOCOL_NAME: &str = "/cerulea/equivocation/1";
 /// two bytes, a seal claim of two hundred and nine bytes and a signature of
 /// sixty four bytes. The bound sits above that figure with room for the
 /// envelope. A larger message is refused before any decoding runs.
-pub const MAX_EQUIVOCATION_REPORT_BYTES: usize = 768;
+pub const MAX_EQUIVOCATION_REPORT_BYTES: usize =
+    cerulea_primitives::bounds::MessagePath::EquivocationReport.max_bytes();
 
 /// The number of slots the tracker remembers behind the highest slot seen.
 ///

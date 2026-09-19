@@ -31,7 +31,8 @@ operator network would keep producing blocks on a history nobody else shares.
 
 ## The implementing commit
 
-IMPLEMENTING_COMMIT_PLACEHOLDER
+`372e0f3`, on branch `rebuild/foundation`.
+Commit message: `P10-003 implement peer diversity requirements against the eclipse attack`.
 
 ## Where the code sits
 
