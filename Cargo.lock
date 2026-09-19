@@ -1405,6 +1405,7 @@ dependencies = [
  "frame-try-runtime",
  "log",
  "pallet-balances",
+ "pallet-cerulea-collections",
  "pallet-cerulea-custody",
  "pallet-cerulea-dcf",
  "pallet-cerulea-dvf",
@@ -6390,6 +6391,24 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-collections"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
  "sp-runtime",
 ]
 

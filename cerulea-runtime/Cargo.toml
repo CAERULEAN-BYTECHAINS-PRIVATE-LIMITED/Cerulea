@@ -35,6 +35,7 @@ pallet-cerulea-dvf.workspace = true
 pallet-cerulea-custody.workspace = true
 pallet-cerulea-schema.workspace = true
 pallet-cerulea-state.workspace = true
+pallet-cerulea-collections.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
 pallet-transaction-payment-rpc-runtime-api.workspace = true                      # Payment APIs for transactions
 pallet-transaction-payment.workspace = true                                      # Transaction fee pallet
@@ -89,6 +90,7 @@ std = [
 	"pallet-cerulea-custody/std",
 	"pallet-cerulea-schema/std",
 	"pallet-cerulea-state/std",
+	"pallet-cerulea-collections/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
@@ -137,6 +139,7 @@ try-runtime = [
 	"pallet-cerulea-custody/try-runtime",
 	"pallet-cerulea-schema/try-runtime",
 	"pallet-cerulea-state/try-runtime",
+	"pallet-cerulea-collections/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"sp-runtime/try-runtime",

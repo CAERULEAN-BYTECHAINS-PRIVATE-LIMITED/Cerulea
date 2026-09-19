@@ -18,6 +18,7 @@ members = [
     "cerulea-blueprint",
     "cerulea-pallets/pallet-cerulea-schema",
     "cerulea-pallets/pallet-cerulea-state",
+    "cerulea-pallets/pallet-cerulea-collections",
 ]
 resolver = "2"
 
@@ -26,6 +27,7 @@ cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
 cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
 pallet-cerulea-schema = { path = "./cerulea-pallets/pallet-cerulea-schema", default-features = false }
 pallet-cerulea-state = { path = "./cerulea-pallets/pallet-cerulea-state", default-features = false }
+pallet-cerulea-collections = { path = "./cerulea-pallets/pallet-cerulea-collections", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}

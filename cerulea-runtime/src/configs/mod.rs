@@ -417,3 +417,18 @@ impl pallet_cerulea_state::Config for Runtime {
     type MaxIndexesPerCollection = ConstU32<16>;
     type MaxBucketEntries = ConstU32<256>;
 }
+
+// === The Cerulea collections module ===
+// The collections module holds the privacy class of every collection. A
+// class change rewrites every record into the new form in pages and
+// rotates the content key.
+impl pallet_cerulea_collections::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_collections::weights::CeruleaWeight<Runtime>;
+    type Schema = crate::Schema;
+    type Records = crate::State;
+    type MaxRecordsPerPage = ConstU32<64>;
+    type MaxKeyHolders = ConstU32<64>;
+    type MaxWrappedKeyBytes = ConstU32<128>;
+    type MaxPayloadBytes = ConstU32<65536>;
+}

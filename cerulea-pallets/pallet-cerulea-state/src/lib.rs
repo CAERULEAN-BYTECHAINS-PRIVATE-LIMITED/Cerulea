@@ -137,6 +137,17 @@ pub trait RecordStore {
     /// The record keys of one collection, in canonical key order.
     fn keys(deployment: &DeploymentId, collection: &CollectionId, limit: u32) -> Vec<RecordKey>;
 
+    /// The record keys of one collection that sort above a cursor.
+    ///
+    /// A caller that walks a whole collection across several calls passes
+    /// the last key it handled as the cursor.
+    fn keys_after(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        cursor: Option<&RecordKey>,
+        limit: u32,
+    ) -> Vec<RecordKey>;
+
     /// The records a key range reaches, in canonical key order.
     fn range(
         deployment: &DeploymentId,
@@ -978,6 +989,29 @@ impl<T: Config> Pallet<T> {
         found
     }
 
+    /// The record keys of one collection that sort above a cursor.
+    pub fn record_keys_after(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        cursor: Option<&RecordKey>,
+        limit: u32,
+    ) -> Vec<RecordKey> {
+        let slot = match Self::storage_key(deployment, collection) {
+            Ok(held) => held,
+            Err(_) => return Vec::new(),
+        };
+        let ceiling = limit.min(T::MaxRangeRead::get()) as usize;
+        let mut found: Vec<RecordKey> = KeyOrder::<T>::iter_key_prefix(&slot)
+            .filter(|key| match cursor {
+                Some(held) => key > held,
+                None => true,
+            })
+            .collect();
+        found.sort();
+        found.truncate(ceiling);
+        found
+    }
+
     /// The records a key range reaches, in canonical key order.
     pub fn range_read(
         deployment: &DeploymentId,
@@ -1159,6 +1193,15 @@ impl<T: Config> RecordStore for Pallet<T> {
 
     fn keys(deployment: &DeploymentId, collection: &CollectionId, limit: u32) -> Vec<RecordKey> {
         Pallet::<T>::record_keys(deployment, collection, limit)
+    }
+
+    fn keys_after(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        cursor: Option<&RecordKey>,
+        limit: u32,
+    ) -> Vec<RecordKey> {
+        Pallet::<T>::record_keys_after(deployment, collection, cursor, limit)
     }
 
     fn range(

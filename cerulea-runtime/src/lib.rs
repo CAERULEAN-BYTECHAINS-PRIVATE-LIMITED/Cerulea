@@ -230,6 +230,9 @@ mod runtime {
     #[runtime::pallet_index(12)]
     pub type State = pallet_cerulea_state::Pallet<Runtime>;
 
+    #[runtime::pallet_index(13)]
+    pub type Collections = pallet_cerulea_collections::Pallet<Runtime>;
+
     #[runtime::pallet_index(27)]
     pub type Custody = pallet_cerulea_custody::Pallet<Runtime>;
 }
