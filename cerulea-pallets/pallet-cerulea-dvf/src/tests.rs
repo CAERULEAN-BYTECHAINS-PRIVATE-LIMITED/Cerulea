@@ -426,7 +426,7 @@ fn test_submit_justification_duplicate_validators() {
         vote1.validator_account.encode_to(&mut encoded_payload);
         
         let signature = alice_pair.sign(&encoded_payload);
-        vote1.signature = sp_runtime::MultiSignature::Sr25519(signature.clone());
+        vote1.signature = sp_runtime::MultiSignature::Sr25519(signature);
         
         let mut vote2 = vote1.clone();
         vote2.signature = sp_runtime::MultiSignature::Sr25519(signature);
@@ -656,7 +656,7 @@ fn test_genesis_weight_initialization_bug_condition() {
             );
             
             // Verify weight calculation is correct (stake * factor + score * factor with cap)
-            let expected_stake_weight = stake * 1; // StakeWeightFactor = 1
+            let expected_stake_weight = *stake; // StakeWeightFactor = 1
             let expected_score_weight = score * 100; // ScoreWeightFactor = 100
             let expected_total = expected_stake_weight + expected_score_weight;
             assert_eq!(
@@ -675,7 +675,7 @@ fn test_genesis_weight_initialization_bug_condition() {
         
         // Verify total weight is correct sum
         let expected_total: u128 = genesis_validators.iter()
-            .map(|(_, stake, score)| (stake * 1) + (score * 100))
+            .map(|(_, stake, score)| *stake + (score * 100))
             .sum();
         assert_eq!(
             total_weight, expected_total,
@@ -808,7 +808,7 @@ fn test_preservation_epoch_transition_updates_weights() {
                 );
                 
                 // Verify weight calculation formula: stake * 1 + score * 100 (with cap)
-                let expected_stake_weight = stake * 1; // StakeWeightFactor = 1
+                let expected_stake_weight = *stake; // StakeWeightFactor = 1
                 let expected_score_weight = score * 100; // ScoreWeightFactor = 100
                 let expected_total = expected_stake_weight + expected_score_weight;
                 
@@ -823,7 +823,7 @@ fn test_preservation_epoch_transition_updates_weights() {
             // Verify TotalVotingWeight is calculated correctly
             let total_weight = crate::TotalVotingWeight::<Test>::get();
             let expected_total: u128 = validators.iter()
-                .map(|(_, stake, score)| (stake * 1) + (score * 100))
+                .map(|(_, stake, score)| *stake + (score * 100))
                 .sum();
             
             assert_eq!(
@@ -853,7 +853,7 @@ fn test_preservation_weight_calculation_formula() {
             (5_000_000u128, 80u128, 5_000_000 + 8_000),      // Normal case
             (10_000_000u128, 100u128, 10_000_000 + 10_000),  // Max score
             (100_000u128, 1000u128, 100_000 + 100_000),      // Score capped at 100_000
-            (0u128, 80u128, 0 + 8_000),                      // Zero stake
+            (0u128, 80u128, 8_000),                      // Zero stake
         ];
         
         for (i, (stake, score, expected_weight)) in test_cases.iter().enumerate() {
@@ -1068,7 +1068,7 @@ fn test_preservation_multiple_epoch_transitions() {
                 epoch
             );
             
-            let expected_weight = (10_000_000 * 1) + (80 * 100);
+            let expected_weight = 10_000_000 + (80 * 100);
             assert_eq!(
                 alice_weight.unwrap(),
                 expected_weight,
@@ -1108,7 +1108,7 @@ fn test_preservation_weight_recalculation_on_changes() {
         Dvf::freeze_epoch_weights(1, &validators_epoch1);
         
         let alice_weight_epoch1 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
-        let expected_alice_epoch1 = (5_000_000 * 1) + (70 * 100);
+        let expected_alice_epoch1 = 5_000_000 + (70 * 100);
         assert_eq!(
             alice_weight_epoch1,
             expected_alice_epoch1,
@@ -1124,7 +1124,7 @@ fn test_preservation_weight_recalculation_on_changes() {
         Dvf::freeze_epoch_weights(2, &validators_epoch2);
         
         let alice_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
-        let expected_alice_epoch2 = (8_000_000 * 1) + (90 * 100);
+        let expected_alice_epoch2 = 8_000_000 + (90 * 100);
         assert_eq!(
             alice_weight_epoch2,
             expected_alice_epoch2,
@@ -1132,7 +1132,7 @@ fn test_preservation_weight_recalculation_on_changes() {
         );
         
         let bob_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
-        let expected_bob_epoch2 = (2_000_000 * 1) + (50 * 100);
+        let expected_bob_epoch2 = 2_000_000 + (50 * 100);
         assert_eq!(
             bob_weight_epoch2,
             expected_bob_epoch2,
@@ -1239,7 +1239,7 @@ fn test_genesis_five_validators() {
             let weight = crate::EpochVotingWeight::<Test>::get(&validator);
             assert!(weight.is_some(), "Validator should have a weight");
             
-            let expected_weight = (stake * 1) + (score * 100);
+            let expected_weight = stake + (score * 100);
             assert_eq!(weight.unwrap(), expected_weight, "Weight should match formula");
         }
         
@@ -1280,7 +1280,7 @@ fn test_genesis_ten_validators() {
             let weight = crate::EpochVotingWeight::<Test>::get(&validator);
             assert!(weight.is_some(), "Validator should have a weight");
             
-            let expected_weight = (stake * 1) + (score * 100);
+            let expected_weight = stake + (score * 100);
             assert_eq!(weight.unwrap(), expected_weight, "Weight should match formula");
         }
         
@@ -1350,7 +1350,7 @@ fn test_genesis_calls_freeze_epoch_weights() {
         assert!(alice_weight.is_some(), "freeze_epoch_weights should have been called at genesis");
         
         // Verify the weight calculation matches freeze_epoch_weights logic
-        let expected_weight = (1000 * 1) + (80 * 100); // stake * factor + score * factor
+        let expected_weight = 1000 + (80 * 100); // stake * factor + score * factor
         assert_eq!(alice_weight.unwrap(), expected_weight, "Weight should match freeze_epoch_weights calculation");
     });
 }

@@ -1,19 +1,19 @@
 # pallet-cerulea-poi
 
-A Substrate pallet implementing Proof-of-Inference (PoI) consensus for the Cerulea, enabling decentralized validation of AI/ML inference results through a challenge-based mechanism.
+A Substrate pallet implementing inference (PoI) consensus for the Cerulea, enabling decentralized validation of AI/ML inference results through a challenge-based mechanism.
 
 ## Overview
 
-The PoI pallet provides the Proof of Inference functionality for Cerulea, handling inference submission, validation, and challenge mechanisms. It integrates with the DCF pallet to provide the inference component of the hybrid consensus system.
+The PoI pallet provides the inference functionality for Cerulea, handling inference submission, validation, and challenge mechanisms. It integrates with the DCF pallet to provide the inference component of the hybrid consensus system.
 
 ## Key Features
 
 - **Inference Management**: Store and validate inference submissions with confidence scores
 - **Challenge System**: Handle disputes between validators through challenge mechanisms
 - **Epoch Control**: Manage epoch transitions and validity windows for results
-- **PoS Integration**: Seamless integration with Proof of Stake system for scoring
+- **PoS Integration**: Seamless integration with stake system for scoring
 
-## Configuration
+## Settings
 
 ```rust
 #[pallet::config]
@@ -129,7 +129,7 @@ sp_api::decl_runtime_apis! {
 }
 ```
 
-## Genesis Configuration
+## Genesis Settings
 
 ```rust
 #[pallet::genesis_config]
