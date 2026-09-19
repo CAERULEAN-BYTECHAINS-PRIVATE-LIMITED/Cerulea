@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author = "Caerulean ByteChains Private Limited",
     version = env!("CARGO_PKG_VERSION")
 )]
-pub struct Cli {
+pub struct NodeCommand {
     #[command(subcommand)]
     pub subcommand: Option<Subcommand>,
 
