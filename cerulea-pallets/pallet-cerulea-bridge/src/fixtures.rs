@@ -591,12 +591,8 @@ pub fn polkadot_side(envelope: &MessageEnvelope, base: Checkpoint) -> Prepared {
         trie.insert(b"cerulea.bridge.other", &[9u8; 32])
             .expect("the trie takes the entry");
     }
-    let nodes = sp_trie::generate_trie_proof::<LayoutV1<BlakeTwo256>, _, _, _>(
-        &db,
-        root,
-        [&key],
-    )
-    .expect("the trie proof builds");
+    let nodes = sp_trie::generate_trie_proof::<LayoutV1<BlakeTwo256>, _, _, _>(&db, root, [&key])
+        .expect("the trie proof builds");
 
     let number = u32::try_from(base.height.saturating_add(1)).expect("the number fits");
     let header = polkadot::encode_header(
