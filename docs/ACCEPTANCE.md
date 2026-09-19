@@ -517,6 +517,12 @@ same three lines, at the same file. Every repeat is recorded at
 The suite that the acceptance command reaches after the chain scope was
 therefore run on its own, and it passes.
 
+One note on that run. The suite passed, then `rustfmt` ran over the file so it
+answers the format gate, which rewrapped a block of arguments and reordered one
+import. The confirming run after that pass sat behind two other cargo runs on
+the build lock when this document was written. The change carries no statement
+and no expression of its own.
+
 The acceptance suite itself passes on its own, in 17.44 seconds:
 
     running 9 tests
