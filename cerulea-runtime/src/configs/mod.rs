@@ -357,11 +357,60 @@ impl pallet_cerulea_dcf::Config for Runtime {
 impl pallet_cerulea_schema::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cerulea_schema::weights::CeruleaWeight<Runtime>;
-    type Records = ();
+    type Records = crate::State;
     type MaxTypesPerDeployment = ConstU32<512>;
     type MaxCollectionsPerDeployment = ConstU32<512>;
     type MaxDefinitionBytes = ConstU32<262144>;
     type MaxMigrationBytes = ConstU32<262144>;
     type MaxVersionsPerCollection = ConstU32<256>;
     type MigrationStepLimit = ConstU64<1000000>;
+}
+
+
+// === Cerulea Custody Engine ===
+// The Custody Engine verifies continuously that every validator holds the
+// complete history and serves that history on demand.
+
+/// The validator set the Custody Engine draws its challenges against.
+///
+/// Every node reads the same active set from the stake pallet, so every node
+/// derives the same challenge.
+pub struct CustodyCandidates;
+
+impl pallet_cerulea_custody::CustodyValidators<AccountId> for CustodyCandidates {
+    fn custody_candidates() -> sp_runtime::Vec<AccountId> {
+        pallet_cerulea_pos::Pallet::<Runtime>::get_active_validators()
+    }
+}
+
+impl pallet_cerulea_custody::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Validators = CustodyCandidates;
+    // The framework pallet holds the Trust Score, so the custody share lands
+    // there.
+    type Standing = pallet_cerulea_dcf::Pallet<Runtime>;
+    // A challenge every ten blocks keeps the sampling steady while the message
+    // volume stays low.
+    type ChallengeInterval = ConstU32<10>;
+    // Three blocks close faster than a network fetch and a proof rebuild
+    // complete.
+    type DeadlineBlocks = ConstU32<3>;
+    type MaxRecordsPerBlock = ConstU32<1024>;
+    type MaxOpenChallenges = ConstU32<64>;
+}
+
+// === The Cerulea state module ===
+// The state module is the universal typed store. Every write resolves
+// permission, validates against the registered schema, writes the record
+// and maintains every declared index. The permission module joins the
+// runtime later, so the resolver refuses every request until it does.
+impl pallet_cerulea_state::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_state::weights::CeruleaWeight<Runtime>;
+    type Schema = crate::Schema;
+    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Time = crate::Timestamp;
+    type MaxRecordSize = ConstU32<65536>;
+    type MaxRangeRead = ConstU32<1024>;
+    type MaxRecordsPerCollection = ConstU32<1048576>;
 }

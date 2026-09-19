@@ -25,6 +25,7 @@
 
 extern crate alloc;
 
+pub mod access;
 pub mod migrate;
 pub mod primitives;
 pub mod registry;
@@ -38,6 +39,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub use access::{
+    AccessAction, AccessDenial, AccessGrant, AccessRequest, DeniedByDefault, PermissionGate,
+};
 pub use pallet::*;
 pub use registry::{SchemaRegistrar, SchemaRegistry, SchemaSnapshot};
 pub use weights::WeightInfo;

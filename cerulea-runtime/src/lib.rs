@@ -226,6 +226,12 @@ mod runtime {
 
     #[runtime::pallet_index(11)]
     pub type Schema = pallet_cerulea_schema::Pallet<Runtime>;
+
+    #[runtime::pallet_index(12)]
+    pub type State = pallet_cerulea_state::Pallet<Runtime>;
+
+    #[runtime::pallet_index(27)]
+    pub type Custody = pallet_cerulea_custody::Pallet<Runtime>;
 }
 use sp_runtime::traits::parameter_types;
 
