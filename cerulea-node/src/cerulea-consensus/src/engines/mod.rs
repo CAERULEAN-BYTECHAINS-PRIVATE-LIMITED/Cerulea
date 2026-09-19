@@ -907,6 +907,28 @@ pub enum EngineError {
         position: usize,
     },
 
+    /// A commit submission carried more bytes than the limit allows.
+    #[error(
+        "The commit submission carries {bytes} bytes and the limit is {limit}.          Fix: send one aggregate for one block rather than a joined message."
+    )]
+    SubmissionTooLarge {
+        /// The bytes the submission carried.
+        bytes: usize,
+        /// The highest number of bytes one submission carries.
+        limit: usize,
+    },
+
+    /// A commit submission named more signatures than the limit allows.
+    #[error(
+        "The commit submission names {count} signatures and the limit is {limit}.          Fix: send one aggregate built from the validator set of that slot."
+    )]
+    SubmissionCountAboveLimit {
+        /// The number of signatures the submission named.
+        count: usize,
+        /// The highest number of signatures one submission carries.
+        limit: usize,
+    },
+
     /// The eligible validator set held no members.
     #[error(
         "The eligible validator set holds no members. \

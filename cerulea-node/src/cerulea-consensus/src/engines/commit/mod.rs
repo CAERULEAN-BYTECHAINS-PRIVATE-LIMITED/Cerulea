@@ -12,8 +12,15 @@
 
 pub mod aggregate;
 pub mod collect;
+#[allow(clippy::module_inception)]
+pub mod commit;
 
 pub use aggregate::{AggregateSignature, SignerBitmap, SCHEME_ENVELOPE_V1};
+pub use commit::{
+    crosses, DomainCommitment, DomainCommitter, ThresholdTable, THRESHOLD_FLOOR_PERCENT,
+};
+
+
 pub use collect::{
     cast_vote, check_vote, vote_payload, CommitVote, SignatureCollector, VoteAdmission,
 };
