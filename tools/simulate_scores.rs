@@ -1,6 +1,6 @@
-use std::fs::File;
 use rand::Rng;
 use serde::Serialize;
+use std::fs::File;
 
 // Constants
 const DEFAULT_EPOCHS: u32 = 10;
@@ -79,7 +79,7 @@ impl Validator {
             poi_score: rand::thread_rng().gen_range(1000..2000),
             final_score: 0,
         };
-        
+
         Self {
             id,
             behavior,
@@ -97,31 +97,35 @@ impl Validator {
         // Apply score decay
         self.scores.pos_score = self.scores.pos_score.saturating_sub(config.score_decay);
         self.scores.poi_score = self.scores.poi_score.saturating_sub(config.score_decay);
-        
+
         // Calculate final score
-        self.scores.final_score = (self.scores.pos_score * config.pos_weight 
-            + self.scores.poi_score * config.poi_weight) / 100;
-        
+        self.scores.final_score = (self.scores.pos_score * config.pos_weight
+            + self.scores.poi_score * config.poi_weight)
+            / 100;
+
         // Ensure minimum score
         self.scores.final_score = self.scores.final_score.max(config.min_score);
     }
 }
 
-fn simulate_epoch(validators: &mut [Validator], config: &SimulationConfig) -> Vec<SimulationResult> {
+fn simulate_epoch(
+    validators: &mut [Validator],
+    config: &SimulationConfig,
+) -> Vec<SimulationResult> {
     let mut results = Vec::new();
     let mut rng = rand::thread_rng();
-    
+
     for validator in validators.iter_mut() {
         // Update scores
         validator.update_scores(config);
-        
+
         // Simulate participation
         if rng.gen_bool(config.participation_rate) {
             validator.participation += 1;
         } else {
             validator.missed_blocks += 1;
         }
-        
+
         // Simulate inference
         if rng.gen_bool(config.inference_accuracy) {
             validator.inference_success += 1;
@@ -130,19 +134,19 @@ fn simulate_epoch(validators: &mut [Validator], config: &SimulationConfig) -> Ve
             validator.inference_failure += 1;
             validator.scores.poi_score = validator.scores.poi_score.saturating_sub(50);
         }
-        
+
         // Simulate slashing
         if rng.gen_bool(config.slash_probability) {
             validator.scores.pos_score = validator.scores.pos_score.saturating_sub(500);
             validator.slashes += 1;
         }
-        
+
         // Simulate rewards
         if rng.gen_bool(config.reward_probability) {
             validator.scores.pos_score += 200;
             validator.rewards += 1;
         }
-        
+
         // Store results
         results.push(SimulationResult {
             epoch: 0,
@@ -158,7 +162,7 @@ fn simulate_epoch(validators: &mut [Validator], config: &SimulationConfig) -> Ve
             rewards: validator.rewards,
         });
     }
-    
+
     results
 }
 
@@ -210,12 +214,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for epoch in 1..=config.num_epochs {
         println!("\nEpoch {}", epoch);
         let mut results = simulate_epoch(&mut validators, &config);
-        
+
         // Update epoch number in results
         for result in results.iter_mut() {
             result.epoch = epoch;
         }
-        
+
         all_results.extend(results);
     }
 

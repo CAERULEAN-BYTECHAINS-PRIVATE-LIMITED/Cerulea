@@ -31,16 +31,16 @@ fn the_amendment_engine_publishes_eight_policy_records() {
 fn consensus_weight_parameters_work() {
     new_test_ext().execute_with(|| {
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
-        
+
         // Weights should be properly set
         assert!(pos_weight > 0);
         assert!(poi_weight > 0);
         assert_eq!(pos_weight + poi_weight, 10000); // Should sum to 100%
-        
+
         // Check against set defaults
         let default_pos = <Test as crate::Config>::DefaultPosWeight::get();
         let default_poi = <Test as crate::Config>::DefaultPoiWeight::get();
-        
+
         // Should match defaults initially
         assert_eq!(pos_weight, default_pos);
         assert_eq!(poi_weight, default_poi);
@@ -103,12 +103,12 @@ fn validator_set_size_parameters_work() {
     new_test_ext().execute_with(|| {
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
-        
+
         // Size parameters should be logical
         assert!(min_active > 0);
         assert!(max_validators >= min_active);
         assert!(max_validators <= 1000); // Reasonable upper bound
-        
+
         let active_validators = DcfPallet::active_validators();
         assert!(active_validators.len() >= min_active as usize);
         assert!(active_validators.len() <= max_validators as usize);
@@ -121,14 +121,17 @@ fn economic_parameters_work() {
     new_test_ext().execute_with(|| {
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         let validator_reward: u128 = <Test as pallet_cerulea_pos::Config>::ValidatorReward::get();
-        let slash_percent: u32 = <<Test as pallet_cerulea_pos::Config>::SlashPercent as frame_support::traits::Get<u32>>::get();
-        
+        let slash_percent: u32 =
+            <<Test as pallet_cerulea_pos::Config>::SlashPercent as frame_support::traits::Get<
+                u32,
+            >>::get();
+
         // Economic parameters should be reasonable
         assert!(min_stake > 0);
         assert!(validator_reward > 0);
         assert!(slash_percent > 0);
         assert!(slash_percent <= 100); // Can't slash more than 100%
-        
+
         // Check against active validator stakes
         let active_validators = DcfPallet::active_validators();
         for validator in &active_validators {
@@ -146,13 +149,13 @@ fn trust_score_configuration_parameters_work() {
         let inference_weight: u64 = <Test as crate::Config>::TrustScoreInferenceWeight::get();
         let slashing_weight: u64 = <Test as crate::Config>::TrustScoreSlashingWeight::get();
         let max_trust_score: u64 = <Test as crate::Config>::MaxTrustScore::get();
-        
+
         // Trust score weights should be set
         assert!(uptime_weight > 0);
         assert!(inference_weight > 0);
         assert!(slashing_weight > 0);
         assert!(max_trust_score > 0);
-        
+
         // Weights should sum to a reasonable total
         let total_weight = uptime_weight + inference_weight + slashing_weight;
         assert!(total_weight <= 10000); // Should not exceed 100%
@@ -167,13 +170,13 @@ fn performance_threshold_parameters_work() {
         let high_perf_score: u64 = <<Test as pallet_cerulea_pos::Config>::HighPerformanceScore as frame_support::traits::Get<u64>>::get();
         let min_participation: u32 = <Test as crate::Config>::MinParticipationRate::get();
         let high_participation: u32 = <Test as crate::Config>::HighParticipationRate::get();
-        
+
         // Performance thresholds should be logical
         assert!(min_perf_score < high_perf_score);
         assert!(min_participation < high_participation);
         assert!(min_participation <= 100);
         assert!(high_participation <= 100);
-        
+
         // Should be within reasonable ranges
         assert!(min_perf_score > 0);
         assert!(high_perf_score < 100);
@@ -185,9 +188,12 @@ fn performance_threshold_parameters_work() {
 #[test]
 fn cooldown_period_parameters_work() {
     new_test_ext().execute_with(|| {
-        let leave_cooldown: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
+        let leave_cooldown: u32 =
+            <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<
+                u32,
+            >>::get();
         let max_inactive_epochs: u32 = <Test as crate::Config>::MaxInactiveEpochs::get();
-        
+
         // Cooldown parameters should be reasonable
         assert!(leave_cooldown > 0);
         assert!(leave_cooldown < 1_000_000); // Not too long
@@ -201,14 +207,16 @@ fn cooldown_period_parameters_work() {
 fn reward_distribution_parameters_work() {
     new_test_ext().execute_with(|| {
         let base_reward_pct: u32 = <Test as crate::Config>::BaseRewardPercentage::get();
-        let performance_reward_pct: u32 = <Test as crate::Config>::PerformanceRewardPercentage::get();
-        let top_performer_reward_pct: u32 = <Test as crate::Config>::TopPerformerRewardPercentage::get();
-        
+        let performance_reward_pct: u32 =
+            <Test as crate::Config>::PerformanceRewardPercentage::get();
+        let top_performer_reward_pct: u32 =
+            <Test as crate::Config>::TopPerformerRewardPercentage::get();
+
         // Reward percentages should be logical
         assert!(base_reward_pct > 0);
         assert!(performance_reward_pct > 0);
         assert!(top_performer_reward_pct > 0);
-        
+
         // Should sum to 100% or less
         let total_pct = base_reward_pct + performance_reward_pct + top_performer_reward_pct;
         assert!(total_pct <= 100);
@@ -220,14 +228,15 @@ fn reward_distribution_parameters_work() {
 fn interval_timing_parameters_work() {
     new_test_ext().execute_with(|| {
         let score_decay_interval: u32 = <Test as crate::Config>::ScoreDecayInterval::get();
-        let participation_update_interval: u32 = <Test as crate::Config>::ParticipationUpdateInterval::get();
+        let participation_update_interval: u32 =
+            <Test as crate::Config>::ParticipationUpdateInterval::get();
         let health_metrics_interval: u32 = <Test as crate::Config>::HealthMetricsInterval::get();
-        
+
         // Intervals should be positive
         assert!(score_decay_interval > 0);
         assert!(participation_update_interval > 0);
         assert!(health_metrics_interval > 0);
-        
+
         // Should be reasonable relative to each other
         assert!(score_decay_interval <= participation_update_interval);
         assert!(participation_update_interval <= health_metrics_interval);
@@ -243,12 +252,12 @@ fn parameter_consistency_across_configuration_works() {
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        
+
         // Logical relationships should hold
         assert!(min_active <= max_validators);
         assert!(min_stake > 0);
         assert!(epoch_length > 0);
-        
+
         // Check against current state
         let current_validators = DcfPallet::active_validators();
         assert!(current_validators.len() >= min_active as usize);
@@ -264,7 +273,7 @@ fn parameter_bounds_and_limits_work() {
         let percentage_precision: u32 = <<Test as pallet_cerulea_poi::Config>::PercentagePrecision as frame_support::traits::Get<u32>>::get();
         let max_validator_name_length: u32 = <Test as crate::Config>::MaxValidatorNameLength::get();
         let max_evidence_length: u32 = <Test as crate::Config>::MaxEvidenceLength::get();
-        
+
         // Bounds should be reasonable
         assert!(percentage_precision > 0);
         assert!(percentage_precision >= 100); // Should allow percentage precision

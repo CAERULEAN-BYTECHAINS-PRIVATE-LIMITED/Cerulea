@@ -1,8 +1,8 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use frame_benchmarking::v2::*;
 use frame_benchmarking::account;
+use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 use sp_std::prelude::*;
 
@@ -32,10 +32,10 @@ mod benchmarks {
     fn submit_score() {
         let caller: T::AccountId = create_validator::<T>(0);
         let validator: T::AccountId = create_validator::<T>(1);
-        
+
         // Register the validator first
         Validators::<T>::insert(&validator, true);
-        
+
         let score = T::MinValidatorScore::get() + 10;
         let origin = RawOrigin::Signed(caller);
 
@@ -50,15 +50,15 @@ mod benchmarks {
     fn slash_validator() {
         let caller: T::AccountId = create_validator::<T>(0);
         let validator: T::AccountId = create_validator::<T>(1);
-        
+
         // Register the validator first
         Validators::<T>::insert(&validator, true);
         ValidatorScores::<T>::insert(&validator, 100);
-        
+
         // Set initial slashing count
         let initial_count = T::MaxSlashingCount::get() - 1;
         SlashingCount::<T>::insert(&validator, initial_count);
-        
+
         let origin = RawOrigin::Signed(caller);
 
         #[extrinsic_call]
@@ -74,11 +74,11 @@ mod benchmarks {
     #[benchmark]
     fn boost_score() {
         let validator: T::AccountId = create_validator::<T>(0);
-        
+
         // Register the validator first
         Validators::<T>::insert(&validator, true);
         ValidatorScores::<T>::insert(&validator, 50);
-        
+
         let weight = 10u32;
 
         #[block]
@@ -95,11 +95,11 @@ mod benchmarks {
     #[benchmark]
     fn slash_score() {
         let validator: T::AccountId = create_validator::<T>(0);
-        
+
         // Register the validator first
         Validators::<T>::insert(&validator, true);
         ValidatorScores::<T>::insert(&validator, 100);
-        
+
         let weight = 10u32;
 
         #[block]
@@ -131,10 +131,10 @@ mod benchmarks {
     fn unbond_stake() {
         let caller: T::AccountId = create_validator::<T>(0);
         let amount = T::MinStake::get();
-        
+
         // First bond some stake
         ValidatorStakes::<T>::insert(&caller, amount * 2u32.into());
-        
+
         let origin = RawOrigin::Signed(caller.clone());
 
         #[extrinsic_call]
@@ -145,9 +145,5 @@ mod benchmarks {
         assert_eq!(remaining_stake, amount);
     }
 
-    impl_benchmark_test_suite!(
-        Pallet,
-        crate::mock::new_test_ext(),
-        crate::mock::Test
-    );
-} 
+    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+}

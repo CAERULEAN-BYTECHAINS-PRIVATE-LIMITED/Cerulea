@@ -1,5 +1,5 @@
 //! Dev Mode Integration Tests
-//! 
+//!
 //! This module contains integration tests that verify the Cerulea node operates correctly
 //! in development mode. These tests validate:
 //! - Node start values for dev mode
@@ -7,8 +7,8 @@
 //! - Test infrastructure for dev mode testing
 //! - Mock dev mode scenarios
 
-use std::time::Duration;
 use std::process::Command;
+use std::time::Duration;
 use tempfile::TempDir;
 
 /// Start values for dev mode testing
@@ -49,7 +49,7 @@ impl DevModeTestConfig {
     pub fn new_with_unique_ports() -> Self {
         use std::sync::atomic::{AtomicU16, Ordering};
         static PORT_COUNTER: AtomicU16 = AtomicU16::new(9950);
-        
+
         let base_port = PORT_COUNTER.fetch_add(10, Ordering::SeqCst);
         Self {
             rpc_port: base_port,
@@ -57,7 +57,7 @@ impl DevModeTestConfig {
             ..Default::default()
         }
     }
-    
+
     /// Set up temporary directory for node data
     pub fn with_temp_dir(mut self) -> std::io::Result<Self> {
         let temp_dir = TempDir::new()?;
@@ -65,58 +65,56 @@ impl DevModeTestConfig {
         // Note: TempDir is dropped here, but the path is preserved for the test duration
         Ok(self)
     }
-    
+
     /// Enable or disable Cerulea extensions
     pub fn with_cerulea_extensions(mut self, enabled: bool) -> Self {
         self.enable_cerulea_extensions = enabled;
         self
     }
-    
+
     /// Set timeout values
     pub fn with_timeouts(mut self, startup: Duration, block: Duration) -> Self {
         self.startup_timeout = startup;
         self.block_timeout = block;
         self
     }
-    
+
     /// Set target number of blocks to produce
     pub fn with_target_blocks(mut self, blocks: u32) -> Self {
         self.target_blocks = blocks;
         self
     }
-    
+
     /// Generate command line arguments for starting the node
     pub fn generate_node_args(&self) -> Vec<String> {
-        let mut args = vec![
-            "--dev".to_string(),
-            "--tmp".to_string(),
-        ];
-        
+        let mut args = vec!["--dev".to_string(), "--tmp".to_string()];
+
         if let Some(ref temp_dir_path) = self.temp_dir_path {
             args.push(format!("--base-path={}", temp_dir_path));
         }
-        
+
         args.extend_from_slice(&[
             format!("--rpc-port={}", self.rpc_port),
             format!("--ws-port={}", self.ws_port),
             "--rpc-cors=all".to_string(),
             "--unsafe-rpc-external".to_string(),
             "--rpc-methods=unsafe".to_string(),
-            "--log=info,cerulea_node=debug,cerulea_consensus=debug,pallet_cerulea_dcf=debug".to_string(),
+            "--log=info,cerulea_node=debug,cerulea_consensus=debug,pallet_cerulea_dcf=debug"
+                .to_string(),
         ]);
-        
+
         if self.enable_cerulea_extensions {
             args.push("--enable-cerulea-extensions".to_string());
         }
-        
+
         args
     }
-    
+
     /// Get RPC URL for this start values
     pub fn rpc_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.rpc_port)
     }
-    
+
     /// Get WebSocket URL for this start values
     pub fn ws_url(&self) -> String {
         format!("ws://127.0.0.1:{}", self.ws_port)
@@ -141,66 +139,68 @@ impl MockDevModeNode {
             is_running: false,
         }
     }
-    
+
     /// Simulate starting the node
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         log::info!("Mock: Starting Cerulea node in dev mode");
         log::info!("Mock: Node start values: {:?}", self.config);
-        
+
         // Simulate startup delay
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         self.is_running = true;
         self.current_block = 1;
-        
-        log::info!("Mock: Node started successfully on port {}", self.config.rpc_port);
+
+        log::info!(
+            "Mock: Node started successfully on port {}",
+            self.config.rpc_port
+        );
         Ok(())
     }
-    
+
     /// Simulate block production
-    pub async fn produce_blocks(&mut self, target_blocks: u32) -> Result<u32, Box<dyn std::error::Error>> {
+    pub async fn produce_blocks(
+        &mut self,
+        target_blocks: u32,
+    ) -> Result<u32, Box<dyn std::error::Error>> {
         if !self.is_running {
             return Err("Node not running".into());
         }
-        
+
         log::info!("Mock: Producing {} blocks", target_blocks);
-        
+
         for _ in 0..target_blocks {
             tokio::time::sleep(Duration::from_millis(50)).await;
             self.current_block += 1;
-            
+
             // Simulate epoch transitions every 10 blocks
             if self.current_block % 10 == 0 {
                 self.current_epoch += 1;
                 log::info!("Mock: Epoch transition to epoch {}", self.current_epoch);
             }
-            
+
             log::info!("Mock: Block produced: #{}", self.current_block);
         }
-        
+
         Ok(self.current_block)
     }
-    
+
     /// Simulate RPC endpoint testing
     pub async fn test_rpc_endpoints(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         if !self.is_running {
             return Err("Node not running".into());
         }
-        
+
         let mut results = Vec::new();
-        
+
         // Simulate basic RPC endpoints
-        let basic_endpoints = vec![
-            "system_name",
-            "system_version", 
-            "chain_getHeader",
-        ];
-        
+        let basic_endpoints = vec!["system_name", "system_version", "chain_getHeader"];
+
         for endpoint in basic_endpoints {
             tokio::time::sleep(Duration::from_millis(10)).await;
             results.push(format!("✓ {}: SUCCESS", endpoint));
         }
-        
+
         // Simulate Cerulea RPC endpoints if enabled
         if self.config.enable_cerulea_extensions {
             let cerulea_endpoints = vec![
@@ -209,7 +209,7 @@ impl MockDevModeNode {
                 "cerulea_describe",
                 "cerulea_health",
             ];
-            
+
             for endpoint in cerulea_endpoints {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 results.push(format!("✓ {}: SUCCESS", endpoint));
@@ -217,25 +217,25 @@ impl MockDevModeNode {
         } else {
             results.push("ℹ Cerulea RPC endpoints skipped (extensions disabled)".to_string());
         }
-        
+
         Ok(results)
     }
-    
+
     /// Get current block number
     pub fn current_block(&self) -> u32 {
         self.current_block
     }
-    
+
     /// Get current epoch number
     pub fn current_epoch(&self) -> u32 {
         self.current_epoch
     }
-    
+
     /// Check if node is running
     pub fn is_running(&self) -> bool {
         self.is_running
     }
-    
+
     /// Stop the mock node
     pub fn stop(&mut self) {
         log::info!("Mock: Stopping Cerulea node");
@@ -250,14 +250,14 @@ impl MockDevModeNode {
 #[tokio::test]
 async fn test_dev_mode_node_startup() {
     env_logger::try_init().ok();
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
         .with_cerulea_extensions(true);
-    
+
     let mut node = MockDevModeNode::new(config);
-    
+
     // Test: Node starts successfully
     match node.start().await {
         Ok(()) => {
@@ -268,89 +268,102 @@ async fn test_dev_mode_node_startup() {
             panic!("✗ Node startup test FAILED: {}", e);
         }
     }
-    
+
     node.stop();
 }
 
 #[tokio::test]
 async fn test_dev_mode_block_production() {
     env_logger::try_init().ok();
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
         .with_target_blocks(5);
-    
+
     let mut node = MockDevModeNode::new(config.clone());
-    
+
     // Start node
     node.start().await.expect("Failed to start node");
-    
+
     // Test: Blocks are produced
     match node.produce_blocks(config.target_blocks).await {
         Ok(final_block) => {
-            log::info!("✓ Block production test PASSED - reached block #{}", final_block);
-            assert!(final_block >= config.target_blocks, "Should produce at least {} blocks", config.target_blocks);
+            log::info!(
+                "✓ Block production test PASSED - reached block #{}",
+                final_block
+            );
+            assert!(
+                final_block >= config.target_blocks,
+                "Should produce at least {} blocks",
+                config.target_blocks
+            );
             assert_eq!(final_block, config.target_blocks + 1); // +1 because we start at block 1
         }
         Err(e) => {
             panic!("✗ Block production test FAILED: {}", e);
         }
     }
-    
+
     node.stop();
 }
 
 #[tokio::test]
 async fn test_dev_mode_epoch_transitions() {
     env_logger::try_init().ok();
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
         .with_target_blocks(15); // Enough to trigger epoch transitions
-    
+
     let mut node = MockDevModeNode::new(config.clone());
-    
+
     // Start node
     node.start().await.expect("Failed to start node");
-    
+
     let initial_epoch = node.current_epoch();
-    
+
     // Produce enough blocks to trigger epoch transitions
-    node.produce_blocks(config.target_blocks).await.expect("Failed to produce blocks");
-    
+    node.produce_blocks(config.target_blocks)
+        .await
+        .expect("Failed to produce blocks");
+
     // Test: Epoch transitions occurred
     let final_epoch = node.current_epoch();
     assert!(final_epoch > initial_epoch, "Should have epoch transitions");
-    
-    log::info!("✓ Epoch transition test PASSED - epochs: {} -> {}", initial_epoch, final_epoch);
-    
+
+    log::info!(
+        "✓ Epoch transition test PASSED - epochs: {} -> {}",
+        initial_epoch,
+        final_epoch
+    );
+
     node.stop();
 }
 
 #[tokio::test]
 async fn test_dev_mode_rpc_endpoints() {
     env_logger::try_init().ok();
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
         .with_cerulea_extensions(true);
-    
+
     let mut node = MockDevModeNode::new(config);
-    
+
     // Start node
     node.start().await.expect("Failed to start node");
-    
+
     // Test: RPC endpoints respond
     match node.test_rpc_endpoints().await {
         Ok(results) => {
             log::info!("✓ RPC endpoints test completed");
-            
+
             let mut success_count = 0;
             let mut total_count = 0;
-            
+
             for result in &results {
                 if result.starts_with('✓') {
                     success_count += 1;
@@ -360,94 +373,122 @@ async fn test_dev_mode_rpc_endpoints() {
                 }
                 log::info!("  {}", result);
             }
-            
+
             // Should have both basic and Cerulea RPC endpoints working
-            assert!(success_count >= 6, "Should have at least 6 working RPC endpoints, got {}", success_count);
-            log::info!("✓ RPC endpoints test PASSED - {}/{} endpoints working", success_count, total_count);
+            assert!(
+                success_count >= 6,
+                "Should have at least 6 working RPC endpoints, got {}",
+                success_count
+            );
+            log::info!(
+                "✓ RPC endpoints test PASSED - {}/{} endpoints working",
+                success_count,
+                total_count
+            );
         }
         Err(e) => {
             panic!("✗ RPC endpoints test FAILED: {}", e);
         }
     }
-    
+
     node.stop();
 }
 
 #[tokio::test]
 async fn test_dev_mode_without_cerulea_extensions() {
     env_logger::try_init().ok();
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
-        .with_cerulea_extensions(false)  // Disable Cerulea extensions
+        .with_cerulea_extensions(false) // Disable Cerulea extensions
         .with_target_blocks(3);
-    
+
     let mut node = MockDevModeNode::new(config.clone());
-    
+
     // Start node
     node.start().await.expect("Failed to start node");
-    
+
     // Test: Node works without Cerulea extensions
     match node.produce_blocks(config.target_blocks).await {
         Ok(final_block) => {
-            log::info!("✓ Node without Cerulea extensions test PASSED - reached block #{}", final_block);
+            log::info!(
+                "✓ Node without Cerulea extensions test PASSED - reached block #{}",
+                final_block
+            );
         }
         Err(e) => {
             panic!("✗ Node without Cerulea extensions test FAILED: {}", e);
         }
     }
-    
+
     // Test: Cerulea RPC endpoints should not be available
-    let results = node.test_rpc_endpoints().await.expect("Failed to test RPC endpoints");
-    let has_cerulea_skip_message = results.iter()
+    let results = node
+        .test_rpc_endpoints()
+        .await
+        .expect("Failed to test RPC endpoints");
+    let has_cerulea_skip_message = results
+        .iter()
         .any(|r| r.contains("Cerulea RPC endpoints skipped"));
-    
-    assert!(has_cerulea_skip_message, "Should indicate Cerulea endpoints are skipped");
+
+    assert!(
+        has_cerulea_skip_message,
+        "Should indicate Cerulea endpoints are skipped"
+    );
     log::info!("✓ Cerulea RPC endpoints correctly unavailable when extensions disabled");
-    
+
     node.stop();
 }
 
 #[tokio::test]
 async fn test_comprehensive_dev_mode_functionality() {
     env_logger::try_init().ok();
-    
+
     log::info!("\n=== Comprehensive Dev Mode Integration Test ===");
-    
+
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
         .with_cerulea_extensions(true)
         .with_target_blocks(12); // Enough for epoch transitions
-    
+
     let mut node = MockDevModeNode::new(config.clone());
-    
+
     // Step 1: Start node
     log::info!("Step 1: Starting Cerulea node in dev mode...");
     node.start().await.expect("Failed to start node");
     assert!(node.is_running());
     log::info!("✓ Node started successfully");
-    
+
     // Step 2: Verify block production
     log::info!("Step 2: Verifying block production...");
     let initial_block = node.current_block();
-    let final_block = node.produce_blocks(config.target_blocks).await
+    let final_block = node
+        .produce_blocks(config.target_blocks)
+        .await
         .expect("Failed to produce blocks");
     assert!(final_block > initial_block);
-    log::info!("✓ Block production verified - reached block #{}", final_block);
-    
+    log::info!(
+        "✓ Block production verified - reached block #{}",
+        final_block
+    );
+
     // Step 3: Check epoch transitions
     log::info!("Step 3: Checking epoch transitions...");
     let final_epoch = node.current_epoch();
     assert!(final_epoch > 1, "Should have epoch transitions");
-    log::info!("✓ Epoch transitions verified - reached epoch {}", final_epoch);
-    
+    log::info!(
+        "✓ Epoch transitions verified - reached epoch {}",
+        final_epoch
+    );
+
     // Step 4: Test RPC endpoints
     log::info!("Step 4: Testing RPC endpoints...");
-    let rpc_results = node.test_rpc_endpoints().await
+    let rpc_results = node
+        .test_rpc_endpoints()
+        .await
         .expect("Failed to test RPC endpoints");
-    
+
     let mut rpc_success = 0;
     let mut rpc_total = 0;
     for result in &rpc_results {
@@ -458,33 +499,40 @@ async fn test_comprehensive_dev_mode_functionality() {
             rpc_total += 1;
         }
     }
-    
-    log::info!("✓ RPC endpoints tested - {}/{} working", rpc_success, rpc_total);
-    
+
+    log::info!(
+        "✓ RPC endpoints tested - {}/{} working",
+        rpc_success,
+        rpc_total
+    );
+
     // Step 5: Final validation
     log::info!("Step 5: Final validation...");
-    assert!(final_block >= config.target_blocks + 1, "Should produce required blocks");
+    assert!(
+        final_block >= config.target_blocks + 1,
+        "Should produce required blocks"
+    );
     assert!(rpc_success >= 6, "Should have working RPC endpoints");
     assert!(final_epoch > 1, "Should have epoch transitions");
-    
+
     log::info!("\nCOMPREHENSIVE DEV MODE TEST RESULTS:");
     log::info!("Node Startup: SUCCESS");
     log::info!("Block Production: {} blocks produced", final_block);
     log::info!("Epoch Transitions: {} epochs", final_epoch);
     log::info!("RPC Endpoints: {}/{} working", rpc_success, rpc_total);
     log::info!("Overall Status: ALL TESTS PASSED");
-    
+
     // Cleanup
     node.stop();
     assert!(!node.is_running());
-    
+
     log::info!("Dev mode integration test completed successfully!");
 }
 
 #[tokio::test]
 async fn test_dev_mode_configuration_validation() {
     env_logger::try_init().ok();
-    
+
     // Test start values creation and validation
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
@@ -492,7 +540,7 @@ async fn test_dev_mode_configuration_validation() {
         .with_cerulea_extensions(true)
         .with_timeouts(Duration::from_secs(45), Duration::from_secs(90))
         .with_target_blocks(8);
-    
+
     // Validate start values
     assert!(config.rpc_port > 0);
     assert!(config.ws_port > 0);
@@ -500,7 +548,7 @@ async fn test_dev_mode_configuration_validation() {
     assert!(config.enable_cerulea_extensions);
     assert_eq!(config.target_blocks, 8);
     assert!(config.temp_dir_path.is_some());
-    
+
     // Test command line argument generation
     let args = config.generate_node_args();
     assert!(args.contains(&"--dev".to_string()));
@@ -508,13 +556,13 @@ async fn test_dev_mode_configuration_validation() {
     assert!(args.contains(&"--enable-cerulea-extensions".to_string()));
     assert!(args.iter().any(|arg| arg.starts_with("--rpc-port=")));
     assert!(args.iter().any(|arg| arg.starts_with("--ws-port=")));
-    
+
     // Test URL generation
     let rpc_url = config.rpc_url();
     let ws_url = config.ws_url();
     assert!(rpc_url.starts_with("http://127.0.0.1:"));
     assert!(ws_url.starts_with("ws://127.0.0.1:"));
-    
+
     log::info!("✓ Start values validation test PASSED");
     log::info!("  RPC URL: {}", rpc_url);
     log::info!("  WS URL: {}", ws_url);
@@ -537,7 +585,7 @@ pub fn check_node_binary() -> bool {
 /// Get available port for testing
 pub fn get_available_port() -> u16 {
     use std::net::TcpListener;
-    
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to port");
     let addr = listener.local_addr().expect("Failed to get local address");
     addr.port()
@@ -546,7 +594,7 @@ pub fn get_available_port() -> u16 {
 #[cfg(test)]
 mod helper_tests {
     use super::*;
-    
+
     #[test]
     fn test_config_creation() {
         let config = DevModeTestConfig::new_with_unique_ports();
@@ -554,34 +602,33 @@ mod helper_tests {
         assert!(config.ws_port > 0);
         assert_ne!(config.rpc_port, config.ws_port);
     }
-    
+
     #[test]
     fn test_config_builder() {
         let config = DevModeTestConfig::default()
             .with_cerulea_extensions(false)
             .with_target_blocks(10);
-        
+
         assert!(!config.enable_cerulea_extensions);
         assert_eq!(config.target_blocks, 10);
     }
-    
+
     #[test]
     fn test_port_availability() {
         let port = get_available_port();
         assert!(port > 1024);
         assert!(port < 65535);
     }
-    
+
     #[test]
     fn test_command_args_generation() {
-        let config = DevModeTestConfig::default()
-            .with_cerulea_extensions(true);
-        
+        let config = DevModeTestConfig::default().with_cerulea_extensions(true);
+
         let args = config.generate_node_args();
         assert!(args.contains(&"--dev".to_string()));
         assert!(args.contains(&"--enable-cerulea-extensions".to_string()));
     }
-    
+
     #[test]
     fn test_url_generation() {
         let config = DevModeTestConfig {
@@ -589,7 +636,7 @@ mod helper_tests {
             ws_port: 9945,
             ..Default::default()
         };
-        
+
         assert_eq!(config.rpc_url(), "http://127.0.0.1:9944");
         assert_eq!(config.ws_url(), "ws://127.0.0.1:9945");
     }

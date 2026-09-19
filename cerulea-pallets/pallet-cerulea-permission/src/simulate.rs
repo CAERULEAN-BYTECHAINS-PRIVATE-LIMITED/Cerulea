@@ -112,10 +112,7 @@ mod tests {
     fn record() -> Value {
         Value::record(
             TypeId::new("parcel"),
-            alloc::vec![(
-                FieldName::new("survey_number"),
-                Value::Text("12/3".into())
-            )],
+            alloc::vec![(FieldName::new("survey_number"), Value::Text("12/3".into()))],
         )
     }
 
@@ -147,10 +144,7 @@ mod tests {
 
     #[test]
     fn every_qualification_carries_a_label() {
-        assert_eq!(
-            field_label(&FieldQualification::EveryField),
-            "every field"
-        );
+        assert_eq!(field_label(&FieldQualification::EveryField), "every field");
         assert_eq!(
             field_label(&FieldQualification::Only(Vec::new())),
             "the named fields"

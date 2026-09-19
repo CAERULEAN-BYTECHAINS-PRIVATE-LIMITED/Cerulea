@@ -111,7 +111,10 @@ fn four_of_nine_down_halts_commitment_and_the_return_resumes_it() {
             }
         }
     }
-    assert!(withheld > 0, "the network held blocks back during the outage");
+    assert!(
+        withheld > 0,
+        "the network held blocks back during the outage"
+    );
 
     // Safety held. Nothing new committed while the outage lasted.
     for node in network.nodes.iter().filter(|node| node.reachable) {
@@ -143,7 +146,10 @@ fn four_of_nine_down_halts_commitment_and_the_return_resumes_it() {
         }
     }
 
-    assert!(resumed > 0, "commitment resumed once the validators returned");
+    assert!(
+        resumed > 0,
+        "commitment resumed once the validators returned"
+    );
     assert!(network.conflicting_commit().is_none());
 }
 

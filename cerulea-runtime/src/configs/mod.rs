@@ -25,23 +25,50 @@ use super::{
 };
 
 use crate::{
-    MinValidatorScore, MaxValidatorScore, MinActiveValidators, MaxSlashingCount,
-    MinInferenceConfidence, MaxInferenceAge, ChallengeWindow, InferenceReward, ChallengeReward,
-    // Performance thresholds
-    MinPerformanceScore, HighPerformanceScore, MinParticipationRate, HighParticipationRate,
-    MaxMissedBlocks, MaxMissedBlocksHigh, HealthyValidatorScore, HealthyParticipationRate, HealthyMissedBlocksMax,
-    // Score calculation thresholds
-    ScoreChangeThreshold, ScoreChangePercentage, ScoreImprovementThreshold, ScoreImprovementPercentage,
-    // Contribution balance thresholds
-    MaxPosContribution, MaxPoiContribution, ImbalanceWarningThreshold,
-    // Block processing intervals
-    LeaveRequestCheckInterval, MetricsUpdateInterval, ScoreRefreshInterval, DetailedLoggingInterval, ImbalanceCheckInterval,
-    // Validator set limits
-    TopValidatorsDisplayCount, HealthCheckSampleSize,
+    ChallengeReward,
+    ChallengeWindow,
+    DetailedLoggingInterval,
     // Percentage constants
-    FullPercentage, HighPerformancePercentage, TopPerformerPercentage,
+    FullPercentage,
+    HealthCheckSampleSize,
+    HealthyMissedBlocksMax,
+    HealthyParticipationRate,
+    HealthyValidatorScore,
+    HighParticipationRate,
+    HighPerformancePercentage,
+    HighPerformanceScore,
+    ImbalanceCheckInterval,
+    ImbalanceWarningThreshold,
+    InferenceReward,
+    // Block processing intervals
+    LeaveRequestCheckInterval,
     // Misbehavior reporting
-    MaxEvidenceLength, MisbehaviorSlashThreshold,
+    MaxEvidenceLength,
+    MaxInferenceAge,
+    MaxMissedBlocks,
+    MaxMissedBlocksHigh,
+    MaxPoiContribution,
+    // Contribution balance thresholds
+    MaxPosContribution,
+    MaxSlashingCount,
+    MaxValidatorScore,
+    MetricsUpdateInterval,
+    MinActiveValidators,
+    MinInferenceConfidence,
+    MinParticipationRate,
+    // Performance thresholds
+    MinPerformanceScore,
+    MinValidatorScore,
+    MisbehaviorSlashThreshold,
+    ScoreChangePercentage,
+    // Score calculation thresholds
+    ScoreChangeThreshold,
+    ScoreImprovementPercentage,
+    ScoreImprovementThreshold,
+    ScoreRefreshInterval,
+    TopPerformerPercentage,
+    // Validator set limits
+    TopValidatorsDisplayCount,
 };
 
 // === Constants ===
@@ -85,12 +112,12 @@ parameter_types! {
     pub const ProposalLifetime: u32 = 1000; // Blocks until proposal expires
     pub const MinProposalDeposit: Balance = 100_000;
     pub const MaxProposalsPerValidator: u32 = 5;
-    
+
     // Parameters for validator management
     pub const ValidatorUptimeRequirement: u32 = 90; // 90% uptime requirement
     pub const MaxMissedBlocksPerEpoch: u32 = 50;
     pub const InactivityEjectionBlocks: u32 = 1000;
-    
+
 
 }
 
@@ -158,7 +185,6 @@ impl pallet_sudo::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
-
 
 // === Cerulea POI Pallet Settings ===
 pub struct PosInterfaceImpl;
@@ -262,7 +288,6 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type BlockAuthorshipBoost = ConstU64<10>;
     type MissedBlockPenalty = ConstU64<5>;
 
-
     // Validator metadata limits
     type MaxValidatorNameLength = ConstU32<32>;
     type MaxValidatorWebsiteLength = ConstU32<64>;
@@ -304,20 +329,20 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type ScoreRefreshInterval = ScoreRefreshInterval;
     type DetailedLoggingInterval = DetailedLoggingInterval;
     type ImbalanceCheckInterval = ImbalanceCheckInterval;
-    
+
     // Validator set limits
     type TopValidatorsDisplayCount = TopValidatorsDisplayCount;
     type HealthCheckSampleSize = HealthCheckSampleSize;
-    
+
     // Percentage constants (TopPerformerPercentage is inherited from pos::Config)
     type FullPercentage = FullPercentage;
     type HighPerformancePercentage = HighPerformancePercentage;
-    
+
     // Reward distribution percentages
     type BaseRewardPercentage = ConstU32<60>; // 60% of rewards go to base pool
     type PerformanceRewardPercentage = ConstU32<25>; // 25% for high performers
     type TopPerformerRewardPercentage = ConstU32<15>; // 15% for top performers
-    
+
     // Misbehavior reporting settings
     type MaxEvidenceLength = MaxEvidenceLength;
     type MisbehaviorSlashThreshold = MisbehaviorSlashThreshold;
@@ -337,7 +362,7 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type TrustScoreInferenceWeight = ConstU64<4000>; // 40% weight for inference success
     type TrustScoreSlashingWeight = ConstU64<2000>; // 20% weight for slashing penalty
     type MaxTrustScore = ConstU64<10000>; // Maximum trust score (100.00%)
-    
+
     // Trust score bounds and stability parameters
     type MinTrustScore = ConstU64<1000>; // Minimum trust score (10.00%)
     type MaxTrustScoreGrowthRate = ConstU32<500>; // Maximum 5% growth per epoch
@@ -366,7 +391,6 @@ impl pallet_cerulea_schema::Config for Runtime {
     type MaxVersionsPerCollection = ConstU32<256>;
     type MigrationStepLimit = ConstU64<1000000>;
 }
-
 
 // === Cerulea Custody Engine ===
 // The Custody Engine verifies continuously that every validator holds the
@@ -614,7 +638,8 @@ impl pallet_cerulea_logic::TransitionSink for WorkflowTransitions {
             if instance.status != pallet_cerulea_workflow::InstanceStatus::Running {
                 continue;
             }
-            let from = alloc::string::String::from_utf8_lossy(instance.state.as_slice()).into_owned();
+            let from =
+                alloc::string::String::from_utf8_lossy(instance.state.as_slice()).into_owned();
             found = Some((id, from));
             break;
         }

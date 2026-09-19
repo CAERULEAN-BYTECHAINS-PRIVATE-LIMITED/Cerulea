@@ -1,18 +1,21 @@
 use crate::{
     benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
     chain_spec,
-    node_command::{NodeCommand, Subcommand, InfoCmd, HealthCmd, RuntimeUpgradeCmd, ForkCheckCmd, QueryAuthorsCmd, OutputFormat},
     fork_detection::ForkReport,
+    node_command::{
+        ForkCheckCmd, HealthCmd, InfoCmd, NodeCommand, OutputFormat, QueryAuthorsCmd,
+        RuntimeUpgradeCmd, Subcommand,
+    },
 };
 
+use cerulea_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use sc_cli::SubstrateCli;
-use cerulea_runtime::{Block, EXISTENTIAL_DEPOSIT};
-use sp_keyring::Ed25519Keyring;
 use serde_json::json;
+use sp_core::crypto::AccountId32;
+use sp_keyring::Ed25519Keyring;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sp_core::crypto::AccountId32;
 
 impl SubstrateCli for NodeCommand {
     fn impl_name() -> String {
@@ -45,7 +48,9 @@ impl SubstrateCli for NodeCommand {
             "" | "local" | "local_testnet" => Box::new(chain_spec::local_chain_spec()?),
             "multi_validator" => Box::new(chain_spec::multi_validator_chain_spec()?),
             "high_stake" => Box::new(chain_spec::high_stake_chain_spec()?),
-            path => Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
+            path => Box::new(chain_spec::ChainSpec::from_json_file(
+                std::path::PathBuf::from(path),
+            )?),
         })
     }
 }
@@ -55,9 +60,13 @@ pub fn run() -> sc_cli::Result<()> {
 
     // Log node startup information
     crate::logging::log_consensus_event(&format!(
-        "Starting Cerulea node version {} in {} mode", 
+        "Starting Cerulea node version {} in {} mode",
         env!("CARGO_PKG_VERSION"),
-        if entry.cerulea_mode == "production" { "production" } else { &entry.cerulea_mode }
+        if entry.cerulea_mode == "production" {
+            "production"
+        } else {
+            &entry.cerulea_mode
+        }
     ));
 
     match &entry.subcommand {
@@ -69,12 +78,12 @@ pub fn run() -> sc_cli::Result<()> {
                 cmd.amount, cmd.to
             );
             Ok(())
-        },
+        }
 
         Some(Subcommand::BuildSpec(cmd)) => {
             let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
-        },
+        }
 
         Some(Subcommand::CheckBlock(_))
         | Some(Subcommand::ImportBlocks(_))
@@ -82,12 +91,12 @@ pub fn run() -> sc_cli::Result<()> {
         | Some(Subcommand::ExportState(_))
         | Some(Subcommand::Revert(_)) => {
             Err("This subcommand is not supported in DCF-only mode (no import queue).".into())
-        },
+        }
 
         Some(Subcommand::PurgeChain(cmd)) => {
             let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run(config.database))
-        },
+        }
 
         Some(Subcommand::Benchmark(cmd)) => {
             let runner = entry.create_runner(cmd)?;
@@ -168,32 +177,22 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Machine(cmd) => cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()),
                 }
             })
-        },
+        }
 
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = entry.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
-        },
+        }
 
-        Some(Subcommand::Info(cmd)) => {
-            run_info_cmd(cmd, &entry)
-        },
+        Some(Subcommand::Info(cmd)) => run_info_cmd(cmd, &entry),
 
-        Some(Subcommand::Health(cmd)) => {
-            run_health_cmd(cmd, &entry)
-        },
+        Some(Subcommand::Health(cmd)) => run_health_cmd(cmd, &entry),
 
-        Some(Subcommand::RuntimeUpgrade(cmd)) => {
-            run_runtime_upgrade_cmd(cmd, &entry)
-        },
+        Some(Subcommand::RuntimeUpgrade(cmd)) => run_runtime_upgrade_cmd(cmd, &entry),
 
-        Some(Subcommand::ForkCheck(cmd)) => {
-            run_fork_check_cmd(cmd, &entry)
-        },
+        Some(Subcommand::ForkCheck(cmd)) => run_fork_check_cmd(cmd, &entry),
 
-        Some(Subcommand::QueryAuthors(cmd)) => {
-            run_query_authors_cmd(cmd, &entry)
-        },
+        Some(Subcommand::QueryAuthors(cmd)) => run_query_authors_cmd(cmd, &entry),
 
         None => {
             // Auto-generate the P2P network key before create_runner runs.
@@ -205,7 +204,6 @@ pub fn run() -> sc_cli::Result<()> {
 
             let runner = entry.create_runner(&entry.run)?;
             runner.run_node_until_exit(|config| async move {
-
                 let node_config = crate::service::NodeConfig {
                     rpc_config: crate::rpc::RpcSecurityConfig {
                         enable_cerulea_extensions: entry.enable_cerulea_extensions,
@@ -215,19 +213,24 @@ pub fn run() -> sc_cli::Result<()> {
                     },
                 };
                 match config.network.network_backend.unwrap_or_default() {
-                    sc_network::config::NetworkBackendType::Libp2p =>
+                    sc_network::config::NetworkBackendType::Libp2p => {
                         crate::service::new_full::<
                             sc_network::NetworkWorker<
                                 cerulea_runtime::opaque::Block,
                                 <cerulea_runtime::opaque::Block as sp_runtime::traits::Block>::Hash,
                             >,
-                        >(config, &node_config).map_err(sc_cli::Error::Service),
-                    sc_network::config::NetworkBackendType::Litep2p =>
-                        crate::service::new_full::<sc_network::Litep2pNetworkBackend>(config, &node_config)
-                            .map_err(sc_cli::Error::Service),
+                        >(config, &node_config)
+                        .map_err(sc_cli::Error::Service)
+                    }
+                    sc_network::config::NetworkBackendType::Litep2p => crate::service::new_full::<
+                        sc_network::Litep2pNetworkBackend,
+                    >(
+                        config, &node_config
+                    )
+                    .map_err(sc_cli::Error::Service),
                 }
             })
-        },
+        }
     }
 }
 
@@ -239,13 +242,13 @@ fn run_info_cmd(cmd: &InfoCmd, entry: &NodeCommand) -> sc_cli::Result<()> {
     let description = NodeCommand::description();
     let author = NodeCommand::author();
     let support_url = NodeCommand::support_url();
-    
+
     // Get system information
     let uptime = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    
+
     match cmd.format {
         OutputFormat::Json => {
             let info = json!({
@@ -263,7 +266,7 @@ fn run_info_cmd(cmd: &InfoCmd, entry: &NodeCommand) -> sc_cli::Result<()> {
                 "rate_limit_requests": entry.rpc_rate_limit_requests
             });
             println!("{}", serde_json::to_string_pretty(&info).unwrap());
-        },
+        }
         OutputFormat::Plain => {
             println!("Cerulea Node Information");
             println!("====================");
@@ -275,13 +278,16 @@ fn run_info_cmd(cmd: &InfoCmd, entry: &NodeCommand) -> sc_cli::Result<()> {
             println!("Support URL: {}", support_url);
             println!("Uptime: {} seconds", uptime);
             println!("Cerulea Mode: {}", entry.cerulea_mode);
-            println!("Cerulea Extensions Enabled: {}", entry.enable_cerulea_extensions);
+            println!(
+                "Cerulea Extensions Enabled: {}",
+                entry.enable_cerulea_extensions
+            );
             println!("Unsafe RPC Exposed: {}", entry.unsafe_rpc_expose);
             println!("Rate Limit Window: {} seconds", entry.rpc_rate_limit_window);
             println!("Rate Limit Requests: {}", entry.rpc_rate_limit_requests);
         }
     }
-    
+
     Ok(())
 }
 
@@ -293,10 +299,10 @@ fn run_health_cmd(cmd: &HealthCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
     // - Peer connections
     // - Database health
     // - Memory usage
-    
+
     let is_healthy = true; // Simplified for now
     let issues = Vec::<String>::new(); // No issues detected
-    
+
     match cmd.format {
         OutputFormat::Json => {
             let health = json!({
@@ -309,7 +315,7 @@ fn run_health_cmd(cmd: &HealthCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
                     .as_secs()
             });
             println!("{}", serde_json::to_string_pretty(&health).unwrap());
-        },
+        }
         OutputFormat::Plain => {
             if is_healthy {
                 println!("Node Status: HEALTHY");
@@ -321,7 +327,7 @@ fn run_health_cmd(cmd: &HealthCmd, _cli: &NodeCommand) -> sc_cli::Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -331,15 +337,14 @@ fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &NodeCommand) -> sc_cl
     if !cmd.wasm.exists() {
         return Err(format!("WASM file not found: {}", cmd.wasm.display()).into());
     }
-    
+
     // Read WASM file
-    let wasm_code = fs::read(&cmd.wasm)
-        .map_err(|e| format!("Failed to read WASM file: {}", e))?;
-    
+    let wasm_code = fs::read(&cmd.wasm).map_err(|e| format!("Failed to read WASM file: {}", e))?;
+
     if wasm_code.is_empty() {
         return Err("WASM file is empty".into());
     }
-    
+
     match cmd.format {
         OutputFormat::Json => {
             let result = json!({
@@ -350,7 +355,7 @@ fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &NodeCommand) -> sc_cl
                 "message": "Runtime upgrade prepared. In a full implementation, this would submit the upgrade transaction and poll for enactment."
             });
             println!("{}", serde_json::to_string_pretty(&result).unwrap());
-        },
+        }
         OutputFormat::Plain => {
             println!("Runtime Upgrade Prepared");
             println!("========================");
@@ -360,11 +365,14 @@ fn run_runtime_upgrade_cmd(cmd: &RuntimeUpgradeCmd, _cli: &NodeCommand) -> sc_cl
             println!();
             println!("Note: In a full implementation, this would:");
             println!("1. Submit the runtime upgrade transaction");
-            println!("2. Poll every {} seconds until enactment", cmd.poll_interval);
+            println!(
+                "2. Poll every {} seconds until enactment",
+                cmd.poll_interval
+            );
             println!("3. Verify the upgrade was successful");
         }
     }
-    
+
     Ok(())
 }
 
@@ -373,85 +381,85 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &NodeCommand) -> sc_cli::Result<
     if cmd.peer_rpc.is_empty() {
         return Err("At least one peer RPC endpoint must be provided".into());
     }
-    
+
     // Create a minimal runtime for the fork checker
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| format!("Failed to create async runtime: {}", e))?;
-    
+
     rt.block_on(async {
         // For node command usage, we use the standalone fork checker from tools
-        use jsonrpsee::{
-            core::client::ClientT,
-            http_client::HttpClientBuilder,
-            rpc_params,
-        };
+        use jsonrpsee::{core::client::ClientT, http_client::HttpClientBuilder, rpc_params};
         use std::time::Duration;
         use tokio::time::timeout;
-        
+
         let timeout_duration = Duration::from_secs(cmd.timeout);
         let mut fork_reports = Vec::new();
-        
+
         // Get local block info
         let local_client = HttpClientBuilder::default()
             .request_timeout(timeout_duration)
             .build(&cmd.local_rpc)
             .map_err(|e| format!("Failed to connect to local RPC: {}", e))?;
-        
+
         let local_header: serde_json::Value = timeout(
             timeout_duration,
-            local_client.request("chain_getHeader", rpc_params![])
-        ).await
+            local_client.request("chain_getHeader", rpc_params![]),
+        )
+        .await
         .map_err(|_| "Timeout connecting to local node")?
         .map_err(|e| format!("Failed to get local header: {}", e))?;
-        
+
         let local_number = local_header["number"]
             .as_str()
             .ok_or("Invalid local block number format")?;
         let local_number = u32::from_str_radix(local_number.trim_start_matches("0x"), 16)
             .map_err(|e| format!("Failed to parse local block number: {}", e))?;
-        
+
         // Check each peer
         for (index, peer_rpc) in cmd.peer_rpc.iter().enumerate() {
             match async {
                 let peer_client = HttpClientBuilder::default()
                     .request_timeout(timeout_duration)
                     .build(peer_rpc)?;
-                
+
                 let peer_header: serde_json::Value = timeout(
                     timeout_duration,
-                    peer_client.request("chain_getHeader", rpc_params![])
-                ).await??;
-                
+                    peer_client.request("chain_getHeader", rpc_params![]),
+                )
+                .await??;
+
                 let peer_number = peer_header["number"]
                     .as_str()
                     .ok_or_else(|| anyhow::anyhow!("Invalid peer block number format"))?;
                 let peer_number = u32::from_str_radix(peer_number.trim_start_matches("0x"), 16)?;
-                
+
                 Ok::<u32, anyhow::Error>(peer_number)
-            }.await {
+            }
+            .await
+            {
                 Ok(peer_number) => {
                     let divergence = if local_number > peer_number {
                         local_number - peer_number
                     } else {
                         peer_number - local_number
                     };
-                    
+
                     let peer_id = format!("peer-{}", index);
-                    
+
                     let report = ForkReport {
                         peer_id: peer_id.clone(),
                         local_best: local_number,
                         peer_best: peer_number,
                         divergence,
                     };
-                    
+
                     if divergence > cmd.threshold {
                         eprintln!(
                             "WARNING: Fork detected with {} - Local: {}, Peer: {}, Divergence: {}",
                             peer_id, local_number, peer_number, divergence
                         );
                     }
-                    
+
                     fork_reports.push(report);
                 }
                 Err(e) => {
@@ -459,31 +467,34 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &NodeCommand) -> sc_cli::Result<
                 }
             }
         }
-        
+
         // Output results
         match cmd.format {
             OutputFormat::Json => {
-                println!("{}", serde_json::to_string_pretty(&fork_reports)
-                    .map_err(|e| format!("Failed to serialize results: {}", e))?);
-            },
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&fork_reports)
+                        .map_err(|e| format!("Failed to serialize results: {}", e))?
+                );
+            }
             OutputFormat::Plain => {
                 println!("Fork Detection Report");
                 println!("====================");
                 println!("Threshold: {} blocks", cmd.threshold);
                 println!();
-                
+
                 if fork_reports.is_empty() {
                     println!("No peers checked.");
                     return Ok(());
                 }
-                
+
                 let mut has_forks = false;
                 for report in &fork_reports {
                     println!("Peer: {}", report.peer_id);
                     println!("  Local Best:  {}", report.local_best);
                     println!("  Peer Best:   {}", report.peer_best);
                     println!("  Divergence:  {}", report.divergence);
-                    
+
                     if report.divergence > cmd.threshold {
                         println!("  Status:      FORK DETECTED");
                         has_forks = true;
@@ -492,7 +503,7 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &NodeCommand) -> sc_cli::Result<
                     }
                     println!();
                 }
-                
+
                 if has_forks {
                     println!("WARNING: One or more forks detected!");
                 } else {
@@ -500,10 +511,10 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &NodeCommand) -> sc_cli::Result<
                 }
             }
         }
-        
+
         Ok::<(), sc_cli::Error>(())
     })?;
-    
+
     Ok(())
 }
 
@@ -512,24 +523,20 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
     // Create a minimal runtime for the query
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| format!("Failed to create async runtime: {}", e))?;
-    
+
     rt.block_on(async {
-        use jsonrpsee::{
-            core::client::ClientT,
-            http_client::HttpClientBuilder,
-            rpc_params,
-        };
+        use jsonrpsee::{core::client::ClientT, http_client::HttpClientBuilder, rpc_params};
         use std::time::Duration;
         use tokio::time::timeout;
-        
+
         let timeout_duration = Duration::from_secs(30);
-        
+
         // Connect to the RPC endpoint
         let client = HttpClientBuilder::default()
             .request_timeout(timeout_duration)
             .build(&cmd.rpc_url)
             .map_err(|e| format!("Failed to connect to RPC endpoint {}: {}", cmd.rpc_url, e))?;
-        
+
         // Get current block number if start_block is not specified
         let start_block = if let Some(start_block) = cmd.start_block {
             start_block
@@ -537,31 +544,38 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
             // Get current block header
             let header: serde_json::Value = timeout(
                 timeout_duration,
-                client.request("chain_getHeader", rpc_params![])
-            ).await
+                client.request("chain_getHeader", rpc_params![]),
+            )
+            .await
             .map_err(|_| "Timeout getting current block header")?
             .map_err(|e| format!("Failed to get current block header: {}", e))?;
-            
+
             let current_number = header["number"]
                 .as_str()
                 .ok_or("Invalid current block number format")?;
-            let current_number = u32::from_str_radix(current_number.trim_start_matches("0x"), 16)
-                .map_err(|e| format!("Failed to parse current block number: {}", e))?;
-            
+            let current_number =
+                u32::from_str_radix(current_number.trim_start_matches("0x"), 16)
+                    .map_err(|e| format!("Failed to parse current block number: {}", e))?;
+
             current_number + 1 // Start from next block
         };
-        
+
         // Query expected authors for the requested blocks
         let mut authors = Vec::new();
-        
+
         for i in 0..cmd.blocks {
             let block_number = start_block + i;
-            
+
             // Try to get expected author via DCF RPC (if available)
             match timeout(
                 timeout_duration,
-                client.request::<serde_json::Value, _>("dcf_getExpectedAuthor", rpc_params![block_number])
-            ).await {
+                client.request::<serde_json::Value, _>(
+                    "dcf_getExpectedAuthor",
+                    rpc_params![block_number],
+                ),
+            )
+            .await
+            {
                 Ok(Ok(author_result)) => {
                     if let Some(author_str) = author_result.as_str() {
                         // Parse the author string into AccountId
@@ -575,7 +589,7 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                             }
                         }
                     }
-                    
+
                     // If parsing failed, use a placeholder
                     let placeholder = AccountId32::from([0u8; 32]);
                     authors.push((block_number, placeholder));
@@ -591,11 +605,12 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                 }
             }
         }
-        
+
         // Format and output results
         match cmd.format {
             OutputFormat::Json => {
-                let json_authors: Vec<serde_json::Value> = authors.iter()
+                let json_authors: Vec<serde_json::Value> = authors
+                    .iter()
                     .map(|(block, author)| {
                         json!({
                             "block": block,
@@ -604,17 +619,20 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                         })
                     })
                     .collect();
-                
+
                 let result = json!({
                     "start_block": start_block,
                     "block_count": cmd.blocks,
                     "rpc_endpoint": cmd.rpc_url,
                     "authors": json_authors
                 });
-                
-                println!("{}", serde_json::to_string_pretty(&result)
-                    .map_err(|e| format!("Failed to serialize results: {}", e))?);
-            },
+
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&result)
+                        .map_err(|e| format!("Failed to serialize results: {}", e))?
+                );
+            }
             OutputFormat::Plain => {
                 println!("Upcoming Block Authors");
                 println!("======================");
@@ -622,11 +640,11 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                 println!("Start Block:  {}", start_block);
                 println!("Block Count:  {}", cmd.blocks);
                 println!();
-                
+
                 for (block, author) in &authors {
                     println!("Block {}: {:?}", block, author);
                 }
-                
+
                 if authors.is_empty() {
                     println!("No authors found.");
                 } else {
@@ -635,10 +653,10 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                 }
             }
         }
-        
+
         Ok::<(), sc_cli::Error>(())
     })?;
-    
+
     Ok(())
 }
 
@@ -690,7 +708,11 @@ fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
 
     if let Some(parent) = net_key_path.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
-            log::warn!("Cerulea: Could not create network key directory {:?}: {}", parent, e);
+            log::warn!(
+                "Cerulea: Could not create network key directory {:?}: {}",
+                parent,
+                e
+            );
             return;
         }
     }
@@ -708,7 +730,8 @@ fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
         ),
         Err(e) => log::warn!(
             "Cerulea: Failed to write network key to {:?}: {}",
-            net_key_path, e
+            net_key_path,
+            e
         ),
     }
 }

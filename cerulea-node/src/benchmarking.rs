@@ -4,10 +4,10 @@
 
 use crate::service::FullClient;
 
+use cerulea_runtime as runtime;
 use runtime::{AccountId, Balance, BalancesCall, SystemCall};
 use sc_cli::Result;
 use sc_client_api::BlockBackend;
-use cerulea_runtime as runtime;
 use sp_core::{Encode, Pair};
 use sp_inherents::{InherentData, InherentDataProvider};
 use sp_keyring::Ed25519Keyring;
@@ -78,7 +78,11 @@ impl TransferKeepAliveBuilder {
     /// * `dest` - The destination account ID.
     /// * `value` - The amount to transfer.
     pub fn new(client: Arc<FullClient>, dest: AccountId, value: Balance) -> Self {
-        Self { client, dest, value }
+        Self {
+            client,
+            dest,
+            value,
+        }
     }
 }
 
@@ -102,8 +106,11 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
         let extrinsic: OpaqueExtrinsic = create_benchmark_extrinsic(
             self.client.as_ref(),
             acc,
-            BalancesCall::transfer_keep_alive { dest: self.dest.clone().into(), value: self.value }
-                .into(),
+            BalancesCall::transfer_keep_alive {
+                dest: self.dest.clone().into(),
+                value: self.value,
+            }
+            .into(),
             nonce,
         )
         .into();
@@ -128,7 +135,11 @@ pub fn create_benchmark_extrinsic(
     call: runtime::RuntimeCall,
     nonce: u32,
 ) -> runtime::UncheckedExtrinsic {
-    let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
+    let genesis_hash = client
+        .block_hash(0)
+        .ok()
+        .flatten()
+        .expect("Genesis block exists; qed");
     let best_hash = client.chain_info().best_hash;
     let best_block = client.chain_info().best_number;
 

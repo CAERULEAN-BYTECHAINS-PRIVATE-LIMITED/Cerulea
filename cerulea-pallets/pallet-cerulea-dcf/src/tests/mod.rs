@@ -7,8 +7,8 @@
 
 // Basic functionality and integration tests
 pub mod integration_tests;
-pub mod system_integration_tests;
 pub mod runtime_api_integration_tests;
+pub mod system_integration_tests;
 
 // Validator lifecycle and management tests
 pub mod validator_lifecycle_edge_case_tests;
@@ -44,19 +44,19 @@ pub mod storage_migration_tests;
 pub mod trust_score_stability_tests;
 
 // Property and fuzz testing
-pub mod property_tests;
 pub mod comprehensive_property_tests;
+pub mod property_tests;
 
 // CI readiness and production tests
 pub mod ci_readiness_tests;
 pub mod production_readiness_tests;
 
 // Cross-pallet integration and workflow tests
-pub mod cross_pallet_integration_tests;
 pub mod consensus_invariant_tests;
+pub mod cross_pallet_integration_tests;
 pub mod end_to_end_workflow_tests;
-pub mod stress_tests;
 pub mod runtime_api_cross_pallet_tests;
+pub mod stress_tests;
 // Assurance Engine tests
 pub mod assurance_engine_tests;
 

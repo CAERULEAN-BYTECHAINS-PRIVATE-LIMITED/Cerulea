@@ -11,7 +11,15 @@ impl<AccountId> WeightFreezer<AccountId> for () {
 }
 
 /// Trait-friendly representation of a validator's state.
-#[derive(codec::Encode, codec::Decode, Clone, PartialEq, Eq, sp_runtime::RuntimeDebug, scale_info::TypeInfo)]
+#[derive(
+    codec::Encode,
+    codec::Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    sp_runtime::RuntimeDebug,
+    scale_info::TypeInfo,
+)]
 pub struct ValidatorState {
     pub last_active_epoch: u32,
     pub current: crate::EpochStats,
@@ -29,10 +37,12 @@ pub struct ValidatorState {
 pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     /// Returns a list of active validator account IDs.
     fn get_active_validators() -> alloc::vec::Vec<AccountId>;
-    
+
     /// Returns the profile of a specific validator.
-    fn get_validator_profile(validator: &AccountId) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>>;
-    
+    fn get_validator_profile(
+        validator: &AccountId,
+    ) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>>;
+
     /// Returns the status of a specific validator.
     fn get_validator_status(validator: &AccountId) -> Option<crate::ValidatorStatus>;
 
@@ -46,7 +56,10 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     fn is_validator_active(validator: &AccountId) -> bool;
 
     /// Ejects a validator from the active set for a given reason.
-    fn eject_validator(validator: &AccountId, reason: crate::EjectionReason) -> sp_runtime::DispatchResult;
+    fn eject_validator(
+        validator: &AccountId,
+        reason: crate::EjectionReason,
+    ) -> sp_runtime::DispatchResult;
 
     /// Returns the state of a specific validator.
     fn get_validator_state(validator: &AccountId) -> Option<ValidatorState>;
@@ -136,8 +149,13 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     fn remove_recently_removed_validator(validator: &AccountId);
 
     // Historical Performance & Metrics
-    fn get_validator_performance_history(validator: &AccountId) -> alloc::vec::Vec<crate::PerformanceRecord>;
-    fn set_validator_performance_history(validator: &AccountId, history: alloc::vec::Vec<crate::PerformanceRecord>);
+    fn get_validator_performance_history(
+        validator: &AccountId,
+    ) -> alloc::vec::Vec<crate::PerformanceRecord>;
+    fn set_validator_performance_history(
+        validator: &AccountId,
+        history: alloc::vec::Vec<crate::PerformanceRecord>,
+    );
     fn remove_validator_performance_history(validator: &AccountId);
     fn get_validator_last_seen(validator: &AccountId) -> u32;
     fn set_validator_last_seen(validator: &AccountId, val: u32);
@@ -151,15 +169,19 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
 }
 
 /// No-op implementation of ValidatorRegistryProvider for unit tests and dummy settings.
-impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balance, BlockNumber> for () {
+impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balance, BlockNumber>
+    for ()
+{
     fn get_active_validators() -> alloc::vec::Vec<AccountId> {
         alloc::vec::Vec::new()
     }
-    
-    fn get_validator_profile(_validator: &AccountId) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>> {
+
+    fn get_validator_profile(
+        _validator: &AccountId,
+    ) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>> {
         None
     }
-    
+
     fn get_validator_status(_validator: &AccountId) -> Option<crate::ValidatorStatus> {
         None
     }
@@ -174,7 +196,10 @@ impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balan
         false
     }
 
-    fn eject_validator(_validator: &AccountId, _reason: crate::EjectionReason) -> sp_runtime::DispatchResult {
+    fn eject_validator(
+        _validator: &AccountId,
+        _reason: crate::EjectionReason,
+    ) -> sp_runtime::DispatchResult {
         Ok(())
     }
 
@@ -242,18 +267,30 @@ impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balan
 
     fn remove_recently_removed_validator(_validator: &AccountId) {}
 
-    fn get_validator_performance_history(_validator: &AccountId) -> alloc::vec::Vec<crate::PerformanceRecord> {
+    fn get_validator_performance_history(
+        _validator: &AccountId,
+    ) -> alloc::vec::Vec<crate::PerformanceRecord> {
         alloc::vec::Vec::new()
     }
-    fn set_validator_performance_history(_validator: &AccountId, _history: alloc::vec::Vec<crate::PerformanceRecord>) {}
+    fn set_validator_performance_history(
+        _validator: &AccountId,
+        _history: alloc::vec::Vec<crate::PerformanceRecord>,
+    ) {
+    }
     fn remove_validator_performance_history(_validator: &AccountId) {}
-    fn get_validator_last_seen(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_last_seen(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_last_seen(_validator: &AccountId, _val: u32) {}
     fn remove_validator_last_seen(_validator: &AccountId) {}
-    fn get_validator_blocks_authored(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_blocks_authored(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_blocks_authored(_validator: &AccountId, _val: u32) {}
     fn remove_validator_blocks_authored(_validator: &AccountId) {}
-    fn get_validator_blocks_missed(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_blocks_missed(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_blocks_missed(_validator: &AccountId, _val: u32) {}
     fn remove_validator_blocks_missed(_validator: &AccountId) {}
 }

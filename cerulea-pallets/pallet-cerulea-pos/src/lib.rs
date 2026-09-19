@@ -14,12 +14,21 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+use frame_support::traits::{Currency, Get, ReservableCurrency};
+use sp_runtime::traits::{SaturatedConversion, Saturating};
 use sp_std::prelude::*;
-use sp_runtime::traits::{Saturating, SaturatedConversion};
-use frame_support::traits::{Currency, ReservableCurrency, Get};
 
 /// Reasons for slashing validator stakes as punishment for violations.
-#[derive(codec::Encode, codec::Decode, Clone, PartialEq, Eq, sp_runtime::RuntimeDebug, scale_info::TypeInfo, codec::MaxEncodedLen)]
+#[derive(
+    codec::Encode,
+    codec::Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    sp_runtime::RuntimeDebug,
+    scale_info::TypeInfo,
+    codec::MaxEncodedLen,
+)]
 pub enum RewardReason {
     ExceptionalPerformance,
     BlockAuthorship,
@@ -29,7 +38,16 @@ pub enum RewardReason {
 }
 
 /// Reasons for validator slashing with different severity levels and recovery requirements.
-#[derive(codec::Encode, codec::Decode, Clone, PartialEq, Eq, sp_runtime::RuntimeDebug, scale_info::TypeInfo, codec::MaxEncodedLen)]
+#[derive(
+    codec::Encode,
+    codec::Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    sp_runtime::RuntimeDebug,
+    scale_info::TypeInfo,
+    codec::MaxEncodedLen,
+)]
 pub enum SlashReason {
     Misbehavior,
     PoorPerformance,
@@ -42,7 +60,16 @@ pub enum SlashReason {
 }
 
 /// Slashing record for tracking validator penalties
-#[derive(sp_runtime::RuntimeDebug, codec::Encode, codec::Decode, Clone, PartialEq, Eq, scale_info::TypeInfo, codec::MaxEncodedLen)]
+#[derive(
+    sp_runtime::RuntimeDebug,
+    codec::Encode,
+    codec::Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    scale_info::TypeInfo,
+    codec::MaxEncodedLen,
+)]
 pub struct SlashingRecord<Balance, BlockNumber> {
     pub block_number: BlockNumber,
     pub amount: Balance,
@@ -50,34 +77,67 @@ pub struct SlashingRecord<Balance, BlockNumber> {
     pub epoch: u32,
 }
 
-
 pub trait ValidatorHandler<AccountId, Balance> {
     fn on_joined(validator: &AccountId, stake: Balance) -> sp_runtime::DispatchResult;
     fn on_leave_requested(validator: &AccountId) -> sp_runtime::DispatchResult;
     fn on_left(validator: &AccountId) -> sp_runtime::DispatchResult;
     fn on_stake_increased(validator: &AccountId, amount: Balance) -> sp_runtime::DispatchResult;
     fn on_stake_decreased(validator: &AccountId, amount: Balance) -> sp_runtime::DispatchResult;
-    fn on_slashed(validator: &AccountId, amount: Balance, penalty: u64) -> sp_runtime::DispatchResult;
-    fn on_rewarded(validator: &AccountId, amount: Balance, boost: u64) -> sp_runtime::DispatchResult;
+    fn on_slashed(
+        validator: &AccountId,
+        amount: Balance,
+        penalty: u64,
+    ) -> sp_runtime::DispatchResult;
+    fn on_rewarded(
+        validator: &AccountId,
+        amount: Balance,
+        boost: u64,
+    ) -> sp_runtime::DispatchResult;
     fn get_validator_score(validator: &AccountId) -> u64;
     fn get_active_validators() -> Vec<AccountId>;
 }
 
 impl<AccountId, Balance> ValidatorHandler<AccountId, Balance> for () {
-    fn on_joined(_validator: &AccountId, _stake: Balance) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_leave_requested(_validator: &AccountId) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_left(_validator: &AccountId) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_stake_increased(_validator: &AccountId, _amount: Balance) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_stake_decreased(_validator: &AccountId, _amount: Balance) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_slashed(_validator: &AccountId, _amount: Balance, _penalty: u64) -> sp_runtime::DispatchResult { Ok(()) }
-    fn on_rewarded(_validator: &AccountId, _amount: Balance, _boost: u64) -> sp_runtime::DispatchResult { Ok(()) }
-    fn get_validator_score(_validator: &AccountId) -> u64 { 0 }
-    fn get_active_validators() -> Vec<AccountId> { Vec::new() }
+    fn on_joined(_validator: &AccountId, _stake: Balance) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_leave_requested(_validator: &AccountId) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_left(_validator: &AccountId) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_stake_increased(_validator: &AccountId, _amount: Balance) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_stake_decreased(_validator: &AccountId, _amount: Balance) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_slashed(
+        _validator: &AccountId,
+        _amount: Balance,
+        _penalty: u64,
+    ) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn on_rewarded(
+        _validator: &AccountId,
+        _amount: Balance,
+        _boost: u64,
+    ) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+    fn get_validator_score(_validator: &AccountId) -> u64 {
+        0
+    }
+    fn get_active_validators() -> Vec<AccountId> {
+        Vec::new()
+    }
 }
 
 // Runtime API declaration
 sp_api::decl_runtime_apis! {
-    pub trait PosApi<AccountId, Balance> 
+    pub trait PosApi<AccountId, Balance>
     where
         AccountId: codec::Codec + Clone + Eq + sp_std::fmt::Debug,
         Balance: codec::Codec + Clone + Eq + sp_runtime::traits::AtLeast32BitUnsigned,
@@ -92,11 +152,14 @@ sp_api::decl_runtime_apis! {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::{pallet_prelude::*, storage::types::{StorageMap, StorageValue}};
+    use codec::MaxEncodedLen;
+    use frame_support::{
+        pallet_prelude::*,
+        storage::types::{StorageMap, StorageValue},
+    };
     use frame_system::pallet_prelude::*;
     use scale_info::prelude::vec::Vec;
     use sp_runtime::traits::AtLeast32BitUnsigned;
-    use codec::MaxEncodedLen;
 
     #[pallet::pallet]
     pub struct Pallet<T>(_);
@@ -120,48 +183,49 @@ pub mod pallet {
         type MinStake: Get<BalanceOf<Self>>;
         /// The balance type
         type Balance: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + MaxEncodedLen;
-        
-        type Currency: Currency<Self::AccountId, Balance = BalanceOf<Self>> + ReservableCurrency<Self::AccountId>;
-        
+
+        type Currency: Currency<Self::AccountId, Balance = BalanceOf<Self>>
+            + ReservableCurrency<Self::AccountId>;
+
         #[pallet::constant]
         type LeaveCooldown: Get<u32>;
-        
+
         #[pallet::constant]
         type ValidatorReward: Get<BalanceOf<Self>>;
-        
+
         #[pallet::constant]
         type SlashPercent: Get<u32>;
-        
+
         #[pallet::constant]
         type MaxSlashPerEpoch: Get<BalanceOf<Self>>;
-        
+
         #[pallet::constant]
         type MaxSlashPerValidator: Get<BalanceOf<Self>>;
-        
+
         #[pallet::constant]
         type MaxRewardPerEpoch: Get<BalanceOf<Self>>;
-        
+
         #[pallet::constant]
         type MaxRewardPerValidator: Get<BalanceOf<Self>>;
-        
+
         #[pallet::constant]
         type SlashPenaltyDivisor: Get<u64>;
-        
+
         #[pallet::constant]
         type MaxSlashPenalty: Get<u64>;
-        
+
         #[pallet::constant]
         type RewardBoostDivisor: Get<u64>;
-        
+
         #[pallet::constant]
         type MaxRewardBoost: Get<u64>;
-        
+
         #[pallet::constant]
         type HighPerformanceScore: Get<u64>;
-        
+
         #[pallet::constant]
         type TopPerformerPercentage: Get<u32>;
-        
+
         type ValidatorHandler: ValidatorHandler<Self::AccountId, BalanceOf<Self>>;
     }
 
@@ -227,9 +291,8 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn stake)]
-    pub type Stake<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
-
-
+    pub type Stake<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn epoch_total_rewarded)]
@@ -241,57 +304,68 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn validator_epoch_rewarded)]
-    pub type ValidatorEpochRewarded<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        BalanceOf<T>,
-        ValueQuery,
-    >;
+    pub type ValidatorEpochRewarded<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn validator_epoch_slashed)]
-    pub type ValidatorEpochSlashed<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        BalanceOf<T>,
-        ValueQuery,
-    >;
+    pub type ValidatorEpochSlashed<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        ValidatorRegistered { validator: T::AccountId },
-        ScoreSubmitted { validator: T::AccountId, score: u32 },
-        ValidatorSlashed { validator: T::AccountId, slashing_count: u32 },
-        ValidatorRemoved { validator: T::AccountId, reason: Vec<u8> },
-        StakeBonded { validator: T::AccountId, amount: BalanceOf<T> },
-        StakeUnbonded { validator: T::AccountId, amount: BalanceOf<T> },
-        ScoreBoosted { 
-            validator: T::AccountId, 
-            old_score: u32, 
-            new_score: u32, 
-            boost_amount: u32 
+        ValidatorRegistered {
+            validator: T::AccountId,
         },
-        ScoreSlashed { 
-            validator: T::AccountId, 
-            old_score: u32, 
-            new_score: u32, 
-            slash_amount: u32 
+        ScoreSubmitted {
+            validator: T::AccountId,
+            score: u32,
         },
-        ValidatorStakeSlashed { 
-            validator: T::AccountId, 
-            old_stake: BalanceOf<T>, 
-            new_stake: BalanceOf<T>, 
-            slashed_amount: BalanceOf<T> 
+        ValidatorSlashed {
+            validator: T::AccountId,
+            slashing_count: u32,
         },
-        ValidatorActivated { validator: T::AccountId },
-        ValidatorDeactivated { validator: T::AccountId },
-        StakeUpdated { 
-            validator: T::AccountId, 
-            old_stake: BalanceOf<T>, 
-            new_stake: BalanceOf<T> 
+        ValidatorRemoved {
+            validator: T::AccountId,
+            reason: Vec<u8>,
+        },
+        StakeBonded {
+            validator: T::AccountId,
+            amount: BalanceOf<T>,
+        },
+        StakeUnbonded {
+            validator: T::AccountId,
+            amount: BalanceOf<T>,
+        },
+        ScoreBoosted {
+            validator: T::AccountId,
+            old_score: u32,
+            new_score: u32,
+            boost_amount: u32,
+        },
+        ScoreSlashed {
+            validator: T::AccountId,
+            old_score: u32,
+            new_score: u32,
+            slash_amount: u32,
+        },
+        ValidatorStakeSlashed {
+            validator: T::AccountId,
+            old_stake: BalanceOf<T>,
+            new_stake: BalanceOf<T>,
+            slashed_amount: BalanceOf<T>,
+        },
+        ValidatorActivated {
+            validator: T::AccountId,
+        },
+        ValidatorDeactivated {
+            validator: T::AccountId,
+        },
+        StakeUpdated {
+            validator: T::AccountId,
+            old_stake: BalanceOf<T>,
+            new_stake: BalanceOf<T>,
         },
         ValidatorStakeReserved {
             validator: T::AccountId,
@@ -363,61 +437,104 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::register_validator())]
         pub fn register_validator(origin: OriginFor<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+
             // Check if we've reached max validators
             ensure!(
                 Validators::<T>::iter().count() < T::MaxValidators::get() as usize,
                 Error::<T>::TooManyValidators
             );
 
-            ensure!(!Validators::<T>::contains_key(&who), Error::<T>::ValidatorAlreadyRegistered);
+            ensure!(
+                !Validators::<T>::contains_key(&who),
+                Error::<T>::ValidatorAlreadyRegistered
+            );
             Validators::<T>::insert(&who, true);
-            Self::deposit_event(Event::ValidatorRegistered { validator: who.clone() });
+            Self::deposit_event(Event::ValidatorRegistered {
+                validator: who.clone(),
+            });
             // --- Telemetry: Validator registered ---
-            ::log::info!("[cerulea::pos][prometheus] validator_registered{{validator={:?}}} 1", who);
+            ::log::info!(
+                "[cerulea::pos][prometheus] validator_registered{{validator={:?}}} 1",
+                who
+            );
             // --- Telemetry: Active validator count ---
-            let active_count = Validators::<T>::iter().filter(|(_, active)| *active).count();
-            ::log::info!("[cerulea::pos][prometheus] active_validators_count{{}} {}", active_count);
+            let active_count = Validators::<T>::iter()
+                .filter(|(_, active)| *active)
+                .count();
+            ::log::info!(
+                "[cerulea::pos][prometheus] active_validators_count{{}} {}",
+                active_count
+            );
             Ok(())
         }
 
         #[pallet::call_index(1)]
         #[pallet::weight(T::WeightInfo::submit_score())]
-        pub fn submit_score(origin: OriginFor<T>, validator: T::AccountId, score: u32) -> DispatchResult {
+        pub fn submit_score(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            score: u32,
+        ) -> DispatchResult {
             let _who = ensure_signed(origin)?;
-            ensure!(Validators::<T>::contains_key(&validator), Error::<T>::ValidatorNotRegistered);
-            ensure!(score >= T::MinValidatorScore::get(), Error::<T>::ScoreTooLow);
+            ensure!(
+                Validators::<T>::contains_key(&validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+            ensure!(
+                score >= T::MinValidatorScore::get(),
+                Error::<T>::ScoreTooLow
+            );
             ValidatorScores::<T>::insert(&validator, score);
-            Self::deposit_event(Event::ScoreSubmitted { validator: validator.clone(), score });
+            Self::deposit_event(Event::ScoreSubmitted {
+                validator: validator.clone(),
+                score,
+            });
             // --- Telemetry: Score submitted ---
-            ::log::info!("[cerulea::pos][prometheus] score_submitted{{validator={:?}}} {}", validator, score);
+            ::log::info!(
+                "[cerulea::pos][prometheus] score_submitted{{validator={:?}}} {}",
+                validator,
+                score
+            );
             Ok(())
         }
 
         #[pallet::call_index(2)]
         #[pallet::weight(T::WeightInfo::slash_validator())]
-        pub fn slash_validator_call(origin: OriginFor<T>, validator: T::AccountId) -> DispatchResult {
+        pub fn slash_validator_call(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+        ) -> DispatchResult {
             let _who = ensure_signed(origin)?;
-            ensure!(Validators::<T>::contains_key(&validator), Error::<T>::ValidatorNotRegistered);
-            
+            ensure!(
+                Validators::<T>::contains_key(&validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let count = SlashingCount::<T>::get(&validator).unwrap_or(0) + 1;
-            
+
             if count >= T::MaxSlashingCount::get() {
                 // Remove validator if max slashing count reached
                 Validators::<T>::remove(&validator);
                 ValidatorScores::<T>::remove(&validator);
                 SlashingCount::<T>::remove(&validator);
-                Self::deposit_event(Event::ValidatorRemoved { 
+                Self::deposit_event(Event::ValidatorRemoved {
                     validator: validator.clone(),
                     reason: b"Max slashing count reached".to_vec(),
                 });
             } else {
                 SlashingCount::<T>::insert(&validator, count);
             }
-            
-            Self::deposit_event(Event::ValidatorSlashed { validator: validator.clone(), slashing_count: count });
+
+            Self::deposit_event(Event::ValidatorSlashed {
+                validator: validator.clone(),
+                slashing_count: count,
+            });
             // --- Telemetry: Validator slashed ---
-            ::log::info!("[cerulea::pos][prometheus] validator_slashed{{validator={:?}}} {}", validator, count);
+            ::log::info!(
+                "[cerulea::pos][prometheus] validator_slashed{{validator={:?}}} {}",
+                validator,
+                count
+            );
             Ok(())
         }
 
@@ -425,21 +542,29 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::bond_stake())]
         pub fn bond_stake(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+
             ensure!(amount >= T::MinStake::get(), Error::<T>::InsufficientStake);
-            ensure!(Validators::<T>::contains_key(&who), Error::<T>::ValidatorNotRegistered);
-            
+            ensure!(
+                Validators::<T>::contains_key(&who),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let current_stake = Stake::<T>::get(&who);
-            let new_stake = current_stake.checked_add(&amount).ok_or(Error::<T>::InvalidStakeAmount)?;
-            
+            let new_stake = current_stake
+                .checked_add(&amount)
+                .ok_or(Error::<T>::InvalidStakeAmount)?;
+
             Stake::<T>::insert(&who, new_stake);
-            Self::deposit_event(Event::StakeBonded { validator: who.clone(), amount });
-            Self::deposit_event(Event::StakeUpdated { 
-                validator: who, 
-                old_stake: current_stake, 
-                new_stake 
+            Self::deposit_event(Event::StakeBonded {
+                validator: who.clone(),
+                amount,
             });
-            
+            Self::deposit_event(Event::StakeUpdated {
+                validator: who,
+                old_stake: current_stake,
+                new_stake,
+            });
+
             Ok(())
         }
 
@@ -447,62 +572,93 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::unbond_stake())]
         pub fn unbond_stake(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
-            ensure!(Validators::<T>::contains_key(&who), Error::<T>::ValidatorNotRegistered);
-            
+
+            ensure!(
+                Validators::<T>::contains_key(&who),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let current_stake = Stake::<T>::get(&who);
             ensure!(current_stake >= amount, Error::<T>::InsufficientStake);
-            
-            let new_stake = current_stake.checked_sub(&amount).ok_or(Error::<T>::InvalidStakeAmount)?;
-            ensure!(new_stake >= T::MinStake::get(), Error::<T>::InsufficientStake);
-            
+
+            let new_stake = current_stake
+                .checked_sub(&amount)
+                .ok_or(Error::<T>::InvalidStakeAmount)?;
+            ensure!(
+                new_stake >= T::MinStake::get(),
+                Error::<T>::InsufficientStake
+            );
+
             Stake::<T>::insert(&who, new_stake);
-            Self::deposit_event(Event::StakeUnbonded { validator: who.clone(), amount });
-            Self::deposit_event(Event::StakeUpdated { 
-                validator: who, 
-                old_stake: current_stake, 
-                new_stake 
+            Self::deposit_event(Event::StakeUnbonded {
+                validator: who.clone(),
+                amount,
             });
-            
+            Self::deposit_event(Event::StakeUpdated {
+                validator: who,
+                old_stake: current_stake,
+                new_stake,
+            });
+
             Ok(())
         }
 
         #[pallet::call_index(5)]
-        #[pallet::weight(T::WeightInfo::submit_score())] 
-        pub fn boost_score(origin: OriginFor<T>, validator: T::AccountId, weight: u32) -> DispatchResult {
+        #[pallet::weight(T::WeightInfo::submit_score())]
+        pub fn boost_score(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            weight: u32,
+        ) -> DispatchResult {
             let _who = ensure_signed(origin)?;
-            ensure!(Validators::<T>::contains_key(&validator), Error::<T>::ValidatorNotRegistered);
+            ensure!(
+                Validators::<T>::contains_key(&validator),
+                Error::<T>::ValidatorNotRegistered
+            );
 
             let current_score = ValidatorScores::<T>::get(&validator).unwrap_or(0);
             let new_score = current_score.saturating_add(weight);
             ValidatorScores::<T>::insert(&validator, new_score);
 
-            Self::deposit_event(Event::ScoreSubmitted { validator: validator.clone(), score: new_score });
-            Self::deposit_event(Event::ScoreBoosted { 
-                validator, 
-                old_score: current_score, 
-                new_score, 
-                boost_amount: weight 
+            Self::deposit_event(Event::ScoreSubmitted {
+                validator: validator.clone(),
+                score: new_score,
+            });
+            Self::deposit_event(Event::ScoreBoosted {
+                validator,
+                old_score: current_score,
+                new_score,
+                boost_amount: weight,
             });
             Ok(())
         }
 
         #[pallet::call_index(6)]
-        #[pallet::weight(T::WeightInfo::submit_score())] 
-        pub fn slash_score(origin: OriginFor<T>, validator: T::AccountId, weight: u32) -> DispatchResult {
+        #[pallet::weight(T::WeightInfo::submit_score())]
+        pub fn slash_score(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            weight: u32,
+        ) -> DispatchResult {
             let _who = ensure_signed(origin)?;
-            ensure!(Validators::<T>::contains_key(&validator), Error::<T>::ValidatorNotRegistered);
+            ensure!(
+                Validators::<T>::contains_key(&validator),
+                Error::<T>::ValidatorNotRegistered
+            );
 
             let current_score = ValidatorScores::<T>::get(&validator).unwrap_or(0);
             let new_score = current_score.saturating_sub(weight);
             ValidatorScores::<T>::insert(&validator, new_score);
 
-            Self::deposit_event(Event::ScoreSubmitted { validator: validator.clone(), score: new_score });
-            Self::deposit_event(Event::ScoreSlashed { 
-                validator, 
-                old_score: current_score, 
-                new_score, 
-                slash_amount: weight 
+            Self::deposit_event(Event::ScoreSubmitted {
+                validator: validator.clone(),
+                score: new_score,
+            });
+            Self::deposit_event(Event::ScoreSlashed {
+                validator,
+                old_score: current_score,
+                new_score,
+                slash_amount: weight,
             });
             Ok(())
         }
@@ -612,9 +768,10 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
             ensure!(percentage <= 100, Error::<T>::InvalidStakeAmount);
-            
+
             let current_stake = Stake::<T>::get(&validator);
-            let slash_amount = current_stake.saturating_mul(percentage.saturated_into()) / 100u32.saturated_into();
+            let slash_amount =
+                current_stake.saturating_mul(percentage.saturated_into()) / 100u32.saturated_into();
             Self::execute_slash_validator(&validator, slash_amount)
         }
 
@@ -688,7 +845,9 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn get_slashing_history(validator: T::AccountId) -> Vec<SlashingRecord<BalanceOf<T>, BlockNumberFor<T>>> {
+        pub fn get_slashing_history(
+            validator: T::AccountId,
+        ) -> Vec<SlashingRecord<BalanceOf<T>, BlockNumberFor<T>>> {
             ValidatorSlashingHistory::<T>::get(&validator).to_vec()
         }
 
@@ -696,15 +855,25 @@ pub mod pallet {
             Self::stake(validator).saturated_into()
         }
 
-        pub fn calculate_slash_amount(validator: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
+        pub fn calculate_slash_amount(
+            validator: &T::AccountId,
+        ) -> Result<BalanceOf<T>, DispatchError> {
             let current_stake = Stake::<T>::get(validator);
             let slash_percent = T::SlashPercent::get();
-            let slash_amount = current_stake.saturating_mul(slash_percent.saturated_into()) / 100u32.saturated_into();
+            let slash_amount = current_stake.saturating_mul(slash_percent.saturated_into())
+                / 100u32.saturated_into();
             Ok(slash_amount)
         }
 
-        pub fn execute_reward_validator(validator: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-            Self::execute_reward_validator_with_reason(validator, amount, RewardReason::ManualReward)
+        pub fn execute_reward_validator(
+            validator: &T::AccountId,
+            amount: BalanceOf<T>,
+        ) -> DispatchResult {
+            Self::execute_reward_validator_with_reason(
+                validator,
+                amount,
+                RewardReason::ManualReward,
+            )
         }
 
         pub fn execute_reward_validator_with_reason(
@@ -728,21 +897,24 @@ pub mod pallet {
             let current_epoch_total = EpochTotalRewarded::<T>::get();
             let current_validator_total = ValidatorEpochRewarded::<T>::get(validator);
 
-            let new_epoch_total = current_epoch_total.checked_add(&reward_amount)
+            let new_epoch_total = current_epoch_total
+                .checked_add(&reward_amount)
                 .ok_or(Error::<T>::ArithmeticOverflow)?;
             ensure!(
                 new_epoch_total <= T::MaxRewardPerEpoch::get(),
                 Error::<T>::RewardBoundsExceeded
             );
 
-            let new_validator_total = current_validator_total.checked_add(&reward_amount)
+            let new_validator_total = current_validator_total
+                .checked_add(&reward_amount)
                 .ok_or(Error::<T>::ArithmeticOverflow)?;
             ensure!(
                 new_validator_total <= T::MaxRewardPerValidator::get(),
                 Error::<T>::RewardBoundsExceeded
             );
 
-            let _new_balance = pre_balance.checked_add(&reward_amount)
+            let _new_balance = pre_balance
+                .checked_add(&reward_amount)
                 .ok_or(Error::<T>::ArithmeticOverflow)?;
 
             let _ = T::Currency::deposit_creating(validator, reward_amount);
@@ -755,7 +927,8 @@ pub mod pallet {
             });
 
             let score_boost = {
-                let boost_raw = reward_amount.saturated_into::<u64>()
+                let boost_raw = reward_amount
+                    .saturated_into::<u64>()
                     .checked_div(T::RewardBoostDivisor::get())
                     .unwrap_or(0);
                 boost_raw.min(T::MaxRewardBoost::get())
@@ -766,7 +939,10 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn execute_slash_validator(validator: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+        pub fn execute_slash_validator(
+            validator: &T::AccountId,
+            amount: BalanceOf<T>,
+        ) -> DispatchResult {
             Self::execute_slash_validator_with_reason(validator, amount, SlashReason::ManualSlash)
         }
 
@@ -784,9 +960,11 @@ pub mod pallet {
 
             let slash_amount = if amount == BalanceOf::<T>::default() {
                 let slash_percent = T::SlashPercent::get();
-                let slash_numerator = pre_balance.checked_mul(&slash_percent.saturated_into())
+                let slash_numerator = pre_balance
+                    .checked_mul(&slash_percent.saturated_into())
                     .ok_or(Error::<T>::ArithmeticOverflow)?;
-                slash_numerator.checked_div(&100u32.saturated_into())
+                slash_numerator
+                    .checked_div(&100u32.saturated_into())
                     .ok_or(Error::<T>::ArithmeticUnderflow)?
             } else {
                 amount
@@ -795,14 +973,16 @@ pub mod pallet {
             let current_epoch_total = EpochTotalSlashed::<T>::get();
             let current_validator_total = ValidatorEpochSlashed::<T>::get(validator);
 
-            let new_epoch_total = current_epoch_total.checked_add(&slash_amount)
+            let new_epoch_total = current_epoch_total
+                .checked_add(&slash_amount)
                 .ok_or(Error::<T>::ArithmeticOverflow)?;
             ensure!(
                 new_epoch_total <= T::MaxSlashPerEpoch::get(),
                 Error::<T>::SlashingBoundsExceeded
             );
 
-            let new_validator_total = current_validator_total.checked_add(&slash_amount)
+            let new_validator_total = current_validator_total
+                .checked_add(&slash_amount)
                 .ok_or(Error::<T>::ArithmeticOverflow)?;
             ensure!(
                 new_validator_total <= T::MaxSlashPerValidator::get(),
@@ -822,7 +1002,8 @@ pub mod pallet {
             });
 
             let score_penalty = {
-                let penalty_raw = slashed_amount.saturated_into::<u64>()
+                let penalty_raw = slashed_amount
+                    .saturated_into::<u64>()
                     .checked_div(T::SlashPenaltyDivisor::get())
                     .unwrap_or(0);
                 penalty_raw.min(T::MaxSlashPenalty::get())
@@ -853,7 +1034,8 @@ pub mod pallet {
 
             let total_validators = validator_scores.len();
             let high_performance_threshold = T::HighPerformanceScore::get();
-            let top_performer_count = (total_validators * T::TopPerformerPercentage::get() as usize) / 100;
+            let top_performer_count =
+                (total_validators * T::TopPerformerPercentage::get() as usize) / 100;
 
             let base_reward_per_validator = if total_validators > 0 {
                 base_reward_pool / (total_validators as u32).into()
@@ -861,10 +1043,11 @@ pub mod pallet {
                 BalanceOf::<T>::default()
             };
 
-            let high_performers: Vec<_> = validator_scores.iter()
+            let high_performers: Vec<_> = validator_scores
+                .iter()
                 .filter(|(_, score)| *score >= high_performance_threshold)
                 .collect();
-            
+
             let top_performers = &validator_scores[..top_performer_count.min(total_validators)];
 
             let performance_reward_per_validator = if !high_performers.is_empty() {
@@ -895,14 +1078,19 @@ pub mod pallet {
 
             Self::deposit_event(Event::EpochRewardsDistributed {
                 epoch: CurrentEpoch::<T>::get(),
-                total_distributed: base_reward_pool + performance_reward_pool + top_performer_reward_pool,
+                total_distributed: base_reward_pool
+                    + performance_reward_pool
+                    + top_performer_reward_pool,
             });
 
             Ok(())
         }
 
         pub fn calculate_epoch_economic_impact(_epoch: u32) -> (BalanceOf<T>, BalanceOf<T>) {
-            (EpochTotalRewarded::<T>::get(), EpochTotalSlashed::<T>::get())
+            (
+                EpochTotalRewarded::<T>::get(),
+                EpochTotalSlashed::<T>::get(),
+            )
         }
 
         pub fn reset_epoch_totals() {
@@ -912,69 +1100,76 @@ pub mod pallet {
             let _ = ValidatorEpochRewarded::<T>::clear(u32::MAX, None);
         }
 
-
-
         /// Slash a validator's stake by a specific amount
-        pub fn slash_validator_stake(validator: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-            ensure!(Validators::<T>::contains_key(validator), Error::<T>::ValidatorNotRegistered);
-            
+        pub fn slash_validator_stake(
+            validator: &T::AccountId,
+            amount: BalanceOf<T>,
+        ) -> DispatchResult {
+            ensure!(
+                Validators::<T>::contains_key(validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let current_stake = Stake::<T>::get(validator);
             let new_stake = current_stake.saturating_sub(amount);
-            
+
             // Update stake
             Stake::<T>::insert(validator, new_stake);
-            
+
             // Emit stake slashing event
-            Self::deposit_event(Event::ValidatorStakeSlashed { 
-                validator: validator.clone(), 
-                old_stake: current_stake, 
-                new_stake, 
-                slashed_amount: amount 
+            Self::deposit_event(Event::ValidatorStakeSlashed {
+                validator: validator.clone(),
+                old_stake: current_stake,
+                new_stake,
+                slashed_amount: amount,
             });
-            
+
             // Increment slashing count
             let count = SlashingCount::<T>::get(validator).unwrap_or(0) + 1;
             SlashingCount::<T>::insert(validator, count);
-            
-            Self::deposit_event(Event::ValidatorSlashed { 
-                validator: validator.clone(), 
-                slashing_count: count 
+
+            Self::deposit_event(Event::ValidatorSlashed {
+                validator: validator.clone(),
+                slashing_count: count,
             });
-            
+
             // Remove validator if max slashing count reached
             if count >= T::MaxSlashingCount::get() {
                 Validators::<T>::remove(validator);
                 ValidatorScores::<T>::remove(validator);
                 SlashingCount::<T>::remove(validator);
-                Self::deposit_event(Event::ValidatorRemoved { 
+                Self::deposit_event(Event::ValidatorRemoved {
                     validator: validator.clone(),
                     reason: b"Max slashing count reached".to_vec(),
                 });
             }
-            
+
             Ok(())
         }
 
         /// Reward a validator by increasing their stake
         pub fn reward_validator(validator: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-            ensure!(Validators::<T>::contains_key(validator), Error::<T>::ValidatorNotRegistered);
-            
+            ensure!(
+                Validators::<T>::contains_key(validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let current_stake = Stake::<T>::get(validator);
             let new_stake = current_stake.saturating_add(amount);
-            
+
             Stake::<T>::insert(validator, new_stake);
-            
-            Self::deposit_event(Event::StakeBonded { 
-                validator: validator.clone(), 
-                amount 
+
+            Self::deposit_event(Event::StakeBonded {
+                validator: validator.clone(),
+                amount,
             });
-            
-            Self::deposit_event(Event::StakeUpdated { 
-                validator: validator.clone(), 
-                old_stake: current_stake, 
-                new_stake 
+
+            Self::deposit_event(Event::StakeUpdated {
+                validator: validator.clone(),
+                old_stake: current_stake,
+                new_stake,
             });
-            
+
             Ok(())
         }
 
@@ -985,31 +1180,37 @@ pub mod pallet {
 
         /// Activate a validator
         pub fn activate_validator(validator: &T::AccountId) -> DispatchResult {
-            ensure!(Validators::<T>::contains_key(validator), Error::<T>::ValidatorNotRegistered);
-            
+            ensure!(
+                Validators::<T>::contains_key(validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let is_active = Validators::<T>::get(validator).unwrap_or(false);
             if !is_active {
                 Validators::<T>::insert(validator, true);
-                Self::deposit_event(Event::ValidatorActivated { 
-                    validator: validator.clone() 
+                Self::deposit_event(Event::ValidatorActivated {
+                    validator: validator.clone(),
                 });
             }
-            
+
             Ok(())
         }
 
         /// Deactivate a validator
         pub fn deactivate_validator(validator: &T::AccountId) -> DispatchResult {
-            ensure!(Validators::<T>::contains_key(validator), Error::<T>::ValidatorNotRegistered);
-            
+            ensure!(
+                Validators::<T>::contains_key(validator),
+                Error::<T>::ValidatorNotRegistered
+            );
+
             let is_active = Validators::<T>::get(validator).unwrap_or(false);
             if is_active {
                 Validators::<T>::insert(validator, false);
-                Self::deposit_event(Event::ValidatorDeactivated { 
-                    validator: validator.clone() 
+                Self::deposit_event(Event::ValidatorDeactivated {
+                    validator: validator.clone(),
                 });
             }
-            
+
             Ok(())
         }
 
@@ -1030,7 +1231,9 @@ pub mod pallet {
             // Notify handler of removal
             let _ = T::ValidatorHandler::on_left(validator);
 
-            Self::deposit_event(Event::ValidatorLeft { validator: validator.clone() });
+            Self::deposit_event(Event::ValidatorLeft {
+                validator: validator.clone(),
+            });
 
             Ok(())
         }

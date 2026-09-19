@@ -206,7 +206,8 @@ fn consensus_agreement_properties_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
         let current_epoch = DcfPallet::current_epoch();
-        let routine = DcfPallet::assurance_class_table().threshold_percent(TransactionClass::Routine);
+        let routine =
+            DcfPallet::assurance_class_table().threshold_percent(TransactionClass::Routine);
 
         for _ in 0..5 {
             assert_eq!(DcfPallet::active_validators(), active_validators);

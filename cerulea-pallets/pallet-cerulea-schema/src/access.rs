@@ -199,9 +199,7 @@ pub trait PermissionGate {
     type AccountId;
 
     /// Answer one request.
-    fn resolve(
-        request: &AccessRequest<'_, Self::AccountId>,
-    ) -> Result<AccessGrant, AccessDenial>;
+    fn resolve(request: &AccessRequest<'_, Self::AccountId>) -> Result<AccessGrant, AccessDenial>;
 }
 
 /// The resolver of a runtime that carries no permission module.
@@ -212,9 +210,7 @@ pub struct DeniedByDefault<AccountId>(PhantomData<AccountId>);
 impl<AccountId> PermissionGate for DeniedByDefault<AccountId> {
     type AccountId = AccountId;
 
-    fn resolve(
-        request: &AccessRequest<'_, Self::AccountId>,
-    ) -> Result<AccessGrant, AccessDenial> {
+    fn resolve(request: &AccessRequest<'_, Self::AccountId>) -> Result<AccessGrant, AccessDenial> {
         Err(AccessDenial::owned(
             alloc::format!(
                 "The deployment carries no capability matrix, so the {} of `{}` is refused.",

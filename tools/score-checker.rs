@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize};
+use anyhow::{Context, Result};
 use clap::Parser;
+use csv::Writer;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::WsClientBuilder;
-use anyhow::{Result, Context};
-use csv::Writer;
+use serde::{Deserialize, Serialize};
 use std::io;
 
 #[derive(Parser, Debug)]
@@ -119,7 +119,10 @@ async fn main() -> Result<()> {
                 .await
                 .context("Failed to get PoS score")?,
             poi_score: client
-                .request("dcf_getValidatorInferenceScore", rpc_params![validator.clone()])
+                .request(
+                    "dcf_getValidatorInferenceScore",
+                    rpc_params![validator.clone()],
+                )
                 .await
                 .context("Failed to get inference share")?,
             combined_score: client
@@ -139,7 +142,10 @@ async fn main() -> Result<()> {
                 .await
                 .context("Failed to get validator status")?,
             participation: client
-                .request("dcf_getValidatorParticipation", rpc_params![validator.clone()])
+                .request(
+                    "dcf_getValidatorParticipation",
+                    rpc_params![validator.clone()],
+                )
                 .await
                 .context("Failed to get validator participation")?,
             last_active: client
@@ -160,7 +166,10 @@ async fn main() -> Result<()> {
                 .context("Failed to get challenge window")?,
             epoch_history: if args.history {
                 let recent_epochs: Vec<RuntimeEpochHistory> = client
-                    .request("dcf_getRecentEpochs", rpc_params![args.epochs, validator.clone()])
+                    .request(
+                        "dcf_getRecentEpochs",
+                        rpc_params![args.epochs, validator.clone()],
+                    )
                     .await
                     .context("Failed to get recent epochs")?;
                 recent_epochs
@@ -191,8 +200,18 @@ async fn main() -> Result<()> {
     // Print results based on format
     match args.format.as_str() {
         "table" => {
-            println!("{:<40} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}", 
-                "Validator", "PoS", "PoI", "Combined", "Stake", "Slashes", "Active", "Participation", "Last Active");
+            println!(
+                "{:<40} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
+                "Validator",
+                "PoS",
+                "PoI",
+                "Combined",
+                "Stake",
+                "Slashes",
+                "Active",
+                "Participation",
+                "Last Active"
+            );
             println!("{}", "-".repeat(120));
             for validator in &validators {
                 let (blocks_authored, total_blocks) = validator.participation;
@@ -201,7 +220,8 @@ async fn main() -> Result<()> {
                 } else {
                     0
                 };
-                println!("{:<40} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
+                println!(
+                    "{:<40} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
                     validator.account_id,
                     validator.pos_score,
                     validator.poi_score.unwrap_or(0),
@@ -215,11 +235,22 @@ async fn main() -> Result<()> {
 
                 if args.history && !validator.epoch_history.is_empty() {
                     println!("\nEpoch History:");
-                    println!("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
-                        "Epoch", "PoS", "PoI", "Combined", "Blocks", "Missed", "Inferences", "Slashes", "Rewards");
+                    println!(
+                        "{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
+                        "Epoch",
+                        "PoS",
+                        "PoI",
+                        "Combined",
+                        "Blocks",
+                        "Missed",
+                        "Inferences",
+                        "Slashes",
+                        "Rewards"
+                    );
                     println!("{}", "-".repeat(90));
                     for epoch in &validator.epoch_history {
-                        println!("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
+                        println!(
+                            "{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}",
                             epoch.epoch,
                             epoch.pos_score,
                             epoch.poi_score.unwrap_or(0),
@@ -251,15 +282,27 @@ async fn main() -> Result<()> {
         "csv" => {
             let mut wtr = Writer::from_writer(io::stdout());
             wtr.write_record([
-                "Validator", "PoS", "PoI", "Combined", "Stake", "Slashes", "Active",
-                "Blocks Authored", "Total Blocks", "Last Active", "Inference Result",
-                "Inference Confidence", "Challenge Window",
+                "Validator",
+                "PoS",
+                "PoI",
+                "Combined",
+                "Stake",
+                "Slashes",
+                "Active",
+                "Blocks Authored",
+                "Total Blocks",
+                "Last Active",
+                "Inference Result",
+                "Inference Confidence",
+                "Challenge Window",
             ])?;
             for validator in &validators {
                 wtr.write_record(&[
                     validator.account_id.clone(),
                     validator.pos_score.to_string(),
-                    validator.poi_score.map_or("N/A".to_string(), |s| s.to_string()),
+                    validator
+                        .poi_score
+                        .map_or("N/A".to_string(), |s| s.to_string()),
                     validator.combined_score.to_string(),
                     validator.stake.to_string(),
                     validator.slashing_count.to_string(),
@@ -267,9 +310,15 @@ async fn main() -> Result<()> {
                     validator.participation.0.to_string(),
                     validator.participation.1.to_string(),
                     validator.last_active.to_string(),
-                    validator.inference_result.map_or("N/A".to_string(), |r| r.to_string()),
-                    validator.inference_confidence.map_or("N/A".to_string(), |c| c.to_string()),
-                    validator.challenge_window.map_or("N/A".to_string(), |w| w.to_string()),
+                    validator
+                        .inference_result
+                        .map_or("N/A".to_string(), |r| r.to_string()),
+                    validator
+                        .inference_confidence
+                        .map_or("N/A".to_string(), |c| c.to_string()),
+                    validator
+                        .challenge_window
+                        .map_or("N/A".to_string(), |w| w.to_string()),
                 ])?;
             }
             wtr.flush()?;

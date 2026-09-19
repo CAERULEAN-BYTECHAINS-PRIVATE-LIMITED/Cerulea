@@ -180,18 +180,14 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (1, 10000),
-            (2, 10000),
-            (3, 10000),
-        ],
+        balances: vec![(1, 10000), (2, 10000), (3, 10000)],
         dev_accounts: None,
     }
     .assimilate_storage(&mut storage)
     .unwrap();
 
     storage.into()
-} 
+}
 
 // Compile-time contract check.
 // The block below names every trait the mock runtime claims to satisfy.

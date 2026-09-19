@@ -1,5 +1,5 @@
-// This attribute ensures that the runtime is compiled without the standard library (`no_std`) 
-// when the `std` feature is not enabled. This is required for Substrate runtimes to run in a 
+// This attribute ensures that the runtime is compiled without the standard library (`no_std`)
+// when the `std` feature is not enabled. This is required for Substrate runtimes to run in a
 // WebAssembly (Wasm) environment.
 #![cfg_attr(not(feature = "std"), no_std)]
 // The runtime now composes sixteen platform modules beside the engine
@@ -23,7 +23,7 @@ use alloc::vec::Vec; // Import the `Vec` type for dynamic arrays.
 
 use sp_runtime::{
     generic, impl_opaque_keys,
-    traits::{BlakeTwo256, IdentifyAccount, Verify, ConstU32},
+    traits::{BlakeTwo256, ConstU32, IdentifyAccount, Verify},
     MultiAddress, MultiSignature,
 };
 
@@ -100,12 +100,12 @@ impl_opaque_keys! {
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: alloc::borrow::Cow::Borrowed("cerulea-runtime"), // Name of the runtime specification.
     impl_name: alloc::borrow::Cow::Borrowed("cerulea-runtime"), // Name of the runtime implementation.
-    authoring_version: 1, // Version of the authoring logic.
-    spec_version: 100, // Version of the runtime specification.
-    impl_version: 1, // Version of the runtime implementation.
+    authoring_version: 1,                                       // Version of the authoring logic.
+    spec_version: 100,                // Version of the runtime specification.
+    impl_version: 1,                  // Version of the runtime implementation.
     apis: apis::RUNTIME_API_VERSIONS, // Runtime APIs exposed by this runtime.
-    transaction_version: 1, // Version of the transaction format.
-    system_version: 1, // Version of the system logic.
+    transaction_version: 1,           // Version of the transaction format.
+    system_version: 1,                // Version of the system logic.
 };
 
 mod block_times {
@@ -291,11 +291,11 @@ mod runtime {
 use sp_runtime::traits::parameter_types;
 
 parameter_types! {
-	pub const EnterDuration: BlockNumber = 4 * HOURS;
-	pub const EnterDepositAmount: Balance = 2_000_000 * CERULEA;
-	pub const ExtendDuration: BlockNumber = 2 * HOURS;
-	pub const ExtendDepositAmount: Balance = 1_000_000 * CERULEA;
-	pub const ReleaseDelay: u32 = 2 * DAYS;
+    pub const EnterDuration: BlockNumber = 4 * HOURS;
+    pub const EnterDepositAmount: Balance = 2_000_000 * CERULEA;
+    pub const ExtendDuration: BlockNumber = 2 * HOURS;
+    pub const ExtendDepositAmount: Balance = 1_000_000 * CERULEA;
+    pub const ReleaseDelay: u32 = 2 * DAYS;
 
     // Validator parameters
     pub const MinValidatorScore: u32 = 50;
@@ -303,7 +303,7 @@ parameter_types! {
     pub const MaxValidators: u32 = 100;
     pub const ValidatorScoreDecay: u32 = 10;
     pub const MaxSlashingCount: u32 = 3;
-   
+
 
     // Inference parameters
     pub const MinInferenceConfidence: u32 = 80;
@@ -334,7 +334,7 @@ parameter_types! {
     pub const InferencePenaltyHigh: u64 = 7;
 
     pub const MaxEpochHistory: u32 = 24;
-    
+
     // Performance thresholds
     pub const MinPerformanceScore: u64 = 30;
     pub const HighPerformanceScore: u64 = 80;
@@ -345,34 +345,34 @@ parameter_types! {
     pub const HealthyValidatorScore: u64 = 50;
     pub const HealthyParticipationRate: u32 = 80;
     pub const HealthyMissedBlocksMax: u32 = 5;
-    
+
     // Score calculation thresholds
     pub const ScoreChangeThreshold: u64 = 1000;
     pub const ScoreChangePercentage: u32 = 10;
     pub const ScoreImprovementThreshold: u64 = 1000;
     pub const ScoreImprovementPercentage: u32 = 10;
-    
+
     // Contribution balance thresholds
     pub const MaxPosContribution: u32 = 90;
     pub const MaxPoiContribution: u32 = 90;
     pub const ImbalanceWarningThreshold: u32 = 85;
-    
+
     // Block processing intervals
     pub const LeaveRequestCheckInterval: u32 = 10;
     pub const MetricsUpdateInterval: u32 = 10;
     pub const ScoreRefreshInterval: u32 = 50;
     pub const DetailedLoggingInterval: u32 = 100;
     pub const ImbalanceCheckInterval: u32 = 500;
-    
+
     // Validator set limits
     pub const TopValidatorsDisplayCount: u32 = 5;
     pub const HealthCheckSampleSize: u32 = 5;
-    
+
     // Percentage constants
     pub const FullPercentage: u32 = 100;
     pub const HighPerformancePercentage: u32 = 80;
     pub const TopPerformerPercentage: u32 = 20;
-    
+
     // Misbehavior reporting
     pub const MaxEvidenceLength: u32 = 1000;
     pub const MisbehaviorSlashThreshold: u32 = 3;

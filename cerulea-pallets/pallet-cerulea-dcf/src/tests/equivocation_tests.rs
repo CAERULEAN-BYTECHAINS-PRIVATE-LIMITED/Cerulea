@@ -186,7 +186,10 @@ fn one_equivocation_takes_one_penalty() {
             Box::new(proof(&pair, 9, 1))
         ));
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
+            DcfPallet::report_equivocation(
+                RuntimeOrigin::signed(REPORTER),
+                Box::new(proof(&pair, 9, 1))
+            ),
             Error::<Test>::EquivocationAlreadyPenalised
         );
     });
@@ -251,7 +254,10 @@ fn evidence_against_an_unregistered_key_carries_no_penalty() {
         seed_service(30);
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
+            DcfPallet::report_equivocation(
+                RuntimeOrigin::signed(REPORTER),
+                Box::new(proof(&pair, 9, 1))
+            ),
             Error::<Test>::EquivocationAuthorUnregistered
         );
     });
@@ -266,7 +272,10 @@ fn evidence_naming_another_seal_key_carries_no_penalty() {
         seed_service(30);
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
+            DcfPallet::report_equivocation(
+                RuntimeOrigin::signed(REPORTER),
+                Box::new(proof(&pair, 9, 1))
+            ),
             Error::<Test>::EquivocationKeysMismatch
         );
     });

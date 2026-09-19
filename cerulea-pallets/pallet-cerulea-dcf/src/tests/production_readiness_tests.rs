@@ -8,14 +8,14 @@ use frame_support::traits::{Get, OnFinalize, OnInitialize};
 fn production_stability_test() {
     new_test_ext().execute_with(|| {
         let initial_validators = DcfPallet::active_validators();
-        
+
         // Simulate extended operation
         for block_num in 1..=50 {
             System::set_block_number(block_num);
             let _ = DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
         }
-        
+
         // System should remain stable
         let final_validators = DcfPallet::active_validators();
         assert!(!final_validators.is_empty());
@@ -28,14 +28,14 @@ fn production_stability_test() {
 fn production_performance_test() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
+
         // High-frequency operations
         for _ in 0..500 {
             let _ = DcfPallet::active_validators();
             let _ = DcfPallet::current_epoch();
             let _ = crate::PosWeight::<Test>::get();
         }
-        
+
         // System should remain responsive
         assert_eq!(DcfPallet::active_validators(), active_validators);
     });
@@ -46,12 +46,12 @@ fn production_performance_test() {
 fn production_error_handling_test() {
     new_test_ext().execute_with(|| {
         let malicious_inputs = vec![0u64, u64::MAX, 999999];
-        
+
         for malicious_validator in malicious_inputs {
             let _ = pallet_cerulea_pos::Stake::<Test>::get(malicious_validator);
             let _ = DcfPallet::is_validator_active(&malicious_validator);
         }
-        
+
         // System should remain operational
         assert!(!DcfPallet::active_validators().is_empty());
     });
@@ -63,7 +63,7 @@ fn production_security_test() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
-        
+
         // All validators should meet security requirements
         for validator in &active_validators {
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
@@ -81,11 +81,11 @@ fn production_deployment_requirements_test() {
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        
+
         assert!(max_validators > 0);
         assert!(min_active > 0);
         assert!(epoch_length > 0);
-        
+
         // System should be in valid state
         let active_validators = DcfPallet::active_validators();
         assert!(active_validators.len() >= min_active as usize);
@@ -107,7 +107,7 @@ fn production_monitoring_readiness_test() {
         let _ = DcfPallet::get_validators_by_score();
         let _ = DcfPallet::trust_score(&1u64);
         let _ = DcfPallet::assurance_class_table();
-        
+
         assert!(true); // All monitoring APIs available
     });
 }

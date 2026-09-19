@@ -6,16 +6,16 @@ async fn test_log_file_creation() {
     // Create a temporary directory for the test
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let log_file_path = temp_dir.path().join("test_cerulea.log");
-    
+
     // Test that LogFileWriter can create a log file
-    let log_writer = cerulea_node::logging::LogFileWriter::new(
-        Some(log_file_path.to_string_lossy().to_string())
-    );
-    
+    let log_writer = cerulea_node::logging::LogFileWriter::new(Some(
+        log_file_path.to_string_lossy().to_string(),
+    ));
+
     assert!(log_writer.is_ok());
     let log_writer = log_writer.unwrap();
     assert!(log_writer.is_file_logging());
-    
+
     // Verify the log file was created
     assert!(log_file_path.exists());
 }
@@ -29,55 +29,60 @@ fn test_startup_info_display() {
         "Cerulea Test Chain".to_string(),
         "Full Node".to_string(),
     );
-    
+
     assert_eq!(startup_info.runtime_version, "1.0.0");
     assert_eq!(startup_info.node_version, "0.1.0");
     assert_eq!(startup_info.chain_name, "Cerulea Test Chain");
     assert_eq!(startup_info.node_role, "Full Node");
-    
+
     // Test setting peer ID and latency
     startup_info.set_peer_id("12D3KooWTestPeerID".to_string());
     startup_info.set_network_latency(Duration::from_millis(100));
-    
+
     assert_eq!(startup_info.peer_id, Some("12D3KooWTestPeerID".to_string()));
-    assert_eq!(startup_info.network_latency, Some(Duration::from_millis(100)));
+    assert_eq!(
+        startup_info.network_latency,
+        Some(Duration::from_millis(100))
+    );
 }
 
 #[test]
 fn test_log_deduplication() {
     // Test that LogDeduplicator works correctly
     let deduplicator = cerulea_node::logging::LogDeduplicator::new(5); // 5 second window
-    
+
     // First occurrence should not be deduplicated
     assert!(deduplicator.should_deduplicate("Test message").is_none());
-    
+
     // Second occurrence should be deduplicated
     assert_eq!(deduplicator.should_deduplicate("Test message"), Some(2));
-    
+
     // Third occurrence should be deduplicated
     assert_eq!(deduplicator.should_deduplicate("Test message"), Some(3));
-    
+
     // Different message should not be deduplicated
-    assert!(deduplicator.should_deduplicate("Different message").is_none());
+    assert!(deduplicator
+        .should_deduplicate("Different message")
+        .is_none());
 }
 
 #[test]
 fn test_cerulea_logging_initialization() {
     // Test that Cerulea logging can be initialized with different configurations
-    
+
     // Test without log file
     let result = cerulea_node::logging::init_cerulea_logging(false, false, None);
     // Note: This might fail if logging is already initialized, which is expected in tests
     // We just verify the function exists and can be called
-    
+
     // Test with log file
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let log_file_path = temp_dir.path().join("test_init.log");
-    
+
     let result = cerulea_node::logging::init_cerulea_logging(
-        true, 
-        false, 
-        Some(log_file_path.to_string_lossy().to_string())
+        true,
+        false,
+        Some(log_file_path.to_string_lossy().to_string()),
     );
     // Again, this might fail due to logger already being initialized, which is fine
 }

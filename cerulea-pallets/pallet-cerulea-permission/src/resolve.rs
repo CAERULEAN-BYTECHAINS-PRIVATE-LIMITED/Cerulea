@@ -18,7 +18,7 @@
 //! Both passes are pure, so the Studio runs the same passes over a draft
 //! matrix and shows a person what a role would see.
 
-use alloc::{vec::Vec};
+use alloc::vec::Vec;
 use cerulea_blueprint::{
     expression::{Env, Expr, Meter},
     permissions::FieldQualification,
@@ -61,9 +61,10 @@ fn project_at(value: &Value, fields: &FieldQualification, prefix: &mut Vec<Field
 
 /// Report whether one qualification names a field inside the given path.
 pub fn reaches_deeper(fields: &FieldQualification, prefix: &FieldPath) -> bool {
-    fields.listed().iter().any(|held| {
-        held.0.len() > prefix.0.len() && held.0.starts_with(prefix.0.as_slice())
-    })
+    fields
+        .listed()
+        .iter()
+        .any(|held| held.0.len() > prefix.0.len() && held.0.starts_with(prefix.0.as_slice()))
 }
 
 /// Report whether one row predicate admits one record.
@@ -114,10 +115,7 @@ mod tests {
         Value::record(
             TypeId::new("parcel"),
             alloc::vec![
-                (
-                    FieldName::new("survey_number"),
-                    Value::Text("12/3".into())
-                ),
+                (FieldName::new("survey_number"), Value::Text("12/3".into())),
                 (FieldName::new("holder"), Value::Text("Anitha".into())),
                 (FieldName::new("ward"), Value::Text("north".into())),
             ],
@@ -128,20 +126,14 @@ mod tests {
         Value::record(
             TypeId::new("parcel"),
             alloc::vec![
-                (
-                    FieldName::new("survey_number"),
-                    Value::Text("12/3".into())
-                ),
+                (FieldName::new("survey_number"), Value::Text("12/3".into())),
                 (
                     FieldName::new("owner"),
                     Value::record(
                         TypeId::new("person"),
                         alloc::vec![
                             (FieldName::new("name"), Value::Text("Anitha".into())),
-                            (
-                                FieldName::new("licence"),
-                                Value::Text("KL-99".into())
-                            ),
+                            (FieldName::new("licence"), Value::Text("KL-99".into())),
                         ],
                     )
                 ),
@@ -172,7 +164,10 @@ mod tests {
             &record(),
             &FieldQualification::Only(alloc::vec![FieldPath::parse("holder")]),
         );
-        assert_eq!(names(&held), alloc::vec![alloc::string::String::from("holder")]);
+        assert_eq!(
+            names(&held),
+            alloc::vec![alloc::string::String::from("holder")]
+        );
     }
 
     #[test]

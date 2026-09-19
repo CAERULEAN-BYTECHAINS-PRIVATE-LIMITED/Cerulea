@@ -372,7 +372,9 @@ fn an_entry_without_a_predicate_admits_every_record() {
         install();
         grant("registrar", CapabilityKey::Read, GrantPayload::everything());
         let held = parcel("44/9", "Benny", "south");
-        assert!(Pallet::<Test>::resolve(&request(&ANITHA, AccessAction::Read).about(&held)).is_ok());
+        assert!(
+            Pallet::<Test>::resolve(&request(&ANITHA, AccessAction::Read).about(&held)).is_ok()
+        );
     });
 }
 
@@ -386,8 +388,8 @@ fn a_read_outside_the_declared_purpose_is_refused() {
         assert!(Pallet::<Test>::resolve(&held).is_ok());
 
         let refused = request(&ANITHA, AccessAction::Read).for_purpose(PurposeTag::new("resale"));
-        let denial =
-            Pallet::<Test>::resolve(&refused).expect_err("a purpose outside the declaration is refused");
+        let denial = Pallet::<Test>::resolve(&refused)
+            .expect_err("a purpose outside the declaration is refused");
         assert!(denial.problem.contains("resale"));
     });
 }
@@ -512,7 +514,11 @@ fn a_simulation_reports_what_one_role_reaches() {
             GrantPayload::only_fields(vec![FieldPath::parse("survey_number")])
                 .where_rows(ward_predicate("north")),
         );
-        grant("registrar", CapabilityKey::Insert, GrantPayload::everything());
+        grant(
+            "registrar",
+            CapabilityKey::Insert,
+            GrantPayload::everything(),
+        );
         grant(
             "registrar",
             CapabilityKey::Invoke(name("record_transfer")),
@@ -529,7 +535,9 @@ fn a_simulation_reports_what_one_role_reaches() {
         assert!(!found.delete);
         assert_eq!(found.actions, vec![name("record_transfer")]);
         assert!(found.row_predicate.is_some());
-        assert!(found.readable_fields.reaches(&FieldPath::parse("survey_number")));
+        assert!(found
+            .readable_fields
+            .reaches(&FieldPath::parse("survey_number")));
         assert!(!found.is_empty());
         let statement = found.statement();
         assert!(statement.contains("registrar"));
@@ -592,7 +600,11 @@ fn a_capability_key_names_its_shape() {
 fn the_matrix_allows_a_capability_the_account_reaches() {
     new_test_ext().execute_with(|| {
         install();
-        grant("registrar", CapabilityKey::Update, GrantPayload::everything());
+        grant(
+            "registrar",
+            CapabilityKey::Update,
+            GrantPayload::everything(),
+        );
         assert!(<Pallet<Test> as PermissionMatrix>::allows(
             &DEPLOYMENT,
             &ANITHA,
@@ -732,7 +744,11 @@ fn a_row_predicate_and_a_field_list_run_together() {
 fn an_account_without_the_read_capability_sees_nothing() {
     new_test_ext().execute_with(|| {
         install();
-        grant("registrar", CapabilityKey::Insert, GrantPayload::everything());
+        grant(
+            "registrar",
+            CapabilityKey::Insert,
+            GrantPayload::everything(),
+        );
         let seen = <Pallet<Test> as PermissionMatrix>::visible_records(
             &DEPLOYMENT,
             &ANITHA,

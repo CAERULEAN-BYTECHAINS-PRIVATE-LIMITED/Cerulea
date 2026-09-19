@@ -2,8 +2,8 @@
 mod tests {
     use crate::mock::*;
     use crate::Error;
-    use frame_support::{assert_noop, assert_ok, traits::Get};
     use crate::{DcfInterface, PosInterface};
+    use frame_support::{assert_noop, assert_ok, traits::Get};
     // use sp_runtime::traits::BadOrigin; // unused
 
     #[test]
@@ -143,7 +143,11 @@ mod tests {
     fn test_submit_inference_malformed_data() {
         new_test_ext().execute_with(|| {
             // Should fail because confidence value exceeds maximum allowed (100)
-            assert_ok!(PalletCeruleaPoi::submit_inference(RuntimeOrigin::signed(1), 42, 101));
+            assert_ok!(PalletCeruleaPoi::submit_inference(
+                RuntimeOrigin::signed(1),
+                42,
+                101
+            ));
         });
     }
 
@@ -177,7 +181,7 @@ mod tests {
             // Simulate epoch advancement beyond challenge window
             let challenge_window: u32 = <Test as crate::Config>::ChallengeWindow::get();
             let current_epoch = challenge_window + 1;
-            
+
             // In a real scenario, this would be handled by epoch management
             // For testing, we can verify the challenge window logic
             assert!(current_epoch > challenge_window);
@@ -212,8 +216,8 @@ mod tests {
             for i in 1..=5 {
                 assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(i),
-                    (i * 10) as u32, // Different results
-                    (60 + i * 5) as u32 // Different confidence levels
+                    (i * 10) as u32,     // Different results
+                    (60 + i * 5) as u32  // Different confidence levels
                 ));
             }
 
@@ -256,7 +260,7 @@ mod tests {
     fn test_confidence_threshold_validation() {
         new_test_ext().execute_with(|| {
             let min_confidence: u32 = <Test as crate::Config>::MinInferenceConfidence::get();
-            
+
             // Test with confidence exactly at threshold
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(1),
@@ -279,7 +283,7 @@ mod tests {
             // Test reward constants
             let inference_reward: u128 = <Test as crate::Config>::InferenceReward::get();
             let challenge_reward: u128 = <Test as crate::Config>::ChallengeReward::get();
-            
+
             assert!(inference_reward > 0);
             assert!(challenge_reward > 0);
             assert!(inference_reward > challenge_reward); // Inference should reward more than challenge
@@ -357,14 +361,14 @@ mod tests {
         new_test_ext().execute_with(|| {
             let validator = 1u64;
             let min_confidence: u32 = <Test as crate::Config>::MinInferenceConfidence::get();
-            
+
             // Test exactly at minimum confidence
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 85,
                 min_confidence
             ));
-            
+
             // Clear inference for next test
             // Note: In real implementation, this would be handled by epoch transitions
         });
@@ -377,14 +381,14 @@ mod tests {
             let challenger = 2u64;
             let result = 85u32;
             let confidence = 90u32;
-            
+
             // Submit inference
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Test valid challenge results
             assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(challenger),
@@ -400,15 +404,16 @@ mod tests {
             let validator = 1u64;
             let result = 85u32;
             let confidence = 90u32;
-            
+
             // Submit inference in epoch 0
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
-            let (stored_result, stored_epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
+
+            let (stored_result, stored_epoch) =
+                PalletCeruleaPoi::inference_results(&validator).unwrap();
             assert_eq!(stored_result, result);
             assert_eq!(stored_epoch, 0);
         });
@@ -422,21 +427,21 @@ mod tests {
             let result = 85u32;
             let confidence = 90u32;
             let challenge_window: u32 = <Test as crate::Config>::ChallengeWindow::get();
-            
+
             // Submit inference
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Challenge within window should work
             assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(challenger),
                 validator,
                 result
             ));
-            
+
             // Verify challenge window settings
             assert!(challenge_window > 0);
         });
@@ -446,13 +451,13 @@ mod tests {
     fn test_inference_quality_assessment() {
         new_test_ext().execute_with(|| {
             let validator = 1u64;
-            
+
             // Test different confidence levels
             let confidence_levels = vec![60, 70, 80, 90, 100];
-            
+
             for (i, confidence) in confidence_levels.iter().enumerate() {
                 let test_validator = (validator + i as u64) % 10 + 1; // Avoid conflicts
-                
+
                 let min_conf: u32 = <Test as crate::Config>::MinInferenceConfidence::get();
                 if *confidence >= min_conf {
                     assert_ok!(PalletCeruleaPoi::submit_inference(
@@ -472,21 +477,21 @@ mod tests {
             let challenger = 2u64;
             let result = 85u32;
             let confidence = 90u32;
-            
+
             // Submit inference
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Test challenge with same result (should be valid)
             assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(challenger),
                 validator,
                 result
             ));
-            
+
             // Verify challenge was stored
             let challenge_data = PalletCeruleaPoi::challenges(&challenger);
             assert!(challenge_data.is_some());
@@ -499,19 +504,20 @@ mod tests {
             let validator = 1u64;
             let result = 85u32;
             let confidence = 90u32;
-            
+
             // Submit inference
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Verify all fields are consistent
-            let (stored_result, stored_epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
+            let (stored_result, stored_epoch) =
+                PalletCeruleaPoi::inference_results(&validator).unwrap();
             assert_eq!(stored_result, result);
             assert_eq!(stored_epoch, PalletCeruleaPoi::current_epoch());
-            
+
             // Verify no challenge exists initially
             assert!(PalletCeruleaPoi::challenges(&validator).is_none());
         });
@@ -524,27 +530,28 @@ mod tests {
             let challenger = 2u64;
             let result = 85u32;
             let confidence = 90u32;
-            
+
             // Submit inference first
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Submit challenge
             assert_ok!(PalletCeruleaPoi::challenge_inference(
                 RuntimeOrigin::signed(challenger),
                 validator,
                 result
             ));
-            
+
             // Verify challenge data consistency
-            let (challenged_validator, challenge_result, challenge_epoch) = PalletCeruleaPoi::challenges(&challenger).unwrap();
+            let (challenged_validator, challenge_result, challenge_epoch) =
+                PalletCeruleaPoi::challenges(&challenger).unwrap();
             assert_eq!(challenged_validator, validator);
             assert_eq!(challenge_result, result);
             assert_eq!(challenge_epoch, PalletCeruleaPoi::current_epoch());
-            
+
             // Verify original inference still exists
             assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
         });
@@ -556,11 +563,11 @@ mod tests {
             // Test reward settings values
             let inference_reward: u128 = <Test as crate::Config>::InferenceReward::get();
             let challenge_reward: u128 = <Test as crate::Config>::ChallengeReward::get();
-            
+
             // Rewards should be positive
             assert!(inference_reward > 0);
             assert!(challenge_reward > 0);
-            
+
             // Inference reward should typically be higher than challenge reward
             // (This is a design assumption, may vary by implementation)
             assert!(inference_reward >= challenge_reward);
@@ -575,7 +582,7 @@ mod tests {
             let result = 85u32;
             let confidence = 90u32;
             let min_confidence: u32 = <Test as crate::Config>::MinInferenceConfidence::get();
-            
+
             // Test ConfidenceTooLow
             assert_noop!(
                 PalletCeruleaPoi::submit_inference(
@@ -585,14 +592,14 @@ mod tests {
                 ),
                 Error::<Test>::ConfidenceTooLow
             );
-            
+
             // Submit valid inference for further tests
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 result,
                 confidence
             ));
-            
+
             // Test InferenceAlreadySubmitted
             assert_noop!(
                 PalletCeruleaPoi::submit_inference(
@@ -602,7 +609,7 @@ mod tests {
                 ),
                 Error::<Test>::InferenceAlreadySubmitted
             );
-            
+
             // Test InferenceNotFound
             assert_noop!(
                 PalletCeruleaPoi::challenge_inference(
@@ -612,7 +619,7 @@ mod tests {
                 ),
                 Error::<Test>::InferenceNotFound
             );
-            
+
             // Test CannotChallengeSelf
             assert_noop!(
                 PalletCeruleaPoi::challenge_inference(
@@ -636,12 +643,12 @@ mod tests {
                     (60 + i * 3) as u32
                 ));
             }
-            
+
             // Verify all inferences were stored correctly
             for i in 1..=10 {
                 let inference_data = PalletCeruleaPoi::inference_results(&i);
                 assert!(inference_data.is_some());
-                
+
                 let (result, epoch) = inference_data.unwrap();
                 assert_eq!(result, (i * 10) as u32);
                 assert_eq!(epoch, 0);
@@ -660,7 +667,7 @@ mod tests {
                     (70 + i * 2) as u32
                 ));
             }
-            
+
             // Challenge multiple inferences
             for i in 6..=10 {
                 let target_validator = ((i - 5) % 5) + 1;
@@ -670,7 +677,7 @@ mod tests {
                     (target_validator * 10) as u32
                 ));
             }
-            
+
             // Verify challenges were stored
             for i in 6..=10 {
                 assert!(PalletCeruleaPoi::challenges(&i).is_some());

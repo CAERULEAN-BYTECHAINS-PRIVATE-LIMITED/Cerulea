@@ -1,6 +1,6 @@
-use sc_cli::RunCmd;
-use clap::Parser;
 use clap::Args;
+use clap::Parser;
+use sc_cli::RunCmd;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -17,31 +17,49 @@ pub struct NodeCommand {
     #[clap(flatten)]
     pub run: RunCmd,
 
-    #[clap(long, default_value = "production", help = "Cerulea custom mode (e.g., testing, production)")]
+    #[clap(
+        long,
+        default_value = "production",
+        help = "Cerulea custom mode (e.g., testing, production)"
+    )]
     pub cerulea_mode: String,
 
     #[clap(long, help = "Enable Cerulea custom RPC extensions")]
     pub enable_cerulea_extensions: bool,
-    
+
     #[clap(long, help = "Write logs to the given file instead of stdout")]
     pub log_file: Option<String>,
 
     #[clap(long, help = "Show only Cerulea-related logs")]
     pub cerulea_log_only: bool,
 
-    #[clap(long, help = "Minimal output - suppress startup info and reduce logging")]
+    #[clap(
+        long,
+        help = "Minimal output - suppress startup info and reduce logging"
+    )]
     pub quiet: bool,
 
     #[clap(long, help = "Enable unsafe RPC methods (use with caution)")]
     pub unsafe_rpc_expose: bool,
 
-    #[clap(long, default_value = "60", help = "RPC rate limiting window in seconds")]
+    #[clap(
+        long,
+        default_value = "60",
+        help = "RPC rate limiting window in seconds"
+    )]
     pub rpc_rate_limit_window: u64,
 
-    #[clap(long, default_value = "100", help = "Maximum RPC requests per rate limit window")]
+    #[clap(
+        long,
+        default_value = "100",
+        help = "Maximum RPC requests per rate limit window"
+    )]
     pub rpc_rate_limit_requests: u32,
 
-    #[clap(long, help = "Enable lifecycle tracing for detailed node initialization and operation logging")]
+    #[clap(
+        long,
+        help = "Enable lifecycle tracing for detailed node initialization and operation logging"
+    )]
     pub lifecycle_trace: bool,
 
     #[clap(long, help = "Lifecycle trace output format (json or human-readable)")]
@@ -138,11 +156,11 @@ pub struct RuntimeUpgradeCmd {
     /// Path to new runtime WASM file
     #[clap(long)]
     pub wasm: PathBuf,
-    
+
     /// Poll interval in seconds
     #[clap(long, default_value = "6")]
     pub poll_interval: u64,
-    
+
     /// Output format (json or plain)
     #[clap(long, value_enum, default_value = "plain")]
     pub format: OutputFormat,
@@ -154,19 +172,19 @@ pub struct ForkCheckCmd {
     /// Local node RPC endpoint
     #[clap(long, default_value = "http://127.0.0.1:9944")]
     pub local_rpc: String,
-    
+
     /// Peer RPC endpoints (comma-separated)
     #[clap(long, value_delimiter = ',')]
     pub peer_rpc: Vec<String>,
-    
+
     /// Divergence threshold for warnings
     #[clap(long, default_value = "10")]
     pub threshold: u32,
-    
+
     /// Request timeout in seconds
     #[clap(long, default_value = "30")]
     pub timeout: u64,
-    
+
     /// Output format (json or plain)
     #[clap(long, value_enum, default_value = "plain")]
     pub format: OutputFormat,
@@ -178,15 +196,15 @@ pub struct QueryAuthorsCmd {
     /// Number of future blocks to query
     #[clap(long, short = 'n', default_value = "10")]
     pub blocks: u32,
-    
+
     /// RPC endpoint to query
     #[clap(long, default_value = "http://127.0.0.1:9944")]
     pub rpc_url: String,
-    
+
     /// Output format (json or plain)
     #[clap(long, value_enum, default_value = "plain")]
     pub format: OutputFormat,
-    
+
     /// Starting block number (default: current + 1)
     #[clap(long)]
     pub start_block: Option<u32>,

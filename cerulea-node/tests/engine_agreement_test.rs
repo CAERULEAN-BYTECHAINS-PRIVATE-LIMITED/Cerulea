@@ -68,7 +68,12 @@ fn three_validators_commit_blocks_across_an_epoch_boundary() {
     // Every node holds the same chain and the same committed record.
     let head = network.nodes[0].head_hash();
     for node in network.nodes.iter() {
-        assert_eq!(node.height(), SLOTS as u32, "{} reached the head", node.name);
+        assert_eq!(
+            node.height(),
+            SLOTS as u32,
+            "{} reached the head",
+            node.name
+        );
         assert_eq!(node.head_hash(), head, "{} holds the same head", node.name);
         assert_eq!(
             node.committed.len(),
@@ -190,13 +195,7 @@ fn a_block_from_outside_the_committee_is_rejected_on_import() {
 
     let input = network.draw_input(slot, parent_hash);
     let draw = network.keystore_draw(outsider, &input);
-    let claim = SealClaim::new(
-        slot,
-        Rank::FIRST,
-        network.nodes[outsider].seal_key,
-        draw,
-        0,
-    );
+    let claim = SealClaim::new(slot, Rank::FIRST, network.nodes[outsider].seal_key, draw, 0);
     let header = network.sealed_header(outsider, claim, network.height() + 1, parent_hash);
 
     let refusal = network
@@ -243,7 +242,11 @@ fn every_node_draws_the_same_committee_for_every_slot() {
             assert_eq!(member.rank, Rank::from_index(position));
         }
 
-        assert!(network.run_slot(slot).committed(), "slot {} commits", slot_number);
+        assert!(
+            network.run_slot(slot).committed(),
+            "slot {} commits",
+            slot_number
+        );
     }
 }
 

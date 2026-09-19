@@ -29,14 +29,54 @@ const NODES: usize = 3;
 /// collections stay apart and run at the same time.
 fn block_across_domains() -> Vec<HarnessTransaction> {
     vec![
-        HarnessTransaction::new("warehouse.scan", "pallet-1", "arrived", TransactionClass::Routine),
-        HarnessTransaction::new("warehouse.scan", "pallet-1", "checked", TransactionClass::Routine),
-        HarnessTransaction::new("treasury.movement", "account-7", "settled", TransactionClass::Financial),
-        HarnessTransaction::new("registry.record", "unit-3", "listed", TransactionClass::Structural),
-        HarnessTransaction::new("registry.record", "unit-4", "listed", TransactionClass::Routine),
-        HarnessTransaction::new("policy.amendment", "profile-1", "opened", TransactionClass::Constitutional),
-        HarnessTransaction::new("warehouse.scan", "pallet-2", "arrived", TransactionClass::Routine),
-        HarnessTransaction::new("treasury.movement", "account-9", "settled", TransactionClass::Financial),
+        HarnessTransaction::new(
+            "warehouse.scan",
+            "pallet-1",
+            "arrived",
+            TransactionClass::Routine,
+        ),
+        HarnessTransaction::new(
+            "warehouse.scan",
+            "pallet-1",
+            "checked",
+            TransactionClass::Routine,
+        ),
+        HarnessTransaction::new(
+            "treasury.movement",
+            "account-7",
+            "settled",
+            TransactionClass::Financial,
+        ),
+        HarnessTransaction::new(
+            "registry.record",
+            "unit-3",
+            "listed",
+            TransactionClass::Structural,
+        ),
+        HarnessTransaction::new(
+            "registry.record",
+            "unit-4",
+            "listed",
+            TransactionClass::Routine,
+        ),
+        HarnessTransaction::new(
+            "policy.amendment",
+            "profile-1",
+            "opened",
+            TransactionClass::Constitutional,
+        ),
+        HarnessTransaction::new(
+            "warehouse.scan",
+            "pallet-2",
+            "arrived",
+            TransactionClass::Routine,
+        ),
+        HarnessTransaction::new(
+            "treasury.movement",
+            "account-9",
+            "settled",
+            TransactionClass::Financial,
+        ),
     ]
 }
 
@@ -54,16 +94,21 @@ fn every_node_reaches_the_same_roots_from_the_same_block() {
         "the block carried at least four conflict domains, reaching {}",
         first.len()
     );
-    assert!(first.consistent(), "the combined root covers the domain roots");
+    assert!(
+        first.consistent(),
+        "the combined root covers the domain roots"
+    );
 
     for (position, held) in roots.iter().enumerate() {
         assert_eq!(
-            held.domains, first.domains,
+            held.domains,
+            first.domains,
             "node {} reached the same per-domain roots",
             position + 1
         );
         assert_eq!(
-            held.combined, first.combined,
+            held.combined,
+            first.combined,
             "node {} reached the same combined root",
             position + 1
         );
@@ -112,8 +157,18 @@ fn a_changed_transaction_changes_the_roots() {
 #[test]
 fn a_block_carrying_one_domain_still_produces_a_combined_root() {
     let block = vec![
-        HarnessTransaction::new("warehouse.scan", "pallet-1", "arrived", TransactionClass::Routine),
-        HarnessTransaction::new("warehouse.scan", "pallet-1", "checked", TransactionClass::Routine),
+        HarnessTransaction::new(
+            "warehouse.scan",
+            "pallet-1",
+            "arrived",
+            TransactionClass::Routine,
+        ),
+        HarnessTransaction::new(
+            "warehouse.scan",
+            "pallet-1",
+            "checked",
+            TransactionClass::Routine,
+        ),
     ];
     let roots = execute_block(&block, 4);
     assert_eq!(roots.len(), 1, "the two transactions joined one domain");
@@ -137,7 +192,8 @@ fn the_network_commits_blocks_while_the_roots_stay_identical() {
         for node in 0..NODES {
             let roots = execute_block(&block, node + 1);
             assert_eq!(
-                roots, expected,
+                roots,
+                expected,
                 "node {} reached the same roots at slot {}",
                 node + 1,
                 slot_number

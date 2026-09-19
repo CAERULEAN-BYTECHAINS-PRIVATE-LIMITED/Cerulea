@@ -4,7 +4,7 @@ use super::*;
 extern crate alloc;
 use frame_support::{
     parameter_types,
-    traits::{ConstU32, ConstU64, ConstU128, ConstU8},
+    traits::{ConstU128, ConstU32, ConstU64, ConstU8},
     weights::Weight,
 };
 use sp_runtime::{
@@ -243,28 +243,72 @@ impl WeightInfo for MockWeightInfo {
     fn governance_with_multiple_voters(v: u32) -> Weight {
         Weight::from_parts(8_000u64.saturating_mul(v as u64), 0)
     }
-    fn join_validators() -> Weight { Weight::from_parts(10_000, 0) }
-    fn leave_validators() -> Weight { Weight::from_parts(10_000, 0) }
-    fn slash_validator() -> Weight { Weight::from_parts(10_000, 0) }
-    fn cancel_leave_request() -> Weight { Weight::from_parts(10_000, 0) }
-    fn report_validator_misbehavior() -> Weight { Weight::from_parts(10_000, 0) }
-    fn simulate_inference() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_slash_validator() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_reward_validator() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_eject_validator() -> Weight { Weight::from_parts(10_000, 0) }
-    fn increase_validator_stake() -> Weight { Weight::from_parts(10_000, 0) }
-    fn decrease_validator_stake() -> Weight { Weight::from_parts(10_000, 0) }
-    fn slash_validator_percentage() -> Weight { Weight::from_parts(10_000, 0) }
-    fn slash_multiple_validators() -> Weight { Weight::from_parts(10_000, 0) }
-    fn execute_proposals() -> Weight { Weight::from_parts(10_000, 0) }
-    fn epoch_transition() -> Weight { Weight::from_parts(10_000, 0) }
-    fn set_validator_metadata() -> Weight { Weight::from_parts(10_000, 0) }
-    fn update_validator_activity() -> Weight { Weight::from_parts(10_000, 0) }
-    fn distribute_epoch_rewards() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_default_reward_validator() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_default_reward_multiple_validators() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_reward_all_active_validators() -> Weight { Weight::from_parts(10_000, 0) }
-    fn propose_reward_multiple_validators(_v: u32) -> Weight { Weight::from_parts(10_000, 0) }
+    fn join_validators() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn leave_validators() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn slash_validator() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn cancel_leave_request() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn report_validator_misbehavior() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn simulate_inference() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_slash_validator() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_reward_validator() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_eject_validator() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn increase_validator_stake() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn decrease_validator_stake() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn slash_validator_percentage() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn slash_multiple_validators() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn execute_proposals() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn epoch_transition() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn set_validator_metadata() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn update_validator_activity() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn distribute_epoch_rewards() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_default_reward_validator() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_default_reward_multiple_validators() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_reward_all_active_validators() -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
+    fn propose_reward_multiple_validators(_v: u32) -> Weight {
+        Weight::from_parts(10_000, 0)
+    }
 }
 
 /// The validator registry the framework pallet reads and writes in these
@@ -333,7 +377,10 @@ pub fn registry_seed(validators: alloc::vec::Vec<u64>) {
     reg_put(REG_SET, &validators);
     reg_put(REG_ACTIVE, &validators);
     for validator in validators.iter() {
-        reg_put(&reg_key(REG_STATUS, validator), &crate::ValidatorStatus::Active);
+        reg_put(
+            &reg_key(REG_STATUS, validator),
+            &crate::ValidatorStatus::Active,
+        );
         reg_put(&reg_key(REG_JOIN, validator), &0u32);
         pallet_cerulea_pos::Validators::<Test>::insert(validator, true);
     }
@@ -447,7 +494,10 @@ impl crate::traits::ValidatorRegistryProvider<u64, u128, u64> for TestValidatorR
         set.retain(|held| held != validator);
         reg_put(REG_SET, &set);
 
-        reg_put(&reg_key(REG_STATUS, validator), &crate::ValidatorStatus::Ejected);
+        reg_put(
+            &reg_key(REG_STATUS, validator),
+            &crate::ValidatorStatus::Ejected,
+        );
         let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
         reg_put(&reg_key(REG_REMOVED, validator), &now);
         Ok(())
@@ -492,7 +542,10 @@ impl crate::traits::ValidatorRegistryProvider<u64, u128, u64> for TestValidatorR
     fn get_validator_detailed_cooldown_status(validator: &u64) -> Option<(u32, bool)> {
         let requested: u32 = reg_get(&reg_key(REG_LEAVE, validator))?;
         let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
-        let cooldown: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
+        let cooldown: u32 =
+            <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<
+                u32,
+            >>::get();
         let elapsed = now.saturating_sub(requested);
         let remaining = cooldown.saturating_sub(elapsed);
         Some((remaining, remaining == 0))
@@ -714,8 +767,6 @@ impl Config for Test {
     type AuthorMismatchErrorCode = ConstU8<2>;
 }
 
-
-
 // Validator lifecycle helpers for the framework pallet tests.
 // The lifecycle itself lives in the validator registry pallet. These helpers
 // drive the same state the framework pallet reads, so every lifecycle test
@@ -744,7 +795,10 @@ pub fn mock_join_validators(
         pallet_cerulea_pos::Error::<Test>::ValidatorAlreadyExists
     );
     frame_support::ensure!(
-        set.len() < <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get() as usize,
+        set.len()
+            < <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<
+                u32,
+            >>::get() as usize,
         pallet_cerulea_pos::Error::<Test>::TooManyValidators
     );
 
@@ -925,7 +979,10 @@ pub fn mock_complete_exit(who: u64) -> DispatchResult {
     let mut set = TestValidatorRegistry::get_validator_set();
     set.retain(|seated| seated != &who);
     TestValidatorRegistry::update_validator_set(set);
-    reg_put(&reg_key(REG_STATUS, &who), &crate::ValidatorStatus::Inactive);
+    reg_put(
+        &reg_key(REG_STATUS, &who),
+        &crate::ValidatorStatus::Inactive,
+    );
 
     let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
     crate::Pallet::<Test>::deposit_event_with_evm_compat(crate::Event::ValidatorStatusChanged {
@@ -1003,15 +1060,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
-pub fn new_test_ext_with_genesis(genesis_config: crate::GenesisConfig<Test>) -> sp_io::TestExternalities {
+pub fn new_test_ext_with_genesis(
+    genesis_config: crate::GenesisConfig<Test>,
+) -> sp_io::TestExternalities {
     let mut storage = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
 
     // Initialize balances for all potential test accounts (including genesis validators)
-    let mut balances = vec![
-        (1, 10000), (2, 10000), (3, 10000), (4, 10000), (5, 10000),
-    ];
+    let mut balances = vec![(1, 10000), (2, 10000), (3, 10000), (4, 10000), (5, 10000)];
 
     // Add balances for genesis validators
     for (i, validator) in genesis_config.validators.iter().enumerate() {
@@ -1050,10 +1107,7 @@ const _: fn() = || {
     fn settings_hold<T: crate::Config>() {}
     settings_hold::<Test>();
 
-    fn registry_holds<
-        T: crate::traits::ValidatorRegistryProvider<u64, u128, u64>,
-    >() {
-    }
+    fn registry_holds<T: crate::traits::ValidatorRegistryProvider<u64, u128, u64>>() {}
     registry_holds::<<Test as crate::Config>::ValidatorRegistry>();
 
     fn weight_freezer_holds<T: crate::traits::WeightFreezer<u64>>() {}

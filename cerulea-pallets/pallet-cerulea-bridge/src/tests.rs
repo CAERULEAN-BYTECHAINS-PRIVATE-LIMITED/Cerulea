@@ -1264,12 +1264,8 @@ fn a_checkpoint_anchors_its_commitment_into_the_far_network() {
 
         // The anchored set of the framework pallet is the set this path
         // commits externally.
-        let checkpoint = cerulea_primitives::checkpoint::Checkpoint::new(
-            2,
-            2_700,
-            [7u8; 32],
-            [8u8; 32],
-        );
+        let checkpoint =
+            cerulea_primitives::checkpoint::Checkpoint::new(2, 2_700, [7u8; 32], [8u8; 32]);
         assert_ok!(Bridge::request_checkpoint_anchor(
             RuntimeOrigin::signed(ACTOR),
             deployment,
@@ -1311,10 +1307,8 @@ fn two_checkpoints_anchor_two_commitments() {
             proof
         ));
 
-        let one =
-            cerulea_primitives::checkpoint::Checkpoint::new(0, 900, [1u8; 32], [2u8; 32]);
-        let two =
-            cerulea_primitives::checkpoint::Checkpoint::new(1, 1_800, [3u8; 32], [4u8; 32]);
+        let one = cerulea_primitives::checkpoint::Checkpoint::new(0, 900, [1u8; 32], [2u8; 32]);
+        let two = cerulea_primitives::checkpoint::Checkpoint::new(1, 1_800, [3u8; 32], [4u8; 32]);
         assert_ok!(Bridge::request_checkpoint_anchor(
             RuntimeOrigin::signed(ACTOR),
             deployment,
@@ -1336,7 +1330,6 @@ fn two_checkpoints_anchor_two_commitments() {
         assert_ne!(first.root, second.root);
     });
 }
-
 
 #[test]
 fn a_state_root_anchors_into_the_far_network_and_proves_back() {

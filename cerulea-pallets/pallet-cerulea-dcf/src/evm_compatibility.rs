@@ -4,9 +4,9 @@
 //! ensuring DCF events can be properly indexed and queried from the EVM side.
 
 use super::*;
+use codec::MaxEncodedLen;
 use frame_support::BoundedVec;
 use sp_core::ConstU32;
-use codec::MaxEncodedLen;
 use sp_std::vec::Vec;
 
 /// Maximum size for EVM-compatible event payloads (in bytes)
@@ -65,11 +65,11 @@ impl EvmEventValidator {
                 b'[' | b'{' | b'(' => {
                     current_nesting += 1;
                     max_nesting = max_nesting.max(current_nesting);
-                },
+                }
                 b']' | b'}' | b')' => {
                     current_nesting = current_nesting.saturating_sub(1);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
@@ -86,10 +86,10 @@ impl EvmEventValidator {
         let event_type = Self::get_event_type_id(event);
         let indexed_fields = Self::extract_indexed_fields(event)?;
         let data_fields = Self::extract_data_fields(event)?;
-        
+
         let encoded_len = encoded.len();
-        let raw_data = BoundedVec::try_from(encoded)
-            .map_err(|_| EvmCompatibilityError::PayloadTooLarge {
+        let raw_data =
+            BoundedVec::try_from(encoded).map_err(|_| EvmCompatibilityError::PayloadTooLarge {
                 actual_size: encoded_len as u32,
                 max_size: 2048,
             })?;
@@ -132,42 +132,46 @@ impl EvmEventValidator {
         let mut indexed_fields = BoundedVec::new();
 
         match event {
-            Event::ValidatorJoined { validator, .. } |
-            Event::ValidatorLeft { validator, .. } |
-            Event::ValidatorEjected { validator, .. } => {
+            Event::ValidatorJoined { validator, .. }
+            | Event::ValidatorLeft { validator, .. }
+            | Event::ValidatorEjected { validator, .. } => {
                 let encoded = validator.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             Event::EpochStarted { epoch, .. } => {
                 let encoded = epoch.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
-            Event::ProposalSubmitted { proposal_id, proposer, .. } => {
+            }
+            Event::ProposalSubmitted {
+                proposal_id,
+                proposer,
+                ..
+            } => {
                 let id_encoded = proposal_id.encode();
                 if id_encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(id_encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-                
+
                 let proposer_encoded = proposer.encode();
                 if proposer_encoded.len() <= 32 && indexed_fields.len() < 3 {
                     let bounded_field = BoundedVec::try_from(proposer_encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             Event::ProposalExecuted { proposal_id, .. } => {
                 let encoded = proposal_id.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             _ => {
                 // For other events, no specific indexed fields
             }
@@ -184,13 +188,12 @@ impl EvmEventValidator {
         // In a real implementation, you might want to extract specific fields
         let encoded = event.encode();
         Self::validate_event_payload(&encoded)?;
-        
+
         let encoded_len = encoded.len();
-        BoundedVec::try_from(encoded)
-            .map_err(|_| EvmCompatibilityError::PayloadTooLarge {
-                actual_size: encoded_len as u32,
-                max_size: 1024,
-            })
+        BoundedVec::try_from(encoded).map_err(|_| EvmCompatibilityError::PayloadTooLarge {
+            actual_size: encoded_len as u32,
+            max_size: 1024,
+        })
     }
 }
 
@@ -211,20 +214,11 @@ pub struct EvmCompatibleEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub enum EvmCompatibilityError {
     /// Event payload exceeds EVM size limits
-    PayloadTooLarge {
-        actual_size: u32,
-        max_size: u32,
-    },
+    PayloadTooLarge { actual_size: u32, max_size: u32 },
     /// Event data has excessive nesting that may cause stack overflow
-    ExcessiveNesting {
-        level: u32,
-        max_level: u32,
-    },
+    ExcessiveNesting { level: u32, max_level: u32 },
     /// Indexed field exceeds EVM topic size limit
-    IndexedFieldTooLarge {
-        field_size: u32,
-        max_size: u32,
-    },
+    IndexedFieldTooLarge { field_size: u32, max_size: u32 },
     /// Event type not supported for EVM compatibility
     UnsupportedEventType,
     /// Event encoding failed
@@ -246,22 +240,22 @@ impl<T: Config> Pallet<T> {
         }
 
         let evm_event = EvmEventValidator::convert_to_evm_format(event)?;
-        
+
         // Store the EVM-compatible event for potential EVM queries
         Self::store_evm_event(evm_event)?;
-        
+
         Ok(())
     }
 
     /// Store EVM-compatible event for later retrieval
     fn store_evm_event(evm_event: EvmCompatibleEvent) -> Result<(), EvmCompatibilityError> {
         let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-        
+
         // Store in a bounded vec to prevent unbounded growth
         EvmCompatibleEvents::<T>::mutate(current_block, |events| {
             let _ = events.try_push(evm_event);
         });
-        
+
         Ok(())
     }
 
@@ -277,10 +271,10 @@ impl<T: Config> Pallet<T> {
         to_block: u32,
     ) -> Vec<(u32, EvmCompatibleEvent)> {
         let mut results = Vec::new();
-        
+
         for block_num in from_block..=to_block {
             let events = Self::get_evm_events_for_block(block_num);
-            
+
             for event in events {
                 if let Some(filter_type) = event_type {
                     if event.event_type == filter_type {
@@ -291,7 +285,7 @@ impl<T: Config> Pallet<T> {
                 }
             }
         }
-        
+
         results
     }
 
@@ -299,14 +293,14 @@ impl<T: Config> Pallet<T> {
     pub fn validate_all_events_evm_compatible() -> Result<(), EvmCompatibilityError> {
         // This would be called during testing to ensure all events are EVM-compatible
         // For now, we'll just validate the event structure
-        
+
         // Test with sample events
         let sample_events = Self::get_sample_events_for_testing();
-        
+
         for event in sample_events {
             EvmEventValidator::convert_to_evm_format(&event)?;
         }
-        
+
         Ok(())
     }
 
@@ -321,7 +315,7 @@ impl<T: Config> Pallet<T> {
     pub fn cleanup_old_evm_events(keep_blocks: u32) {
         let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
         let cutoff_block = current_block.saturating_sub(keep_blocks);
-        
+
         // Remove events older than cutoff by iterating and removing individual entries
         for block_num in 0..cutoff_block {
             EvmCompatibleEvents::<T>::remove(block_num);
@@ -348,7 +342,6 @@ mod tests {
         assert!(EvmEventValidator::validate_event_payload(&large_payload).is_err());
     }
 
-
     #[test]
     fn test_nesting_level_calculation() {
         // Test simple nesting
@@ -372,9 +365,7 @@ mod tests {
                 validator: 1u64,
                 stake_amount: 1000,
             };
-            let leave_event = Event::<Test>::ValidatorLeft {
-                validator: 1u64,
-            };
+            let leave_event = Event::<Test>::ValidatorLeft { validator: 1u64 };
 
             let join_id = EvmEventValidator::get_event_type_id(&join_event);
             let leave_id = EvmEventValidator::get_event_type_id(&leave_event);
@@ -391,9 +382,14 @@ mod tests {
             let block_number = 100u32;
             let sample_event = EvmCompatibleEvent {
                 event_type: 1,
-                indexed_fields: BoundedVec::try_from(vec![BoundedVec::try_from(vec![1u8, 2u8, 3u8]).unwrap_or_default()]).unwrap_or_default(),
+                indexed_fields: BoundedVec::try_from(vec![BoundedVec::try_from(vec![
+                    1u8, 2u8, 3u8,
+                ])
+                .unwrap_or_default()])
+                .unwrap_or_default(),
                 data_fields: BoundedVec::try_from(vec![4u8, 5u8, 6u8]).unwrap_or_default(),
-                raw_data: BoundedVec::try_from(vec![1u8, 2u8, 3u8, 4u8, 5u8, 6u8]).unwrap_or_default(),
+                raw_data: BoundedVec::try_from(vec![1u8, 2u8, 3u8, 4u8, 5u8, 6u8])
+                    .unwrap_or_default(),
             };
 
             // Store event
@@ -464,7 +460,7 @@ mod tests {
 
             // Verify old events are cleaned up
             assert!(DcfPallet::get_evm_events_for_block(5).is_empty());
-            
+
             // Verify recent events are kept
             assert!(!DcfPallet::get_evm_events_for_block(9).is_empty());
         });

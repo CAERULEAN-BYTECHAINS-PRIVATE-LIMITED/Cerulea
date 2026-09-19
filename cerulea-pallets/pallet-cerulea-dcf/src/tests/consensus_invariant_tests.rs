@@ -3,7 +3,7 @@
 use crate::{mock::*, Error};
 use frame_support::{
     assert_noop, assert_ok,
-    traits::{Get, OnFinalize, OnInitialize, Currency},
+    traits::{Currency, Get, OnFinalize, OnInitialize},
 };
 
 /// Property: Total staked amount never exceeds total supply
@@ -14,17 +14,17 @@ fn property_total_stake_bounded_by_supply() {
             System::set_block_number(block_num);
             DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
-            
+
             let active_validators = DcfPallet::active_validators();
             let mut total_staked = 0u128;
             let mut total_supply = 0u128;
-            
+
             for validator in &active_validators {
                 total_staked += pallet_cerulea_pos::Stake::<Test>::get(validator);
                 total_supply += Balances::free_balance(validator);
                 total_supply += Balances::reserved_balance(validator);
             }
-            
+
             // Property: total_staked <= total_supply
             assert!(total_staked <= total_supply);
         }
@@ -43,25 +43,25 @@ fn property_consensus_weights_mathematical_consistency() {
             (1000u64, 9000u64),
             (6000u64, 4000u64),
         ];
-        
+
         for (pos_weight, poi_weight) in test_weight_pairs {
             assert_ok!(DcfPallet::update_consensus_weights(
                 RuntimeOrigin::root(),
                 pos_weight,
                 poi_weight
             ));
-            
+
             let (current_pos, current_poi) = DcfPallet::consensus_weights();
-            
+
             // Property: weights sum to exactly 10000 (100%)
             assert_eq!(current_pos + current_poi, 10000);
-            
+
             // Property: individual weights are within bounds
             assert!(current_pos > 0);
             assert!(current_poi > 0);
             assert!(current_pos <= 10000);
             assert!(current_poi <= 10000);
-            
+
             // Property: weights match what was set
             assert_eq!(current_pos, pos_weight);
             assert_eq!(current_poi, poi_weight);
@@ -74,33 +74,36 @@ fn property_consensus_weights_mathematical_consistency() {
 fn property_validator_economic_bounds() {
     new_test_ext().execute_with(|| {
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
-        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
-        
+        let max_validators =
+            <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<
+                u32,
+            >>::get();
+
         for block_num in 1..=15 {
             System::set_block_number(block_num);
             DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
-            
+
             let active_validators = DcfPallet::active_validators();
-            
+
             // Property: validator count within bounds
             assert!(active_validators.len() <= max_validators as usize);
-            
+
             for validator in &active_validators {
                 let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 let free_balance = Balances::free_balance(validator);
                 let reserved_balance = Balances::reserved_balance(validator);
-                
+
                 // Property: active validators meet minimum stake
                 assert!(stake >= min_stake);
-                
+
                 // Property: reserved balance covers stake
                 assert!(reserved_balance >= stake);
-                
+
                 // Property: total balance is non-negative
                 assert!(free_balance >= 0);
                 assert!(reserved_balance >= 0);
-                
+
                 // Property: stake is consistent with reserved balance
                 assert_eq!(stake, reserved_balance);
             }
@@ -118,7 +121,6 @@ fn property_validator_economic_bounds() {
 fn property_trust_score_stays_inside_one_whole() {
     new_test_ext().execute_with(|| {
         super::assert_composition_reaches_one_whole();
-
 
         for block_num in 1..=10 {
             System::set_block_number(block_num);
@@ -155,10 +157,10 @@ fn property_epoch_transitions_preserve_invariants() {
     new_test_ext().execute_with(|| {
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
-        
+
         let mut previous_epoch = DcfPallet::current_epoch();
         let mut previous_validators = DcfPallet::active_validators();
-        
+
         // Advance through multiple epochs
         for epoch_cycle in 1..=3 {
             for block in 1..=epoch_length {
@@ -167,24 +169,24 @@ fn property_epoch_transitions_preserve_invariants() {
                 DcfPallet::on_initialize(block_num as u64);
                 DcfPallet::on_finalize(block_num as u64);
             }
-            
+
             let current_epoch = DcfPallet::current_epoch();
             let current_validators = DcfPallet::active_validators();
-            
+
             // Property: epoch advances monotonically
             assert!(current_epoch >= previous_epoch);
-            
+
             // Property: minimum validators maintained across epochs
             assert!(current_validators.len() >= min_active as usize);
-            
+
             // Property: validator set changes are bounded
             let validator_changes = current_validators.len() as i32 - previous_validators.len() as i32;
             assert!(validator_changes.abs() <= 10); // Reasonable change limit
-            
+
             // Property: consensus weights remain valid across epochs
             let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
             assert_eq!(pos_weight + poi_weight, 10000);
-            
+
             previous_epoch = current_epoch;
             previous_validators = current_validators;
         }
@@ -269,7 +271,8 @@ fn property_reward_credits_the_balance_and_records_the_epoch() {
 
         for (i, reward_amount) in reward_amounts.iter().enumerate() {
             let before = Balances::free_balance(validator);
-            let recorded_before = pallet_cerulea_pos::ValidatorEpochRewarded::<Test>::get(validator);
+            let recorded_before =
+                pallet_cerulea_pos::ValidatorEpochRewarded::<Test>::get(validator);
 
             assert_ok!(DcfPallet::propose_reward_validator(
                 RuntimeOrigin::root(),
@@ -314,24 +317,24 @@ fn property_participation_tracking_consistency() {
             System::set_block_number(block_num);
             DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
-            
+
             let active_validators = DcfPallet::active_validators();
-            
+
             for validator in &active_validators {
                 let (authored, missed) = DcfPallet::validator_participation(validator);
                 let last_active = DcfPallet::validator_last_active(validator);
-                
+
                 // Property: participation counters are non-negative
                 assert!(authored >= 0);
                 assert!(missed >= 0);
-                
+
                 // Property: last active is reasonable
                 assert!(last_active as u64 <= block_num);
-                
+
                 // Property: total participation makes sense
                 let total_participation = authored + missed;
                 assert!(total_participation <= block_num as u32);
-                
+
                 // Property: active validators have recent activity
                 if DcfPallet::is_validator_active(validator) {
                     let blocks_since_active = block_num - last_active as u64;
@@ -347,10 +350,10 @@ fn property_participation_tracking_consistency() {
 fn property_governance_system_integrity() {
     new_test_ext().execute_with(|| {
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
-        
+
         let validator = 1u64;
         let proposal_amounts = [100u128, 500u128, 1000u128];
-        
+
         for (i, amount) in proposal_amounts.iter().enumerate() {
             // Create proposal
             assert_ok!(DcfPallet::propose_reward_validator(
@@ -359,22 +362,25 @@ fn property_governance_system_integrity() {
                 validator,
                 *amount
             ));
-            
+
             let proposal = crate::Proposals::<Test>::get(i as u32).unwrap();
-            
+
             // Property: proposal has valid structure
             assert_eq!(proposal.proposer, validator);
             match &proposal.action {
-                crate::ProposalAction::Reward { validator: beneficiary, amount: prop_amount } => {
+                crate::ProposalAction::Reward {
+                    validator: beneficiary,
+                    amount: prop_amount,
+                } => {
                     assert_eq!(*beneficiary, validator);
                     assert_eq!(*prop_amount, *amount);
-                },
+                }
                 _ => panic!("Expected Reward action"),
             }
             assert_eq!(proposal.status, crate::ProposalStatus::Pending);
             assert_eq!(proposal.votes_for, 0);
             assert_eq!(proposal.votes_against, 0);
-            
+
             // Vote on the proposal until the quorum is reached. One vote
             // leaves the proposal pending, which the pallet holds.
             assert_ok!(mock_approve_proposal(i as u32));
@@ -386,15 +392,15 @@ fn property_governance_system_integrity() {
             assert!(updated_proposal.votes_for >= quorum);
             assert_eq!(updated_proposal.votes_against, 0);
             assert_eq!(updated_proposal.status, crate::ProposalStatus::Approved);
-            
+
             // Execute proposal
             // The proposal reaches the quorum the pallet asks for before it
             // executes. Half of the active validators vote in favour.
             assert_ok!(mock_approve_proposal(i as u32));
             assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), i as u32));
-            
+
             let executed_proposal = crate::Proposals::<Test>::get(i as u32).unwrap();
-            
+
             // Property: execution updates status
             assert_eq!(executed_proposal.status, crate::ProposalStatus::Executed);
         }
@@ -406,7 +412,7 @@ fn property_governance_system_integrity() {
 fn property_system_liveness() {
     new_test_ext().execute_with(|| {
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
-        
+
         // Test system liveness under various stress conditions
         for scenario in 1..=5 {
             match scenario {
@@ -459,17 +465,17 @@ fn property_system_liveness() {
                 },
                 _ => {}
             }
-            
+
             // Property: system maintains liveness after each scenario
             let active_validators = DcfPallet::active_validators();
             assert!(active_validators.len() >= min_active as usize);
-            
+
             let current_epoch = DcfPallet::current_epoch();
             assert!(current_epoch >= 0);
-            
+
             let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
             assert_eq!(pos_weight + poi_weight, 10000);
-            
+
             // Property: all active validators have valid states
             for validator in &active_validators {
                 assert!(DcfPallet::is_validator_active(validator));
@@ -484,28 +490,30 @@ fn property_system_liveness() {
 fn property_economic_security_alignment() {
     new_test_ext().execute_with(|| {
         let validators = DcfPallet::active_validators();
-        let total_stake: u128 = validators.iter()
+        let total_stake: u128 = validators
+            .iter()
             .map(pallet_cerulea_pos::Stake::<Test>::get)
             .sum();
-        
+
         // Property: higher stake validators have higher influence
-        let mut validator_stakes: Vec<_> = validators.iter()
+        let mut validator_stakes: Vec<_> = validators
+            .iter()
             .map(|v| (*v, pallet_cerulea_pos::Stake::<Test>::get(v)))
             .collect();
         validator_stakes.sort_by(|a, b| b.1.cmp(&a.1));
-        
+
         for window in validator_stakes.windows(2) {
             let (_, stake1) = window[0];
             let (_, stake2) = window[1];
-            
+
             // Property: stakes are ordered correctly
             assert!(stake1 >= stake2);
         }
-        
+
         // Property: no single validator controls majority
         let max_stake = validator_stakes[0].1;
         assert!(max_stake < total_stake / 2);
-        
+
         // Property: stake distribution is reasonable
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         let stake_ratio = max_stake / min_stake;

@@ -1,8 +1,5 @@
 use crate as pallet_cerulea_dvf;
-use frame_support::{
-    parameter_types,
-    traits::ConstU32,
-};
+use frame_support::{parameter_types, traits::ConstU32};
 use sp_core::{sr25519, Pair, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentifyAccount, IdentityLookup, Verify},
@@ -159,9 +156,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     // Create test validator weights synchronized with production pattern
     // Using realistic stakes matching the bug condition exploration test
     let test_validator_weights = vec![
-        (account_key("Alice"), 10_000_000, 80),   // Alice: 10M stake, 80 score
-        (account_key("Bob"), 8_000_000, 80),      // Bob: 8M stake, 80 score
-        (account_key("Charlie"), 6_000_000, 80),  // Charlie: 6M stake, 80 score
+        (account_key("Alice"), 10_000_000, 80), // Alice: 10M stake, 80 score
+        (account_key("Bob"), 8_000_000, 80),    // Bob: 8M stake, 80 score
+        (account_key("Charlie"), 6_000_000, 80), // Charlie: 6M stake, 80 score
     ];
 
     let mut t = frame_system::GenesisConfig::<Test>::default()
