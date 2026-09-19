@@ -25,6 +25,7 @@
 extern crate alloc;
 
 pub mod execute;
+pub mod view;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -39,6 +40,7 @@ mod tests_support;
 
 pub use execute::{ExecutionOutcome, NoWorkflows, TransitionSink};
 pub use pallet::*;
+pub use view::Row;
 pub use weights::WeightInfo;
 
 use alloc::{vec, vec::Vec};
@@ -382,6 +384,31 @@ pub mod pallet {
             let text = alloc::string::String::from_utf8(action.to_vec())
                 .map_err(|_| Error::<T>::ActionUnknown)?;
             Self::run_action(&deployment, &who, &text, &parsed).map(|_| ())
+        }
+
+        /// Evaluate one view and write its row count and its digest.
+        ///
+        /// The interface layer reads the rows through the runtime read
+        /// entry point. The event records that the view ran and what it
+        /// produced. The call changes no record.
+        #[pallet::call_index(3)]
+        #[pallet::weight(T::WeightInfo::run_view())]
+        pub fn evaluate_view_call(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            view: BoundedName,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let text = alloc::string::String::from_utf8(view.to_vec())
+                .map_err(|_| Error::<T>::ViewUnknown)?;
+            let rows = Self::run_view(&deployment, &who, &text)?;
+            Self::deposit_event(Event::ViewEvaluated {
+                deployment,
+                view,
+                rows: u32::try_from(rows.len()).unwrap_or(u32::MAX),
+                digest: Self::digest_of_rows(&rows),
+            });
+            Ok(())
         }
 
         /// Evaluate one expression and write its result digest.

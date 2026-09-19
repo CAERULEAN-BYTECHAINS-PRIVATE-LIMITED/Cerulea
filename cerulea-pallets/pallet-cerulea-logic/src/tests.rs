@@ -581,3 +581,394 @@ fn a_field_path_writes_the_value_it_names() {
     )
     .is_none());
 }
+
+fn holder_view() -> cerulea_blueprint::views::View {
+    let mut view = cerulea_blueprint::views::View::new(
+        "holders",
+        "parcel",
+        "The view lists the holder of every parcel.",
+    );
+    view.purposes = vec![cerulea_blueprint::types::PurposeTag::new("registration")];
+    view.projection = vec![
+        cerulea_blueprint::views::Projection::computed(
+            "survey_number",
+            Expr::field(Expr::bound("record"), "survey_number"),
+        ),
+        cerulea_blueprint::views::Projection::computed(
+            "holder",
+            Expr::field(Expr::bound("record"), "holder"),
+        ),
+        cerulea_blueprint::views::Projection::computed(
+            "area",
+            Expr::field(Expr::bound("record"), "area"),
+        ),
+    ];
+    view
+}
+
+fn view_blueprint(view: cerulea_blueprint::views::View) -> Blueprint {
+    let mut blueprint = base_blueprint();
+    blueprint.views.push(view);
+    blueprint
+}
+
+fn land(deployment: pallet_cerulea_schema::primitives::DeploymentId, rows: &[(&str, &str, i128)]) {
+    for (survey, holder, area) in rows.iter() {
+        assert_ok!(<State as pallet_cerulea_state::RecordStore>::insert(
+            &deployment,
+            &CollectionId::new("parcel"),
+            &crate::tests_support::ACTOR,
+            &parcel(survey, holder, *area)
+        ));
+    }
+}
+
+fn value_at(row: &crate::Row, name: &str) -> Value {
+    crate::view::field_of(row, &FieldName::new(name))
+        .cloned()
+        .expect("the row carries the field")
+}
+
+#[test]
+fn a_view_projects_the_fields_it_names() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&view_blueprint(holder_view()));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[("12/3", "Anitha", 400), ("44/9", "Benny", 100)],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "holders")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].len(), 3);
+    });
+}
+
+#[test]
+fn a_view_filter_keeps_the_rows_it_admits() {
+    new_test_ext().execute_with(|| {
+        let mut view = holder_view();
+        view.filter = Some(Expr::binary(
+            BinaryOp::Greater,
+            Expr::field(Expr::bound("record"), "area"),
+            Expr::integer(200),
+        ));
+        let deployment = install(&view_blueprint(view));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[("12/3", "Anitha", 400), ("44/9", "Benny", 100)],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "holders")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(value_at(&rows[0], "holder"), Value::Text("Anitha".into()));
+    });
+}
+
+#[test]
+fn a_view_sorts_by_the_keys_it_names() {
+    new_test_ext().execute_with(|| {
+        let mut view = holder_view();
+        view.sort = vec![cerulea_blueprint::views::SortKey::descending("area")];
+        let deployment = install(&view_blueprint(view));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[
+                ("12/3", "Anitha", 400),
+                ("44/9", "Benny", 100),
+                ("55/5", "Chandra", 900),
+            ],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "holders")
+            .expect("the view runs");
+        assert_eq!(value_at(&rows[0], "area"), Value::Integer(900));
+        assert_eq!(value_at(&rows[2], "area"), Value::Integer(100));
+    });
+}
+
+#[test]
+fn a_view_stops_at_its_limit() {
+    new_test_ext().execute_with(|| {
+        let mut view = holder_view();
+        view.sort = vec![cerulea_blueprint::views::SortKey::ascending("area")];
+        view.limit = Some(2);
+        let deployment = install(&view_blueprint(view));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[
+                ("12/3", "Anitha", 400),
+                ("44/9", "Benny", 100),
+                ("55/5", "Chandra", 900),
+            ],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "holders")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(value_at(&rows[0], "area"), Value::Integer(100));
+    });
+}
+
+#[test]
+fn a_view_counts_and_totals_one_group() {
+    new_test_ext().execute_with(|| {
+        let mut view = cerulea_blueprint::views::View::new(
+            "by_holder",
+            "parcel",
+            "The view totals the area each holder holds.",
+        );
+        view.purposes = vec![cerulea_blueprint::types::PurposeTag::new("registration")];
+        view.projection = vec![cerulea_blueprint::views::Projection::computed(
+            "holder",
+            Expr::field(Expr::bound("record"), "holder"),
+        )];
+        view.group_by = vec![FieldName::new("holder")];
+        view.aggregates = vec![
+            cerulea_blueprint::views::Aggregate::count("parcels"),
+            cerulea_blueprint::views::Aggregate::total(
+                "total_area",
+                Expr::field(Expr::bound("record"), "area"),
+            ),
+        ];
+        view.sort = vec![cerulea_blueprint::views::SortKey::ascending("holder")];
+        let deployment = install(&view_blueprint(view));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[
+                ("12/3", "Anitha", 400),
+                ("44/9", "Anitha", 100),
+                ("55/5", "Benny", 900),
+            ],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "by_holder")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(value_at(&rows[0], "holder"), Value::Text("Anitha".into()));
+        assert_eq!(value_at(&rows[0], "parcels"), Value::Integer(2));
+        assert_eq!(value_at(&rows[0], "total_area"), Value::Integer(500));
+        assert_eq!(value_at(&rows[1], "parcels"), Value::Integer(1));
+        assert_eq!(value_at(&rows[1], "total_area"), Value::Integer(900));
+    });
+}
+
+#[test]
+fn a_view_takes_the_ends_of_a_range() {
+    new_test_ext().execute_with(|| {
+        let mut view = cerulea_blueprint::views::View::new(
+            "extremes",
+            "parcel",
+            "The view reports the smallest and the largest parcel.",
+        );
+        view.purposes = vec![cerulea_blueprint::types::PurposeTag::new("registration")];
+        view.projection = vec![cerulea_blueprint::views::Projection::computed(
+            "register",
+            Expr::text("parcel"),
+        )];
+        view.group_by = vec![FieldName::new("register")];
+        view.aggregates = vec![
+            cerulea_blueprint::views::Aggregate {
+                name: FieldName::new("smallest"),
+                function: cerulea_blueprint::views::AggregateFunction::Smallest,
+                value: Some(Expr::field(Expr::bound("record"), "area")),
+            },
+            cerulea_blueprint::views::Aggregate {
+                name: FieldName::new("largest"),
+                function: cerulea_blueprint::views::AggregateFunction::Largest,
+                value: Some(Expr::field(Expr::bound("record"), "area")),
+            },
+        ];
+        let deployment = install(&view_blueprint(view));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[
+                ("12/3", "Anitha", 400),
+                ("44/9", "Benny", 100),
+                ("55/5", "Chandra", 900),
+            ],
+        );
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "extremes")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(value_at(&rows[0], "smallest"), Value::Integer(100));
+        assert_eq!(value_at(&rows[0], "largest"), Value::Integer(900));
+    });
+}
+
+#[test]
+fn a_matched_join_keeps_the_rows_that_match() {
+    new_test_ext().execute_with(|| {
+        let mut blueprint = base_blueprint();
+        let mut ledger = parcel_collection();
+        ledger.id = CollectionId::new("ledger");
+        blueprint.collections.push(ledger);
+
+        let mut view = cerulea_blueprint::views::View::new(
+            "joined",
+            "parcel",
+            "The view joins each parcel to its ledger entry.",
+        );
+        view.purposes = vec![cerulea_blueprint::types::PurposeTag::new("registration")];
+        view.joins = vec![cerulea_blueprint::views::Join {
+            collection: CollectionId::new("ledger"),
+            alias: ParamName::new("entry"),
+            left: cerulea_blueprint::types::FieldPath::parse("survey_number"),
+            right: cerulea_blueprint::types::FieldPath::parse("survey_number"),
+            kind: cerulea_blueprint::views::JoinKind::Matched,
+        }];
+        view.projection = vec![
+            cerulea_blueprint::views::Projection::computed(
+                "survey_number",
+                Expr::field(Expr::bound("record"), "survey_number"),
+            ),
+            cerulea_blueprint::views::Projection::computed(
+                "entry_holder",
+                Expr::field(Expr::bound("entry"), "holder"),
+            ),
+        ];
+        blueprint.views.push(view);
+
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_over(deployment, &["parcel", "ledger"], &[]);
+        land(
+            deployment,
+            &[("12/3", "Anitha", 400), ("44/9", "Benny", 100)],
+        );
+        assert_ok!(<State as pallet_cerulea_state::RecordStore>::insert(
+            &deployment,
+            &CollectionId::new("ledger"),
+            &crate::tests_support::ACTOR,
+            &parcel("12/3", "Ledger Anitha", 400)
+        ));
+
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "joined")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            value_at(&rows[0], "entry_holder"),
+            Value::Text("Ledger Anitha".into())
+        );
+    });
+}
+
+#[test]
+fn an_optional_join_keeps_the_rows_that_match_nothing() {
+    new_test_ext().execute_with(|| {
+        let mut blueprint = base_blueprint();
+        let mut ledger = parcel_collection();
+        ledger.id = CollectionId::new("ledger");
+        blueprint.collections.push(ledger);
+
+        let mut view = cerulea_blueprint::views::View::new(
+            "joined",
+            "parcel",
+            "The view joins each parcel to its ledger entry where one sits.",
+        );
+        view.purposes = vec![cerulea_blueprint::types::PurposeTag::new("registration")];
+        view.joins = vec![cerulea_blueprint::views::Join {
+            collection: CollectionId::new("ledger"),
+            alias: ParamName::new("entry"),
+            left: cerulea_blueprint::types::FieldPath::parse("survey_number"),
+            right: cerulea_blueprint::types::FieldPath::parse("survey_number"),
+            kind: cerulea_blueprint::views::JoinKind::Optional,
+        }];
+        view.projection = vec![cerulea_blueprint::views::Projection::computed(
+            "survey_number",
+            Expr::field(Expr::bound("record"), "survey_number"),
+        )];
+        blueprint.views.push(view);
+
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_over(deployment, &["parcel", "ledger"], &[]);
+        land(
+            deployment,
+            &[("12/3", "Anitha", 400), ("44/9", "Benny", 100)],
+        );
+        assert_ok!(<State as pallet_cerulea_state::RecordStore>::insert(
+            &deployment,
+            &CollectionId::new("ledger"),
+            &crate::tests_support::ACTOR,
+            &parcel("12/3", "Ledger Anitha", 400)
+        ));
+
+        let rows = Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "joined")
+            .expect("the view runs");
+        assert_eq!(rows.len(), 2);
+    });
+}
+
+#[test]
+fn a_view_reads_the_rows_the_caller_reaches() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&view_blueprint(holder_view()));
+        crate::tests_support::grant_everything(deployment);
+        land(deployment, &[("12/3", "Anitha", 400)]);
+        // A second account holds no role, so the view returns nothing.
+        assert_ok!(Identity::register_account(
+            RuntimeOrigin::signed(crate::tests_support::ACTOR),
+            9u64,
+            [9u8; 32]
+        ));
+        let rows = Pallet::<Test>::run_view(&deployment, &9u64, "holders").expect("the view runs");
+        assert!(rows.is_empty());
+    });
+}
+
+#[test]
+fn an_absent_view_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&view_blueprint(holder_view()));
+        crate::tests_support::grant_everything(deployment);
+        assert_noop!(
+            Pallet::<Test>::run_view(&deployment, &crate::tests_support::ACTOR, "ledger"),
+            Error::<Test>::ViewUnknown
+        );
+    });
+}
+
+#[test]
+fn a_view_call_writes_its_row_count_and_digest() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&view_blueprint(holder_view()));
+        crate::tests_support::grant_everything(deployment);
+        land(
+            deployment,
+            &[("12/3", "Anitha", 400), ("44/9", "Benny", 100)],
+        );
+        assert_ok!(Logic::evaluate_view_call(
+            RuntimeOrigin::signed(crate::tests_support::ACTOR),
+            deployment,
+            crate::tests_support::name("holders")
+        ));
+        let found = System::events()
+            .into_iter()
+            .filter_map(|held| match held.event {
+                RuntimeEvent::Logic(crate::Event::ViewEvaluated { rows, .. }) => Some(rows),
+                _ => None,
+            })
+            .last()
+            .expect("the call wrote an event");
+        assert_eq!(found, 2);
+    });
+}
+
+#[test]
+fn two_numeric_values_add_and_a_mixed_pair_declines() {
+    assert_eq!(
+        crate::view::add_values(&Value::Integer(2), &Value::Integer(3)),
+        Some(Value::Integer(5))
+    );
+    assert_eq!(
+        crate::view::add_values(&Value::Integer(2), &Value::Text("three".into())),
+        None
+    );
+    assert_eq!(
+        crate::view::zero_like(&Value::Integer(9)),
+        Some(Value::Integer(0))
+    );
+    assert_eq!(crate::view::zero_like(&Value::Bool(true)), None);
+}

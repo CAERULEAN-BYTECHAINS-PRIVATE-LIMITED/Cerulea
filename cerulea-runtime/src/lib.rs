@@ -2,6 +2,10 @@
 // when the `std` feature is not enabled. This is required for Substrate runtimes to run in a 
 // WebAssembly (Wasm) environment.
 #![cfg_attr(not(feature = "std"), no_std)]
+// The runtime now composes sixteen platform modules beside the engine
+// modules. The macro that builds the runtime needs a deeper expansion
+// budget than the default to cover them.
+#![recursion_limit = "512"]
 
 // Include the Wasm binary generated during the build process when the `std` feature is enabled.
 // This binary is used for native execution of the runtime.
