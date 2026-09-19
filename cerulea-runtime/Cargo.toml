@@ -41,6 +41,7 @@ pallet-cerulea-permission.workspace = true
 pallet-cerulea-logic.workspace = true
 pallet-cerulea-audit.workspace = true
 pallet-cerulea-workflow.workspace = true
+pallet-cerulea-operator.workspace = true
 pallet-cerulea-relayer.workspace = true
 pallet-cerulea-tier.workspace = true
 pallet-cerulea-oracle.workspace = true
@@ -107,6 +108,7 @@ std = [
 	"pallet-cerulea-logic/std",
 	"pallet-cerulea-audit/std",
 	"pallet-cerulea-workflow/std",
+	"pallet-cerulea-operator/std",
 	"pallet-cerulea-relayer/std",
 	"pallet-cerulea-tier/std",
 	"pallet-cerulea-oracle/std",
@@ -167,6 +169,7 @@ try-runtime = [
 	"pallet-cerulea-logic/try-runtime",
 	"pallet-cerulea-audit/try-runtime",
 	"pallet-cerulea-workflow/try-runtime",
+	"pallet-cerulea-operator/try-runtime",
 	"pallet-cerulea-relayer/try-runtime",
 	"pallet-cerulea-tier/try-runtime",
 	"pallet-cerulea-oracle/try-runtime",

@@ -640,3 +640,25 @@ impl pallet_cerulea_relayer::Config for Runtime {
     type UnitsPerSubmission = ConstU64<1>;
     type MaxAuthorisationSpan = ConstU64<3600000>;
 }
+
+// === The Cerulea operator module ===
+// Every customer deployment carries a Cerulea operator role. The role is
+// mandatory and strictly limited. The role upgrades and downgrades the
+// platform version, verifies the licence, stops block production on a
+// lapse and pushes platform updates. The role reads no customer record,
+// writes no customer data, holds no permission over customer governance
+// and alters no Blueprint.
+// The limits are enforced by the permission module rather than by policy.
+// Every request names the collection it reaches, and the resolver refuses
+// the operator role over any customer collection. An action outside the
+// scope aborts and appears in the customer audit log with the actor, the
+// timestamp and the reason.
+impl pallet_cerulea_operator::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_operator::weights::CeruleaWeight<Runtime>;
+    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Versions = crate::Evolution;
+    type Licences = crate::Tier;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+}

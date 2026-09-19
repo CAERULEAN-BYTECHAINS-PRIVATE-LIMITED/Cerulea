@@ -17,6 +17,7 @@ use crate::{
     Watched, WeightInfo,
 };
 use codec::Encode;
+use sp_runtime::DispatchError;
 
 /// The gate the authoring engine consults before it authors a block.
 ///
@@ -172,6 +173,76 @@ impl<T: Config> Pallet<T> {
             }
         }
         T::WeightInfo::sweep_one_deployment().saturating_mul(checked)
+    }
+}
+
+/// The licence control the Cerulea operator role reaches.
+///
+/// The role verifies a licence and stops block production on a lapse. The
+/// role reaches nothing else of the deployment through this trait.
+pub trait LicenceControl {
+    /// The account type the runtime carries.
+    type AccountId;
+
+    /// Report whether the licence of one deployment holds now.
+    fn holds(deployment: &DeploymentId) -> bool;
+
+    /// Check the signature and the expiry of the stored licence.
+    ///
+    /// The result reports whether the licence holds.
+    fn verify(deployment: &DeploymentId, actor: &Self::AccountId) -> Result<bool, DispatchError>;
+
+    /// Stop block production when the licence lapsed.
+    ///
+    /// The result reports whether the call stopped block production. A
+    /// licence that holds leaves the deployment producing blocks.
+    fn suspend_on_lapse(
+        deployment: &DeploymentId,
+        actor: &Self::AccountId,
+    ) -> Result<bool, DispatchError>;
+}
+
+impl<T: Config> LicenceControl for Pallet<T> {
+    type AccountId = T::AccountId;
+
+    fn holds(deployment: &DeploymentId) -> bool {
+        Licences::<T>::get(deployment)
+            .map(|held| held.holds_at(Self::now_millis()))
+            .unwrap_or(false)
+    }
+
+    fn verify(deployment: &DeploymentId, actor: &Self::AccountId) -> Result<bool, DispatchError> {
+        let licence = Licences::<T>::get(deployment).ok_or(Error::<T>::LicenceMissing)?;
+        let signature =
+            crate::Signatures::<T>::get(deployment).ok_or(Error::<T>::LicenceMissing)?;
+        Self::check_signature(deployment, &licence, &signature)?;
+        let held = licence.holds_at(Self::now_millis());
+        Self::record(
+            deployment,
+            "licence_verified",
+            WorkClass::Routine,
+            actor,
+            "The Cerulea operator role checked the licence of the deployment.",
+            (licence.expires_at, held).encode(),
+        )?;
+        if held {
+            Self::deposit_event(Event::LicenceVerified {
+                deployment: *deployment,
+                expires_at: licence.expires_at,
+            });
+        }
+        Ok(held)
+    }
+
+    fn suspend_on_lapse(
+        deployment: &DeploymentId,
+        actor: &Self::AccountId,
+    ) -> Result<bool, DispatchError> {
+        if <Self as LicenceControl>::holds(deployment) {
+            return Ok(false);
+        }
+        Self::mark_lapsed(deployment, actor)?;
+        Ok(true)
     }
 }
 

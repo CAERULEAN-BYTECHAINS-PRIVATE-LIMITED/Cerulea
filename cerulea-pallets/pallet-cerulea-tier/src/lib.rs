@@ -29,7 +29,7 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
-pub use suspend::ProductionGate;
+pub use suspend::{LicenceControl, ProductionGate};
 pub use weights::WeightInfo;
 
 use alloc::vec::Vec;

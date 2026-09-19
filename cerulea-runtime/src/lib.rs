@@ -269,6 +269,9 @@ mod runtime {
     #[runtime::pallet_index(23)]
     pub type Relayer = pallet_cerulea_relayer::Pallet<Runtime>;
 
+    #[runtime::pallet_index(26)]
+    pub type Operator = pallet_cerulea_operator::Pallet<Runtime>;
+
     #[runtime::pallet_index(25)]
     pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
 
