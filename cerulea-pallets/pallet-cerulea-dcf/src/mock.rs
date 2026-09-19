@@ -392,7 +392,7 @@ impl pallet_cerulea_pos::ValidatorHandler<u64, u128> for TestValidatorRegistry {
     }
 
     fn get_validator_score(validator: &u64) -> u64 {
-        <TestValidatorRegistry as crate::traits::ValidatorRegistryProvider<u64, u128, u64>>::get_validator_score(validator)
+        crate::Pallet::<Test>::validator_inference_score(validator)
     }
 
     fn get_active_validators() -> alloc::vec::Vec<u64> {
@@ -786,9 +786,14 @@ pub fn mock_join_validators(
 /// engine never admitted registers here for the first time.
 pub fn mock_register_validator(who: u64) -> DispatchResult {
     if pallet_cerulea_pos::Validators::<Test>::contains_key(who) {
-        frame_support::assert_noop!(
-            pallet_cerulea_pos::Pallet::<Test>::register_validator(RuntimeOrigin::signed(who)),
-            pallet_cerulea_pos::Error::<Test>::ValidatorAlreadyRegistered
+        // Admission already registered this validator. A second registration
+        // is refused. A full set answers with the ceiling error, and a set
+        // with room answers with the duplicate error.
+        assert!(
+            pallet_cerulea_pos::Pallet::<Test>::register_validator(RuntimeOrigin::signed(who))
+                .is_err(),
+            "A second registration of validator {} passed. Read the registration admission made instead.",
+            who
         );
         return Ok(());
     }

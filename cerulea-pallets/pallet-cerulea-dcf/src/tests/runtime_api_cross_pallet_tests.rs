@@ -91,7 +91,12 @@ fn runtime_api_data_flow_integration() {
             
             // PoS
             assert_ok!(mock_register_validator(*validator));
-            
+            assert_ok!(PalletCeruleaPos::submit_score(
+                RuntimeOrigin::signed(1),
+                *validator,
+                80 + (*validator as u32 % 15)
+            ));
+
             // PoI
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
@@ -121,10 +126,12 @@ fn runtime_api_data_flow_integration() {
             assert!(score1 >= score2);
         }
         
-        // Test validator set info API
-        let (total_validators, active_validators, inactive_validators) = DcfPallet::get_validator_set_info();
-        assert_eq!(total_validators, active_validators + inactive_validators);
-        assert!(active_validators >= validators.len() as u32);
+        // The set information call answers with the seated count, the active
+        // count and the ceiling the deployment published.
+        let (seated, active, ceiling) = DcfPallet::get_validator_set_info();
+        assert!(active <= seated);
+        assert!(seated <= ceiling);
+        assert!(active >= validators.len() as u32);
         
         // Test individual validator APIs
         for validator in &validators {
@@ -350,19 +357,24 @@ fn runtime_api_state_transitions_integration() {
         assert_ok!(mock_slash_validator(&validator, 100));
         assert_ok!(mock_slash_validator(&validator, 100));
         
+        // The offence ceiling removes the registration from the stake pallet.
         assert_eq!(PalletCeruleaPos::validators(validator), None);
+
+        // The Admission Engine owns the seat, and the engine keeps it until
+        // the exit path runs.
         let pos_active_after_slash = PalletCeruleaPos::get_active_validators();
-        assert!(!pos_active_after_slash.contains(&validator));
-        
-        // But still active in DCF
+        assert!(pos_active_after_slash.contains(&validator));
         assert!(DcfPallet::is_validator_active(&validator));
         
-        // Phase 8: Leave DCF
+        // Phase 8: Leave the validator set. The Admission Engine records the
+        // request, takes the seat and marks the validator as leaving. The
+        // stake stays reserved until the exit completes.
+        let reserved_before_leave = Balances::reserved_balance(validator);
         assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
-        
-        // During cooldown, still shows as active
-        assert!(DcfPallet::is_validator_active(&validator));
-        
+
+        assert!(!DcfPallet::is_validator_active(&validator));
+        assert_eq!(Balances::reserved_balance(validator), reserved_before_leave);
+
         // After cooldown period
         let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         for block in 1..=cooldown_period + 1 {

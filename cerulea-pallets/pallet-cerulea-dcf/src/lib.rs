@@ -7790,8 +7790,12 @@ pub mod pallet {
 
         /// Recalculate and update the final score for a validator.
         fn update_final_score(validator: &T::AccountId) -> DispatchResult {
+            // The inference module owns the contribution figure. Read it back
+            // here, so a submitted inference reaches the recorded score.
+            let contributed = poi::Pallet::<T>::get_score(validator);
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                state.current.inference_score = contributed.min(T::MaxValidatorScore::get());
                 let stake_score = state.current.stake_score;
                 let inference_score = state.current.inference_score;
                 let pos_weight = if !PosWeight::<T>::exists() {

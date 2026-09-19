@@ -452,16 +452,16 @@ pub mod pallet {
 			// challenge from a second validator account instead.
 			ensure!(challenger != challenged, Error::<T>::CannotChallengeSelf);
 
-			// One challenger lodges one challenge against one validator. Wait
-			// for the open challenge to settle before lodging another.
+			let current_epoch = CurrentEpoch::<T>::get();
+
+			// One challenger lodges one challenge against one validator in one
+			// epoch. Wait for the next epoch to lodge another.
 			ensure!(
 				Challenges::<T>::get(&challenger)
-					.map(|(held, _, _)| held != challenged)
+					.map(|(held, _, lodged)| held != challenged || lodged != current_epoch)
 					.unwrap_or(true),
 				Error::<T>::ChallengeAlreadyExists
 			);
-
-			let current_epoch = CurrentEpoch::<T>::get();
 
 			// Ensure the inference is not too old.
 			ensure!(

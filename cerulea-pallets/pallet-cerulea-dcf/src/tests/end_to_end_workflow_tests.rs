@@ -2,7 +2,7 @@
 
 use crate::mock::*;
 use frame_support::{
-    assert_ok,
+    assert_noop, assert_ok,
     traits::{Get, OnFinalize, OnInitialize, Currency},
 };
 
@@ -182,16 +182,18 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         assert_ok!(mock_slash_validator(&validator, 100));
         assert_eq!(PalletCeruleaPos::slashing_count(validator), Some(1));
         
-        // DCF slashing for misbehavior
+        // A penalty takes the named amount from the free balance. The bonded
+        // stake holds until the next epoch boundary.
         let slash_amount = 1000u128;
+        let balance_before = Balances::free_balance(validator);
         assert_ok!(PalletCeruleaPos::slash_validator(
             RuntimeOrigin::root(),
             validator,
             slash_amount
         ));
-        
-        let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-        assert_eq!(initial_stake - post_slash_stake, slash_amount);
+
+        assert_eq!(balance_before - Balances::free_balance(validator), slash_amount);
+        assert_eq!(pallet_cerulea_pos::Stake::<Test>::get(validator), initial_stake);
         
         // Multiple slashes in PoS lead to removal
         assert_ok!(mock_slash_validator(&validator, 100));
@@ -306,12 +308,17 @@ fn end_to_end_multi_validator_competition() {
             .collect();
         validator_scores.sort_by(|a, b| b.1.cmp(&a.1));
         
-        // Verify ranking makes sense (higher stake + better performance = higher score)
+        // Admission reserves the same minimum stake for every validator, so
+        // the ranking reads the composed standing rather than a stake spread.
         let top_validator = validator_scores[0].0;
         let top_stake = pallet_cerulea_pos::Stake::<Test>::get(top_validator);
-        
-        // Top validator should have significant stake
-        assert!(top_stake >= 7000u128);
+        let minimum = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        assert!(top_stake >= minimum);
+
+        // The top validator carries a score at or above every other one.
+        for (_, score) in validator_scores.iter() {
+            assert!(validator_scores[0].1 >= *score);
+        }
         
         // All validators should still be active
         for validator in &validators {
@@ -342,6 +349,7 @@ fn end_to_end_governance_driven_workflow() {
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
         
         // Phase 1: Proposal creation
+        let balance_before_governance = Balances::free_balance(beneficiary);
         let reward_amount = 2000u128;
         assert_ok!(DcfPallet::propose_reward_validator(
             RuntimeOrigin::root(),
@@ -361,35 +369,23 @@ fn end_to_end_governance_driven_workflow() {
         }
         
         // Phase 2: Voting process
-        assert_ok!(DcfPallet::vote_proposal(
-            RuntimeOrigin::signed(voter1),
-            0,
-            true
-        ));
-        assert_ok!(DcfPallet::vote_proposal(
-            RuntimeOrigin::signed(voter2),
-            0,
-            true
-        ));
-        assert_ok!(DcfPallet::vote_proposal(
-            RuntimeOrigin::signed(proposer),
-            0,
-            true
-        ));
+        assert_ok!(mock_cast_vote(voter1, 0, true));
+        assert_ok!(mock_cast_vote(voter2, 0, true));
+        assert_ok!(mock_cast_vote(proposer, 0, true));
         
         let voted_proposal = crate::Proposals::<Test>::get(0).unwrap();
         assert_eq!(voted_proposal.votes_for, 3);
         assert_eq!(voted_proposal.votes_against, 0);
         
-        // Phase 3: Proposal execution
-        let pre_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
+        // Phase 3: Proposal execution. A reward credits the free balance.
+        let pre_execution_balance = Balances::free_balance(beneficiary);
         // The proposal reaches the quorum the pallet asks for before it
         // executes. Half of the active validators vote in favour.
         assert_ok!(mock_approve_proposal(0));
         assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
         
-        let post_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
-        assert_eq!(post_execution_stake - pre_execution_stake, reward_amount);
+        let post_execution_balance = Balances::free_balance(beneficiary);
+        assert_eq!(post_execution_balance - pre_execution_balance, reward_amount);
         
         let executed_proposal = crate::Proposals::<Test>::get(0).unwrap();
         assert_eq!(executed_proposal.status, crate::ProposalStatus::Executed);
@@ -411,39 +407,19 @@ fn end_to_end_governance_driven_workflow() {
                 1 => {
                     // Unanimous approval
                     for voter in [voter1, voter2, proposer].iter() {
-                        assert_ok!(DcfPallet::vote_proposal(
-                            RuntimeOrigin::signed(*voter),
-                            proposal_id,
-                            true
-                        ));
+                        assert_ok!(mock_cast_vote(*voter, proposal_id, true));
                     }
                 },
                 2 => {
                     // Mixed voting
-                    assert_ok!(DcfPallet::vote_proposal(
-                        RuntimeOrigin::signed(voter1),
-                        proposal_id,
-                        true
-                    ));
-                    assert_ok!(DcfPallet::vote_proposal(
-                        RuntimeOrigin::signed(voter2),
-                        proposal_id,
-                        false
-                    ));
-                    assert_ok!(DcfPallet::vote_proposal(
-                        RuntimeOrigin::signed(proposer),
-                        proposal_id,
-                        true
-                    ));
+                    assert_ok!(mock_cast_vote(voter1, proposal_id, true));
+                    assert_ok!(mock_cast_vote(voter2, proposal_id, false));
+                    assert_ok!(mock_cast_vote(proposer, proposal_id, true));
                 },
                 3 => {
                     // Rejection
                     for voter in [voter1, voter2].iter() {
-                        assert_ok!(DcfPallet::vote_proposal(
-                            RuntimeOrigin::signed(*voter),
-                            proposal_id,
-                            false
-                        ));
+                        assert_ok!(mock_cast_vote(*voter, proposal_id, false));
                     }
                 },
                 _ => {}
@@ -459,10 +435,16 @@ fn end_to_end_governance_driven_workflow() {
             }
         }
         
-        // Verify governance outcomes
-        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
-        let expected_total_rewards = reward_amount + 500u128 + 1000u128; // Rounds 0, 1, 2 approved
-        assert_eq!(final_stake - 7000u128, expected_total_rewards);
+        // Verify governance outcomes. Every reward credited the free balance
+        // of the beneficiary, and the stake pallet recorded the same total
+        // against the epoch.
+        let recorded =
+            pallet_cerulea_pos::ValidatorEpochRewarded::<Test>::get(beneficiary);
+        assert!(recorded >= reward_amount);
+        assert_eq!(
+            Balances::free_balance(beneficiary),
+            balance_before_governance + recorded
+        );
     });
 }
 
@@ -593,19 +575,24 @@ fn end_to_end_system_recovery_workflow() {
             ));
         }
         
-        // Simulate critical validator failures
+        // Simulate critical validator failures. The deployment takes the
+        // amount first. The third recorded offence then removes the validator
+        // from the stake pallet, so a later penalty finds no seat.
         for validator in &critical_validators {
-            // Severe slashing leading to removal
-            for _ in 0..3 {
-                assert_ok!(mock_slash_validator(validator, 100));
-            }
-            
-            // DCF slashing
             assert_ok!(PalletCeruleaPos::slash_validator(
                 RuntimeOrigin::root(),
                 *validator,
-                10000 // Slash most of stake
+                10000
             ));
+
+            for _ in 0..3 {
+                assert_ok!(mock_slash_validator(validator, 100));
+            }
+
+            assert_noop!(
+                PalletCeruleaPos::slash_validator(RuntimeOrigin::root(), *validator, 100),
+                pallet_cerulea_pos::Error::<Test>::ValidatorNotInSet
+            );
         }
         
         // Verify critical validators are removed from PoS

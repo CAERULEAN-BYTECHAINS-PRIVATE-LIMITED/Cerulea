@@ -185,17 +185,18 @@ fn cross_pallet_validator_slashing() {
         // Verify slashing count increased
         assert_eq!(PalletCeruleaPos::slashing_count(validator), Some(1));
         
-        // Test DCF slashing integration
+        // A penalty takes the named amount from the free balance. The bonded
+        // stake holds until the next epoch boundary.
         let slash_amount = 1000u128;
+        let balance_before = Balances::free_balance(validator);
         assert_ok!(PalletCeruleaPos::slash_validator(
             RuntimeOrigin::root(),
             validator,
             slash_amount
         ));
-        
-        // Verify DCF stake was reduced
-        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-        assert!(new_stake < initial_stake);
+
+        assert_eq!(balance_before - Balances::free_balance(validator), slash_amount);
+        assert_eq!(pallet_cerulea_pos::Stake::<Test>::get(validator), initial_stake);
         
         // Test that excessive slashing removes validator from PoS
         assert_ok!(mock_slash_validator(&validator, 100));

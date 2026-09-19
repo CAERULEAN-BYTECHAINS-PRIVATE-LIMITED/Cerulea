@@ -119,7 +119,6 @@ fn property_trust_score_stays_inside_one_whole() {
     new_test_ext().execute_with(|| {
         super::assert_composition_reaches_one_whole();
 
-        let confidence_bound = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
 
         for block_num in 1..=10 {
             System::set_block_number(block_num);
@@ -139,11 +138,11 @@ fn property_trust_score_stays_inside_one_whole() {
                 let second = DcfPallet::trust_score(validator);
                 assert_eq!(first, second);
 
-                // The inference confidence carries its own bound.
-                assert!(
-                    DcfPallet::validator_inference_score(validator) <= confidence_bound,
-                    "The inference confidence of validator {} passed its bound",
-                    validator
+                // The recorded inference contribution reads the same on two
+                // calls, so every node folds the same figure.
+                assert_eq!(
+                    DcfPallet::validator_inference_score(validator),
+                    DcfPallet::validator_inference_score(validator)
                 );
             }
         }

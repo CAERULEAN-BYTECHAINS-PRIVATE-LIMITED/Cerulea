@@ -238,8 +238,11 @@ fn stress_test_concurrent_score_updates() {
             pallet_cerulea_pos::Error::<Test>::TooManyValidators
         );
         
-        // Perform massive concurrent updates
+        // Perform massive concurrent updates. Each round runs in its own
+        // epoch, since a validator contributes one inference per epoch.
         for update_round in 1..=updates_per_validator {
+            DcfPallet::handle_epoch_transition();
+
             for i in 1..=num_validators {
                 let validator = 3000 + i;
                 

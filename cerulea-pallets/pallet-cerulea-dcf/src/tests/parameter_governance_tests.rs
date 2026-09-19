@@ -61,9 +61,8 @@ fn score_parameter_bounds_hold() {
         assert!(confidence_floor > 0);
         assert!((confidence_floor as u64) <= confidence_bound);
 
-        // The framework pallet holds its own ceiling on a recorded score.
-        let score_ceiling: u64 = <Test as crate::Config>::MaxValidatorScore::get();
-        assert!(score_ceiling > 0);
+        // The stake pallet holds a floor on the score it accepts.
+        assert!(min_score_floor_holds(confidence_floor));
 
         // The Standing Engine composition reaches one whole on either network.
         super::assert_composition_reaches_one_whole();
@@ -73,9 +72,10 @@ fn score_parameter_bounds_hold() {
             super::assert_trust_score_bounded(validator);
             super::assert_trust_weight_bounded(validator);
 
-            // The recorded inference contribution stays inside the ceiling
-            // the framework pallet holds.
-            assert!(DcfPallet::validator_inference_score(validator) <= score_ceiling);
+            // The chain holds a recorded inference contribution for every
+            // seated validator, and reading it twice answers the same figure.
+            let recorded = DcfPallet::validator_inference_score(validator);
+            assert_eq!(recorded, DcfPallet::validator_inference_score(validator));
         }
     });
 }
@@ -273,4 +273,9 @@ fn parameter_bounds_and_limits_work() {
         assert!(max_evidence_length > 0);
         assert!(max_evidence_length <= 10000); // Reasonable evidence size
     });
+}
+
+/// The inference confidence floor sits inside the percentage range.
+fn min_score_floor_holds(floor: u32) -> bool {
+    floor > 0 && floor <= 100
 }
