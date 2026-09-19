@@ -14,6 +14,8 @@
 extern crate alloc;
 
 pub mod authoring;
+pub mod bounds;
+pub mod checkpoint;
 pub mod equivocation;
 
 pub use authoring::{
@@ -28,3 +30,11 @@ pub use equivocation::{
     SealedHead, DRAW_KEY_OFFSET, RANK_OFFSET, SEAL_CLAIM_BYTES, SEAL_CLAIM_PREFIX_BYTES,
     SEAL_DOMAIN, SEAL_KEY_OFFSET, SLOT_OFFSET,
 };
+
+pub use checkpoint::{
+    accepts_block, accepts_reorganisation, checkpoint_due, checkpoint_index, follows,
+    highest_anchored_block, Checkpoint, CheckpointFault, CHECKPOINT_DOMAIN,
+    DEFAULT_CHECKPOINT_INTERVAL,
+};
+
+pub use bounds::{admit, price, Admitted, BoundFault, MessagePath};

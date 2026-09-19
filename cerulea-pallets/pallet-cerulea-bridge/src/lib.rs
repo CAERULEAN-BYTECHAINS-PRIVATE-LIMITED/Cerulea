@@ -884,6 +884,24 @@ pub mod pallet {
             anchor::confirm::<T>(&who, deployment, name, position, &evidence)
         }
 
+        /// Request one Cerulea checkpoint anchor on the far network.
+        ///
+        /// A checkpoint is one committed block the chain names as settled. The
+        /// anchored set the framework pallet holds is the set this path
+        /// commits externally. The driver writes the thirty two byte
+        /// commitment into a data carrying output of the far network.
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::WeightInfo::request_anchor())]
+        pub fn request_checkpoint_anchor(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            name: BoundedName,
+            checkpoint: cerulea_primitives::checkpoint::Checkpoint,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            anchor::request_checkpoint::<T>(&who, deployment, name, checkpoint)
+        }
+
         /// Cancel one message that passed its expiry.
         #[pallet::call_index(8)]
         #[pallet::weight(T::WeightInfo::cancel_message())]

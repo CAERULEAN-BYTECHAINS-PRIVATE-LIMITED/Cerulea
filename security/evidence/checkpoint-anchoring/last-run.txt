@@ -1,0 +1,55 @@
+Cerulea chain, control evidence: checkpoint anchoring against the long-range attack
+Task P10-002. Run date 2026-09-19. Rust 1.85, release profile.
+Run from chain/ with CARGO_BUILD_JOBS=4.
+
+$ cargo test --release -p cerulea-primitives
+test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+Twelve of those tests sit in checkpoint::tests. They cover the commitment, the
+interval, the order of the anchored set, the block check and the refusal of a
+reorganisation below the highest anchor.
+
+$ cargo test --release -p cerulea-consensus
+test result: ok. 374 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+Fifteen of those tests sit in engines::checkpoint::tests. They cover the local
+store, the file round trip, the reorganisation guard and the sync gate.
+
+$ cargo test --release -p pallet-cerulea-dcf checkpoint
+running 12 tests
+test tests::checkpoint_tests::an_account_outside_the_root_origin_anchors_nothing ... ok
+test tests::checkpoint_tests::an_interval_of_zero_anchors_nothing ... ok
+test tests::checkpoint_tests::one_index_takes_one_checkpoint ... ok
+test tests::checkpoint_tests::the_anchored_set_carries_no_gap ... ok
+test tests::checkpoint_tests::the_anchored_set_reads_back_in_index_order ... ok
+test tests::checkpoint_tests::the_anchored_set_rises_in_block_number ... ok
+test tests::checkpoint_tests::the_anchored_set_starts_at_index_zero ... ok
+test tests::checkpoint_tests::the_chain_anchors_a_checkpoint_and_records_it ... ok
+test tests::checkpoint_tests::the_chain_raises_the_checkpoint_event_with_the_commitment ... ok
+test tests::checkpoint_tests::the_chain_starts_from_the_published_checkpoint_interval ... ok
+test tests::checkpoint_tests::the_chain_takes_a_new_checkpoint_interval ... ok
+test tests::checkpoint_tests::two_checkpoints_fold_into_two_commitments ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 444 filtered out; finished in 0.02s
+
+$ cargo test --release -p pallet-cerulea-bridge
+test result: ok. 102 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+Two of those tests prove the external witness.
+a_checkpoint_anchors_its_commitment_into_the_far_network asserts that the value
+the Bitcoin anchoring path commits equals the checkpoint commitment and that the
+value reads back from the data carrying output script byte for byte.
+two_checkpoints_anchor_two_commitments asserts that two checkpoints reach two
+distinct commitments.
+
+$ cargo test --release -p cerulea-node --test checkpoint_test
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+The node refuses to reorganise below the latest anchored checkpoint. The proving
+test is a_node_refuses_a_chain_that_rewrites_settled_history.
+A fresh node syncing from genesis accepts only a chain through the anchored
+checkpoints it was given. The proving tests are
+a_fresh_node_accepts_the_chain_through_its_anchors,
+a_fresh_node_refuses_a_chain_that_misses_an_anchor and
+a_fresh_node_refuses_a_chain_that_stops_below_the_highest_anchor.
+
+Controls implemented, certification not held.

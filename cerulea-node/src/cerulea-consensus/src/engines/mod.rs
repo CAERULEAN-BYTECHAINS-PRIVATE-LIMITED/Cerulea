@@ -45,13 +45,22 @@ pub mod manifest_derive;
 pub mod manifest_guard;
 
 pub mod authoring;
+pub mod bounds;
+pub mod checkpoint;
 pub mod commit;
 pub mod execution;
+pub mod peers;
 
 pub use authoring::{
     derive_slot_seed, draw, draw_from_keystore, draw_value, epoch_draw, epoch_draw_from_keystore,
     verify_draw, verify_epoch_draw, verify_result, weighted_draw, CommitteeDraw, DrawInput,
     DrawProof, DrawResult, SlotCommittee,
+};
+
+pub use checkpoint::{
+    accepts_block, accepts_reorganisation, checkpoint_due, checkpoint_index, follows,
+    highest_anchored_block, Checkpoint, CheckpointFault, CheckpointStore, SyncGate,
+    CHECKPOINT_FILE_NAME, DEFAULT_CHECKPOINT_INTERVAL, MAX_HELD_CHECKPOINTS,
 };
 
 pub use commit::{
@@ -64,6 +73,13 @@ pub use execution::{
     DisjointSet, DomainOutcome, DomainPartitioner, DomainRunner, DomainStore, ExecutionReport,
     OrderKey, ResourceLimits, ResourceMeter, ResourceUse, StateRoot, StateRoots,
     TransactionOutcome, TransactionRunner,
+};
+
+pub use bounds::{admit_and_decode, admit_bytes, price, Admitted, BoundFault, MessagePath};
+
+pub use peers::{
+    AddressPrefix, DiversityAssessment, DiversityPolicy, EclipseReason, PeerAddress, PeerRecord,
+    PeerSet, DEFAULT_MIN_PEERS, DEFAULT_MIN_PREFIXES, IPV4_PREFIX_BYTES, IPV6_PREFIX_BYTES,
 };
 
 pub use manifest_guard::{
@@ -936,6 +952,52 @@ pub enum EngineError {
          Fix: admit at least one validator through the Admission Engine."
     )]
     EmptyValidatorSet,
+
+    /// A message crossed the size bound of its path.
+    #[error("{detail}")]
+    MessageAboveBound {
+        /// The sentence naming the path, the size, the limit and the fix.
+        detail: String,
+    },
+
+    /// A message inside its bound failed to read back.
+    #[error(
+        "The {path} failed to read back. Detail: {detail}. \
+         Fix: send a message built by the release this chain runs."
+    )]
+    MessageUnreadable {
+        /// The path the message arrived on.
+        path: &'static str,
+        /// The detail the reader reported.
+        detail: String,
+    },
+
+    /// A peer sits outside the validator allow-list of a private chain.
+    #[error(
+        "The peer {peer} sits outside the validator allow-list of this chain. \
+         Fix: admit the validator through the Admission Engine before it peers."
+    )]
+    PeerOutsideAllowList {
+        /// The identifier the propagation layer gives that peer.
+        peer: String,
+    },
+
+    /// A chain failed the anchored checkpoint check.
+    #[error("{detail}")]
+    CheckpointRejected {
+        /// The sentence naming the problem and the fix.
+        detail: String,
+    },
+
+    /// The local checkpoint store failed to read or to write.
+    #[error(
+        "The local checkpoint store failed. Detail: {detail}. \
+         Fix: check that the node base path stays readable and writable."
+    )]
+    CheckpointStoreUnreadable {
+        /// The detail the store reported.
+        detail: String,
+    },
 
     /// A seal claim or a header hash ran to an unexpected length.
     #[error(

@@ -62,3 +62,6 @@ pub mod assurance_engine_tests;
 
 // Equivocation detection and penalty tests
 pub mod equivocation_tests;
+
+// Checkpoint anchoring tests
+pub mod checkpoint_tests;

@@ -1355,7 +1355,9 @@ dependencies = [
  "log",
  "once_cell",
  "pallet-cerulea-audit",
+ "pallet-cerulea-bridge",
  "pallet-cerulea-collections",
+ "pallet-cerulea-custody",
  "pallet-cerulea-dcf",
  "pallet-cerulea-dvf",
  "pallet-cerulea-identity",
@@ -6475,6 +6477,7 @@ name = "pallet-cerulea-bridge"
 version = "0.1.0"
 dependencies = [
  "cerulea-blueprint",
+ "cerulea-primitives",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6588,6 +6591,7 @@ dependencies = [
  "pallet-cerulea-state",
  "parity-scale-codec",
  "scale-info",
+ "serde_json",
  "sp-core",
  "sp-crypto-hashing",
  "sp-io",

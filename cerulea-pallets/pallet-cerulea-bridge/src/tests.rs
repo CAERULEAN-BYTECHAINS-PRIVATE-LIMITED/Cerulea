@@ -1252,6 +1252,93 @@ fn an_expired_message_cancels_on_request() {
 // --- The anchoring path -------------------------------------------------
 
 #[test]
+fn a_checkpoint_anchors_its_commitment_into_the_far_network() {
+    new_test_ext().execute_with(|| {
+        let kind = NetworkKind::Bitcoin;
+        let (deployment, envelope, proof) = arrange(kind, "12/3", 0);
+        assert_ok!(Bridge::deliver_message(
+            RuntimeOrigin::signed(RELAYER),
+            envelope,
+            proof
+        ));
+
+        // The anchored set of the framework pallet is the set this path
+        // commits externally.
+        let checkpoint = cerulea_primitives::checkpoint::Checkpoint::new(
+            2,
+            2_700,
+            [7u8; 32],
+            [8u8; 32],
+        );
+        assert_ok!(Bridge::request_checkpoint_anchor(
+            RuntimeOrigin::signed(ACTOR),
+            deployment,
+            endpoint_name(kind),
+            checkpoint,
+        ));
+
+        let key = EndpointKey::new(deployment, endpoint_name(kind));
+        let record = crate::Anchors::<Test>::get(&key, 0).expect("the anchor exists");
+        assert_eq!(record.status, crate::anchor::AnchorStatus::Requested);
+        assert_eq!(
+            record.root,
+            checkpoint.commitment(),
+            "the anchor commits the checkpoint commitment"
+        );
+        assert_eq!(
+            record.collection.as_slice(),
+            crate::anchor::CHECKPOINT_RECORD_NAME
+        );
+
+        // The driver writes that value into a data carrying output. The value
+        // reads back from the script byte for byte.
+        let script = bitcoin::write_anchor(fixtures::BITCOIN_MARKER, &record.root);
+        assert_eq!(
+            bitcoin::read_anchor(&script, fixtures::BITCOIN_MARKER),
+            Some(checkpoint.commitment())
+        );
+    });
+}
+
+#[test]
+fn two_checkpoints_anchor_two_commitments() {
+    new_test_ext().execute_with(|| {
+        let kind = NetworkKind::Bitcoin;
+        let (deployment, envelope, proof) = arrange(kind, "12/3", 0);
+        assert_ok!(Bridge::deliver_message(
+            RuntimeOrigin::signed(RELAYER),
+            envelope,
+            proof
+        ));
+
+        let one =
+            cerulea_primitives::checkpoint::Checkpoint::new(0, 900, [1u8; 32], [2u8; 32]);
+        let two =
+            cerulea_primitives::checkpoint::Checkpoint::new(1, 1_800, [3u8; 32], [4u8; 32]);
+        assert_ok!(Bridge::request_checkpoint_anchor(
+            RuntimeOrigin::signed(ACTOR),
+            deployment,
+            endpoint_name(kind),
+            one,
+        ));
+        assert_ok!(Bridge::request_checkpoint_anchor(
+            RuntimeOrigin::signed(ACTOR),
+            deployment,
+            endpoint_name(kind),
+            two,
+        ));
+
+        let key = EndpointKey::new(deployment, endpoint_name(kind));
+        let first = crate::Anchors::<Test>::get(&key, 0).expect("the first anchor exists");
+        let second = crate::Anchors::<Test>::get(&key, 1).expect("the second anchor exists");
+        assert_eq!(first.root, one.commitment());
+        assert_eq!(second.root, two.commitment());
+        assert_ne!(first.root, second.root);
+    });
+}
+
+
+#[test]
 fn a_state_root_anchors_into_the_far_network_and_proves_back() {
     new_test_ext().execute_with(|| {
         let kind = NetworkKind::Bitcoin;

@@ -23,6 +23,7 @@ sp-io.workspace = true
 sp-crypto-hashing.workspace = true
 sp-trie.workspace = true
 cerulea-blueprint.workspace = true
+cerulea-primitives = { workspace = true, default-features = false }
 pallet-cerulea-schema.workspace = true
 pallet-cerulea-state.workspace = true
 pallet-cerulea-audit.workspace = true
@@ -51,6 +52,7 @@ std = [
 	"sp-crypto-hashing/std",
 	"sp-trie/std",
 	"cerulea-blueprint/std",
+	"cerulea-primitives/std",
 	"pallet-cerulea-schema/std",
 	"pallet-cerulea-state/std",
 	"pallet-cerulea-audit/std",

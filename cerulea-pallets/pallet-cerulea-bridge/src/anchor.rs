@@ -103,6 +103,35 @@ pub struct AnchorEvidence {
     pub output_index: u32,
 }
 
+/// The name the checkpoint anchor record carries.
+///
+/// A checkpoint anchor commits a Cerulea checkpoint rather than the inclusion
+/// root of one collection, so the record carries this name in place of a
+/// collection name.
+pub const CHECKPOINT_RECORD_NAME: &[u8] = b"checkpoint";
+
+/// Request one Cerulea checkpoint anchor.
+///
+/// A checkpoint is one committed block the chain names as settled. The
+/// framework pallet anchors checkpoints in index order. This path writes the
+/// thirty two byte commitment of one checkpoint into the far network, so the
+/// Cerulea history gains a witness outside Cerulea.
+///
+/// The anchored set the framework pallet holds is the set this path commits.
+/// The commitment folds the checkpoint index, the block number, the block hash
+/// and the state root under a Cerulea separator, so any party recomputes the
+/// value from chain state and compares.
+pub fn request_checkpoint<T: Config>(
+    who: &T::AccountId,
+    deployment: DeploymentId,
+    name: BoundedName,
+    checkpoint: cerulea_primitives::checkpoint::Checkpoint,
+) -> DispatchResult {
+    let record = BoundedName::try_from(CHECKPOINT_RECORD_NAME.to_vec())
+        .map_err(|_| Error::<T>::NameTooLong)?;
+    request_value::<T>(who, deployment, name, record, checkpoint.commitment())
+}
+
 /// Request one state root anchor.
 pub fn request<T: Config>(
     who: &T::AccountId,
@@ -113,8 +142,8 @@ pub fn request<T: Config>(
     let key = EndpointKey::new(deployment, name.clone());
     let record = crate::Endpoints::<T>::get(&key).ok_or(Error::<T>::EndpointUnknown)?;
     ensure!(record.live, Error::<T>::EndpointRetired);
-    let params = match &record.params {
-        VerifierParameters::Bitcoin(held) => held.clone(),
+    match &record.params {
+        VerifierParameters::Bitcoin(_) => {}
         _ => return Err(Error::<T>::KindMismatch.into()),
     };
 
@@ -122,6 +151,27 @@ pub fn request<T: Config>(
         core::str::from_utf8(collection.as_slice()).unwrap_or_default(),
     );
     let root = T::Records::root(&deployment, &held).ok_or(Error::<T>::RootAbsent)?;
+    request_value::<T>(who, deployment, name, collection, root)
+}
+
+/// Record one anchor request over a thirty two byte value.
+///
+/// Both the collection root path and the checkpoint path end here, so one
+/// record shape and one event serve both.
+pub fn request_value<T: Config>(
+    who: &T::AccountId,
+    deployment: DeploymentId,
+    name: BoundedName,
+    collection: BoundedName,
+    root: [u8; 32],
+) -> DispatchResult {
+    let key = EndpointKey::new(deployment, name.clone());
+    let record = crate::Endpoints::<T>::get(&key).ok_or(Error::<T>::EndpointUnknown)?;
+    ensure!(record.live, Error::<T>::EndpointRetired);
+    let params = match &record.params {
+        VerifierParameters::Bitcoin(held) => held.clone(),
+        _ => return Err(Error::<T>::KindMismatch.into()),
+    };
 
     let position = AnchorNonce::<T>::get(&key);
     AnchorNonce::<T>::insert(&key, position.saturating_add(1));

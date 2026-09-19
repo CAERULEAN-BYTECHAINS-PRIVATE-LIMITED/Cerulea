@@ -3797,6 +3797,35 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The anchored checkpoints of this chain, by index.
+    ///
+    /// A checkpoint is one committed block the chain names as settled. Every
+    /// node keeps a copy in its own store and refuses any chain that disagrees
+    /// with an anchored checkpoint.
+    #[pallet::storage]
+    #[pallet::getter(fn anchored_checkpoint)]
+    pub type AnchoredCheckpoints<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u32,
+        cerulea_primitives::checkpoint::Checkpoint,
+        OptionQuery,
+    >;
+
+    /// The highest checkpoint the chain anchored.
+    #[pallet::storage]
+    #[pallet::getter(fn latest_checkpoint)]
+    pub type LatestCheckpoint<T: Config> =
+        StorageValue<_, cerulea_primitives::checkpoint::Checkpoint, OptionQuery>;
+
+    /// The blocks between two checkpoints.
+    ///
+    /// A value of zero anchors nothing. The chain then keeps producing blocks
+    /// with no checkpoint above genesis.
+    #[pallet::storage]
+    #[pallet::getter(fn checkpoint_interval)]
+    pub type CheckpointInterval<T: Config> = StorageValue<_, u32, ValueQuery>;
+
     /// The decay the Standing Engine applies during inactivity.
     #[pallet::storage]
     #[pallet::getter(fn standing_decay_settings)]
@@ -5211,6 +5240,17 @@ pub mod pallet {
             /// The epochs of service the reset destroyed.
             epochs_destroyed: u32,
         },
+        /// The chain anchored one checkpoint.
+        CheckpointAnchored {
+            /// The position of the checkpoint in the anchored set.
+            index: u32,
+            /// The block the checkpoint settles.
+            block: u32,
+            /// The hash of that block.
+            hash: [u8; 32],
+            /// The thirty two byte commitment the checkpoint folds into.
+            commitment: [u8; 32],
+        },
         /// The chain proved one equivocation and applied the penalty.
         EquivocationProven {
             /// The validator that sealed two headers for one slot.
@@ -5885,6 +5925,15 @@ pub mod pallet {
         /// Report evidence built from the seal key the chain holds for that
         /// validator.
         EquivocationKeysMismatch,
+        /// The checkpoint sits out of order with the anchored set.
+        ///
+        /// Anchor checkpoints in index order starting from zero, each above the
+        /// block the one before it settles.
+        CheckpointOutOfOrder,
+        /// The chain already anchored a checkpoint at that index.
+        ///
+        /// Read the anchored checkpoint for what the chain settled.
+        CheckpointAlreadyAnchored,
         /// The chain already applied the penalty for this equivocation.
         ///
         /// One slot, one rank and one seal key take one penalty. Read the fault
@@ -7255,10 +7304,98 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Anchor one checkpoint against the long-range attack.
+        ///
+        /// A long-range attack rewrites history from a point far below the
+        /// head. A checkpoint is one committed block the chain names as
+        /// settled. Every node keeps a copy and refuses any chain that
+        /// disagrees with an anchored checkpoint.
+        ///
+        /// The index rises by one and the block number rises, so the anchored
+        /// set carries no gap and no repeat.
+        #[pallet::call_index(49)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn anchor_checkpoint(
+            origin: OriginFor<T>,
+            checkpoint: cerulea_primitives::checkpoint::Checkpoint,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(
+                AnchoredCheckpoints::<T>::get(checkpoint.index).is_none(),
+                Error::<T>::CheckpointAlreadyAnchored
+            );
+            let held = LatestCheckpoint::<T>::get();
+            cerulea_primitives::checkpoint::follows(held.as_ref(), &checkpoint)
+                .map_err(|_| Error::<T>::CheckpointOutOfOrder)?;
+
+            AnchoredCheckpoints::<T>::insert(checkpoint.index, checkpoint);
+            LatestCheckpoint::<T>::put(checkpoint);
+
+            Self::deposit_event(Event::CheckpointAnchored {
+                index: checkpoint.index,
+                block: checkpoint.block,
+                hash: checkpoint.hash,
+                commitment: checkpoint.commitment(),
+            });
+            Ok(())
+        }
+
+        /// Set the blocks between two checkpoints.
+        ///
+        /// A value of zero anchors nothing.
+        #[pallet::call_index(50)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn set_checkpoint_interval(origin: OriginFor<T>, blocks: u32) -> DispatchResult {
+            ensure_root(origin)?;
+            CheckpointInterval::<T>::put(blocks);
+            Ok(())
+        }
+
     }
 
     // --- Internal Logic --- //
     impl<T: Config> Pallet<T> {
+        /// The blocks between two checkpoints.
+        ///
+        /// A chain that set no interval takes the interval of the starting
+        /// profile.
+        pub fn checkpoint_interval_blocks() -> u32 {
+            let held = CheckpointInterval::<T>::get();
+            if held == 0 {
+                cerulea_primitives::checkpoint::DEFAULT_CHECKPOINT_INTERVAL
+            } else {
+                held
+            }
+        }
+
+        /// Report whether one block number falls on a checkpoint boundary.
+        pub fn checkpoint_due_at(block: u32) -> bool {
+            cerulea_primitives::checkpoint::checkpoint_due(
+                block,
+                Self::checkpoint_interval_blocks(),
+            )
+        }
+
+        /// The anchored checkpoints the chain holds, in index order.
+        ///
+        /// A node reads this list at start and fills its own store. The
+        /// Bitcoin anchoring path of the bridge module commits the commitment
+        /// of each entry to an external network.
+        pub fn anchored_checkpoints(
+        ) -> sp_std::vec::Vec<cerulea_primitives::checkpoint::Checkpoint> {
+            let mut held: sp_std::vec::Vec<cerulea_primitives::checkpoint::Checkpoint> =
+                AnchoredCheckpoints::<T>::iter_values().collect();
+            held.sort_by_key(|checkpoint| checkpoint.index);
+            held
+        }
+
+        /// The highest block the anchored set settles.
+        pub fn highest_anchored_block() -> u32 {
+            LatestCheckpoint::<T>::get()
+                .map(|checkpoint| checkpoint.block)
+                .unwrap_or(0)
+        }
+
         /// The epochs of service that carry a validator to the whole standing
         /// share.
         pub fn ramp_epochs() -> u32 {
