@@ -78,7 +78,7 @@ one criterion is:
 | 12 | The manifest is complete | Passed. 136 tests over 16 files |
 | 13 | Deployment is atomic | Shortfall. 42 of 44, the rollback suite whole |
 | 14 | The operator role is bounded | Passed |
-| 15 | Security passes | Passed on the checks. Evidence rebuild part way |
+| 15 | Security passes | Passed on the checks. Evidence rebuild in flight |
 | 16 | Testing passes | Shortfall. Three coverage figures below target |
 | 17 | The term check passes | Passed |
 | 18 | Recovery works | Passed |
@@ -89,7 +89,7 @@ five are criterion 6, where the journey stops at step two on a field name;
 criterion 10, where one test of forty seven reached the time limit; criterion
 13, where one test reads a genesis file as JSON that the writer now emits as
 SCALE bytes; criterion 15, where the checks pass and the evidence rebuild was
-part way through; and criterion 16, where three coverage figures sit below
+still running; and criterion 16, where three coverage figures sit below
 their target.
 
 ## The eighteen criteria
@@ -434,9 +434,10 @@ exportable, and both hold. The question register carries the gap.
 
 ### 15. Security passes
 
-**Passed on the checks. The evidence set rebuild was still running when this
-session closed, with 15 of the 25 controls re-proven in that pass and the
-other 10 holding a pass from earlier the same day.**
+**Passed on the checks. The evidence set rebuild was still running as this
+document was written, reporting `COLLECT` for every control it reached and
+holding a pass from earlier the same day for the controls it had yet to
+reach.**
 
 Controls implemented, certification not held.
 
@@ -445,7 +446,7 @@ Controls implemented, certification not held.
 | The security project of Cerulea APIs | 217 tests over 23 files | passed |
 | The secret scan over every tracked source file | SECRET SCAN PASSED | passed |
 | The chain protocol evidence | 4 controls | present |
-| The evidence set rebuild | 15 of 25 re-proven in this pass | in flight |
+| The evidence set rebuild | every control it reached reported COLLECT | in flight |
 
 The security project covers the whole of Section 16. Blueprint static
 analysis, the application security standard, multi-factor authentication,
