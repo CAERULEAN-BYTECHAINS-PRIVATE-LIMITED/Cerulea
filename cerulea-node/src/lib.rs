@@ -9,6 +9,7 @@ pub mod command;
 pub mod fork_detection;
 pub use cerulea_consensus::lifecycle_tracer;
 pub mod logging;
+pub mod platform_rpc;
 pub mod rpc;
 pub mod service;
 

@@ -34,6 +34,9 @@ targets = ["x86_64-unknown-linux-gnu"] # Target platforms for which documentatio
 pallet-cerulea-dcf = { path = "../cerulea-pallets/pallet-cerulea-dcf" }
 pallet-cerulea-pos = { path = "../cerulea-pallets/pallet-cerulea-pos" }
 pallet-cerulea-dvf = { path = "../cerulea-pallets/pallet-cerulea-dvf" }
+pallet-cerulea-logic = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+codec = { workspace = true, default-features = true }
 serde = { workspace = true }
 
 # === CLI and Command-Line Parsing ===
@@ -115,6 +118,7 @@ sc-transaction-pool.workspace = true        # Use workspace version
 cerulea-runtime.workspace = true                # CBC runtime
 cerulea-consensus = { path = "src/cerulea-consensus" } # CBC consensus implementation
 cerulea-primitives = { workspace = true, features = ["std"] }
+cerulea-platform-api = { workspace = true, features = ["std"] }
 sp-keystore = { version = "0.42.0", default-features = true }
 
 # === Substrate Primitives ===
@@ -145,6 +149,18 @@ substrate-frame-rpc-system.workspace = true       # Use workspace version
 
 [dev-dependencies]
 cerulea-node = { path = ".", features = ["test-harness"] }
+cerulea-blueprint = { workspace = true, features = ["std"] }
+pallet-cerulea-schema = { workspace = true, default-features = true }
+pallet-cerulea-state = { workspace = true, default-features = true }
+pallet-cerulea-collections = { workspace = true, default-features = true }
+pallet-cerulea-identity = { workspace = true, default-features = true }
+pallet-cerulea-permission = { workspace = true, default-features = true }
+pallet-cerulea-workflow = { workspace = true, default-features = true }
+pallet-cerulea-rules = { workspace = true, default-features = true }
+pallet-cerulea-audit = { workspace = true, default-features = true }
+pallet-cerulea-relayer = { workspace = true, default-features = true }
+pallet-cerulea-tier = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 proptest = "1.0"
 env_logger = "0.10"
 tokio-test = "0.4"

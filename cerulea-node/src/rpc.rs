@@ -1511,6 +1511,9 @@ where
     C::Api: cerulea_runtime::pallet_cerulea_poi::PoiApi<Block, AccountId>,
     C::Api: pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>,
     C::Api: pallet_cerulea_dvf::DvfApi<Block, u32, AccountId, <Block as sp_runtime::traits::Block>::Hash>,
+    C::Api: pallet_cerulea_dvf::CeruleaAuthoringApi<Block, AccountId>,
+    C::Api: cerulea_platform_api::CeruleaPlatformApi<Block, AccountId>,
+    C: sc_client_api::BlockBackend<Block>,
     P: TransactionPool + 'static,
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 {
@@ -1556,6 +1559,15 @@ where
         let dvf_api = DvfRpcApiImpl::new(client.clone(), rpc_config.clone());
         module.merge(DvfRpcApiServer::into_rpc(dvf_api))?;
         
+        // Register the platform reading surface. Cerulea Explorer,
+        // Cerulea Dashboard and the Cerulea APIs chain client read the
+        // sixteen platform modules through it.
+        let platform_api = crate::platform_rpc::CeruleaPlatformRpc::new(
+            client.clone(),
+            rpc_config.clone(),
+        );
+        module.merge(crate::platform_rpc::CeruleaPlatformRpcApiServer::into_rpc(platform_api))?;
+
         // Register Fork Detection RPC handler
         let fork_api = ForkDetectionRpcApiImpl::<C, FullBackend>::new(client.clone(), rpc_config.clone());
         module.merge(ForkDetectionRpcApiServer::into_rpc(fork_api))?;
