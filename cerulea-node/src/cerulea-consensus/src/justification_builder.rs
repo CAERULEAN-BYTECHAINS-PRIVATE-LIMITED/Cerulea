@@ -12,12 +12,21 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::dvf_gossip::{DvfJustification, DvfVoteMessage, DvfVotePool};
+use crate::engines::commit::submission::{
+    SubmissionPolicy, MAX_SUBMISSION_BYTES, MAX_VOTES_PER_SUBMISSION,
+};
 use crate::metrics::DvfMetrics;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::DvfApi;
 
 /// Maximum encoded size for a justification (1 MB)
 const MAX_JUSTIFICATION_SIZE: usize = 1_048_576;
+
+/// The highest number of votes one submitted justification carries.
+///
+/// The bound holds before any signature check runs, so an oversized message
+/// from an unknown peer costs one length read.
+const MAX_SUBMITTED_VOTES: usize = MAX_VOTES_PER_SUBMISSION as usize;
 
 /// Justification Builder
 ///
@@ -398,10 +407,36 @@ where
             justification.block_hash, justification.round_number
         );
 
-        // 1. Check vote count
+        // 1. Bound the submission before any signature check runs.
         if justification.votes.is_empty() {
-            return Err("Justification has no votes".to_string());
+            return Err(
+                "The justification carries no votes. Fix: gather votes before submitting."
+                    .to_string(),
+            );
         }
+        if justification.votes.len() > MAX_SUBMITTED_VOTES {
+            return Err(format!(
+                "The justification carries {} votes and the limit is {}. \
+                 Fix: send one justification built from the validator set of that round.",
+                justification.votes.len(),
+                MAX_SUBMITTED_VOTES
+            ));
+        }
+        let submission_bytes = justification.encode().len();
+        if submission_bytes > MAX_SUBMISSION_BYTES {
+            return Err(format!(
+                "The justification carries {} bytes and the limit is {}. \
+                 Fix: send one justification for one block rather than a joined message.",
+                submission_bytes, MAX_SUBMISSION_BYTES
+            ));
+        }
+        let declared =
+            SubmissionPolicy::standard().declared_weight(justification.votes.len() as u32);
+        debug!(
+            "Commit Engine Justification Builder: the submission declares {} weight units for {} votes",
+            declared.0,
+            justification.votes.len()
+        );
 
         // 2. Query runtime state
         let api = self.client.runtime_api();
