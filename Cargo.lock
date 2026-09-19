@@ -1362,6 +1362,7 @@ dependencies = [
  "pallet-cerulea-dvf",
  "pallet-cerulea-identity",
  "pallet-cerulea-logic",
+ "pallet-cerulea-operator",
  "pallet-cerulea-permission",
  "pallet-cerulea-pos",
  "pallet-cerulea-relayer",
