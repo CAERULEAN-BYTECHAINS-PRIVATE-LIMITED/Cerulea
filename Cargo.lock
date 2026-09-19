@@ -1392,6 +1392,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cerulea-primitives"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+]
+
+[[package]]
 name = "cerulea-runtime"
 version = "0.1.0"
 dependencies = [
@@ -1411,10 +1420,13 @@ dependencies = [
  "pallet-cerulea-dcf",
  "pallet-cerulea-dvf",
  "pallet-cerulea-identity",
+ "pallet-cerulea-permission",
  "pallet-cerulea-poi",
  "pallet-cerulea-pos",
+ "pallet-cerulea-rules",
  "pallet-cerulea-schema",
  "pallet-cerulea-state",
+ "pallet-cerulea-workflow",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -6508,6 +6520,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-permission"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-cerulea-poi"
 version = "0.1.0"
 dependencies = [
@@ -6543,6 +6573,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-rules"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-cerulea-schema"
 version = "0.1.0"
 dependencies = [
@@ -6567,6 +6616,26 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-workflow"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
