@@ -61,6 +61,7 @@ impl pallet_cerulea_state::Config for Test {
     type MaxRecordsPerCollection = ConstU32<1_024>;
     type MaxIndexEntries = ConstU32<128>;
     type MaxIndexesPerCollection = ConstU32<8>;
+    type MaxBucketEntries = ConstU32<64>;
 }
 
 const REFUSED: &[u8] = b"cerulea:test:refused";

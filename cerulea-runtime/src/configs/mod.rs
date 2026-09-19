@@ -415,4 +415,5 @@ impl pallet_cerulea_state::Config for Runtime {
     type MaxRecordsPerCollection = ConstU32<1048576>;
     type MaxIndexEntries = ConstU32<4096>;
     type MaxIndexesPerCollection = ConstU32<16>;
+    type MaxBucketEntries = ConstU32<256>;
 }

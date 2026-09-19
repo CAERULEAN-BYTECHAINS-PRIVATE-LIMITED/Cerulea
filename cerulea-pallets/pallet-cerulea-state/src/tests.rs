@@ -852,3 +852,134 @@ fn validation_runs_before_the_store_takes_the_record() {
         );
     });
 }
+
+#[test]
+fn a_record_proves_its_own_presence_against_the_collection_root() {
+    new_test_ext().execute_with(|| {
+        install();
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        let id = CollectionId::new("parcel");
+        let key = key_of(&record);
+        let held = <Pallet<Test> as RecordStore>::proof(&DEPLOYMENT, &id, &key)
+            .expect("the store answers with a proof");
+        let root = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id)
+            .expect("the collection carries a root");
+        assert!(crate::proof::verify(&held, &root));
+        assert!(!crate::proof::verify(&held, &[0u8; 32]));
+    });
+}
+
+#[test]
+fn an_empty_collection_carries_the_empty_root() {
+    new_test_ext().execute_with(|| {
+        install();
+        let id = CollectionId::new("parcel");
+        assert_eq!(
+            <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id),
+            Some(crate::proof::empty_root())
+        );
+    });
+}
+
+#[test]
+fn the_root_moves_with_every_write_and_returns_after_a_delete() {
+    new_test_ext().execute_with(|| {
+        install();
+        let id = CollectionId::new("parcel");
+        let empty = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id).expect("a root");
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        let after_insert = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id).expect("a root");
+        assert_ne!(empty, after_insert);
+
+        assert_ok!(State::update(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            collection_name(),
+            key_of(&record),
+            bounded(parcel("12/3", "Benny", 400).canonical_bytes())
+        ));
+        let after_update = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id).expect("a root");
+        assert_ne!(after_insert, after_update);
+
+        assert_ok!(State::delete(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            collection_name(),
+            key_of(&record)
+        ));
+        assert_eq!(
+            <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id),
+            Some(empty)
+        );
+    });
+}
+
+#[test]
+fn every_record_of_a_collection_proves_itself() {
+    new_test_ext().execute_with(|| {
+        install();
+        let records: Vec<Value> = ["12/3", "44/9", "07/1", "88/2", "55/5"]
+            .iter()
+            .map(|survey| parcel(survey, "Anitha", 100))
+            .collect();
+        for record in records.iter() {
+            assert_ok!(insert(record));
+        }
+        let id = CollectionId::new("parcel");
+        let root = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id).expect("a root");
+        for record in records.iter() {
+            let held = <Pallet<Test> as RecordStore>::proof(&DEPLOYMENT, &id, &key_of(record))
+                .expect("the store answers with a proof");
+            assert!(crate::proof::verify(&held, &root));
+        }
+    });
+}
+
+#[test]
+fn a_proof_of_an_absent_record_is_absent() {
+    new_test_ext().execute_with(|| {
+        install();
+        let id = CollectionId::new("parcel");
+        let key = key_of(&parcel("12/3", "Anitha", 400));
+        assert!(<Pallet<Test> as RecordStore>::proof(&DEPLOYMENT, &id, &key).is_none());
+    });
+}
+
+#[test]
+fn a_proof_carrying_another_record_value_declines() {
+    new_test_ext().execute_with(|| {
+        install();
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(insert(&record));
+        let id = CollectionId::new("parcel");
+        let root = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id).expect("a root");
+        let mut held = <Pallet<Test> as RecordStore>::proof(&DEPLOYMENT, &id, &key_of(&record))
+            .expect("the store answers with a proof");
+        held.value = parcel("12/3", "Benny", 400).canonical_bytes();
+        assert!(!crate::proof::verify(&held, &root));
+    });
+}
+
+#[test]
+fn two_collections_carry_separate_roots() {
+    new_test_ext().execute_with(|| {
+        install();
+        let mut ward = parcel_collection();
+        ward.id = CollectionId::new("ward");
+        assert_ok!(Schema::register_collection(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            bounded(ward.encode())
+        ));
+        assert_ok!(insert(&parcel("12/3", "Anitha", 400)));
+        let parcels =
+            <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &CollectionId::new("parcel"))
+                .expect("a root");
+        let wards = <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &CollectionId::new("ward"))
+            .expect("a root");
+        assert_ne!(parcels, wards);
+        assert_eq!(wards, crate::proof::empty_root());
+    });
+}

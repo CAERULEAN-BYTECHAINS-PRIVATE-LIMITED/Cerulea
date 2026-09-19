@@ -27,6 +27,7 @@
 extern crate alloc;
 
 pub mod index;
+pub mod proof;
 pub mod validate;
 pub mod weights;
 
@@ -155,6 +156,16 @@ pub trait RecordStore {
         probe: &[Value],
     ) -> Vec<RecordKey>;
 
+    /// The inclusion tree root of one collection.
+    fn root(deployment: &DeploymentId, collection: &CollectionId) -> Option<[u8; 32]>;
+
+    /// The proof that one record sits in one collection.
+    fn proof(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        key: &RecordKey,
+    ) -> Option<proof::InclusionProof>;
+
     /// The metadata of one record.
     fn meta(
         deployment: &DeploymentId,
@@ -238,6 +249,13 @@ pub mod pallet {
         /// The largest number of declared indexes one collection carries.
         #[pallet::constant]
         type MaxIndexesPerCollection: Get<u32>;
+
+        /// The largest number of record keys one proof slot holds.
+        ///
+        /// A record key lands in one of 65536 slots. A full slot means the
+        /// collection holds far more records than the slot count admits.
+        #[pallet::constant]
+        type MaxBucketEntries: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -300,6 +318,42 @@ pub mod pallet {
         BoundedVec<RecordKey, T::MaxIndexEntries>,
         OptionQuery,
     >;
+
+    /// The leaf buckets of the inclusion tree of every collection.
+    #[pallet::storage]
+    pub type Buckets<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        CollectionKey,
+        Twox64Concat,
+        u16,
+        BoundedVec<proof::BucketEntry, T::MaxBucketEntries>,
+        OptionQuery,
+    >;
+
+    /// The internal nodes of the inclusion tree of every collection.
+    ///
+    /// The second key names the level and the index inside that level. A
+    /// node holding an empty subtree stays absent, so the map holds the
+    /// path of the records alone.
+    #[pallet::storage]
+    pub type Nodes<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        CollectionKey,
+        Twox64Concat,
+        (u8, u16),
+        [u8; 32],
+        OptionQuery,
+    >;
+
+    /// The inclusion tree root of every collection.
+    ///
+    /// The item sits inside the state trie, so the block state root
+    /// commits to every collection root.
+    #[pallet::storage]
+    pub type Roots<T: Config> =
+        StorageMap<_, Blake2_128Concat, CollectionKey, [u8; 32], OptionQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -393,6 +447,9 @@ pub mod pallet {
         /// The collection declares more indexes than the runtime admits.
         /// Remove an index, or raise the limit in the runtime.
         IndexLimitReached,
+        /// The proof slot holds its full count of record keys. Raise the
+        /// slot limit in the runtime.
+        BucketFull,
     }
 
     #[pallet::call]
@@ -642,7 +699,7 @@ impl<T: Config> Pallet<T> {
         index::maintain::<T>(&slot, definition, key, previous.as_ref(), next.as_ref())?;
 
         let now = frame_system::Pallet::<T>::block_number();
-        let value_hash = sp_crypto_hashing::blake2_256(bytes.as_slice());
+        let value_hash = proof::record_digest(key.as_slice(), bytes.as_slice());
         let meta = match Meta::<T>::get(&slot, key) {
             Some(held) => RecordMeta {
                 created_at: held.created_at,
@@ -670,6 +727,7 @@ impl<T: Config> Pallet<T> {
         };
 
         let version = meta.version;
+        Self::set_leaf(&slot, key, Some(value_hash))?;
         Records::<T>::insert(&slot, key, bytes);
         Meta::<T>::insert(&slot, key, meta);
 
@@ -718,6 +776,7 @@ impl<T: Config> Pallet<T> {
         if let Some(held) = record.as_ref() {
             index::maintain::<T>(&slot, &definition, key, Some(held), None)?;
         }
+        Self::set_leaf(&slot, key, None)?;
         Records::<T>::remove(&slot, key);
         Meta::<T>::remove(&slot, key);
         KeyOrder::<T>::remove(&slot, key);
@@ -730,6 +789,112 @@ impl<T: Config> Pallet<T> {
             actor: actor.clone(),
         });
         Ok(())
+    }
+
+    /// Place or clear one leaf of the inclusion tree and rebuild the path
+    /// to the root.
+    ///
+    /// A write touches one bucket and sixteen nodes. The cost therefore
+    /// stays the same whatever the collection holds.
+    pub fn set_leaf(
+        slot: &CollectionKey,
+        key: &RecordKey,
+        digest: Option<[u8; 32]>,
+    ) -> DispatchResult {
+        let position = proof::slot_of(key.as_slice());
+        let mut bucket: Vec<proof::BucketEntry> = Buckets::<T>::get(slot, position)
+            .map(|held| held.into_inner())
+            .unwrap_or_default();
+        match digest {
+            Some(held) => {
+                proof::place(&mut bucket, key, held);
+            }
+            None => {
+                proof::displace(&mut bucket, key);
+            }
+        }
+        let leaf = proof::bucket_digest(&bucket);
+        if bucket.is_empty() {
+            Buckets::<T>::remove(slot, position);
+        } else {
+            let bounded: BoundedVec<proof::BucketEntry, T::MaxBucketEntries> =
+                BoundedVec::try_from(bucket).map_err(|_| Error::<T>::BucketFull)?;
+            Buckets::<T>::insert(slot, position, bounded);
+        }
+
+        Self::place_node(slot, 0, proof::node_index(position, 0), leaf);
+        let mut level = 0u8;
+        let mut current = leaf;
+        while level < proof::TREE_DEPTH {
+            let index = proof::node_index(position, level);
+            let sibling = Self::node_at(slot, level, proof::sibling_index(position, level));
+            let parent = if index & 1 == 0 {
+                proof::node_digest(&current, &sibling)
+            } else {
+                proof::node_digest(&sibling, &current)
+            };
+            let above = level.saturating_add(1);
+            Self::place_node(slot, above, proof::node_index(position, above), parent);
+            current = parent;
+            level = above;
+        }
+        if current == proof::empty_root() {
+            Roots::<T>::remove(slot);
+        } else {
+            Roots::<T>::insert(slot, current);
+        }
+        Ok(())
+    }
+
+    fn node_at(slot: &CollectionKey, level: u8, index: u16) -> [u8; 32] {
+        Nodes::<T>::get(slot, (level, index)).unwrap_or_else(|| proof::empty_at(level))
+    }
+
+    fn place_node(slot: &CollectionKey, level: u8, index: u16, digest: [u8; 32]) {
+        if digest == proof::empty_at(level) {
+            Nodes::<T>::remove(slot, (level, index));
+        } else {
+            Nodes::<T>::insert(slot, (level, index), digest);
+        }
+    }
+
+    /// The inclusion tree root of one collection.
+    ///
+    /// A collection holding no records answers with the empty root.
+    pub fn collection_root(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+    ) -> Option<[u8; 32]> {
+        let slot = Self::storage_key(deployment, collection).ok()?;
+        Some(Roots::<T>::get(&slot).unwrap_or_else(proof::empty_root))
+    }
+
+    /// The proof that one record sits in one collection.
+    ///
+    /// A verifier folds the proof and compares the result with the
+    /// collection root. The root sits in the state trie, so a block header
+    /// commits to it.
+    pub fn inclusion_proof(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        key: &RecordKey,
+    ) -> Option<proof::InclusionProof> {
+        let slot = Self::storage_key(deployment, collection).ok()?;
+        let value = Records::<T>::get(&slot, key)?.into_inner();
+        let position = proof::slot_of(key.as_slice());
+        let bucket: Vec<proof::BucketEntry> = Buckets::<T>::get(&slot, position)
+            .map(|held| held.into_inner())
+            .unwrap_or_default();
+        let siblings = proof::siblings_for(position, |level, index| {
+            Nodes::<T>::get(&slot, (level, index))
+        });
+        Some(proof::InclusionProof {
+            key: key.clone(),
+            value,
+            slot: position,
+            bucket,
+            siblings,
+        })
     }
 
     /// Check that a record carries the registered shape and return its
@@ -1018,6 +1183,18 @@ impl<T: Config> RecordStore for Pallet<T> {
         Pallet::<T>::index_lookup(deployment, collection, index, probe)
     }
 
+    fn root(deployment: &DeploymentId, collection: &CollectionId) -> Option<[u8; 32]> {
+        Pallet::<T>::collection_root(deployment, collection)
+    }
+
+    fn proof(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        key: &RecordKey,
+    ) -> Option<proof::InclusionProof> {
+        Pallet::<T>::inclusion_proof(deployment, collection, key)
+    }
+
     fn meta(
         deployment: &DeploymentId,
         collection: &CollectionId,
@@ -1128,7 +1305,9 @@ impl<T: Config> Pallet<T> {
                 KeyOrder::<T>::insert(&slot, &moved, ());
             }
             let now = frame_system::Pallet::<T>::block_number();
-            let value_hash = sp_crypto_hashing::blake2_256(bytes.as_slice());
+            let value_hash = proof::record_digest(moved.as_slice(), bytes.as_slice());
+            Self::set_leaf(&slot, &key, None)?;
+            Self::set_leaf(&slot, &moved, Some(value_hash))?;
             let updated = match meta {
                 Some(held) => RecordMeta {
                     created_at: held.created_at,
