@@ -7234,12 +7234,14 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::report_validator_misbehavior())]
         pub fn report_equivocation(
             origin: OriginFor<T>,
-            proof: cerulea_primitives::equivocation::EquivocationProof,
+            proof: sp_std::boxed::Box<cerulea_primitives::equivocation::EquivocationProof>,
         ) -> DispatchResult {
             let _reporter = ensure_signed(origin)?;
 
             // The shared evidence code runs on the node and on the chain, so
-            // both sides reach the same answer over one proof.
+            // both sides reach the same answer over one proof. The evidence
+            // travels behind a pointer, so one large call leaves every other
+            // call of this module its own size.
             let facts = cerulea_primitives::equivocation::verify_equivocation(&proof)
                 .map_err(|_| Error::<T>::EquivocationEvidenceRejected)?;
 

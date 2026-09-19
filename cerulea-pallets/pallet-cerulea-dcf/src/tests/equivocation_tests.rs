@@ -97,7 +97,7 @@ fn proven_equivocation_returns_standing_to_zero_inside_one_epoch() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 9, 1)
+            Box::new(proof(&pair, 9, 1))
         ));
 
         assert_eq!(
@@ -125,7 +125,7 @@ fn the_chain_records_the_fault_against_the_validator() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 21, 3)
+            Box::new(proof(&pair, 21, 3))
         ));
 
         let fault = EquivocationFaults::<Test>::get(OFFENDER).expect("the chain recorded a fault");
@@ -154,7 +154,7 @@ fn the_chain_raises_the_equivocation_event() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 4, 1)
+            Box::new(proof(&pair, 4, 1))
         ));
 
         let raised = frame_system::Pallet::<Test>::events()
@@ -183,10 +183,10 @@ fn one_equivocation_takes_one_penalty() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 9, 1)
+            Box::new(proof(&pair, 9, 1))
         ));
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), proof(&pair, 9, 1)),
+            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
             Error::<Test>::EquivocationAlreadyPenalised
         );
     });
@@ -203,7 +203,7 @@ fn one_header_reported_twice_carries_no_penalty() {
         assert_noop!(
             DcfPallet::report_equivocation(
                 RuntimeOrigin::signed(REPORTER),
-                EquivocationProof::new(sealed, sealed)
+                Box::new(EquivocationProof::new(sealed, sealed))
             ),
             Error::<Test>::EquivocationEvidenceRejected
         );
@@ -221,7 +221,7 @@ fn a_broken_signature_carries_no_penalty() {
         evidence.second.signature[0] ^= 0xff;
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), evidence),
+            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(evidence)),
             Error::<Test>::EquivocationEvidenceRejected
         );
         assert!(EquivocationFaults::<Test>::get(OFFENDER).is_none());
@@ -238,7 +238,7 @@ fn two_headers_at_two_slots_carry_no_penalty() {
             EquivocationProof::new(head(&pair, [1u8; 32], 9, 1), head(&pair, [2u8; 32], 10, 1));
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), evidence),
+            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(evidence)),
             Error::<Test>::EquivocationEvidenceRejected
         );
     });
@@ -251,7 +251,7 @@ fn evidence_against_an_unregistered_key_carries_no_penalty() {
         seed_service(30);
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), proof(&pair, 9, 1)),
+            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
             Error::<Test>::EquivocationAuthorUnregistered
         );
     });
@@ -266,7 +266,7 @@ fn evidence_naming_another_seal_key_carries_no_penalty() {
         seed_service(30);
 
         assert_noop!(
-            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), proof(&pair, 9, 1)),
+            DcfPallet::report_equivocation(RuntimeOrigin::signed(REPORTER), Box::new(proof(&pair, 9, 1))),
             Error::<Test>::EquivocationKeysMismatch
         );
     });
@@ -282,7 +282,7 @@ fn any_account_submits_the_evidence() {
         // The reporter holds no seat and still carries the evidence through.
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(99),
-            proof(&pair, 9, 1)
+            Box::new(proof(&pair, 9, 1))
         ));
         assert!(EquivocationFaults::<Test>::get(OFFENDER).is_some());
     });
@@ -298,7 +298,7 @@ fn the_penalty_leaves_every_other_validator_untouched() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 9, 1)
+            Box::new(proof(&pair, 9, 1))
         ));
 
         assert_eq!(
@@ -318,12 +318,12 @@ fn two_slots_take_two_penalties() {
 
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 9, 1)
+            Box::new(proof(&pair, 9, 1))
         ));
         // The standing is already zero. The second equivocation still records.
         assert_ok!(DcfPallet::report_equivocation(
             RuntimeOrigin::signed(REPORTER),
-            proof(&pair, 10, 1)
+            Box::new(proof(&pair, 10, 1))
         ));
 
         let fault = EquivocationFaults::<Test>::get(OFFENDER).expect("the chain holds a fault");
