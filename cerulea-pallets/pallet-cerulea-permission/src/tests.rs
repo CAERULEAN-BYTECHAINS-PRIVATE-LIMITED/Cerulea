@@ -607,3 +607,138 @@ fn the_matrix_allows_a_capability_the_account_reaches() {
         ));
     });
 }
+
+#[test]
+fn a_read_returns_the_named_fields_alone() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "registrar",
+            CapabilityKey::Read,
+            GrantPayload::only_fields(vec![
+                FieldPath::parse("survey_number"),
+                FieldPath::parse("ward"),
+            ]),
+        );
+        let held = parcel("12/3", "Anitha", "north");
+        let seen = <Pallet<Test> as PermissionMatrix>::visible_record(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &held,
+        )
+        .expect("the role reads the record");
+        match seen {
+            Value::Record(record) => {
+                assert_eq!(record.fields.len(), 2);
+                assert!(record.field(&FieldName::new("holder")).is_none());
+                assert!(record.field(&FieldName::new("ward")).is_some());
+            }
+            other => unreachable!("the read produced {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn a_read_removes_the_held_out_fields() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "registrar",
+            CapabilityKey::Read,
+            GrantPayload::apart_from(vec![FieldPath::parse("holder")]),
+        );
+        let held = parcel("12/3", "Anitha", "north");
+        let seen = <Pallet<Test> as PermissionMatrix>::visible_record(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &held,
+        )
+        .expect("the role reads the record");
+        match seen {
+            Value::Record(record) => {
+                assert_eq!(record.fields.len(), 2);
+                assert!(record.field(&FieldName::new("holder")).is_none());
+            }
+            other => unreachable!("the read produced {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn a_row_predicate_removes_the_records_it_declines() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "registrar",
+            CapabilityKey::Read,
+            GrantPayload::everything().where_rows(ward_predicate("north")),
+        );
+        let records = vec![
+            parcel("12/3", "Anitha", "north"),
+            parcel("44/9", "Benny", "south"),
+            parcel("55/5", "Chandra", "north"),
+        ];
+        let seen = <Pallet<Test> as PermissionMatrix>::visible_records(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &records,
+        );
+        assert_eq!(seen.len(), 2);
+        let declined = <Pallet<Test> as PermissionMatrix>::visible_record(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &parcel("44/9", "Benny", "south"),
+        );
+        assert!(declined.is_none());
+    });
+}
+
+#[test]
+fn a_row_predicate_and_a_field_list_run_together() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant(
+            "registrar",
+            CapabilityKey::Read,
+            GrantPayload::only_fields(vec![FieldPath::parse("survey_number")])
+                .where_rows(ward_predicate("north")),
+        );
+        let records = vec![
+            parcel("12/3", "Anitha", "north"),
+            parcel("44/9", "Benny", "south"),
+        ];
+        let seen = <Pallet<Test> as PermissionMatrix>::visible_records(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &records,
+        );
+        assert_eq!(seen.len(), 1);
+        match &seen[0] {
+            Value::Record(record) => {
+                assert_eq!(record.fields.len(), 1);
+                assert!(record.field(&FieldName::new("survey_number")).is_some());
+            }
+            other => unreachable!("the read produced {:?}", other),
+        }
+    });
+}
+
+#[test]
+fn an_account_without_the_read_capability_sees_nothing() {
+    new_test_ext().execute_with(|| {
+        install();
+        grant("registrar", CapabilityKey::Insert, GrantPayload::everything());
+        let seen = <Pallet<Test> as PermissionMatrix>::visible_records(
+            &DEPLOYMENT,
+            &ANITHA,
+            &CollectionId::new("parcel"),
+            &[parcel("12/3", "Anitha", "north")],
+        );
+        assert!(seen.is_empty());
+    });
+}

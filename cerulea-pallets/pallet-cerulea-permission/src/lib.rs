@@ -31,6 +31,7 @@
 
 extern crate alloc;
 
+pub mod resolve;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -42,6 +43,7 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
+pub use resolve::{admits_row, project};
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String, string::ToString, vec::Vec};
@@ -296,6 +298,26 @@ pub trait PermissionMatrix {
         who: &Self::AccountId,
         collection: &CollectionId,
     ) -> FieldQualification;
+
+    /// One record as one account reads it, with the fields outside its
+    /// reach removed.
+    ///
+    /// A record the row predicate declines answers with nothing.
+    fn visible_record(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        collection: &CollectionId,
+        record: &Value,
+    ) -> Option<Value>;
+
+    /// The records one account reads, each with the fields outside its
+    /// reach removed.
+    fn visible_records(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        collection: &CollectionId,
+        records: &[Value],
+    ) -> Vec<Value>;
 }
 
 #[frame_support::pallet]
@@ -827,6 +849,43 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    /// One record as one account reads it.
+    ///
+    /// The call resolves the read against the capability matrix, checks
+    /// the row predicate and then removes the fields outside the reach of
+    /// the account.
+    pub fn read_record(
+        deployment: &DeploymentId,
+        who: &T::AccountId,
+        collection: &CollectionId,
+        record: &Value,
+    ) -> Option<Value> {
+        let request = AccessRequest::new(
+            *deployment,
+            who,
+            collection.clone(),
+            AccessAction::Read,
+            Self::now(),
+        )
+        .about(record);
+        let grant = Self::resolve_request(&request).ok()?;
+        Some(resolve::project(record, &grant.fields))
+    }
+
+    /// The records one account reads, each with the fields outside its
+    /// reach removed.
+    pub fn read_records(
+        deployment: &DeploymentId,
+        who: &T::AccountId,
+        collection: &CollectionId,
+        records: &[Value],
+    ) -> Vec<Value> {
+        records
+            .iter()
+            .filter_map(|record| Self::read_record(deployment, who, collection, record))
+            .collect()
+    }
+
     /// The moment the module reads, in milliseconds.
     pub fn now() -> Timestamp {
         Timestamp::from_millis(T::Identity::now_millis())
@@ -868,6 +927,24 @@ impl<T: Config> PermissionMatrix for Pallet<T> {
         T::Identity::roles_of(deployment, who, now)
             .iter()
             .any(|role| Pallet::<T>::entry(deployment, role, &name, capability).is_some())
+    }
+
+    fn visible_record(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        collection: &CollectionId,
+        record: &Value,
+    ) -> Option<Value> {
+        Pallet::<T>::read_record(deployment, who, collection, record)
+    }
+
+    fn visible_records(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        collection: &CollectionId,
+        records: &[Value],
+    ) -> Vec<Value> {
+        Pallet::<T>::read_records(deployment, who, collection, records)
     }
 
     fn readable_fields(
