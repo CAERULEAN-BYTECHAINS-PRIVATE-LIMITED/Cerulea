@@ -337,7 +337,7 @@ where
         // FB-09: Do not fabricate weights if the API fails — different nodes could get
         // different API errors and silently use different weights during an upgrade/migration.
         // Skip this metrics cycle entirely instead.
-        // Note: PoI weight is intentionally 0 until AI inference integration is complete.
+        // Note: the contribution part holds at zero until the optional module lands.
         let (pos_weight, poi_weight) = match api.get_consensus_weights(best_hash) {
             Ok(weights) => weights,
             Err(e) => {
