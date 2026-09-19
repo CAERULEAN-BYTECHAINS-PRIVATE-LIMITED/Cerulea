@@ -1,6 +1,8 @@
 //! The tests of the identity module.
 
-use crate::{mock::*, Assignments, Error, HeldRoles, IdentityRegistry, Pallet, Units};
+use crate::{
+    mock::*, Assignments, CredentialFault, Error, HeldRoles, IdentityRegistry, Pallet, Units,
+};
 use frame_support::{assert_noop, assert_ok, BoundedVec};
 use pallet_cerulea_schema::primitives::{name_of, BoundedName, DeploymentId};
 
@@ -459,5 +461,296 @@ fn the_stored_unit_carries_its_parent_and_its_title() {
         let held = Units::<Test>::get(DEPLOYMENT, name("taluk")).expect("the tree holds the unit");
         assert_eq!(held.parent, Some(name("district")));
         assert_eq!(held.title, text("Kollam Taluk Office"));
+    });
+}
+
+fn define_surveyor() {
+    assert_ok!(Identity::define_role(
+        RuntimeOrigin::signed(STEWARD),
+        DEPLOYMENT,
+        name("surveyor"),
+        Some(name("taluk")),
+        credentials(&["survey_licence"]),
+        text("Surveyor")
+    ));
+}
+
+fn attest(issuer: u64, who: u64, credential: &str, expires_at: Option<u64>) {
+    assert_ok!(Identity::attest_credential(
+        RuntimeOrigin::signed(issuer),
+        DEPLOYMENT,
+        who,
+        name(credential),
+        [1u8; 32],
+        expires_at
+    ));
+}
+
+#[test]
+fn an_attestation_carries_its_issuer_and_its_expiry() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", Some(START + 10_000));
+        let held = crate::Credentials::<Test>::get((DEPLOYMENT, ANITHA, name("survey_licence")))
+            .expect("the registry holds the attestation");
+        assert_eq!(held.issuer, BENNY);
+        assert_eq!(held.issued_at, START);
+        assert_eq!(held.expires_at, Some(START + 10_000));
+        assert_eq!(held.evidence, [1u8; 32]);
+        assert!(!held.withdrawn);
+        assert!(<Pallet<Test> as IdentityRegistry>::has_credential(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("survey_licence"),
+            START
+        ));
+    });
+}
+
+#[test]
+fn a_credential_past_its_expiry_counts_as_absent() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", Some(START + 10_000));
+        assert!(<Pallet<Test> as IdentityRegistry>::has_credential(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("survey_licence"),
+            START + 9_999
+        ));
+        assert!(!<Pallet<Test> as IdentityRegistry>::has_credential(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("survey_licence"),
+            START + 10_000
+        ));
+        assert_eq!(
+            Pallet::<Test>::credential_state(
+                &DEPLOYMENT,
+                &ANITHA,
+                &name("survey_licence"),
+                START + 20_000
+            ),
+            Err(CredentialFault::Expired)
+        );
+    });
+}
+
+#[test]
+fn a_withdrawn_attestation_counts_as_absent() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", None);
+        assert_ok!(Identity::revoke_credential(
+            RuntimeOrigin::signed(BENNY),
+            DEPLOYMENT,
+            ANITHA,
+            name("survey_licence")
+        ));
+        assert_eq!(
+            Pallet::<Test>::credential_state(&DEPLOYMENT, &ANITHA, &name("survey_licence"), START),
+            Err(CredentialFault::Withdrawn)
+        );
+    });
+}
+
+#[test]
+fn only_the_issuer_withdraws_an_attestation() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", None);
+        assert_noop!(
+            Identity::revoke_credential(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                ANITHA,
+                name("survey_licence")
+            ),
+            Error::<Test>::NotTheIssuer
+        );
+    });
+}
+
+#[test]
+fn a_withdrawal_without_an_attestation_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        assert_noop!(
+            Identity::revoke_credential(
+                RuntimeOrigin::signed(BENNY),
+                DEPLOYMENT,
+                ANITHA,
+                name("survey_licence")
+            ),
+            Error::<Test>::CredentialAbsent
+        );
+    });
+}
+
+#[test]
+fn a_role_requiring_an_absent_credential_resolves_to_nothing() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        build_tree();
+        define_surveyor();
+        assert_ok!(Identity::assign_role(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            ANITHA,
+            name("surveyor"),
+            None
+        ));
+        assert!(
+            <Pallet<Test> as IdentityRegistry>::roles_of(&DEPLOYMENT, &ANITHA, START).is_empty()
+        );
+        let outcome = <Pallet<Test> as IdentityRegistry>::requirements_of(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("surveyor"),
+            START,
+        );
+        assert!(!outcome.holds());
+        let (credential, fault) = outcome.first().expect("the outcome names the credential");
+        assert_eq!(credential, &name("survey_licence"));
+        assert_eq!(fault, &CredentialFault::Absent);
+        assert!(!fault.fix().is_empty());
+    });
+}
+
+#[test]
+fn an_attested_credential_brings_the_role_back() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        build_tree();
+        define_surveyor();
+        assert_ok!(Identity::assign_role(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            ANITHA,
+            name("surveyor"),
+            None
+        ));
+        attest(BENNY, ANITHA, "survey_licence", Some(START + 10_000));
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::roles_of(&DEPLOYMENT, &ANITHA, START),
+            vec![name("surveyor")]
+        );
+        assert!(<Pallet<Test> as IdentityRegistry>::requirements_of(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("surveyor"),
+            START
+        )
+        .holds());
+    });
+}
+
+#[test]
+fn an_expired_credential_takes_the_role_away_without_a_further_call() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        build_tree();
+        define_surveyor();
+        assert_ok!(Identity::assign_role(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            ANITHA,
+            name("surveyor"),
+            None
+        ));
+        attest(BENNY, ANITHA, "survey_licence", Some(START + 10_000));
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::roles_of(&DEPLOYMENT, &ANITHA, START),
+            vec![name("surveyor")]
+        );
+        set_clock(START + 20_000);
+        assert!(<Pallet<Test> as IdentityRegistry>::roles_of(
+            &DEPLOYMENT,
+            &ANITHA,
+            <Pallet<Test> as IdentityRegistry>::now_millis()
+        )
+        .is_empty());
+    });
+}
+
+#[test]
+fn an_attestation_expiring_in_the_past_is_declined() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        assert_noop!(
+            Identity::attest_credential(
+                RuntimeOrigin::signed(BENNY),
+                DEPLOYMENT,
+                ANITHA,
+                name("survey_licence"),
+                [1u8; 32],
+                Some(START)
+            ),
+            Error::<Test>::ExpiryInThePast
+        );
+    });
+}
+
+#[test]
+fn an_attestation_to_an_absent_account_is_declined() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Identity::attest_credential(
+                RuntimeOrigin::signed(BENNY),
+                DEPLOYMENT,
+                ANITHA,
+                name("survey_licence"),
+                [1u8; 32],
+                None
+            ),
+            Error::<Test>::AccountUnknown
+        );
+    });
+}
+
+#[test]
+fn a_held_credential_reads_back_in_name_order() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", None);
+        attest(BENNY, ANITHA, "audit_licence", None);
+        assert_eq!(
+            Pallet::<Test>::held_credentials(&DEPLOYMENT, &ANITHA),
+            vec![name("audit_licence"), name("survey_licence")]
+        );
+    });
+}
+
+#[test]
+fn a_repeated_attestation_replaces_the_earlier_one() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", Some(START + 1_000));
+        attest(STEWARD, ANITHA, "survey_licence", Some(START + 50_000));
+        let held = crate::Credentials::<Test>::get((DEPLOYMENT, ANITHA, name("survey_licence")))
+            .expect("the registry holds the attestation");
+        assert_eq!(held.issuer, STEWARD);
+        assert_eq!(held.expires_at, Some(START + 50_000));
+        assert_eq!(
+            Pallet::<Test>::held_credentials(&DEPLOYMENT, &ANITHA).len(),
+            1
+        );
+    });
+}
+
+#[test]
+fn an_attestation_without_an_expiry_holds_until_a_withdrawal() {
+    new_test_ext().execute_with(|| {
+        register(ANITHA, 7);
+        attest(BENNY, ANITHA, "survey_licence", None);
+        let held = crate::Credentials::<Test>::get((DEPLOYMENT, ANITHA, name("survey_licence")))
+            .expect("the registry holds the attestation");
+        assert_eq!(held.horizon(), u64::MAX);
+        assert!(<Pallet<Test> as IdentityRegistry>::has_credential(
+            &DEPLOYMENT,
+            &ANITHA,
+            &name("survey_licence"),
+            u64::MAX - 1
+        ));
     });
 }

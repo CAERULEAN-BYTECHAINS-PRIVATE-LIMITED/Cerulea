@@ -23,6 +23,7 @@
 
 extern crate alloc;
 
+pub mod credential;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -33,6 +34,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub use credential::{Attestation, CredentialFault, RequirementOutcome};
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -141,6 +143,22 @@ pub trait IdentityRegistry {
     /// The unit chain from one unit to the top of the tree.
     fn unit_chain(deployment: &DeploymentId, unit: &BoundedName) -> Vec<BoundedName>;
 
+    /// Report whether an account holds one credential at one moment.
+    fn has_credential(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        credential: &BoundedName,
+        now: u64,
+    ) -> bool;
+
+    /// Check every credential one role requires against one account.
+    fn requirements_of(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        role: &BoundedName,
+        now: u64,
+    ) -> RequirementOutcome;
+
     /// The clock the module reads, in milliseconds.
     fn now_millis() -> u64;
 }
@@ -187,6 +205,10 @@ pub mod pallet {
         /// The largest piece of text one record carries, in bytes.
         #[pallet::constant]
         type MaxTextBytes: Get<u32>;
+
+        /// The largest number of credentials one account holds.
+        #[pallet::constant]
+        type MaxCredentialsPerAccount: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -271,6 +293,31 @@ pub mod pallet {
         ValueQuery,
     >;
 
+    /// The credential attestations of every account.
+    #[pallet::storage]
+    pub type Credentials<T: Config> = StorageNMap<
+        _,
+        (
+            NMapKey<Blake2_128Concat, DeploymentId>,
+            NMapKey<Blake2_128Concat, T::AccountId>,
+            NMapKey<Blake2_128Concat, BoundedName>,
+        ),
+        Attestation<T::AccountId>,
+        OptionQuery,
+    >;
+
+    /// The credential names every account holds, in name order.
+    #[pallet::storage]
+    pub type HeldCredentials<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        DeploymentId,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<BoundedName, T::MaxCredentialsPerAccount>,
+        ValueQuery,
+    >;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -314,6 +361,28 @@ pub mod pallet {
             role: BoundedName,
             /// The moment the assignment lapses.
             expires_at: Option<u64>,
+        },
+        /// An issuer attested one credential.
+        CredentialAttested {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The account the credential reaches.
+            who: T::AccountId,
+            /// The credential.
+            credential: BoundedName,
+            /// The account that made the attestation.
+            issuer: T::AccountId,
+            /// The moment the attestation lapses.
+            expires_at: Option<u64>,
+        },
+        /// An issuer withdrew one attestation.
+        CredentialWithdrawn {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The account the credential reached.
+            who: T::AccountId,
+            /// The credential.
+            credential: BoundedName,
         },
         /// An account lost a role.
         RoleRevoked {
@@ -377,6 +446,18 @@ pub mod pallet {
         /// The role requires more credentials than the runtime admits.
         /// Remove a requirement, or raise the limit in the runtime.
         CredentialLimitReached,
+        /// The account holds its full count of credentials. Withdraw an
+        /// attestation, or raise the limit in the runtime.
+        AccountCredentialLimitReached,
+        /// The account holds no attestation under that credential. Attest
+        /// the credential before withdrawing it.
+        CredentialAbsent,
+        /// The account that made the attestation is the only account that
+        /// withdraws it. Submit the call from the issuer account.
+        NotTheIssuer,
+        /// The role requires a credential the account lacks. Ask the
+        /// issuer to attest the credential first.
+        RequirementUnmet,
     }
 
     #[pallet::call]
@@ -572,6 +653,88 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Attest one credential for one account.
+        ///
+        /// The call records the issuer, the moment and the expiry. The
+        /// evidence is a commitment over the document the issuer saw, and
+        /// the document itself stays outside the Blockchain.
+        #[pallet::call_index(6)]
+        #[pallet::weight(T::WeightInfo::attest_credential())]
+        pub fn attest_credential(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            who: T::AccountId,
+            credential: BoundedName,
+            evidence: [u8; 32],
+            expires_at: Option<u64>,
+        ) -> DispatchResult {
+            let issuer = ensure_signed(origin)?;
+            let account = Accounts::<T>::get(&who).ok_or(Error::<T>::AccountUnknown)?;
+            ensure!(account.active, Error::<T>::AccountSuspended);
+            let now = Self::now();
+            if let Some(expiry) = expires_at {
+                ensure!(expiry > now, Error::<T>::ExpiryInThePast);
+            }
+
+            HeldCredentials::<T>::try_mutate(deployment, &who, |held| {
+                match held.binary_search(&credential) {
+                    Ok(_) => Ok(()),
+                    Err(slot) => held
+                        .try_insert(slot, credential.clone())
+                        .map_err(|_| Error::<T>::AccountCredentialLimitReached),
+                }
+            })?;
+            Credentials::<T>::insert(
+                (deployment, who.clone(), credential.clone()),
+                Attestation {
+                    issuer: issuer.clone(),
+                    issued_at: now,
+                    expires_at,
+                    evidence,
+                    withdrawn: false,
+                },
+            );
+            Self::deposit_event(Event::CredentialAttested {
+                deployment,
+                who,
+                credential,
+                issuer,
+                expires_at,
+            });
+            Ok(())
+        }
+
+        /// Withdraw one attestation.
+        ///
+        /// The account that made the attestation is the only account that
+        /// withdraws it. The record stays on the Blockchain marked as
+        /// withdrawn, so an auditor reads the whole history.
+        #[pallet::call_index(7)]
+        #[pallet::weight(T::WeightInfo::revoke_credential())]
+        pub fn revoke_credential(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            who: T::AccountId,
+            credential: BoundedName,
+        ) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            Credentials::<T>::try_mutate(
+                (deployment, who.clone(), credential.clone()),
+                |slot| -> DispatchResult {
+                    let held = slot.as_mut().ok_or(Error::<T>::CredentialAbsent)?;
+                    ensure!(held.issuer == caller, Error::<T>::NotTheIssuer);
+                    held.withdrawn = true;
+                    Ok(())
+                },
+            )?;
+            Self::deposit_event(Event::CredentialWithdrawn {
+                deployment,
+                who,
+                credential,
+            });
+            Ok(())
+        }
+
         /// Take one role away from one account.
         #[pallet::call_index(5)]
         #[pallet::weight(T::WeightInfo::revoke_role())]
@@ -640,7 +803,46 @@ impl<T: Config> Pallet<T> {
         HeldRoles::<T>::get(deployment, who)
             .into_iter()
             .filter(|role| Self::assignment_holds(deployment, who, role, now))
+            .filter(|role| Self::requirements(deployment, who, role, now).holds())
             .collect()
+    }
+
+    /// Check every credential one role requires against one account.
+    pub fn requirements(
+        deployment: &DeploymentId,
+        who: &T::AccountId,
+        role: &BoundedName,
+        now: u64,
+    ) -> RequirementOutcome {
+        let definition = match Roles::<T>::get(deployment, role) {
+            Some(held) => held,
+            None => return RequirementOutcome::clean(),
+        };
+        let mut missing = Vec::new();
+        for credential in definition.requires.iter() {
+            if let Err(fault) = Self::credential_state(deployment, who, credential, now) {
+                missing.push((credential.clone(), fault));
+            }
+        }
+        RequirementOutcome { missing }
+    }
+
+    /// The state of one credential of one account at one moment.
+    pub fn credential_state(
+        deployment: &DeploymentId,
+        who: &T::AccountId,
+        credential: &BoundedName,
+        now: u64,
+    ) -> Result<(), CredentialFault> {
+        match Credentials::<T>::get((*deployment, who.clone(), credential.clone())) {
+            Some(held) => held.holds_at(now),
+            None => Err(CredentialFault::Absent),
+        }
+    }
+
+    /// The credential names one account holds, in name order.
+    pub fn held_credentials(deployment: &DeploymentId, who: &T::AccountId) -> Vec<BoundedName> {
+        HeldCredentials::<T>::get(deployment, who).into_inner()
     }
 
     fn assignment_holds(
@@ -688,6 +890,24 @@ impl<T: Config> IdentityRegistry for Pallet<T> {
 
     fn unit_chain(deployment: &DeploymentId, unit: &BoundedName) -> Vec<BoundedName> {
         Pallet::<T>::chain_of(deployment, unit)
+    }
+
+    fn has_credential(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        credential: &BoundedName,
+        now: u64,
+    ) -> bool {
+        Pallet::<T>::credential_state(deployment, who, credential, now).is_ok()
+    }
+
+    fn requirements_of(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        role: &BoundedName,
+        now: u64,
+    ) -> RequirementOutcome {
+        Pallet::<T>::requirements(deployment, who, role, now)
     }
 
     fn now_millis() -> u64 {
