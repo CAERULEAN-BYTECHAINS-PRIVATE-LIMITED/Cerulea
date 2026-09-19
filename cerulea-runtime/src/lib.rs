@@ -238,6 +238,15 @@ mod runtime {
     #[runtime::pallet_index(14)]
     pub type Identity = pallet_cerulea_identity::Pallet<Runtime>;
 
+    #[runtime::pallet_index(15)]
+    pub type Permission = pallet_cerulea_permission::Pallet<Runtime>;
+
+    #[runtime::pallet_index(17)]
+    pub type Workflow = pallet_cerulea_workflow::Pallet<Runtime>;
+
+    #[runtime::pallet_index(18)]
+    pub type Rules = pallet_cerulea_rules::Pallet<Runtime>;
+
     #[runtime::pallet_index(25)]
     pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
 

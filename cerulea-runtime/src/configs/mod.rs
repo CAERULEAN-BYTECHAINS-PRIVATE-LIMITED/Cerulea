@@ -411,7 +411,7 @@ impl pallet_cerulea_state::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cerulea_state::weights::CeruleaWeight<Runtime>;
     type Schema = crate::Schema;
-    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Permissions = crate::Permission;
     type Time = crate::Timestamp;
     type MaxRecordSize = ConstU32<65536>;
     type MaxRangeRead = ConstU32<1024>;
@@ -471,4 +471,65 @@ impl pallet_cerulea_identity::Config for Runtime {
     type MaxScopePerDelegation = ConstU32<64>;
     type MaxDelegationsPerAccount = ConstU32<128>;
     type MaxDelegationDepth = ConstU32<8>;
+}
+
+// === The Cerulea workflow module ===
+// The workflow module drives the long-running processes of a deployment.
+// A machine definition comes from the Workflows section of the Blueprint.
+// Guards run through the metered expression evaluator of the Blueprint.
+// Timers and deadlines enter one schedule held in due order, and the block
+// hook runs a bounded count of steps. A failed process runs its
+// compensating steps in reverse order, a bounded count per block.
+// The permission module joins the runtime later, so the resolver refuses
+// every request until it does.
+impl pallet_cerulea_workflow::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_workflow::weights::CeruleaWeight<Runtime>;
+    type Schema = crate::Schema;
+    type Records = crate::State;
+    type Identities = crate::Identity;
+    type Permissions = pallet_cerulea_schema::access::DeniedByDefault<AccountId>;
+    type Guards = pallet_cerulea_workflow::MeteredGuards;
+    type Actions = pallet_cerulea_workflow::QueuedActions<Runtime>;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxMachineBytes = ConstU32<262144>;
+    type MaxMachinesPerDeployment = ConstU32<256>;
+    type MaxStepsPerInstance = ConstU32<256>;
+    type MaxTimersPerState = ConstU32<16>;
+    type MaxScheduledPerBlock = ConstU32<64>;
+    type MaxCompensationStepsPerBlock = ConstU32<16>;
+    type MaxCompensatingInstances = ConstU32<256>;
+    type GuardStepLimit = ConstU64<1000000>;
+}
+
+// === The Cerulea rules module ===
+// The rules module evaluates the two kinds of condition a Blueprint
+// declares. A precondition gates one action and evaluates before the
+// action runs. An invariant holds over one collection and evaluates after
+// every state change inside the transaction. A failed rule answers with
+// the two plain sentences the person wrote beside the rule in the Studio.
+impl pallet_cerulea_rules::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_rules::weights::CeruleaWeight<Runtime>;
+    type Records = crate::State;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxRuleBytes = ConstU32<65536>;
+    type MaxRulesPerDeployment = ConstU32<1024>;
+    type MaxRulesPerCollection = ConstU32<64>;
+    type RuleStepLimit = ConstU64<1000000>;
+}
+
+// === The Cerulea permission module ===
+// The permission module holds the capability matrix. Every read and every
+// write of the state module passes through resolution here.
+impl pallet_cerulea_permission::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_permission::weights::CeruleaWeight<Runtime>;
+    type Schema = crate::Schema;
+    type Identity = crate::Identity;
+    type MaxEntryBytes = ConstU32<65536>;
+    type MaxEntriesPerPair = ConstU32<64>;
+    type RowStepLimit = ConstU64<100000>;
 }

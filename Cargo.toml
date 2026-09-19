@@ -16,22 +16,30 @@ members = [
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
     "cerulea-pallets/pallet-cerulea-custody",
     "cerulea-blueprint",
+    "cerulea-primitives",
     "cerulea-pallets/pallet-cerulea-schema",
     "cerulea-pallets/pallet-cerulea-state",
     "cerulea-pallets/pallet-cerulea-collections",
     "cerulea-pallets/pallet-cerulea-identity",
+    "cerulea-pallets/pallet-cerulea-permission",
     "cerulea-pallets/pallet-cerulea-audit",
+    "cerulea-pallets/pallet-cerulea-workflow",
+    "cerulea-pallets/pallet-cerulea-rules",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
 cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
+cerulea-primitives = { path = "./cerulea-primitives", default-features = false }
 pallet-cerulea-schema = { path = "./cerulea-pallets/pallet-cerulea-schema", default-features = false }
 pallet-cerulea-state = { path = "./cerulea-pallets/pallet-cerulea-state", default-features = false }
 pallet-cerulea-collections = { path = "./cerulea-pallets/pallet-cerulea-collections", default-features = false }
 pallet-cerulea-identity = { path = "./cerulea-pallets/pallet-cerulea-identity", default-features = false }
+pallet-cerulea-permission = { path = "./cerulea-pallets/pallet-cerulea-permission", default-features = false }
 pallet-cerulea-audit = { path = "./cerulea-pallets/pallet-cerulea-audit", default-features = false }
+pallet-cerulea-workflow = { path = "./cerulea-pallets/pallet-cerulea-workflow", default-features = false }
+pallet-cerulea-rules = { path = "./cerulea-pallets/pallet-cerulea-rules", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
