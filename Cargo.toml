@@ -35,6 +35,8 @@ members = [
     "cerulea-pallets/pallet-cerulea-rules",
     "cerulea-pallets/pallet-cerulea-bridge",
 ]
+# The fuzz crate carries its own workspace and builds under cargo fuzz alone.
+exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.dependencies]

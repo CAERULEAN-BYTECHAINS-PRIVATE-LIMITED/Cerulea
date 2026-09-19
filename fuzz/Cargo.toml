@@ -1,0 +1,81 @@
+[package]
+name = "cerulea-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+codec = { package = "parity-scale-codec", version = "3.6", default-features = false, features = ["derive", "std"] }
+cerulea-consensus = { path = "../cerulea-node/src/cerulea-consensus" }
+cerulea-primitives = { path = "../cerulea-primitives", features = ["std"] }
+cerulea-blueprint = { path = "../cerulea-blueprint", features = ["std"] }
+sp-core = { version = "36.1.0", default-features = true }
+sp-runtime = { version = "41.1.0", default-features = true }
+sp-io = { version = "40.0.0", default-features = true }
+serde_json = "1.0"
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "seal_claim_decode"
+path = "fuzz_targets/seal_claim_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commit_vote_decode"
+path = "fuzz_targets/commit_vote_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aggregate_signature_decode"
+path = "fuzz_targets/aggregate_signature_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "access_manifest_decode"
+path = "fuzz_targets/access_manifest_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "equivocation_proof_decode"
+path = "fuzz_targets/equivocation_proof_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "state_roots_decode"
+path = "fuzz_targets/state_roots_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blueprint_decode"
+path = "fuzz_targets/blueprint_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_digest_decode"
+path = "fuzz_targets/header_digest_decode.rs"
+test = false
+doc = false
+bench = false
