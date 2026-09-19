@@ -241,6 +241,9 @@ mod runtime {
     #[runtime::pallet_index(15)]
     pub type Permission = pallet_cerulea_permission::Pallet<Runtime>;
 
+    #[runtime::pallet_index(16)]
+    pub type Logic = pallet_cerulea_logic::Pallet<Runtime>;
+
     #[runtime::pallet_index(17)]
     pub type Workflow = pallet_cerulea_workflow::Pallet<Runtime>;
 
@@ -249,6 +252,9 @@ mod runtime {
 
     #[runtime::pallet_index(19)]
     pub type Governance = pallet_cerulea_governance::Pallet<Runtime>;
+
+    #[runtime::pallet_index(20)]
+    pub type Evolution = pallet_cerulea_evolution::Pallet<Runtime>;
 
     #[runtime::pallet_index(25)]
     pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;

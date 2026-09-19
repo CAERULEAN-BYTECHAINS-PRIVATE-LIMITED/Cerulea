@@ -346,8 +346,6 @@ impl pallet_cerulea_dcf::Config for Runtime {
 
     // the validator registry WeightFreezer Integration
     type WeightFreezer = pallet_cerulea_dvf::Pallet<Runtime>;
-    // the validator registry is the primary finality authority; the framework pallet progressive finality is capped at the DVF-finalized block
-    type DvfFinalizedBlockProvider = pallet_cerulea_dvf::Pallet<Runtime>;
 
     // Validator Registry
     type ValidatorRegistry = pallet_cerulea_dvf::Pallet<Runtime>;
@@ -550,4 +548,40 @@ impl pallet_cerulea_governance::Config for Runtime {
     type MaxPayloadBytes = ConstU32<262144>;
     type MaxAuthorityRoles = ConstU32<64>;
     type MaxVoteSpan = ConstU64<2592000000>;
+}
+
+// === The Cerulea logic module ===
+// The logic module is the Blueprint interpreter. Every operation is
+// metered, deterministic and bounded.
+impl pallet_cerulea_logic::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_logic::weights::CeruleaWeight<Runtime>;
+    type Schema = crate::Schema;
+    type Records = crate::State;
+    type Permissions = crate::Permission;
+    type Identity = crate::Identity;
+    type MaxBlueprintBytes = ConstU32<4194304>;
+    type MaxPayloadBytes = ConstU32<262144>;
+    type StepLimit = ConstU64<2000000>;
+    type MaxRowsPerRead = ConstU32<4096>;
+    type MaxEffectsPerAction = ConstU32<256>;
+}
+
+// === The Cerulea evolution module ===
+// The evolution module orders the version transition of a deployment. The
+// module holds the version registry, the migration definitions, the
+// rollback windows and the applied migration log. A plan that removes a
+// field, renames a field or retypes a field breaks an existing
+// integration, so such a plan applies only after the electorate approved
+// it at the structural class threshold.
+impl pallet_cerulea_evolution::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_evolution::weights::CeruleaWeight<Runtime>;
+    type Schema = pallet_cerulea_evolution::SchemaBridge<Runtime>;
+    type Approvals = crate::Governance;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxPlanBytes = ConstU32<262144>;
+    type MaxVersionsPerDeployment = ConstU32<1024>;
+    type MaxRollbackWindow = ConstU64<2592000000>;
 }

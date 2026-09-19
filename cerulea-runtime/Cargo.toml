@@ -38,8 +38,10 @@ pallet-cerulea-state.workspace = true
 pallet-cerulea-collections.workspace = true
 pallet-cerulea-identity.workspace = true
 pallet-cerulea-permission.workspace = true
+pallet-cerulea-logic.workspace = true
 pallet-cerulea-audit.workspace = true
 pallet-cerulea-workflow.workspace = true
+pallet-cerulea-evolution.workspace = true
 pallet-cerulea-governance.workspace = true
 pallet-cerulea-rules.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
@@ -99,8 +101,10 @@ std = [
 	"pallet-cerulea-collections/std",
 	"pallet-cerulea-identity/std",
 	"pallet-cerulea-permission/std",
+	"pallet-cerulea-logic/std",
 	"pallet-cerulea-audit/std",
 	"pallet-cerulea-workflow/std",
+	"pallet-cerulea-evolution/std",
 	"pallet-cerulea-governance/std",
 	"pallet-cerulea-rules/std",
 	"pallet-timestamp/std",
@@ -154,8 +158,10 @@ try-runtime = [
 	"pallet-cerulea-collections/try-runtime",
 	"pallet-cerulea-identity/try-runtime",
 	"pallet-cerulea-permission/try-runtime",
+	"pallet-cerulea-logic/try-runtime",
 	"pallet-cerulea-audit/try-runtime",
 	"pallet-cerulea-workflow/try-runtime",
+	"pallet-cerulea-evolution/try-runtime",
 	"pallet-cerulea-governance/try-runtime",
 	"pallet-cerulea-rules/try-runtime",
 	"pallet-timestamp/try-runtime",
