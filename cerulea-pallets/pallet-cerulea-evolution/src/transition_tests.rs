@@ -45,7 +45,11 @@ const STEWARD: u64 = 1;
 /// The directories holding the module fragments.
 fn fragment_directories() -> Vec<PathBuf> {
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let root = match here.parent().and_then(|one| one.parent()).and_then(|two| two.parent()) {
+    let root = match here
+        .parent()
+        .and_then(|one| one.parent())
+        .and_then(|two| two.parent())
+    {
         Some(found) => found.to_path_buf(),
         None => return Vec::new(),
     };
@@ -168,7 +172,11 @@ fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8,
 
 /// The first field of a record, which the collection keys on.
 fn key_field(record: &RecordDef) -> FieldDef {
-    record.fields.first().cloned().expect("the record holds a field")
+    record
+        .fields
+        .first()
+        .cloned()
+        .expect("the record holds a field")
 }
 
 /// A value of the stated type, drawn from the types the fragment declares.
@@ -278,12 +286,7 @@ fn value_of(ty: &TypeExpr, declared: &[TypeDef], seed: usize, depth: usize) -> O
 const DEPTH_LIMIT: usize = 6;
 
 /// A record value of the stated record type.
-fn record_of(
-    record: &RecordDef,
-    declared: &[TypeDef],
-    seed: usize,
-    depth: usize,
-) -> Option<Value> {
+fn record_of(record: &RecordDef, declared: &[TypeDef], seed: usize, depth: usize) -> Option<Value> {
     let mut fields = Vec::new();
     for (position, field) in record.fields.iter().enumerate() {
         let held = value_of(&field.ty, declared, seed + position, depth)?;
@@ -554,8 +557,7 @@ fn a_transition_that_removes_a_field_asks_for_the_electorate() {
         .into_iter()
         .enumerate()
         .find(|(seed, entry)| {
-            entry.record.fields.len() > 1
-                && new_test_ext().execute_with(|| install(entry, *seed))
+            entry.record.fields.len() > 1 && new_test_ext().execute_with(|| install(entry, *seed))
         })
         .expect("the catalogue holds a record type carrying a plain field");
     new_test_ext().execute_with(|| {

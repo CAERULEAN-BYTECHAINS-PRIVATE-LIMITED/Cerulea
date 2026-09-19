@@ -222,19 +222,26 @@ fn the_assertion_names_the_height_where_two_blocks_finalise() {
         .downcast_ref::<String>()
         .cloned()
         .unwrap_or_default();
-    assert!(text.contains("height 99"), "the failure names the height: {}", text);
+    assert!(
+        text.contains("height 99"),
+        "the failure names the height: {}",
+        text
+    );
     assert!(text.contains("Fix:"), "the failure names the fix: {}", text);
 }
 
 #[test]
 fn the_network_never_finalises_a_block_the_set_refused() {
-    let mut network = FaultNetwork::new(VALIDATORS, FaultProfile::skewing(&[0, 1, 2, 3, 4], 60_000));
+    let mut network =
+        FaultNetwork::new(VALIDATORS, FaultProfile::skewing(&[0, 1, 2, 3, 4], 60_000));
     for slot_number in 1..=SLOTS {
         let report = network.run_slot(Slot(slot_number));
         if let SlotOutcome::Committed { .. } = report.outcome {
             for index in report.refused_by.iter() {
                 assert!(
-                    !network.network.nodes[*index].committed.contains_key(&network.network.height()),
+                    !network.network.nodes[*index]
+                        .committed
+                        .contains_key(&network.network.height()),
                     "validator {} finalised a block it refused",
                     index
                 );

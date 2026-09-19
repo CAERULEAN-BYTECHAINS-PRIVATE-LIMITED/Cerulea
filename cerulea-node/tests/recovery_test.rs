@@ -132,7 +132,10 @@ fn a_backup_restores_a_destroyed_deployment_exactly() {
     let path = write_package(directory.path(), &package);
     assert!(path.exists(), "the backup file sits on disk");
     assert!(
-        fs::metadata(&path).expect("the backup carries a size").len() > 0,
+        fs::metadata(&path)
+            .expect("the backup carries a size")
+            .len()
+            > 0,
         "the backup carries bytes"
     );
 
@@ -218,8 +221,8 @@ fn an_exit_export_produces_a_package_that_starts_elsewhere() {
 
     // The manifest names every part, so an operator reads the package without
     // reading the bytes.
-    let manifest = fs::read_to_string(directory.path().join("MANIFEST.txt"))
-        .expect("the manifest reads back");
+    let manifest =
+        fs::read_to_string(directory.path().join("MANIFEST.txt")).expect("the manifest reads back");
     assert!(manifest.contains(&format!("blocks: {}", package.chain.len())));
     assert!(manifest.contains(&format!("records: {}", package.records.len())));
     assert!(manifest.contains(&hex(&package.combined_root)));

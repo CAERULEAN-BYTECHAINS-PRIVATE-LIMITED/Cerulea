@@ -79,10 +79,7 @@ impl FaultProfile {
     /// A run shifting the clock of the stated validators.
     pub fn skewing(indexes: &[usize], milliseconds: i64) -> Self {
         FaultProfile {
-            clock_skew_ms: indexes
-                .iter()
-                .map(|index| (*index, milliseconds))
-                .collect(),
+            clock_skew_ms: indexes.iter().map(|index| (*index, milliseconds)).collect(),
             ..FaultProfile::default()
         }
     }
@@ -234,9 +231,12 @@ impl FaultNetwork {
                 Some(validator) => *validator,
                 None => continue,
             };
-            let author = match self.network.nodes.iter().position(|node| {
-                node.draw_key == drawn
-            }) {
+            let author = match self
+                .network
+                .nodes
+                .iter()
+                .position(|node| node.draw_key == drawn)
+            {
                 Some(index) => index,
                 None => continue,
             };
@@ -248,7 +248,12 @@ impl FaultNetwork {
                 let gate = AuthorGate::new(self.network.nodes[author].keystore.clone());
                 let tracker = FallbackTracker::new(schedule);
                 match gate
-                    .decide(&context, &registry, &tracker, self.moment_for(author, moment_ms))
+                    .decide(
+                        &context,
+                        &registry,
+                        &tracker,
+                        self.moment_for(author, moment_ms),
+                    )
                     .expect("the keystore answers the gate")
                 {
                     GateDecision::Author(ticket) => ticket,
@@ -327,7 +332,11 @@ impl FaultNetwork {
 
             // A validator that accepted the block writes it, unless its
             // storage holds no further block.
-            self.network.accepted.entry(height).or_default().insert(hash);
+            self.network
+                .accepted
+                .entry(height)
+                .or_default()
+                .insert(hash);
             for index in accepted_by.iter().copied() {
                 if !self.holds_storage(index) {
                     continue;
@@ -374,7 +383,9 @@ impl FaultNetwork {
 
     /// Run the stated number of slots, starting at slot one.
     pub fn run_slots(&mut self, count: u64) -> Vec<FaultSlotReport> {
-        (1..=count).map(|number| self.run_slot(Slot(number))).collect()
+        (1..=count)
+            .map(|number| self.run_slot(Slot(number)))
+            .collect()
     }
 
     /// The number of slots that committed a block.
@@ -440,7 +451,9 @@ impl FaultNetwork {
             .nodes
             .iter()
             .enumerate()
-            .filter(|(index, node)| self.takes_part(*index) && self.holds_storage(*index) && node.height() > 0)
+            .filter(|(index, node)| {
+                self.takes_part(*index) && self.holds_storage(*index) && node.height() > 0
+            })
             .map(|(_, node)| node.head_hash())
             .collect();
         if heads.len() == 1 {

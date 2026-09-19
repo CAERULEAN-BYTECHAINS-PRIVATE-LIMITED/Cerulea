@@ -129,9 +129,16 @@ fn a_healthy_set_of_nine_reaches_one_head_on_every_node() {
         );
         network.assert_no_conflicting_finalisation("a healthy set of nine");
     }
-    let head = network.agreed_head().expect("every node holds the same head");
+    let head = network
+        .agreed_head()
+        .expect("every node holds the same head");
     for node in network.network.nodes.iter() {
-        assert_eq!(node.head_hash(), head, "{} holds the agreed head", node.name);
+        assert_eq!(
+            node.head_hash(),
+            head,
+            "{} holds the agreed head",
+            node.name
+        );
         assert_eq!(
             node.committed.len(),
             SLOTS as usize,
@@ -162,7 +169,10 @@ fn three_of_nine_away_keeps_commitment_and_four_stops_it() {
                 );
             }
             SlotOutcome::NoAuthor => {}
-            other => panic!("the network stopped committing under three away: {:?}", other),
+            other => panic!(
+                "the network stopped committing under three away: {:?}",
+                other
+            ),
         }
         network.assert_no_conflicting_finalisation("three of nine away");
     }
@@ -194,7 +204,10 @@ fn three_of_nine_away_keeps_commitment_and_four_stops_it() {
         }
         network.assert_no_conflicting_finalisation("the return");
     }
-    assert!(resumed > 0, "commitment resumed once the validators returned");
+    assert!(
+        resumed > 0,
+        "commitment resumed once the validators returned"
+    );
 }
 
 #[test]
@@ -234,7 +247,9 @@ fn a_validator_holding_no_storage_falls_behind_and_catches_up() {
         network.network.nodes[8].height() > 0,
         "the validator caught up once its storage cleared"
     );
-    let head = network.agreed_head().expect("every node holds the same head");
+    let head = network
+        .agreed_head()
+        .expect("every node holds the same head");
     assert_eq!(network.network.nodes[8].head_hash(), head);
 }
 
