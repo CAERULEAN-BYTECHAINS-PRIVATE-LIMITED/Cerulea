@@ -412,11 +412,10 @@ fn ci_comprehensive_invariant_validation() {
             assert!(trust_score >= 0);
             assert!(trust_score <= 10000);
             
-            // Test stake score bounds
-            let stake_score = DcfPallet::validator_stake_score(validator);
-            assert!(stake_score >= 0);
-            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-            assert!(stake_score <= max_score.into());
+            // The Standing Engine holds the Trust Score and every component
+            // share inside one whole.
+            super::assert_trust_score_bounded(validator);
+            super::assert_trust_weight_bounded(validator);
         }
         
         // Test consensus weight invariants

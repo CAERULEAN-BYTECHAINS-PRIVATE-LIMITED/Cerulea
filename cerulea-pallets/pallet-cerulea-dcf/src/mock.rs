@@ -718,7 +718,90 @@ pub fn mock_join_validators(
     TestValidatorRegistry::set_validator_join_time(&who, now);
     reg_put(&reg_key(REG_STATUS, &who), &crate::ValidatorStatus::Active);
     TestValidatorRegistry::add_pending_action(&who, crate::ValidatorAction::Join);
+
+    // Admission notifies the framework pallet. The framework pallet opens the
+    // validator state record the Standing Engine reads and records the join.
+    <crate::Pallet<Test> as pallet_cerulea_pos::ValidatorHandler<u64, u128>>::on_joined(
+        &who, min_stake,
+    )?;
     Ok(())
+}
+
+/// Register a validator in the stake pallet, reading the Admission Engine
+/// first.
+///
+/// The Admission Engine governs entry to the validator set. Admission records
+/// the stake and the registration in the stake pallet, so a validator the
+/// engine admitted already holds a registration. This helper reads that
+/// record and holds that a second registration is refused. A validator the
+/// engine never admitted registers here for the first time.
+pub fn mock_register_validator(who: u64) -> DispatchResult {
+    if pallet_cerulea_pos::Validators::<Test>::contains_key(who) {
+        frame_support::assert_noop!(
+            pallet_cerulea_pos::Pallet::<Test>::register_validator(RuntimeOrigin::signed(who)),
+            pallet_cerulea_pos::Error::<Test>::ValidatorAlreadyRegistered
+        );
+        return Ok(());
+    }
+    pallet_cerulea_pos::Pallet::<Test>::register_validator(RuntimeOrigin::signed(who))
+}
+
+/// Carry one proposal to the quorum the framework pallet asks for.
+///
+/// A proposal passes once half of the active validators have voted and the
+/// votes in favour outnumber the votes against. A single vote therefore leaves
+/// the proposal pending. This helper votes in favour from the active
+/// validators that have yet to vote, until the count reaches the quorum. A
+/// test that calls it reads the quorum rule rather than a single vote.
+pub fn mock_approve_proposal(proposal_id: u32) -> DispatchResult {
+    let active = crate::ActiveValidators::<Test>::get();
+    let quorum = (active.len() as u32 + 1) / 2;
+
+    let mut cast = crate::Proposals::<Test>::get(proposal_id)
+        .map(|held| held.votes_for + held.votes_against)
+        .unwrap_or(0);
+
+    // The pallet holds a minimum interval between two votes from one account.
+    // The helper moves the chain forward far enough to respect it.
+    let interval = crate::RateLimitConfigStorage::<Test>::get().min_vote_interval;
+
+    for voter in active.iter() {
+        if cast >= quorum {
+            break;
+        }
+        if crate::ProposalVotes::<Test>::contains_key(proposal_id, voter) {
+            continue;
+        }
+
+        let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
+        if let Some(last) =
+            crate::LastOperationBlock::<Test>::get(voter, crate::DispatchableType::VoteProposal)
+        {
+            if now.saturating_sub(last) < interval {
+                frame_system::Pallet::<Test>::set_block_number((last + interval) as u64);
+                let _ = crate::BlockOperationCounts::<Test>::clear(u32::MAX, None);
+            }
+        }
+
+        crate::Pallet::<Test>::vote_proposal(RuntimeOrigin::signed(*voter), proposal_id, true)?;
+        cast += 1;
+    }
+    Ok(())
+}
+
+/// Admit a validator through the Admission Engine, reading the set first.
+///
+/// The engine admits a validator once. A candidate already seated is refused,
+/// which this helper holds. A candidate outside the set joins here.
+pub fn mock_admit_validator(who: u64, name: Option<alloc::vec::Vec<u8>>) -> DispatchResult {
+    if TestValidatorRegistry::get_validator_set().contains(&who) {
+        frame_support::assert_noop!(
+            mock_join_validators(RuntimeOrigin::signed(who), None),
+            pallet_cerulea_pos::Error::<Test>::ValidatorAlreadyExists
+        );
+        return Ok(());
+    }
+    mock_join_validators(RuntimeOrigin::signed(who), name)
 }
 
 /// Record a leave request. The validator leaves at the end of the cooldown.

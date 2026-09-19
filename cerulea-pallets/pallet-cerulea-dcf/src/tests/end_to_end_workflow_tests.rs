@@ -31,9 +31,7 @@ fn end_to_end_validator_complete_lifecycle() {
         assert_eq!(Balances::free_balance(validator), initial_balance - stake_amount);
         
         // Phase 2: Register in PoS system
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         
         // Phase 3: Participate in PoS scoring
@@ -137,12 +135,8 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         ));
         
         // Both register in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(challenger)
-        ));
+        assert_ok!(mock_register_validator(validator));
+        assert_ok!(mock_register_validator(challenger));
         
         // Submit PoS scores
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -234,9 +228,7 @@ fn end_to_end_multi_validator_competition() {
             ));
             
             // Register in PoS
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
         }
         
         // Simulate competitive scoring rounds
@@ -383,10 +375,10 @@ fn end_to_end_governance_driven_workflow() {
         
         // Phase 3: Proposal execution
         let pre_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
-        assert_ok!(DcfPallet::execute_proposal(
-            RuntimeOrigin::root(),
-            0
-        ));
+        // The proposal reaches the quorum the pallet asks for before it
+        // executes. Half of the active validators vote in favour.
+        assert_ok!(mock_approve_proposal(0));
+        assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
         
         let post_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
         assert_eq!(post_execution_stake - pre_execution_stake, reward_amount);
@@ -452,10 +444,10 @@ fn end_to_end_governance_driven_workflow() {
             // Execute if approved
             let proposal = crate::Proposals::<Test>::get(proposal_id).unwrap();
             if proposal.votes_for > proposal.votes_against {
-                assert_ok!(DcfPallet::execute_proposal(
-                    RuntimeOrigin::root(),
-                    proposal_id
-                ));
+                // The proposal reaches the quorum the pallet asks for before it
+                // executes. Half of the active validators vote in favour.
+                assert_ok!(mock_approve_proposal(proposal_id));
+                assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), proposal_id));
             }
         }
         
@@ -483,9 +475,7 @@ fn end_to_end_high_frequency_operations() {
                 Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
             ));
             
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         // Perform high-frequency operations
@@ -503,7 +493,7 @@ fn end_to_end_high_frequency_operations() {
                 
                 // PoI inference submissions
                 let result = (i * round) % 100;
-                let confidence = 75 + ((i + round) % 20) as u32;
+                let confidence = 80 + ((i + round) % 20) as u32;
                 assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(validator),
                     result as u32,
@@ -565,9 +555,7 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("CriticalValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
         }
         
         // Setup backup validators
@@ -577,9 +565,7 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("BackupValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
         }
         
         // Establish normal operations
@@ -635,9 +621,7 @@ fn end_to_end_system_recovery_workflow() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("ReplacementValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
         }
         
         // Verify system recovery

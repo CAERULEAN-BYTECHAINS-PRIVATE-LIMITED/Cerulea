@@ -58,9 +58,7 @@ fn stress_test_concurrent_validator_lifecycle() {
             let validator = 1000 + i;
             
             // Register in PoS
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
             
             // Submit PoS score
             assert_ok!(PalletCeruleaPos::submit_score(
@@ -73,7 +71,7 @@ fn stress_test_concurrent_validator_lifecycle() {
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 (40 + i % 50) as u32,
-                (75 + i % 20) as u32
+                (80 + i % 20) as u32
             ));
             
             // Update DCF scores
@@ -120,9 +118,7 @@ fn stress_test_rapid_epoch_transitions() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("BaseValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         let mut epoch_data = Vec::new();
@@ -139,9 +135,7 @@ fn stress_test_rapid_epoch_transitions() {
                     RuntimeOrigin::signed(validator as u64),
                     Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
                 ));
-                assert_ok!(PalletCeruleaPos::register_validator(
-                    RuntimeOrigin::signed(validator as u64)
-                ));
+                assert_ok!(mock_register_validator(validator as u64));
             }
             
             // Intensive activity throughout epoch
@@ -229,9 +223,7 @@ fn stress_test_concurrent_score_updates() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("ScoreValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         // Perform massive concurrent updates
@@ -249,7 +241,7 @@ fn stress_test_concurrent_score_updates() {
                 
                 // PoI inference update
                 let inference_result = ((i * update_round) % 90 + 10) as u32;
-                let confidence = (75 + ((i + update_round) % 20)) as u32;
+                let confidence = (80 + ((i + update_round) % 20)) as u32;
                 assert_ok!(PalletCeruleaPoi::submit_inference(
                     RuntimeOrigin::signed(validator),
                     inference_result,
@@ -316,9 +308,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("ChallengeValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         // Initial inference submissions
@@ -395,7 +385,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
             for validator in active_validators.iter().take(20) { // Limit to avoid conflicts
                 if *validator >= 4000 {
                     let result = (30 + (*validator - 4000) % 60 + round) as u32;
-                    let confidence = (75 + ((*validator - 4000) + round) % 20) as u32;
+                    let confidence = (80 + ((*validator - 4000) + round) % 20) as u32;
                     let _ = PalletCeruleaPoi::submit_inference(
                         RuntimeOrigin::signed(*validator),
                         result,
@@ -484,10 +474,10 @@ fn stress_test_governance_under_load() {
             
             // Execute if approved
             if votes_for > votes_against {
-                assert_ok!(DcfPallet::execute_proposal(
-                    RuntimeOrigin::root(),
-                    proposal_id as u32
-                ));
+                // The proposal reaches the quorum the pallet asks for before it
+                // executes. Half of the active validators vote in favour.
+                assert_ok!(mock_approve_proposal(proposal_id as u32));
+                assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), proposal_id as u32));
                 successful_proposals += 1;
             } else {
                 failed_proposals += 1;
@@ -545,9 +535,7 @@ fn stress_test_storage_limits() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("StorageValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         // Verify we're within limits
@@ -562,7 +550,7 @@ fn stress_test_storage_limits() {
                 assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
-                    (70 + (round % 25))
+                    (80 + (round % 20))
                 ));
                 
                 assert_ok!(DcfPallet::update_validator_stake_score(
@@ -626,9 +614,7 @@ fn stress_test_maximum_system_load() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("MaxLoadValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
         }
         
         // Enable all features
@@ -656,7 +642,7 @@ fn stress_test_maximum_system_load() {
                     1 => {
                         // PoI inference
                         let result = ((block_num + op) % 80 + 20);
-                        let confidence = (75 + ((block_num + op) % 20));
+                        let confidence = 80 + ((block_num + op) % 20);
                         let _ = PalletCeruleaPoi::submit_inference(
                             RuntimeOrigin::signed(validator),
                             result,

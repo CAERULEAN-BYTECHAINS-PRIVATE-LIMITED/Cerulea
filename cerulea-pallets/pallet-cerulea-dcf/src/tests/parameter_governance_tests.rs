@@ -3,17 +3,26 @@
 use crate::mock::*;
 use frame_support::traits::Get;
 
-/// Tests basic governance mode functionality
+/// Tests the Amendment Engine policy records a deployment starts from
 #[test]
-fn governance_mode_basic_functionality_works() {
+fn the_amendment_engine_publishes_eight_policy_records() {
     new_test_ext().execute_with(|| {
-        // Check initial governance mode
-        let initial_mode = DcfPallet::governance_mode();
-        assert!(!initial_mode); // Should be false by default
-        
-        // Test governance mode query consistency
-        let mode_check = DcfPallet::governance_mode();
-        assert_eq!(initial_mode, mode_check);
+        use crate::engines::amendment::{Authority, PolicyKind, PolicySet};
+
+        // The eight policy records read as the published starting profile.
+        let policies = DcfPallet::policy_set();
+        assert_eq!(policies, PolicySet::starting_profile());
+        assert_eq!(PolicyKind::ALL.len(), 8);
+        assert_eq!(PolicySet::policy_count(), 8);
+
+        // The Amendment policy names the seated validators as the authority
+        // that opens a change, and the quorum they must reach.
+        assert_eq!(policies.amendment.authority, Authority::ValidatorSet);
+        assert!(policies.amendment.quorum > sp_runtime::Perbill::from_percent(50));
+        assert!(policies.amendment.delay_blocks > 0);
+
+        // Reading the policy set twice answers the same record.
+        assert_eq!(policies, DcfPallet::policy_set());
     });
 }
 
@@ -38,46 +47,48 @@ fn consensus_weight_parameters_work() {
     });
 }
 
-/// Tests validator score parameter bounds
+/// Tests the bounds the Standing Engine and the inference module hold
 #[test]
-fn validator_score_parameter_bounds_work() {
+fn score_parameter_bounds_hold() {
     new_test_ext().execute_with(|| {
+        // The inference confidence reads as a percentage, so its bound is one
+        // hundred. The floor the stake pallet holds sits below that bound.
         let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
-        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-        
-        // Bounds should be logical
-        assert!(min_score < max_score);
+        let max_confidence = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+
         assert!(min_score > 0);
-        assert!(max_score > 100); // Should allow reasonable scoring range
-        
+        assert!(min_score < max_confidence);
+        assert_eq!(max_confidence, 100);
+
+        // The Standing Engine composition reaches one whole on either network.
+        super::assert_composition_reaches_one_whole();
+
         let active_validators = DcfPallet::active_validators();
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake_score(validator);
+            super::assert_trust_score_bounded(validator);
+            super::assert_trust_weight_bounded(validator);
+
+            // The inference contribution stays inside the confidence bound.
             let inference_score = DcfPallet::validator_inference_score(validator);
-            
-            // Scores should be within bounds
-            assert!(stake_score >= min_score.into());
-            assert!(stake_score <= max_score.into());
-            assert!(inference_score >= 0); // Inference score can start at 0
-            assert!(inference_score <= max_score);
+            assert!(inference_score <= max_confidence);
         }
     });
 }
 
-/// Tests epoch settings parameters
+/// Tests the epoch parameters the Rotation policy carries
 #[test]
-fn epoch_configuration_parameters_work() {
+fn epoch_parameters_match_the_rotation_policy() {
     new_test_ext().execute_with(|| {
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let current_epoch = DcfPallet::current_epoch();
-        
+
         // Epoch settings should be reasonable
         assert!(epoch_length > 0);
         assert!(epoch_length < 1_000_000); // Not too large
-        assert!(current_epoch >= 0);
-        
-        // Should match mock settings
-        assert_eq!(epoch_length, 2400);
+
+        // The Rotation policy the Amendment Engine holds names the same
+        // number of blocks in one epoch.
+        let policies = DcfPallet::policy_set();
+        assert_eq!(epoch_length, policies.rotation.epoch_blocks);
     });
 }
 

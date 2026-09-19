@@ -161,18 +161,20 @@ fn trust_score_bounds_during_extreme_conditions_work() {
         let min_trust_score: u64 = <Test as crate::Config>::MinTrustScore::get();
         let max_trust_score: u64 = <Test as crate::Config>::MaxTrustScore::get();
         let active_validators = DcfPallet::active_validators();
-        
-        // Test extreme scenarios
+
+        // The published bound reads above the floor, so a score has room to
+        // move between the two.
+        assert!(max_trust_score > min_trust_score);
+
         for validator in &active_validators {
-            let current_stake_score = DcfPallet::validator_stake_score(validator);
-            let current_inf_score = DcfPallet::validator_inference_score(validator);
-            
-            // Scores should always be within bounds
-            assert!(current_stake_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get().into());
-            assert!(current_inf_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get());
-            
-            // Trust score bounds should be enforced
-            // (In a real implementation, trust scores would be calculated and bounded)
+            // The Standing Engine holds the composed Trust Score inside one
+            // whole whatever the components read.
+            super::assert_trust_score_bounded(validator);
+            super::assert_trust_weight_bounded(validator);
+
+            // The recorded score stays inside the published bound as well.
+            let recorded = DcfPallet::validator_trust_scores(validator);
+            assert!(recorded <= max_trust_score);
         }
     });
 }
@@ -217,14 +219,11 @@ fn trust_score_growth_limitations_work() {
         assert!(stability_factor >= 5000); // At least 50% stability
         
         let active_validators = DcfPallet::active_validators();
-        
-        // Test current validator states
+
+        // The Standing Engine caps growth at one whole, so no validator
+        // reaches past the full score however long it serves.
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake_score(validator);
-            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-            
-            // Scores should not exceed maximum
-            assert!(stake_score <= max_score.into());
+            super::assert_trust_score_bounded(validator);
         }
     });
 }
@@ -241,16 +240,22 @@ fn trust_score_anti_gaming_mechanisms_work() {
         // High stability factor should prevent rapid manipulation
         assert!(stability_factor >= 8000); // 80% stability in mock config
         
-        // Validators should have consistent, reasonable scores
+        // Stake alone moves no Trust Score. A validator that raises its
+        // stake sharply keeps the standing share it earned through service, so
+        // the composed score holds steady.
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            
-            // Scores should be in reasonable ranges, not extreme values
-            assert!(stake_score > 1000); // Not too low
-            assert!(stake_score < 9000); // Not too high (from genesis)
-            assert!(inference_score >= 0);
-            assert!(inference_score <= <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get());
+            let before = DcfPallet::trust_score(validator).total;
+            let held = pallet_cerulea_pos::Stake::<Test>::get(validator);
+            pallet_cerulea_pos::Stake::<Test>::insert(validator, held.saturating_mul(1_000));
+            let after = DcfPallet::trust_score(validator).total;
+
+            assert_eq!(
+                before, after,
+                "A stake raise moved the Trust Score of validator {}. Keep stake out of the composition.",
+                validator
+            );
+            pallet_cerulea_pos::Stake::<Test>::insert(validator, held);
+            super::assert_trust_score_bounded(validator);
         }
     });
 }

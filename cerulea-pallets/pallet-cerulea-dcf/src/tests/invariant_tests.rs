@@ -49,18 +49,19 @@ fn economic_invariants_hold() {
 fn scoring_invariants_hold() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
-        
+
+        // The Standing Engine composition reaches one whole on either network.
+        super::assert_composition_reaches_one_whole();
+
         for validator in &active_validators {
-            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            let inference_score = crate::PoiWeight::<Test>::get();
-            
-            // Score bounds invariants
-            assert!(stake_score >= min_score as u128);
-            assert!(stake_score <= max_score as u128);
-            assert!(inference_score >= 0);
-            assert!(inference_score <= max_score);
+            // The Trust Score and every component share stay inside one whole.
+            super::assert_trust_score_bounded(validator);
+            super::assert_trust_weight_bounded(validator);
+
+            // The stake the validator holds carries no bound of its own. The
+            // stake feeds the Commit Engine share rather than a score.
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
+            assert!(stake > 0, "An active validator holds stake");
         }
     });
 }
@@ -247,11 +248,10 @@ fn boundary_condition_invariants_hold() {
             assert!(active_validators.len() < max_validators as usize);
         }
         
-        // Test score boundaries
-        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+        // The Standing Engine holds the Trust Score inside one whole at
+        // every capacity boundary.
         for validator in &active_validators {
-            let score = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            assert!(score <= max_score as u128);
+            super::assert_trust_score_bounded(validator);
         }
     });
 }

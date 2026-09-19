@@ -13,9 +13,7 @@ fn runtime_api_cross_pallet_consistency() {
         let validator = 1u64;
         
         // Register validator in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         // Submit PoS score
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -92,9 +90,7 @@ fn runtime_api_data_flow_integration() {
             ));
             
             // PoS
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
             
             // PoI
             assert_ok!(PalletCeruleaPoi::submit_inference(
@@ -167,9 +163,7 @@ fn runtime_api_performance_integration() {
                 RuntimeOrigin::signed(validator),
                 Some(format!("PerfValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
             assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 validator,
@@ -178,7 +172,7 @@ fn runtime_api_performance_integration() {
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 (30 + i % 50) as u32,
-                (75 + i % 20) as u32
+                (80 + i % 20) as u32
             ));
         }
         
@@ -227,9 +221,7 @@ fn runtime_api_error_handling_integration() {
         let invalid_validator = 999u64;
         
         // Setup one valid validator
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(valid_validator)
-        ));
+        assert_ok!(mock_register_validator(valid_validator));
         assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(valid_validator),
             42,
@@ -304,9 +296,7 @@ fn runtime_api_state_transitions_integration() {
         assert_eq!(PalletCeruleaPos::validators(validator), None); // Still not in PoS
         
         // Phase 3: Register in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         let pos_active = PalletCeruleaPos::get_active_validators();
@@ -470,9 +460,7 @@ fn runtime_api_epoch_synchronization() {
                 RuntimeOrigin::signed(*validator),
                 Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
             ));
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(*validator),
                 40 + *validator as u32,

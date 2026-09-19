@@ -363,6 +363,9 @@ impl Authority {
 }
 
 /// The eight policies of one deployment profile.
+///
+/// A deployment that never amended a policy reads the starting profile, so a
+/// chain answers a policy question from the first block.
 #[derive(
     Encode,
     Decode,
@@ -373,7 +376,6 @@ impl Authority {
     RuntimeDebug,
     TypeInfo,
     MaxEncodedLen,
-    Default,
     frame_support::__private::codec::DecodeWithMemTracking,
 )]
 pub struct PolicySet {
@@ -393,6 +395,16 @@ pub struct PolicySet {
     pub reward: RewardPolicy,
     /// The Amendment policy.
     pub amendment: AmendmentPolicy,
+}
+
+impl Default for PolicySet {
+    /// The profile a deployment starts from.
+    ///
+    /// The Assurance Engine class table reads the same way. A deployment that
+    /// amended nothing runs the published profile.
+    fn default() -> Self {
+        PolicySet::starting_profile()
+    }
 }
 
 impl PolicySet {

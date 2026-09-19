@@ -263,10 +263,10 @@ fn property_reward_distribution_bounds() {
                 true
             ));
             
-            assert_ok!(DcfPallet::execute_proposal(
-                RuntimeOrigin::root(),
-                i as u32
-            ));
+            // The proposal reaches the quorum the pallet asks for before it
+            // executes. Half of the active validators vote in favour.
+            assert_ok!(mock_approve_proposal(i as u32));
+            assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), i as u32));
             
             let post_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
@@ -366,10 +366,10 @@ fn property_governance_system_integrity() {
             assert_eq!(updated_proposal.votes_against, 0);
             
             // Execute proposal
-            assert_ok!(DcfPallet::execute_proposal(
-                RuntimeOrigin::root(),
-                i as u32
-            ));
+            // The proposal reaches the quorum the pallet asks for before it
+            // executes. Half of the active validators vote in favour.
+            assert_ok!(mock_approve_proposal(i as u32));
+            assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), i as u32));
             
             let executed_proposal = crate::Proposals::<Test>::get(i as u32).unwrap();
             

@@ -69,25 +69,20 @@ fn property_active_validators_have_positive_stakes() {
 #[test]
 fn property_validator_scores_within_bounds() {
     new_test_ext().execute_with(|| {
-        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
-        
+        super::assert_composition_reaches_one_whole();
+
         for block_num in 1..=8 {
             System::set_block_number(block_num);
             let _ = DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
-            
+
             let active_validators = DcfPallet::active_validators();
-            
+
             for validator in &active_validators {
-                let stake_score = DcfPallet::validator_stake_score(validator);
-                let inference_score = DcfPallet::validator_inference_score(validator);
-                
-                // Property: min_score <= score <= max_score
-                assert!(stake_score >= min_score.into());
-                assert!(stake_score <= max_score.into());
-                assert!(inference_score >= 0);
-                assert!(inference_score <= max_score);
+                // Property: the Trust Score stays inside one whole at every
+                // block, and so does every component share.
+                super::assert_trust_score_bounded(validator);
+                super::assert_trust_weight_bounded(validator);
             }
         }
     });

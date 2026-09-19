@@ -302,48 +302,85 @@ mod tests {
         });
     }
 
+    /// A private chain admits the accounts the allowlist names
+    ///
+    /// The Admission Engine governs entry to a private chain under
+    /// governance. The framework pallet holds the allowlist the deployment
+    /// publishes. An account outside the allowlist reaches no governance
+    /// action on that chain.
     #[test]
-    fn test_private_mode_validator_restrictions() {
+    fn a_private_chain_admits_the_allowlisted_accounts() {
         new_test_ext().execute_with(|| {
-            // Setup balances
-            let _ = Balances::make_free_balance_be(&1, 100_000_000);
-            let _ = Balances::make_free_balance_be(&2, 100_000_000);
-            
-            // Enable private mode with limited allowlist
-            assert_ok!(DcfPallet::enable_private_chain_mode(vec![1u64], false));
-            
-            // Allowed validator can join
-            assert_ok!(mock_join_validators(RuntimeOrigin::signed(1), None));
-            
-            // Non-allowed validator cannot join
-            assert_noop!(
-                mock_join_validators(RuntimeOrigin::signed(2), None),
-                Error::<Test>::NotInAllowlist
-            );
+            // These accounts sit outside the genesis validator set.
+            let allowed = 10u64;
+            let outsider = 11u64;
+
+            let _ = Balances::make_free_balance_be(&allowed, 100_000_000);
+            let _ = Balances::make_free_balance_be(&outsider, 100_000_000);
+
+            // Enable private mode with one account on the allowlist.
+            assert_ok!(DcfPallet::enable_private_chain_mode(vec![allowed], false));
+            assert!(DcfPallet::is_private_chain_mode());
+
+            // The allowlist answers for each account.
+            assert!(DcfPallet::is_validator_allowed(&allowed));
+            assert!(!DcfPallet::is_validator_allowed(&outsider));
+
+            // The allowlisted account reaches governance on this chain.
+            assert_ok!(DcfPallet::validate_governance_in_private_mode(&allowed));
+
+            // The account outside the allowlist reaches none of it.
+            assert!(matches!(
+                DcfPallet::validate_governance_in_private_mode(&outsider),
+                Err(Error::<Test>::NotInAllowlist)
+            ));
+
+            // The allowlisted account joins the validator set.
+            assert_ok!(mock_admit_validator(allowed, None));
+            assert!(DcfPallet::is_validator_active(&allowed));
+
+            // Leaving private mode lifts the restriction from every account.
+            assert_ok!(DcfPallet::disable_private_chain_mode());
+            assert_ok!(DcfPallet::validate_governance_in_private_mode(&outsider));
         });
     }
 
+    /// A private chain accepts a proposal between two allowlisted accounts
+    ///
+    /// Both the proposer and the account the proposal names sit on the
+    /// allowlist. A proposal naming an account outside the allowlist is
+    /// refused, and the error names which side sits outside.
     #[test]
-    fn test_private_mode_proposal_restrictions() {
+    fn a_private_chain_holds_a_proposal_inside_the_allowlist() {
         new_test_ext().execute_with(|| {
-            // Setup balances and validators
-            let _ = Balances::make_free_balance_be(&1, 100_000_000);
-            let _ = Balances::make_free_balance_be(&2, 100_000_000);
-            let _ = Balances::make_free_balance_be(&3, 100_000_000);
-            
-            assert_ok!(mock_join_validators(RuntimeOrigin::signed(1), None));
-            assert_ok!(mock_join_validators(RuntimeOrigin::signed(2), None));
-            
-            // Enable private mode
-            assert_ok!(DcfPallet::enable_private_chain_mode(vec![1u64, 2u64], true));
-            
-            // Allowlisted validator can make proposals
-            assert_ok!(DcfPallet::validate_proposal_in_private_mode(&1u64, &2u64));
-            
-            // Non-allowlisted validator cannot make proposals
+            // These accounts sit outside the genesis validator set.
+            let first = 10u64;
+            let second = 11u64;
+            let outsider = 12u64;
+
+            for account in [first, second, outsider] {
+                let _ = Balances::make_free_balance_be(&account, 100_000_000);
+            }
+
+            assert_ok!(mock_admit_validator(first, None));
+            assert_ok!(mock_admit_validator(second, None));
+
+            // Enable private mode naming the two admitted accounts.
+            assert_ok!(DcfPallet::enable_private_chain_mode(vec![first, second], true));
+
+            // A proposal between two allowlisted accounts holds.
+            assert_ok!(DcfPallet::validate_proposal_in_private_mode(&first, &second));
+
+            // A proposer outside the allowlist is refused.
             assert!(matches!(
-                DcfPallet::validate_proposal_in_private_mode(&3u64, &1u64),
+                DcfPallet::validate_proposal_in_private_mode(&outsider, &first),
                 Err(Error::<Test>::ProposerNotInAllowlist)
+            ));
+
+            // A target outside the allowlist is refused.
+            assert!(matches!(
+                DcfPallet::validate_proposal_in_private_mode(&first, &outsider),
+                Err(Error::<Test>::TargetNotInAllowlist)
             ));
         });
     }

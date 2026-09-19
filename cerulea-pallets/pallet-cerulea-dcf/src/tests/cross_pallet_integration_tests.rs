@@ -28,9 +28,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         assert!(validator_stake > 0);
         
         // Test PoS registration integration
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         // Verify PoS state
         assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
@@ -115,12 +113,8 @@ fn three_way_pallet_integration() {
         ));
         
         // 2. Register in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(challenger)
-        ));
+        assert_ok!(mock_register_validator(validator));
+        assert_ok!(mock_register_validator(challenger));
         
         // 3. Submit PoS scores
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -176,9 +170,7 @@ fn cross_pallet_validator_slashing() {
         let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Register in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         // Submit initial score
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -222,9 +214,7 @@ fn cross_pallet_validator_rewards() {
         let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Register in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         // Test PoS reward
         assert_ok!(PalletCeruleaPos::reward_validator(&validator, 500));
@@ -252,10 +242,10 @@ fn cross_pallet_validator_rewards() {
             0,
             true
         ));
-        assert_ok!(DcfPallet::execute_proposal(
-            RuntimeOrigin::root(),
-            0
-        ));
+        // The proposal reaches the quorum the pallet asks for before it
+        // executes. Half of the active validators vote in favour.
+        assert_ok!(mock_approve_proposal(0));
+        assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
         
         // Verify reward was applied
         let new_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
@@ -275,9 +265,7 @@ fn cross_pallet_epoch_transitions() {
         let _initial_poi_epoch = PalletCeruleaPoi::current_epoch();
         
         // Register validator in PoS
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         
         // Submit inference in PoI
         assert_ok!(PalletCeruleaPoi::submit_inference(
@@ -316,9 +304,7 @@ fn cross_pallet_consensus_weight_updates() {
         let (initial_pos_weight, initial_poi_weight) = DcfPallet::consensus_weights();
         
         // Register validator and submit scores
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
@@ -407,9 +393,7 @@ fn cross_pallet_error_propagation() {
         
         // PoS and PoI should still function
         let validator = 1u64;
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         assert_ok!(PalletCeruleaPoi::submit_inference(
             RuntimeOrigin::signed(validator),
             42,
@@ -433,13 +417,11 @@ fn cross_pallet_concurrent_operations() {
             ));
             
             // PoS operations
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(*validator)
-            ));
+            assert_ok!(mock_register_validator(*validator));
             assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 *validator,
-                75 + (*validator as u32 * 5)
+                80 + (*validator as u32 % 20)
             ));
             
             // PoI operations
@@ -483,9 +465,7 @@ fn cross_pallet_data_consistency() {
         assert_eq!(dcf_epoch, poi_epoch);
         
         // Register in PoS and submit data
-        assert_ok!(PalletCeruleaPos::register_validator(
-            RuntimeOrigin::signed(validator)
-        ));
+        assert_ok!(mock_register_validator(validator));
         assert_ok!(PalletCeruleaPos::submit_score(
             RuntimeOrigin::signed(2),
             validator,
@@ -538,29 +518,28 @@ fn cross_pallet_stress_test() {
             let validator = i;
             Balances::make_free_balance_be(&validator, 100000);
             
-            // Join DCF
-            assert_ok!(mock_join_validators(
-                RuntimeOrigin::signed(validator),
-                Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
+            // Admit through the Admission Engine. Three of these accounts
+            // sit in the genesis set, so the helper reads the set first.
+            assert_ok!(mock_admit_validator(
+                validator,
+                Some(format!("Validator{}", validator).into_bytes())
             ));
             
             // Register in PoS
-            assert_ok!(PalletCeruleaPos::register_validator(
-                RuntimeOrigin::signed(validator)
-            ));
+            assert_ok!(mock_register_validator(validator));
             
             // Submit PoS score
             assert_ok!(PalletCeruleaPos::submit_score(
                 RuntimeOrigin::signed(1),
                 validator,
-                70 + (i as u32 * 2)
+                80 + (i as u32 % 20)
             ));
             
             // Submit PoI inference
             assert_ok!(PalletCeruleaPoi::submit_inference(
                 RuntimeOrigin::signed(validator),
                 30 + i as u32,
-                75 + (i as u32)
+                80 + (i as u32 % 20)
             ));
         }
         

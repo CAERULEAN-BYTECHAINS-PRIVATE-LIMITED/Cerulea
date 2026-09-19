@@ -200,13 +200,9 @@ fn storage_limits_and_bounds_work() {
             let score_history = DcfPallet::validator_score_history(validator);
             assert!(score_history.len() <= max_history as usize);
             
-            // Scores should be within bounds
-            let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-            
-            assert!(stake_score <= max_score.into());
-            assert!(inference_score <= max_score);
+            // The Standing Engine holds the Trust Score inside one whole
+            // across every storage bound.
+            super::assert_trust_score_bounded(validator);
         }
     });
 }

@@ -36,16 +36,19 @@ fn genesis_validator_initialization_works() {
     });
 }
 
-/// Tests genesis epoch settings
+/// Tests the epoch length the Amendment Engine publishes at genesis
 #[test]
-fn genesis_epoch_configuration_works() {
+fn genesis_epoch_length_matches_the_rotation_policy() {
     new_test_ext().execute_with(|| {
         let current_epoch = DcfPallet::current_epoch();
         assert_eq!(current_epoch, 0); // Should start at epoch 0
-        
-        // Check epoch length settings
+
+        // The Amendment Engine holds the Rotation policy. The epoch length the
+        // chain runs matches the policy the deployment starts from.
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        assert_eq!(epoch_length, 2400); // From mock settings
+        let policies = DcfPallet::policy_set();
+        assert_eq!(epoch_length, policies.rotation.epoch_blocks);
+        assert!(epoch_length > 0);
     });
 }
 
@@ -87,12 +90,24 @@ fn genesis_stake_configuration_works() {
     });
 }
 
-/// Tests genesis governance mode
+/// Tests the Amendment Engine policy set published at genesis
 #[test]
-fn genesis_governance_mode_works() {
+fn genesis_publishes_the_amendment_policy_set() {
     new_test_ext().execute_with(|| {
-        let governance_mode = DcfPallet::governance_mode();
-        assert!(!governance_mode); // Should be false by default in tests
+        use crate::engines::amendment::PolicySet;
+
+        // The Amendment Engine governs changes to the seven engines beside it.
+        // The deployment starts from the published profile, so a chain reads
+        // its eight policy records from the first block.
+        let policies = DcfPallet::policy_set();
+        assert_eq!(policies, PolicySet::starting_profile());
+
+        // The governance settings record carries a positive epoch length, so
+        // the chain answers that governance is in place.
+        assert!(DcfPallet::governance_mode());
+
+        // No amendment is under way at genesis.
+        assert_eq!(DcfPallet::next_amendment_id(), 0);
     });
 }
 

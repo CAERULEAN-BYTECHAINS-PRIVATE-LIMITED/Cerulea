@@ -90,14 +90,17 @@ fn validator_set_constraints_work() {
     });
 }
 
-/// Tests epoch length settings
+/// Tests the epoch length the chain runs against the Rotation policy
 #[test]
-fn epoch_length_configuration_works() {
+fn the_epoch_length_matches_the_rotation_policy() {
     new_test_ext().execute_with(|| {
-        // Test that epoch length is properly set
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
         assert!(epoch_length > 0);
-        assert_eq!(epoch_length, 2400); // From mock settings
+
+        // The Amendment Engine holds the Rotation policy, which carries the
+        // blocks in one epoch. The chain runs that same length.
+        let policies = DcfPallet::policy_set();
+        assert_eq!(epoch_length, policies.rotation.epoch_blocks);
     });
 }
 

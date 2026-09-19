@@ -250,12 +250,10 @@ fn graceful_degradation_works() {
         // Should handle maximum capacity gracefully
         assert!(active_validators.len() <= max_validators as usize);
         
-        // Test maximum score queries
+        // The Standing Engine answers a Trust Score query at capacity, and
+        // every answer stays inside one whole.
         for validator in &active_validators {
-            let score = DcfPallet::validator_stake_score(validator);
-            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-            
-            assert!(score <= max_score.into());
+            super::assert_trust_score_bounded(validator);
         }
         
         // System should continue operating normally

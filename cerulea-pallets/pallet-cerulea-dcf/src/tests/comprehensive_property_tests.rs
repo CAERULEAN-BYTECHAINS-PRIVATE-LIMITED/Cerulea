@@ -24,12 +24,12 @@ fn prop_validator_set_invariants() {
         let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         assert!(active_validators.len() <= max_validators as usize);
         
-        // Property: All active validators should have valid stake scores
+        // Property: the Standing Engine holds the Trust Score of every
+        // active validator inside one whole.
+        super::assert_composition_reaches_one_whole();
         for validator in &active_validators {
-            let stake_score = DcfPallet::validator_stake_score(validator);
-            let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-            assert!(stake_score >= 0);
-            assert!(stake_score <= max_score.into());
+            super::assert_trust_score_bounded(validator);
+            super::assert_trust_weight_bounded(validator);
         }
         
         // Property: Validator set should be deterministic

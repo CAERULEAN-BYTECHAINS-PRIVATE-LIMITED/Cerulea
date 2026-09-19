@@ -375,9 +375,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			// Ensure the inference result is not already submitted.
+			let current_epoch = CurrentEpoch::<T>::get();
+
+			// One validator contributes one inference per epoch. Wait for the
+			// next epoch to submit again.
 			ensure!(
-				!InferenceResults::<T>::contains_key(&who),
+				InferenceResults::<T>::get(&who)
+					.map(|(_, held)| held != current_epoch)
+					.unwrap_or(true),
 				Error::<T>::InferenceAlreadySubmitted
 			);
 
@@ -386,8 +391,6 @@ pub mod pallet {
 				confidence >= T::MinInferenceConfidence::get(),
 				Error::<T>::ConfidenceTooLow
 			);
-
-			let current_epoch = CurrentEpoch::<T>::get();
 
 			// Store the inference result with current epoch.
 			let old_result = InferenceResults::<T>::get(&who).map(|(r, _)| r).unwrap_or(0);
