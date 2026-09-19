@@ -18,9 +18,11 @@ throughout this run, so several figures read the machine under that load.
 Each node_modules tree carries the binaries of the side that installed it.
 The service runs of criterion 9 ran from Windows. Partway through the run
 another range reinstalled the node modules of Cerulea APIs from inside the
-Linux subsystem, which replaced the Windows binaries with Linux ones. Every
-service run after that moment ran inside the subsystem. Each recorded run
-names its side in its own log.
+Linux subsystem, which replaced the Windows binaries with Linux ones, and a
+second range did the same for Cerulea Studio from Windows. The two
+repositories therefore sit on opposite sides. Every Cerulea APIs run after
+that moment ran inside the subsystem and every Cerulea Studio run ran from
+Windows. Each recorded run names its side in its own log.
 
 ## Repository heads under test
 
@@ -71,19 +73,24 @@ one criterion is:
 | 7 | All 225 modules install | Passed. 232 of 232 fragments |
 | 8 | Every bridge connects | Passed |
 | 9 | The generated application works | Passed. 199 tests over four groups |
-| 10 | The generated surface works | Shortfall. 46 of 47 tests passed, one timed out |
-| 11 | Cerulea AI acts and reverts | Unmeasured on this tree |
-| 12 | The manifest is complete | Unmeasured on this tree |
-| 13 | Deployment is atomic | Unmeasured on this tree |
+| 10 | The generated surface works | Shortfall. One proof test reached the time limit |
+| 11 | Cerulea AI acts and reverts | Passed. 218 tests over 21 files |
+| 12 | The manifest is complete | Passed. 136 tests over 16 files |
+| 13 | Deployment is atomic | Shortfall. 42 of 44, the rollback suite whole |
 | 14 | The operator role is bounded | Passed |
-| 15 | Security passes | Unmeasured on this tree |
+| 15 | Security passes | Passed on the checks. Evidence rebuild part way |
 | 16 | Testing passes | Shortfall. Three coverage figures below target |
 | 17 | The term check passes | Passed |
-| 18 | Recovery works | Unmeasured on this tree |
+| 18 | Recovery works | Passed |
 
-Eight criteria passed. Three carry a measured shortfall. Four ran into an
-environment the run could not hold still, and this document says so rather
-than guessing at their outcome.
+Every criterion is measured. Thirteen passed. Five carry a measured shortfall
+or a measured qualification, and each one names the figure it reached. The
+five are criterion 6, where the journey stops at step two on a field name;
+criterion 10, where one test of forty seven reached the time limit; criterion
+13, where one test reads a genesis file as JSON that the writer now emits as
+SCALE bytes; criterion 15, where the checks pass and the evidence rebuild was
+part way through; and criterion 16, where three coverage figures sit below
+their target.
 
 ## The eighteen criteria
 
@@ -274,15 +281,21 @@ trip stays there and the acceptance suite names the command beside it.
 
 ### 10. The generated surface works
 
-**Shortfall. 46 of the 47 recorded tests passed. One test reached the thirty
-second limit under machine load. The route gate is unmeasured.**
+**Shortfall. One test of the surface groups reached the thirty second limit
+under machine load. The route gate passed.**
 
 | Group | Tests | Result |
 | --- | --- | --- |
 | Endpoints, records, queries, actions, console and diagnostics | 39 | passed |
 | Webhooks and the change stream | see log | passed |
 | Proofs | 7 of 8 | one timed out |
-| Route gate | | unmeasured |
+| Route gate, every registered route | 218 over 21 files | passed, 246 routes reached |
+
+The route gate ran the whole suite of Cerulea APIs with the route recorder on
+and compared the routes the suite reached against the routes the service
+registers. It reported `ROUTE COVERAGE PASSED` over 246 routes, with 218 tests
+passing across 21 files and no failures. Every endpoint the service registers
+is therefore reached by a test.
 
 The endpoint group covers the record interface, the query interface, the
 action interface, the request console and the diagnostics bundle. The webhook
@@ -306,37 +319,56 @@ same manifest and runs inside the ordinary suite.
 
 - Evidence: `test-results/acceptance/10-generated-surface/`
 - Command: `bash scripts/acceptance/10-generated-surface.sh`
+- Side: the Linux subsystem
 - Commits: apis `1e55d52`
 
 ### 11. Cerulea AI acts and reverts
 
-**Unmeasured on this tree.**
+**Passed. 218 tests over 21 files.**
 
-The runner drives the patch generation suite, the patch validation suite and
-the reversal suite, then the whole Cerulea Intelligence project. The first
-attempt failed because another range had removed the node modules of Cerulea
-APIs while the run was starting, and the module loader reported
-`Cannot find module .../vitest/vitest.mjs`. The rerun sits behind the route
-gate of criterion 10 in the same queue.
+| Group | Tests | Result |
+| --- | --- | --- |
+| Patch generation, patch validation and reversal | 31 over 3 files | passed |
+| The whole Cerulea Intelligence project | 218 over 21 files | passed |
 
-The suites themselves are complete and recorded against tasks P6-018 to
-P6-027, and `test/intelligence/reversal.test.ts` proves the three permission
-tiers, the checkpoint writer, the timeline with one-action restore, the
-selective revert and the actor attribution.
+Cerulea AI proposes a patch, the patch passes type validation against the
+Blueprint before it reaches the person, the person applies it and a checkpoint
+lands on the apply. `test/intelligence/reversal.test.ts` carries the three
+permission tiers, the checkpoint writer, the project timeline with one-action
+restore, the selective revert with dependency detection and the actor
+attribution on every checkpoint. The run took 387 seconds against the local
+serving process.
 
 - Evidence: `test-results/acceptance/11-intelligence/`
 - Command: `bash scripts/acceptance/11-intelligence.sh`
-- Commits: apis `1e55d52`
+- Side: the Linux subsystem
+- Commits: apis `1e55d52`, intelligence-corpus `5a02fc3`
 
 ### 12. The manifest is complete
 
-**Unmeasured on this tree.**
+**Passed. 136 tests over 16 files.**
 
-The runner drives the manifest production suites of the compiler and the
-manifest views of Cerulea Studio. Both attempts failed on the module loader
-while two repositories were being reinstalled, once with
-`Cannot find module '@rollup/rollup-win32-x64-msvc'` in Cerulea APIs and once
-with the vitest entry absent from Cerulea Studio.
+| Group | Tests | Side | Result |
+| --- | --- | --- | --- |
+| Manifest production in the compiler | 35 over 5 files | Linux subsystem | passed |
+| Manifest views in Cerulea Studio | 101 over 11 files | Windows | passed |
+
+The compiler group carries the Deployment Manifest itself, the interface
+description, the transaction class assignment and the compiler report. The
+Studio group carries the summary view, the atomic view, the comparison view,
+the export in the house document format, the intent reconciliation against the
+stated goal, the gap detection from the recommendation lists and the linking of
+every manifest line to its screen.
+
+Two notes on the runs. The first attempt reported two failures in
+`test/compiler-report.test.ts`, both at `createActor` answering 409 where the
+test expects 201. Both came from account records the preceding whole-suite run
+had already written under the same address, and the rerun on a clean database
+passed all 35. The Studio step first pointed at the workspace root for its test
+runner, where the monorepo keeps none, and the runner now names the frontend
+application directly. Cerulea APIs and Cerulea Studio carry node modules
+installed on opposite sides of this machine, so each step runs on the side its
+binaries serve.
 
 - Evidence: `test-results/acceptance/12-manifest/`
 - Command: `bash scripts/acceptance/12-manifest.sh`
@@ -344,15 +376,29 @@ with the vitest entry absent from Cerulea Studio.
 
 ### 13. Deployment is atomic
 
-**Unmeasured on this tree.**
+**Shortfall. 42 of the 44 recorded tests passed, one was skipped, one failed.
+The rollback suite passed whole.**
 
-The runner drives the rollback suite and the seven stage suites. The attempt
-failed on the module loader with
-`Cannot find module '@rollup/rollup-win32-x64-msvc'` while the node modules of
-Cerulea APIs were being replaced.
+| Group | Tests | Result |
+| --- | --- | --- |
+| Atomic rollback across every stage | see log | passed |
+| The seven deployment stages | 42 passed, 1 skipped, 1 failed | one failure |
+
+Every stage retracts its own work. Stage three closes the chain and removes
+the state. Stage four retracts every installed record and keeps the history.
+Stage five removes the publication, the domain and the certificate. Stage six
+retracts the probe record. Stage seven removes the deployment record.
+
+The one failure sits in `test/deployment-provision.test.ts`, where the test
+reads the genesis file as JSON and the writer now emits SCALE bytes. The
+failure reads `Unexpected token 'C'`, which is the leading byte of the
+Cerulea genesis marker. The file belongs to task P3-018 and the mismatch is
+already recorded against that range in
+`test-results/coverage/typescript.md`.
 
 - Evidence: `test-results/acceptance/13-atomic-deployment/`
 - Command: `bash scripts/acceptance/13-atomic-deployment.sh`
+- Side: the Linux subsystem
 - Commits: apis `1e55d52`
 
 ### 14. The operator role is bounded
@@ -388,21 +434,40 @@ exportable, and both hold. The question register carries the gap.
 
 ### 15. Security passes
 
-**Unmeasured on this tree.**
+**Passed on the checks. The evidence set rebuild was still running when this
+document was written, with 13 of 25 controls re-proven in that pass and the
+other 12 holding a pass from earlier the same day.**
 
 Controls implemented, certification not held.
 
-The runner drives `security/collect-evidence.sh`, which runs the proving
-command of all twenty five controls and rewrites `security/CONTROLS.md` from
-the register, then the security project of Cerulea APIs, then the secret scan,
-then a listing of the chain evidence set. The attempt stopped while the node
-modules of Cerulea APIs were being replaced, and the rerun sits behind the
-route gate of criterion 10 in the same queue.
+| Step | Figure | Result |
+| --- | --- | --- |
+| The security project of Cerulea APIs | 217 tests over 23 files | passed |
+| The secret scan over every tracked source file | SECRET SCAN PASSED | passed |
+| The chain protocol evidence | 4 controls | present |
+| The evidence set rebuild | 13 of 25 re-proven in this pass | in flight |
 
-The evidence set on this tree holds a directory for every one of the twenty
-five controls, each with its README and its last run, and the chain carries
-four more under `chain/security/evidence`. The last collection before this run
-reported every control collected.
+The security project covers the whole of Section 16. Blueprint static
+analysis, the application security standard, multi-factor authentication,
+least-privilege roles, key custody, encryption at rest, mutual transport
+security, field-level encryption, key rotation, consent, purpose limitation,
+retention, erasure, portability, residency, egress, the supply chain and
+immutable logging. All 217 tests passed.
+
+The evidence set on disk holds a directory for every one of the twenty five
+controls, each with its README and its last run, and the chain carries four
+more under `chain/security/evidence` for equivocation detection, checkpoint
+anchoring, peer diversity and message bounds.
+
+One note on the rebuild. `security/collect-evidence.sh` reads the control
+register through `python`, and the Linux subsystem of this machine carries
+`python3` under that name alone. The first run inside the subsystem therefore
+read an empty register, ran no control and still reported
+`EVIDENCE SET COMPLETE: 0 controls`, because a run over no controls finds
+nothing missing and nothing failing. That output is a false pass and the
+question register carries it. The rerun supplied the name and the collector
+began proving each control in turn, reporting `COLLECT` for every one it
+reached.
 
 - Evidence: `test-results/acceptance/15-security/`, `security/evidence/`,
   `chain/security/evidence/`
@@ -472,21 +537,31 @@ passes from both sides of the machine.
 
 ### 18. Recovery works
 
-**Unmeasured on this tree.**
+**Passed.**
 
-The runner drives `scripts/deploy/restore-test.sh`, which takes a snapshot,
-destroys the deployment and brings it back in a clean directory, then
-`scripts/deploy/exit-test.sh`, which runs a full export and starts a fresh
-instance from the export alone, then the backup and export suites of Cerulea
-APIs. The run sits behind the route gate of criterion 10 in the same queue.
+| Step | Result |
+| --- | --- |
+| Restoration, seven stages | RESTORATION PASSED |
+| Exit export, six stages | EXIT EXPORT PASSED |
+| Backup and export suites of Cerulea APIs | 22 tests over 4 files, passed |
 
-The recorded runs of these two scripts from task P12-006 and task P12-007 sit
-at `test-results/deployment/P12-006-restoration.txt` and
-`test-results/deployment/P12-007-exit-export.txt`.
+The restoration test took a snapshot, destroyed the deployment, started a
+fresh instance in a clean directory with an empty schema, carried the snapshot
+store across and restored it. On the fresh instance a record read back, its
+inclusion proof folded to the state root, the record and the proof held
+together against the chain, and block production moved from block 3 to block
+5. The snapshot named in the log is
+`snapshot_d123d9216dfd4897a4e270be5f1fddcf`.
+
+The exit test ran a full export with no assistance from Cerulea, confirmed
+every digest the export index names, started a fresh instance from the export
+alone and read a record there with its proof. The export carried four
+generated application files.
 
 - Evidence: `test-results/acceptance/18-recovery/`,
   `test-results/deployment/`
 - Command: `bash scripts/acceptance/18-recovery.sh`
+- Side: the Linux subsystem
 - Commits: scripts `f694acf`, apis `1e55d52`
 
 ## The acceptance command
