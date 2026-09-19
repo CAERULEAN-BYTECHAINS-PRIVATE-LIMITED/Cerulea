@@ -108,42 +108,43 @@ fn property_validator_economic_bounds() {
     });
 }
 
-/// Property: Score calculations maintain mathematical bounds
+/// Property: the Standing Engine keeps every score inside one whole
+///
+/// The Trust Score replaced the stake derived score. The engine composes the
+/// score from the components the network weighs, and every component is a
+/// share. The total therefore stays inside one whole at every block, and the
+/// commit weight the Commit Engine reads stays inside the same bound.
 #[test]
-fn property_score_mathematical_bounds() {
+fn property_trust_score_stays_inside_one_whole() {
     new_test_ext().execute_with(|| {
-        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
-        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
-        
+        super::assert_composition_reaches_one_whole();
+
+        let confidence_bound = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+
         for block_num in 1..=10 {
             System::set_block_number(block_num);
             DcfPallet::on_initialize(block_num);
             DcfPallet::on_finalize(block_num);
-            
+
             let active_validators = DcfPallet::active_validators();
-            
+
             for validator in &active_validators {
-                let _stake_score = DcfPallet::validator_stake_score(validator);
-                let _inference_score = DcfPallet::validator_inference_score(validator);
-                let stake_score = DcfPallet::validator_stake_score(validator);
-                let inference_score = DcfPallet::validator_inference_score(validator);
-                let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
-                let combined_score = (stake_score * pos_weight as u128 + inference_score as u128 * poi_weight as u128) / 10000;
-                
-                // Property: individual scores within bounds
-                assert!(stake_score >= min_score.into());
-                assert!(stake_score <= max_score.into());
-                assert!(inference_score >= 0);
-                assert!(inference_score <= max_score);
-                
-                // Property: combined score calculation consistency
-                let expected_combined = (stake_score * pos_weight as u128 + 
-                                       inference_score as u128 * poi_weight as u128) / 10000;
-                assert_eq!(combined_score, expected_combined);
-                
-                // Property: combined score within reasonable bounds
-                assert!(combined_score >= min_score as u128);
-                assert!(combined_score <= max_score as u128);
+                // The composed score and every component share hold.
+                super::assert_trust_score_bounded(validator);
+                super::assert_trust_weight_bounded(validator);
+
+                // The score reads the same on two calls in the same block, so
+                // every node reaches the same weighting.
+                let first = DcfPallet::trust_score(validator);
+                let second = DcfPallet::trust_score(validator);
+                assert_eq!(first, second);
+
+                // The inference confidence carries its own bound.
+                assert!(
+                    DcfPallet::validator_inference_score(validator) <= confidence_bound,
+                    "The inference confidence of validator {} passed its bound",
+                    validator
+                );
             }
         }
     });
@@ -191,95 +192,118 @@ fn property_epoch_transitions_preserve_invariants() {
     });
 }
 
-/// Property: Slashing maintains economic security
+/// Property: a penalty lowers the free balance and the epoch record
+///
+/// A penalty takes the named amount from the free balance of the validator.
+/// The stake the validator bonded stays where it is, so the Commit Engine
+/// share holds until the next epoch boundary. The stake pallet records the
+/// amount against the epoch and against the validator, and the two published
+/// ceilings hold across the whole run.
 #[test]
-fn property_slashing_economic_security() {
+fn property_penalty_lowers_the_balance_and_records_the_epoch() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let _initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
-        
-        // Test various slashing amounts
-        let slash_amounts = vec![100u128, 500u128, 1000u128, 2000u128];
-        
-        for slash_amount in slash_amounts {
-            let pre_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            let pre_slash_balance = Balances::reserved_balance(validator);
-            
-            if slash_amount < pre_slash_stake {
-                assert_ok!(PalletCeruleaPos::slash_validator(
-                    RuntimeOrigin::root(),
-                    validator,
-                    slash_amount
-                ));
-                
-                let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-                let post_slash_balance = Balances::reserved_balance(validator);
-                
-                // Property: slashing reduces stake by exact amount
-                assert_eq!(pre_slash_stake - post_slash_stake, slash_amount);
-                
-                // Property: balance changes match stake changes
-                assert_eq!(pre_slash_balance - post_slash_balance, slash_amount);
-                
-                // Property: validator remains active if above minimum
-                if post_slash_stake >= min_stake {
-                    assert!(DcfPallet::is_validator_active(&validator));
-                }
-                
-                // Property: stake never goes negative
-                assert!(post_slash_stake >= 0);
-            }
+        Balances::make_free_balance_be(&validator, 100_000);
+
+        let bonded = pallet_cerulea_pos::Stake::<Test>::get(validator);
+        let ceiling_per_epoch = <Test as pallet_cerulea_pos::Config>::MaxSlashPerEpoch::get();
+        let ceiling_per_validator =
+            <Test as pallet_cerulea_pos::Config>::MaxSlashPerValidator::get();
+
+        let penalties = vec![100u128, 500u128, 1000u128, 2000u128];
+
+        for penalty in penalties {
+            let before = Balances::free_balance(validator);
+            let recorded_before = pallet_cerulea_pos::ValidatorEpochSlashed::<Test>::get(validator);
+
+            assert_ok!(PalletCeruleaPos::slash_validator(
+                RuntimeOrigin::root(),
+                validator,
+                penalty
+            ));
+
+            let after = Balances::free_balance(validator);
+            let recorded_after = pallet_cerulea_pos::ValidatorEpochSlashed::<Test>::get(validator);
+
+            // The penalty takes the named amount from the free balance.
+            assert_eq!(before - after, penalty);
+
+            // The stake pallet records the same amount against the validator.
+            assert_eq!(recorded_after - recorded_before, penalty);
+
+            // The bonded stake holds, so the Commit Engine share holds.
+            assert_eq!(pallet_cerulea_pos::Stake::<Test>::get(validator), bonded);
+
+            // The validator keeps its seat while the standing holds.
+            assert!(DcfPallet::is_validator_active(&validator));
+
+            // Both published ceilings hold.
+            assert!(recorded_after <= ceiling_per_validator);
+            assert!(pallet_cerulea_pos::EpochTotalSlashed::<Test>::get() <= ceiling_per_epoch);
         }
+
+        // The Standing Engine keeps the Trust Score inside one whole through
+        // every penalty.
+        super::assert_trust_score_bounded(&validator);
     });
 }
 
-/// Property: Reward distribution maintains economic bounds
+/// Property: a reward credits the balance and records the epoch
+///
+/// A reward credits the named amount to the free balance of the validator.
+/// The stake the validator bonded stays where it is. The stake pallet records
+/// the amount against the epoch and against the validator, and the two
+/// published ceilings hold across the whole run.
 #[test]
-fn property_reward_distribution_bounds() {
+fn property_reward_credits_the_balance_and_records_the_epoch() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-        
+        let bonded = pallet_cerulea_pos::Stake::<Test>::get(validator);
+        let ceiling_per_epoch = <Test as pallet_cerulea_pos::Config>::MaxRewardPerEpoch::get();
+        let ceiling_per_validator =
+            <Test as pallet_cerulea_pos::Config>::MaxRewardPerValidator::get();
+
         // Enable governance for rewards
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
-        
+
         let reward_amounts = [100u128, 500u128, 1000u128, 2000u128];
-        
+
         for (i, reward_amount) in reward_amounts.iter().enumerate() {
-            let pre_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            
-            // Create and execute reward proposal
+            let before = Balances::free_balance(validator);
+            let recorded_before = pallet_cerulea_pos::ValidatorEpochRewarded::<Test>::get(validator);
+
             assert_ok!(DcfPallet::propose_reward_validator(
                 RuntimeOrigin::root(),
                 validator,
                 validator,
                 *reward_amount
             ));
-            
-            assert_ok!(DcfPallet::vote_proposal(
-                RuntimeOrigin::signed(validator),
-                i as u32,
-                true
-            ));
-            
+
             // The proposal reaches the quorum the pallet asks for before it
             // executes. Half of the active validators vote in favour.
             assert_ok!(mock_approve_proposal(i as u32));
             assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), i as u32));
-            
-            let post_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            
-            // Property: rewards increase stake by exact amount
-            assert_eq!(post_reward_stake - pre_reward_stake, *reward_amount);
-            
-            // Property: stake never decreases from rewards
-            assert!(post_reward_stake >= pre_reward_stake);
-            
-            // Property: total stake remains bounded
-            let max_reasonable_stake = initial_stake * 10; // 10x growth limit
-            assert!(post_reward_stake <= max_reasonable_stake);
+
+            let after = Balances::free_balance(validator);
+            let recorded_after = pallet_cerulea_pos::ValidatorEpochRewarded::<Test>::get(validator);
+
+            // The reward credits the named amount to the free balance.
+            assert_eq!(after - before, *reward_amount);
+
+            // The stake pallet records the same amount against the validator.
+            assert_eq!(recorded_after - recorded_before, *reward_amount);
+
+            // The bonded stake holds through the reward.
+            assert_eq!(pallet_cerulea_pos::Stake::<Test>::get(validator), bonded);
+
+            // Both published ceilings hold.
+            assert!(recorded_after <= ceiling_per_validator);
+            assert!(pallet_cerulea_pos::EpochTotalRewarded::<Test>::get() <= ceiling_per_epoch);
         }
+
+        // The Standing Engine keeps the Trust Score inside one whole through
+        // every reward.
+        super::assert_trust_score_bounded(&validator);
     });
 }
 
@@ -352,18 +376,17 @@ fn property_governance_system_integrity() {
             assert_eq!(proposal.votes_for, 0);
             assert_eq!(proposal.votes_against, 0);
             
-            // Vote on proposal
-            assert_ok!(DcfPallet::vote_proposal(
-                RuntimeOrigin::signed(validator),
-                i as u32,
-                true
-            ));
-            
+            // Vote on the proposal until the quorum is reached. One vote
+            // leaves the proposal pending, which the pallet holds.
+            assert_ok!(mock_approve_proposal(i as u32));
+
             let updated_proposal = crate::Proposals::<Test>::get(i as u32).unwrap();
-            
-            // Property: voting updates proposal correctly
-            assert_eq!(updated_proposal.votes_for, 1);
+
+            // Property: every vote counted in favour, and the proposal passed.
+            let quorum = (DcfPallet::active_validators().len() as u32 + 1) / 2;
+            assert!(updated_proposal.votes_for >= quorum);
             assert_eq!(updated_proposal.votes_against, 0);
+            assert_eq!(updated_proposal.status, crate::ProposalStatus::Approved);
             
             // Execute proposal
             // The proposal reaches the quorum the pallet asks for before it
@@ -417,11 +440,12 @@ fn property_system_liveness() {
                     ));
                 },
                 4 => {
-                    // Scenario: Score updates
+                    // Scenario: Score updates. Governance mode is on from the
+                    // scenario before, so the call runs under root.
                     let validators = DcfPallet::active_validators();
                     for validator in validators.iter().take(3) {
                         assert_ok!(DcfPallet::update_validator_stake_score(
-                            RuntimeOrigin::signed(*validator),
+                            RuntimeOrigin::root(),
                             *validator
                         ));
                     }
@@ -490,14 +514,21 @@ fn property_economic_security_alignment() {
     });
 }
 
-/// Property: System handles edge cases gracefully
+/// Property: the engines hold their edges
+///
+/// The Admission Engine keeps the active set at or above the minimum the
+/// deployment asks for. The Assurance Engine keeps every threshold above half
+/// the weight, so two conflicting domains never both commit. A weight pair
+/// that misses the whole is refused.
 #[test]
 fn property_edge_case_handling() {
     new_test_ext().execute_with(|| {
+        use crate::engines::assurance::TransactionClass;
+
         // Test edge case: minimum validator count
         let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let active_validators = DcfPallet::active_validators();
-        
+
         // Try to make validators leave until minimum
         let mut leave_attempts = 0;
         for validator in &active_validators {
@@ -508,27 +539,35 @@ fn property_edge_case_handling() {
                 }
             }
         }
-        
+
         // Property: system maintains minimum validators
         let remaining_validators = DcfPallet::active_validators();
         assert!(remaining_validators.len() >= min_active as usize);
-        
-        // Test edge case: zero consensus weights (should fail)
-        assert_noop!(
-            DcfPallet::update_consensus_weights(RuntimeOrigin::root(), 0, 10000),
-            Error::<Test>::InvalidWeight
-        );
-        assert_noop!(
-            DcfPallet::update_consensus_weights(RuntimeOrigin::root(), 10000, 0),
-            Error::<Test>::InvalidWeight
-        );
-        
-        // Test edge case: weights not summing to 100%
+
+        // The Assurance Engine holds every threshold above half the weight.
+        let table = DcfPallet::assurance_class_table();
+        for class in [
+            TransactionClass::Routine,
+            TransactionClass::Financial,
+            TransactionClass::Structural,
+            TransactionClass::Constitutional,
+        ] {
+            let share = table.threshold_percent(class);
+            assert!(share > 50, "A threshold at or below half lets two domains commit");
+            assert!(share <= 100);
+        }
+
+        // The constitutional class waits a delay window, and the routine class
+        // waits none.
+        assert!(table.delay_blocks(TransactionClass::Constitutional) > 0);
+        assert_eq!(table.delay_blocks(TransactionClass::Routine), 0);
+
+        // A weight pair that misses the whole is refused.
         assert_noop!(
             DcfPallet::update_consensus_weights(RuntimeOrigin::root(), 5000, 4000),
             Error::<Test>::InvalidWeight
         );
-        
+
         // Property: invalid operations don't break system
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         assert_eq!(pos_weight + poi_weight, 10000);

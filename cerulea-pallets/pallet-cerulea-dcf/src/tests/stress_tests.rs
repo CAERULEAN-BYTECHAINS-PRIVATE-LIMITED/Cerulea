@@ -2,7 +2,7 @@
 
 use crate::mock::*;
 use frame_support::{
-    assert_ok,
+    assert_noop, assert_ok,
     traits::{Get, OnFinalize, OnInitialize, Currency},
 };
 
@@ -212,9 +212,13 @@ fn stress_test_rapid_epoch_transitions() {
 #[test]
 fn stress_test_concurrent_score_updates() {
     new_test_ext().execute_with(|| {
-        let num_validators = 100u64;
+        // The Admission Engine holds a ceiling on the validator set. The run
+        // fills the remaining seats and then reads the ceiling.
+        let ceiling = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get() as u64;
+        let seated = DcfPallet::active_validators().len() as u64;
+        let num_validators = ceiling - seated;
         let updates_per_validator = 20;
-        
+
         // Setup validators
         for i in 1..=num_validators {
             let validator = 3000 + i;
@@ -225,6 +229,14 @@ fn stress_test_concurrent_score_updates() {
             ));
             assert_ok!(mock_register_validator(validator));
         }
+
+        // One seat past the ceiling is refused.
+        let past_ceiling = 3000 + num_validators + 1;
+        Balances::make_free_balance_be(&past_ceiling, 100000);
+        assert_noop!(
+            mock_join_validators(RuntimeOrigin::signed(past_ceiling), None),
+            pallet_cerulea_pos::Error::<Test>::TooManyValidators
+        );
         
         // Perform massive concurrent updates
         for update_round in 1..=updates_per_validator {
@@ -459,11 +471,9 @@ fn stress_test_governance_under_load() {
                 let voter = 5000 + (voter_idx % num_validators) + 1;
                 let vote_decision = (voter_idx + proposal_id) % 3 != 0; // ~67% approval rate
                 
-                assert_ok!(DcfPallet::vote_proposal(
-                    RuntimeOrigin::signed(voter),
-                    proposal_id as u32,
-                    vote_decision
-                ));
+                // The pallet holds a minimum interval between two votes from
+                // one account. The helper waits it out.
+                assert_ok!(mock_cast_vote(voter, proposal_id as u32, vote_decision));
                 
                 if vote_decision {
                     votes_for += 1;
@@ -550,7 +560,7 @@ fn stress_test_storage_limits() {
                 assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
-                    (80 + (round % 20))
+                    80 + (round % 20)
                 ));
                 
                 assert_ok!(DcfPallet::update_validator_stake_score(
@@ -641,7 +651,7 @@ fn stress_test_maximum_system_load() {
                     },
                     1 => {
                         // PoI inference
-                        let result = ((block_num + op) % 80 + 20);
+                        let result = (block_num + op) % 80 + 20;
                         let confidence = 80 + ((block_num + op) % 20);
                         let _ = PalletCeruleaPoi::submit_inference(
                             RuntimeOrigin::signed(validator),
@@ -689,7 +699,7 @@ fn stress_test_maximum_system_load() {
                         if op < 3 { // Only 3 challenges per block
                             let target_idx = ((validator_idx + 1) % max_validators) + 1;
                             let target = 7000 + target_idx as u64;
-                            let result = ((block_num + op) % 80 + 20);
+                            let result = (block_num + op) % 80 + 20;
                             let _ = PalletCeruleaPoi::challenge_inference(
                                 RuntimeOrigin::signed(validator),
                                 target,
@@ -718,10 +728,12 @@ fn stress_test_maximum_system_load() {
             DcfPallet::on_finalize(block_num as u64);
         }
         
-        // Verify system survived maximum load
+        // Verify system survived maximum load. The Admission Engine holds the
+        // set inside the ceiling the deployment published.
+        let ceiling = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
         let final_validators = DcfPallet::active_validators();
         assert!(!final_validators.is_empty());
-        assert!(final_validators.len() <= max_validators as usize);
+        assert!(final_validators.len() <= ceiling as usize);
         
         // Verify system consistency after stress
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();

@@ -702,6 +702,16 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Exposed clean interface for querying the score
+	/// Move the inference epoch forward.
+	///
+	/// The framework pallet calls this at every epoch boundary, so the
+	/// inference epoch and the chain epoch stay in step. A validator
+	/// contributes one inference per epoch, and the counter here decides
+	/// which epoch that is.
+	pub fn advance_epoch(epoch: u32) {
+		CurrentEpoch::<T>::put(epoch);
+	}
+
 	pub fn get_score(validator: &T::AccountId) -> u64 {
 		Self::get_poi_score(validator)
 	}

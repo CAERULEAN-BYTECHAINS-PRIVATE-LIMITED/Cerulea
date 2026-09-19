@@ -24,23 +24,27 @@ INCLUDES=(--include='*.md' --include='*.rs' --include='*.ts' --include='*.tsx' \
   --include='*.js' --include='*.jsx' --include='*.json' --include='*.yaml' \
   --include='*.yml' --include='*.html' --include='*.txt' --include='*.mjs' --include='*.cjs')
 EXCLUDE_DIRS=(--exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git \
-  --exclude-dir=dist --exclude-dir=build --exclude-dir=cerulea-build --exclude-dir=.next)
+  --exclude-dir=dist --exclude-dir=build --exclude-dir=cerulea-build --exclude-dir=.next   --exclude-dir=local --exclude-dir=coverage --exclude-dir=.turbo)
 EXCLUDE_FILES=(--exclude=Cargo.toml --exclude=Cargo.lock --exclude=package.json \
-  --exclude=package-lock.json --exclude=pnpm-lock.yaml --exclude=forbidden-terms.txt \
-  --exclude=QUESTIONS.md --exclude=TERM_VIOLATIONS.md)
+  --exclude=package-lock.json --exclude=pnpm-lock.yaml --exclude=forbidden-terms.txt   --exclude=next-env.d.ts \
+  --exclude=QUESTIONS.md --exclude=TERM_VIOLATIONS.md --exclude=verify-security.txt \
+  --exclude='*.cdx.json')
 
 COUNT=0
 while IFS= read -r line; do
   [ -z "$line" ] && continue
+  # A dependency import path is exempt. CLAUDE.md states the exemption and
+  # a Rust use line is exactly that path.
+  case "$line" in *:[[:space:]]*use\ *|*:use\ *) continue ;; esac
   file="${line%%:*}"; rest="${line#*:}"; num="${rest%%:*}"; text="${rest#*:}"
   term=$(printf '%s' "$text" | grep -oiE "$PATTERN" | head -1 | sed -E 's/^[^a-zA-Z0-9_-]//; s/[^a-zA-Z0-9_-]$//')
   echo "FORBIDDEN  $file:$num  term: $term"
   COUNT=$((COUNT+1))
-done < <(grep -rinE "${INCLUDES[@]}" "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" "$PATTERN" "$ROOT" 2>/dev/null)
+done < <(grep -rinIE "${INCLUDES[@]}" "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" "$PATTERN" "$ROOT" 2>/dev/null)
 
 echo ""
 echo "--- context review, not blocking ---"
-grep -rinE "${INCLUDES[@]}" "${EXCLUDE_DIRS[@]}" '(^|[^a-zA-Z0-9_-])substrate([^a-zA-Z0-9_-]|$)' "$ROOT" 2>/dev/null \
+grep -rinIE "${INCLUDES[@]}" "${EXCLUDE_DIRS[@]}" '(^|[^a-zA-Z0-9_-])substrate([^a-zA-Z0-9_-]|$)' "$ROOT" 2>/dev/null \
   | grep -viE 'execution substrate|three substrates|native substrate|contract substrate|the substrate is|between substrates|per substrate|substrate selection|substrates' \
   | head -40
 

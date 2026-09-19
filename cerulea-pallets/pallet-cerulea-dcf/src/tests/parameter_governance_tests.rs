@@ -52,13 +52,18 @@ fn consensus_weight_parameters_work() {
 fn score_parameter_bounds_hold() {
     new_test_ext().execute_with(|| {
         // The inference confidence reads as a percentage, so its bound is one
-        // hundred. The floor the stake pallet holds sits below that bound.
-        let min_score = <<Test as pallet_cerulea_pos::Config>::MinValidatorScore as frame_support::traits::Get<u32>>::get() as u64;
-        let max_confidence = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+        // hundred. The floor the module accepts sits under that bound.
+        let confidence_floor: u32 =
+            <Test as pallet_cerulea_poi::Config>::MinInferenceConfidence::get();
+        let confidence_bound = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
 
-        assert!(min_score > 0);
-        assert!(min_score < max_confidence);
-        assert_eq!(max_confidence, 100);
+        assert_eq!(confidence_bound, 100);
+        assert!(confidence_floor > 0);
+        assert!((confidence_floor as u64) <= confidence_bound);
+
+        // The framework pallet holds its own ceiling on a recorded score.
+        let score_ceiling: u64 = <Test as crate::Config>::MaxValidatorScore::get();
+        assert!(score_ceiling > 0);
 
         // The Standing Engine composition reaches one whole on either network.
         super::assert_composition_reaches_one_whole();
@@ -68,9 +73,9 @@ fn score_parameter_bounds_hold() {
             super::assert_trust_score_bounded(validator);
             super::assert_trust_weight_bounded(validator);
 
-            // The inference contribution stays inside the confidence bound.
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            assert!(inference_score <= max_confidence);
+            // The recorded inference contribution stays inside the ceiling
+            // the framework pallet holds.
+            assert!(DcfPallet::validator_inference_score(validator) <= score_ceiling);
         }
     });
 }

@@ -126,7 +126,7 @@ impl pallet_cerulea_pos::Config for Test {
     type MaxRewardBoost = ConstU64<20>;
     type HighPerformanceScore = ConstU64<80>;
     type TopPerformerPercentage = ConstU32<20>;
-    type ValidatorHandler = ();
+    type ValidatorHandler = TestValidatorRegistry;
 }
 
 /// The stake interface the inference pallet calls in these tests.
@@ -324,12 +324,18 @@ pub fn registry_record_keys(validator: u64, draw_key: [u8; 32], seal_key: [u8; 3
 }
 
 /// Seed the registry with a validator set. Genesis calls this.
+///
+/// A genesis validator reaches the chain through the Admission Engine, which
+/// registers it in the stake pallet as well. The seeding therefore writes the
+/// stake pallet registration beside the registry record, so a test reads the
+/// same state a running chain holds.
 pub fn registry_seed(validators: alloc::vec::Vec<u64>) {
     reg_put(REG_SET, &validators);
     reg_put(REG_ACTIVE, &validators);
     for validator in validators.iter() {
         reg_put(&reg_key(REG_STATUS, validator), &crate::ValidatorStatus::Active);
         reg_put(&reg_key(REG_JOIN, validator), &0u32);
+        pallet_cerulea_pos::Validators::<Test>::insert(validator, true);
     }
 }
 
@@ -348,6 +354,49 @@ impl crate::traits::WeightFreezer<u64> for TestWeightFreezer {
         held.retain(|(held_epoch, _)| *held_epoch != epoch);
         held.push((epoch, validators.to_vec()));
         reg_put(REG_EPOCH_WEIGHTS, &held);
+    }
+}
+
+/// The stake pallet reads the active validator set from the Admission Engine.
+///
+/// The runtime wires the validator registry pallet into the stake pallet for
+/// exactly this read. The mock registry answers the same way, so a test sees
+/// the one active set both pallets read.
+impl pallet_cerulea_pos::ValidatorHandler<u64, u128> for TestValidatorRegistry {
+    fn on_joined(_validator: &u64, _stake: u128) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_leave_requested(_validator: &u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_left(_validator: &u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_stake_increased(_validator: &u64, _amount: u128) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_stake_decreased(_validator: &u64, _amount: u128) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_slashed(_validator: &u64, _amount: u128, _penalty: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_rewarded(_validator: &u64, _amount: u128, _boost: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn get_validator_score(validator: &u64) -> u64 {
+        <TestValidatorRegistry as crate::traits::ValidatorRegistryProvider<u64, u128, u64>>::get_validator_score(validator)
+    }
+
+    fn get_active_validators() -> alloc::vec::Vec<u64> {
+        reg_list(REG_ACTIVE)
     }
 }
 
@@ -746,6 +795,25 @@ pub fn mock_register_validator(who: u64) -> DispatchResult {
     pallet_cerulea_pos::Pallet::<Test>::register_validator(RuntimeOrigin::signed(who))
 }
 
+/// Cast one vote, waiting out the interval the pallet holds between votes.
+///
+/// The pallet holds a minimum interval between two votes from one account.
+/// This helper moves the chain forward far enough to respect it, so a test
+/// reads the vote rather than the rate limit.
+pub fn mock_cast_vote(voter: u64, proposal_id: u32, approve: bool) -> DispatchResult {
+    let interval = crate::RateLimitConfigStorage::<Test>::get().min_vote_interval;
+    let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
+    if let Some(last) =
+        crate::LastOperationBlock::<Test>::get(voter, crate::DispatchableType::VoteProposal)
+    {
+        if now.saturating_sub(last) < interval {
+            frame_system::Pallet::<Test>::set_block_number((last + interval) as u64);
+            let _ = crate::BlockOperationCounts::<Test>::clear(u32::MAX, None);
+        }
+    }
+    crate::Pallet::<Test>::vote_proposal(RuntimeOrigin::signed(voter), proposal_id, approve)
+}
+
 /// Carry one proposal to the quorum the framework pallet asks for.
 ///
 /// A proposal passes once half of the active validators have voted and the
@@ -826,16 +894,54 @@ pub fn mock_leave_validators(origin: RuntimeOrigin) -> DispatchResult {
     let mut active = TestValidatorRegistry::get_active_validators();
     active.retain(|held| held != &who);
     TestValidatorRegistry::update_active_validators(active);
+
+    // The Admission Engine announces every status change. A validator that
+    // asked to leave moves from active to leaving, and the announcement
+    // carries the block the request arrived in.
+    crate::Pallet::<Test>::deposit_event_with_evm_compat(crate::Event::ValidatorStatusChanged {
+        validator: who,
+        old_status: crate::ValidatorStatus::Active,
+        new_status: crate::ValidatorStatus::Leaving,
+        block_number: now,
+    });
     Ok(())
 }
 
-/// Lower a validator stake by a fixed amount. Slashing lives in the stake
-/// pallet, so this helper reaches that pallet directly.
-pub fn mock_slash_validator(validator: &u64, amount: u128) -> DispatchResult {
-    pallet_cerulea_pos::Pallet::<Test>::slash_validator(
-        frame_system::RawOrigin::Root.into(),
+/// Complete the exit of one validator at the end of the cooldown.
+///
+/// The Admission Engine releases the stake once the cooldown passed. The
+/// validator leaves the set, the reserve returns to the free balance and the
+/// engine announces the final status.
+pub fn mock_complete_exit(who: u64) -> DispatchResult {
+    let held = pallet_cerulea_pos::Stake::<Test>::get(who);
+    <Balances as ReservableCurrency<u64>>::unreserve(&who, held);
+    pallet_cerulea_pos::Stake::<Test>::insert(who, 0u128);
+
+    let mut set = TestValidatorRegistry::get_validator_set();
+    set.retain(|seated| seated != &who);
+    TestValidatorRegistry::update_validator_set(set);
+    reg_put(&reg_key(REG_STATUS, &who), &crate::ValidatorStatus::Inactive);
+
+    let now: u32 = frame_system::Pallet::<Test>::block_number() as u32;
+    crate::Pallet::<Test>::deposit_event_with_evm_compat(crate::Event::ValidatorStatusChanged {
+        validator: who,
+        old_status: crate::ValidatorStatus::Leaving,
+        new_status: crate::ValidatorStatus::Inactive,
+        block_number: now,
+    });
+    Ok(())
+}
+
+/// Record one offence against a validator.
+///
+/// The Penalty policy counts offences against a validator. The stake pallet
+/// removes a validator once the count reaches the ceiling the deployment set.
+/// The amount the deployment takes travels the separate root call, so this
+/// helper carries the offence alone.
+pub fn mock_slash_validator(validator: &u64, _amount: u128) -> DispatchResult {
+    pallet_cerulea_pos::Pallet::<Test>::slash_validator_call(
+        RuntimeOrigin::signed(*validator),
         *validator,
-        amount,
     )
 }
 

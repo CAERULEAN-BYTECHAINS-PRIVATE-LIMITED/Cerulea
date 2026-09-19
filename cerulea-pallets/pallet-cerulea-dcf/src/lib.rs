@@ -8513,6 +8513,10 @@ pub mod pallet {
             // Reset epoch bounds tracking in pos pallet for the new epoch
             pos::Pallet::<T>::reset_epoch_totals();
 
+            // Carry the inference module to the same epoch, so a validator
+            // contributes once per epoch on the counter the chain runs.
+            poi::Pallet::<T>::advance_epoch(next_epoch);
+
             // Apply pending join/leave requests and get actual changes
             let (added_validators, removed_validators) = Self::apply_pending_validator_actions();
 
@@ -12089,10 +12093,15 @@ pub mod pallet {
                 .unwrap_or(0)
         }
 
+        /// The blocks one validator authored and the blocks it missed.
+        ///
+        /// A validator the chain holds no record for reads as a pair of
+        /// zeros. The node treats that pair as a validator yet to reach its
+        /// first slot and applies the grace period.
         pub fn validator_participation(validator: &T::AccountId) -> (u32, u32) {
             ValidatorStates::<T>::get(validator)
                 .map(|state| (state.current.authored_blocks, state.current.missed_blocks))
-                .unwrap_or((u32::MAX, u32::MAX))
+                .unwrap_or((0, 0))
         }
 
         /// Get validator last active block

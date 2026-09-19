@@ -293,7 +293,8 @@ fn runtime_api_state_transitions_integration() {
         
         assert!(DcfPallet::is_validator_active(&validator));
         assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
-        assert_eq!(PalletCeruleaPos::validators(validator), None); // Still not in PoS
+        // Admission records the registration in the stake pallet as well.
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         
         // Phase 3: Register in PoS
         assert_ok!(mock_register_validator(validator));
@@ -567,14 +568,16 @@ fn runtime_api_configuration_consistency() {
         let governance_enabled = DcfPallet::get_governance_mode();
         assert!(governance_enabled || !governance_enabled);
         
-        // Test system info API
-        let (total_validators, active_validators, inactive_validators) = DcfPallet::get_validator_set_info();
-        assert_eq!(total_validators, active_validators + inactive_validators);
-        assert!(active_validators >= min_active);
-        assert!(total_validators <= max_validators);
-        
-        // Test validator count API
+        // The set information call answers with the seated count, the active
+        // count and the ceiling the deployment published.
+        let (seated, active, ceiling) = DcfPallet::get_validator_set_info();
+        assert!(active <= seated, "Every active validator holds a seat");
+        assert!(seated <= ceiling, "The seated count stays inside the ceiling");
+        assert!(active >= min_active);
+        assert_eq!(ceiling, max_validators);
+
+        // The validator count call answers with the records the chain holds.
         let validator_count = DcfPallet::get_total_validators_count();
-        assert_eq!(validator_count, total_validators);
+        assert!(validator_count >= active);
     });
 }

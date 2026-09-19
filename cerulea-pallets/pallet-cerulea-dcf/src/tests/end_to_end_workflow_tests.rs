@@ -11,7 +11,7 @@ use frame_support::{
 fn end_to_end_validator_complete_lifecycle() {
     new_test_ext().execute_with(|| {
         let validator = 100u64;
-        let stake_amount = 10000u128;
+        let _stake_amount = 10000u128;
         
         // Setup: Give validator sufficient balance
         Balances::make_free_balance_be(&validator, 50000);
@@ -28,7 +28,12 @@ fn end_to_end_validator_complete_lifecycle() {
         let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(validator_stake > 0);
         assert_eq!(Balances::reserved_balance(validator), validator_stake);
-        assert_eq!(Balances::free_balance(validator), initial_balance - stake_amount);
+        // Admission reserves the stake the deployment asks for, and the free
+        // balance falls by exactly that reserve.
+        assert_eq!(
+            Balances::free_balance(validator),
+            initial_balance - validator_stake
+        );
         
         // Phase 2: Register in PoS system
         assert_ok!(mock_register_validator(validator));
@@ -108,7 +113,7 @@ fn end_to_end_validator_complete_lifecycle() {
         // Verify leaving completed
         assert!(!DcfPallet::is_validator_active(&validator));
         let final_balance = Balances::free_balance(validator);
-        assert!(final_balance > initial_balance - stake_amount); // Got some stake back
+        assert!(final_balance > initial_balance - _stake_amount); // Got some stake back
     });
 }
 
@@ -231,8 +236,11 @@ fn end_to_end_multi_validator_competition() {
             assert_ok!(mock_register_validator(*validator));
         }
         
-        // Simulate competitive scoring rounds
+        // Simulate competitive scoring rounds. Each round runs in its own
+        // epoch, since a validator contributes one inference per epoch.
         for round in 1..=5 {
+            DcfPallet::handle_epoch_transition();
+
             // Submit different PoS scores
             for (i, validator) in validators.iter().enumerate() {
                 let score = 70 + (i as u32 * 5) + (round * 2);
@@ -478,8 +486,11 @@ fn end_to_end_high_frequency_operations() {
             assert_ok!(mock_register_validator(validator));
         }
         
-        // Perform high-frequency operations
+        // Perform high-frequency operations. Each round runs in its own
+        // epoch, since a validator contributes one inference per epoch.
         for round in 1..=operations_per_validator {
+            DcfPallet::handle_epoch_transition();
+
             for i in 1..=num_validators {
                 let validator = 400 + i;
                 

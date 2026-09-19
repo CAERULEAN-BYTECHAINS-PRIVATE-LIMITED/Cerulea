@@ -385,10 +385,11 @@ fn cross_pallet_error_propagation() {
         // Other pallets should still function
         assert!(DcfPallet::is_validator_active(&1));
         
-        // Test DCF error handling
+        // The stake pallet owns the set membership check, so a leave request
+        // from an account outside the set names that pallet in its error.
         assert_noop!(
             mock_leave_validators(RuntimeOrigin::signed(non_validator)),
-            Error::<Test>::ValidatorNotFound
+            pallet_cerulea_pos::Error::<Test>::ValidatorNotInSet
         );
         
         // PoS and PoI should still function
@@ -558,9 +559,14 @@ fn cross_pallet_stress_test() {
             ));
         }
         
-        // Verify system stability
+        // Verify system stability. The loop above walks accounts one to ten,
+        // and the three genesis validators sit inside that range, so the set
+        // holds exactly those ten accounts.
         let active_validators = DcfPallet::active_validators();
-        assert_eq!(active_validators.len(), (num_validators + 3) as usize); // +3 for genesis validators
+        assert_eq!(active_validators.len(), num_validators as usize);
+        for i in 1..=num_validators {
+            assert!(active_validators.contains(&i));
+        }
         
         // Verify all pallets maintain consistency
         for validator in &active_validators {

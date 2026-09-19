@@ -273,30 +273,44 @@ fn epoch_transition_system_integration_works() {
     });
 }
 
+/// The Admission Engine holds the stake through the cooldown and releases it
+///
+/// A validator that asks to leave keeps its stake reserved for the whole
+/// cooldown. The engine releases the reserve once the cooldown passed and the
+/// exit completes.
 #[test]
-fn balance_integration_for_validator_leaving_works() {
+fn the_exit_path_holds_the_stake_through_the_cooldown() {
     new_test_ext().execute_with(|| {
-        let validator = 1;
+        let validator = 20u64;
+        Balances::make_free_balance_be(&validator, 100_000);
         let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
-        
+
+        // Admission reserves the stake the deployment asks for.
+        assert_ok!(mock_admit_validator(validator, None));
         let reserved_before = Balances::reserved_balance(validator);
-        
+        assert!(reserved_before > 0, "An admitted validator holds a reserve");
+
         // Request to leave
         assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
-        
+
         // During cooldown, balance should still be reserved
         let reserved_during = Balances::reserved_balance(validator);
         assert_eq!(reserved_before, reserved_during);
-        
+
         // Simulate cooldown period passing
         for block in 1..=cooldown_period + 1 {
             System::set_block_number(block as u64);
             DcfPallet::on_initialize(block as u64);
         }
-        
-        // After cooldown, balance should be unreserved
+
+        // The reserve holds until the exit completes.
+        assert_eq!(Balances::reserved_balance(validator), reserved_before);
+
+        // The engine completes the exit and releases the reserve.
+        assert_ok!(mock_complete_exit(validator));
         let reserved_after = Balances::reserved_balance(validator);
         assert!(reserved_after < reserved_before);
+        assert_eq!(reserved_after, 0);
     });
 }
 

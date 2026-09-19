@@ -809,8 +809,10 @@ pub mod pallet {
                 Error::<T>::SlashingBoundsExceeded
             );
 
-            let (_negative_imbalance, actual_slashed) = T::Currency::slash(validator, slash_amount);
-            let slashed_amount = actual_slashed.min(slash_amount);
+            // The currency answers with the part it could not take. The amount
+            // taken is therefore the request less that remainder.
+            let (_negative_imbalance, not_taken) = T::Currency::slash(validator, slash_amount);
+            let slashed_amount = slash_amount.saturating_sub(not_taken);
 
             EpochTotalSlashed::<T>::mutate(|total| {
                 *total = total.saturating_add(slashed_amount);
