@@ -30,6 +30,9 @@ sp-runtime = { default-features = true, workspace = true }
 
 [features]
 default = ["std"]
+# The optional inference contribution. The feature stays off by default, so a
+# deployment that never asks for the module never carries it.
+inference = []
 std = [
 	"codec/std",
 	"frame-benchmarking?/std",

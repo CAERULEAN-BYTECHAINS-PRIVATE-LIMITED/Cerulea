@@ -437,7 +437,7 @@ mod tests {
                 result
             ));
             
-            // Verify challenge window configuration
+            // Verify challenge window settings
             assert!(challenge_window > 0);
         });
     }
@@ -551,9 +551,9 @@ mod tests {
     }
 
     #[test]
-    fn test_reward_configuration_validation() {
+    fn test_reward_settings_validation() {
         new_test_ext().execute_with(|| {
-            // Test reward configuration values
+            // Test reward settings values
             let inference_reward: u128 = <Test as crate::Config>::InferenceReward::get();
             let challenge_reward: u128 = <Test as crate::Config>::ChallengeReward::get();
             
@@ -790,6 +790,86 @@ mod tests {
             // The high severity penalty is seven.
             assert_eq!(mock_score(1), 3);
             assert_eq!(mock_final_score(1), 4);
+        });
+    }
+
+    // The tests below hold the gate on the optional inference contribution.
+
+    #[test]
+    fn the_contribution_stays_out_of_the_default_build() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(
+                PalletCeruleaPoi::contribution_in_build(),
+                cfg!(feature = "inference")
+            );
+        });
+    }
+
+    #[test]
+    fn a_served_inference_is_refused_where_the_gate_fails() {
+        new_test_ext().execute_with(|| {
+            // The default build carries no inference module, so the record is
+            // refused before any score moves.
+            let outcome = PalletCeruleaPoi::record_served_inference(
+                RuntimeOrigin::root(),
+                1u64,
+                95,
+                crate::gate::TaskSource::IntelligenceWorkload,
+            );
+            #[cfg(not(feature = "inference"))]
+            assert_noop!(outcome, Error::<Test>::InferenceModuleAbsent);
+            #[cfg(feature = "inference")]
+            assert_noop!(outcome, Error::<Test>::DeterminismUnproven);
+            assert_eq!(mock_score(1), 0);
+        });
+    }
+
+    #[test]
+    fn incomplete_determinism_evidence_is_refused() {
+        new_test_ext().execute_with(|| {
+            let partial = crate::gate::DeterminismEvidence {
+                pinned_weights: true,
+                fixed_seed: true,
+                fixed_point_arithmetic: false,
+                pinned_runtime: true,
+            };
+            assert_noop!(
+                PalletCeruleaPoi::declare_determinism(RuntimeOrigin::root(), partial),
+                Error::<Test>::DeterminismEvidenceIncomplete
+            );
+            assert!(!PalletCeruleaPoi::determinism_evidence().proven());
+        });
+    }
+
+    #[test]
+    fn complete_determinism_evidence_is_recorded() {
+        new_test_ext().execute_with(|| {
+            let complete = crate::gate::DeterminismEvidence {
+                pinned_weights: true,
+                fixed_seed: true,
+                fixed_point_arithmetic: true,
+                pinned_runtime: true,
+            };
+            assert_ok!(PalletCeruleaPoi::declare_determinism(
+                RuntimeOrigin::root(),
+                complete
+            ));
+            assert!(PalletCeruleaPoi::determinism_evidence().proven());
+        });
+    }
+
+    #[test]
+    fn a_signed_account_declares_no_determinism() {
+        new_test_ext().execute_with(|| {
+            let complete = crate::gate::DeterminismEvidence {
+                pinned_weights: true,
+                fixed_seed: true,
+                fixed_point_arithmetic: true,
+                pinned_runtime: true,
+            };
+            assert!(
+                PalletCeruleaPoi::declare_determinism(RuntimeOrigin::signed(1), complete).is_err()
+            );
         });
     }
 }

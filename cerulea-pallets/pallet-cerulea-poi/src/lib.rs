@@ -1,16 +1,27 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-//! # pallet-cerulea-poi
+//! # The optional inference contribution
 //!
-//! This pallet implements Proof-of-Inference (PoI) logic for the Cerulea. It allows validators to submit inference results, challenge others' results, and provides a mechanism for rewarding or penalizing based on inference correctness and challenge outcomes.
+//! Deployments running Cerulea Intelligence on their own validators may enable
+//! an additional scoring contribution based on served inference work. Custody
+//! proof remains the default for every other deployment.
 //!
-//! ## Main Features
-//! - **Inference Submission:** Validators submit inference results with a confidence score.
-//! - **Challenge Mechanism:** Validators can challenge others' inference results within a configurable window.
-//! - **Epoch Management:** Inference results and challenges are tracked per epoch.
-//! - **Configurable Parameters:** Confidence threshold, challenge window, and rewards are all configurable via the runtime.
-//! - **Events:** Emits events for inference submissions, challenges, and challenge resolutions.
+//! The module stays off by default. The `inference` cargo feature turns it on.
+//! The gate in [`gate`] holds three conditions. The build carries the module.
+//! Determinism is proven. The task came from real workload.
+//!
+//! 1. **Submission.** A validator submits an inference result with a
+//!    confidence score.
+//! 2. **Optimistic acceptance.** The chain accepts the result provisionally.
+//! 3. **Challenge.** Any validator challenges inside the window. A challenge
+//!    triggers redundant execution by a randomly drawn committee, and the
+//!    losing side carries the penalty.
+//! 4. **Epochs.** Results and challenges are tracked per epoch.
+//! 5. **Events.** The pallet reports every submission, challenge and outcome.
 
 pub use pallet::*;
+
+// The gate on the optional inference contribution
+pub mod gate;
 
 // --- Weights Module --- //
 pub mod weights;
@@ -67,7 +78,7 @@ pub mod pallet {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// Pallet configuration trait.
+	/// Pallet settings trait.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
@@ -115,7 +126,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type OffchainWorkerInterval: Get<u32>;
 
-		// Rate limiting configurations for apply_offchain_poi_scores
+		// Rate limiting settingss for apply_offchain_poi_scores
 		#[pallet::constant]
 		type MaxValidatorIterationWeight: Get<u64>;
 		#[pallet::constant]
@@ -147,7 +158,7 @@ pub mod pallet {
 		pub data_sources: Vec<Vec<u8>>,
 	}
 
-	/// Off-chain storage structure for computed Proof-of-Inference scores.
+	/// Off-chain storage structure for computed inference scores.
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 	pub struct OffchainPoiScore<T: Config> {
 		pub validator: T::AccountId,
@@ -164,7 +175,7 @@ pub mod pallet {
 		Low,
 	}
 
-	/// Genesis configuration for PoI pallet.
+	/// Genesis settings for PoI pallet.
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -224,6 +235,29 @@ pub mod pallet {
 	#[pallet::getter(fn current_epoch)]
 	pub type CurrentEpoch<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// The determinism evidence this deployment declared.
+	///
+	/// Two validators running the same task produce identical bytes only where
+	/// every condition holds. The contribution stays absent until the evidence
+	/// proves each one.
+	#[pallet::storage]
+	#[pallet::getter(fn determinism_evidence)]
+	pub type DeterminismEvidenceHeld<T: Config> =
+		StorageValue<_, crate::gate::DeterminismEvidence, ValueQuery>;
+
+	/// The results the chain accepted provisionally.
+	///
+	/// A result stands unless a validator challenges inside the window.
+	#[pallet::storage]
+	#[pallet::getter(fn provisional_result)]
+	pub type ProvisionalResults<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		crate::gate::ProvisionalResult,
+		OptionQuery,
+	>;
+
 	/// Storage for validator inference count.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_inference_count)]
@@ -251,7 +285,7 @@ pub mod pallet {
 		ChallengeResolved { challenger: T::AccountId, challenged: T::AccountId, result: u32, success: bool },
 		/// A validator was slashed. [validator, reason]
 		ValidatorSlashed { validator: T::AccountId, reason: Vec<u8> },
-		/// PoI score was updated for a validator
+		/// inference score was updated for a validator
 		PoiScoreUpdated {
 			validator: T::AccountId,
 			old_score: u32,
@@ -263,10 +297,25 @@ pub mod pallet {
 			old_epoch: u32,
 			new_epoch: u32,
 		},
-		/// PoI score updated from off-chain worker
+		/// inference score updated from off-chain worker
 		ValidatorPoiScoreUpdated {
 			validator: T::AccountId,
 			poi_score: u64,
+		},
+	
+		/// The deployment declared its determinism evidence.
+		DeterminismDeclared {
+			/// The evidence the deployment declared.
+			evidence: crate::gate::DeterminismEvidence,
+		},
+		/// A challenge against a provisional result settled.
+		InferenceChallengeSettled {
+			/// The validator that reported the result.
+			validator: T::AccountId,
+			/// The validator that challenged the result.
+			challenger: T::AccountId,
+			/// The redundant execution matched the reported result.
+			reporter_held: bool,
 		},
 	}
 
@@ -293,6 +342,14 @@ pub mod pallet {
 		WeightLimitExceeded,
 		/// Validator not found in register.
 		ValidatorNotFound,
+		/// This build carries no inference module.
+		InferenceModuleAbsent,
+		/// Determinism is unproven for this deployment.
+		DeterminismUnproven,
+		/// The task was generated rather than served.
+		TaskSynthetic,
+		/// The determinism evidence misses a condition.
+		DeterminismEvidenceIncomplete,
 	}
 
 	#[pallet::hooks]
@@ -336,7 +393,7 @@ pub mod pallet {
 			let old_result = InferenceResults::<T>::get(&who).map(|(r, _)| r).unwrap_or(0);
 			InferenceResults::<T>::insert(&who, (result, current_epoch));
 			
-			// Emit PoI score update event
+			// Emit inference score update event
 			Self::deposit_event(Event::PoiScoreUpdated {
 				validator: who.clone(),
 				old_score: old_result,
@@ -470,7 +527,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Apply PoI scores computed by off-chain worker (moved from DCF).
+		/// Apply inference scores computed by off-chain worker (moved from DCF).
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::submit_inference())]
 		pub fn apply_offchain_poi_scores(
@@ -523,11 +580,111 @@ pub mod pallet {
 			}
 			Ok(())
 		}
+
+		/// Declare the determinism evidence for this deployment.
+		///
+		/// Two validators running the same task produce identical bytes only
+		/// where the weights, the seed, the arithmetic and the runtime are all
+		/// pinned. The contribution stays absent until every condition holds.
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::submit_inference())]
+		pub fn declare_determinism(
+			origin: OriginFor<T>,
+			evidence: crate::gate::DeterminismEvidence,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(
+				evidence.proven(),
+				Error::<T>::DeterminismEvidenceIncomplete
+			);
+			DeterminismEvidenceHeld::<T>::put(evidence);
+			Self::deposit_event(Event::DeterminismDeclared { evidence });
+			Ok(())
+		}
+
+		/// Record one served inference against the score of a validator.
+		///
+		/// The gate holds three conditions. The build carries the module. The
+		/// deployment proved determinism. The task came from Cerulea
+		/// Intelligence workload. A call failing any condition names the fix.
+		#[pallet::call_index(6)]
+		#[pallet::weight(T::WeightInfo::submit_inference())]
+		pub fn record_served_inference(
+			origin: OriginFor<T>,
+			validator: T::AccountId,
+			confidence: u32,
+			source: crate::gate::TaskSource,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::check_contribution_gate(source)?;
+
+			let epoch = CurrentEpoch::<T>::get();
+			let window = T::ChallengeWindow::get();
+			ProvisionalResults::<T>::insert(
+				&validator,
+				crate::gate::ProvisionalResult::accept(confidence, source, epoch, window),
+			);
+			Self::handle_valid_inference(&validator, confidence)
+		}
 	}
 }
 
 // --- Helper implementations for Pallet --- //
 impl<T: Config> Pallet<T> {
+	/// Report whether the optional inference contribution counts here.
+	///
+	/// The gate holds three conditions. The build carries the module. The
+	/// deployment proved determinism. The task came from real workload.
+	pub fn check_contribution_gate(source: crate::gate::TaskSource) -> DispatchResult {
+		let declared = DeterminismEvidenceHeld::<T>::get().proven();
+		match crate::gate::inspect(declared, source) {
+			Ok(()) => Ok(()),
+			Err(crate::gate::GateFailure::ModuleAbsentFromBuild) => {
+				Err(Error::<T>::InferenceModuleAbsent.into())
+			}
+			Err(crate::gate::GateFailure::DeterminismUnproven) => {
+				Err(Error::<T>::DeterminismUnproven.into())
+			}
+			Err(crate::gate::GateFailure::TaskSynthetic) => {
+				Err(Error::<T>::TaskSynthetic.into())
+			}
+		}
+	}
+
+	/// Report whether this build carries the inference contribution.
+	pub const fn contribution_in_build() -> bool {
+		crate::gate::module_in_build()
+	}
+
+	/// Settle one challenge against a provisional result.
+	///
+	/// The committee re-executes the task. The losing side carries the
+	/// penalty.
+	pub fn settle_inference_challenge(
+		validator: &T::AccountId,
+		challenger: &T::AccountId,
+		redundant: sp_std::vec::Vec<u32>,
+	) -> DispatchResult {
+		let held = ProvisionalResults::<T>::get(validator)
+			.ok_or(Error::<T>::InferenceNotFound)?;
+		let outcome = crate::gate::settle_challenge(held.value, &redundant);
+		match outcome {
+			crate::gate::ChallengeOutcome::ReporterHeld => {
+				Self::handle_invalid_inference(challenger, InferenceErrorSeverity::Medium)?;
+			}
+			crate::gate::ChallengeOutcome::ChallengerHeld => {
+				Self::handle_invalid_inference(validator, InferenceErrorSeverity::High)?;
+				ProvisionalResults::<T>::remove(validator);
+			}
+		}
+		Self::deposit_event(Event::InferenceChallengeSettled {
+			validator: validator.clone(),
+			challenger: challenger.clone(),
+			reporter_held: matches!(outcome, crate::gate::ChallengeOutcome::ReporterHeld),
+		});
+		Ok(())
+	}
+
 	/// Exposed clean interface for querying the score
 	pub fn get_score(validator: &T::AccountId) -> u64 {
 		Self::get_poi_score(validator)
@@ -641,7 +798,7 @@ impl<T: Config> Pallet<T> {
 		block_number: BlockNumberFor<T>,
 	) -> Result<(), &'static str> {
 		log::info!(
-			"PoI: Computed PoI score for validator={:?}, score={}, block={}",
+			"PoI: Computed inference score for validator={:?}, score={}, block={}",
 			validator,
 			poi_score,
 			block_number.saturated_into::<u32>()
@@ -679,7 +836,7 @@ impl<T: Config> Pallet<T> {
 		match storage_ref.get::<OffchainPoiScore<T>>() {
 			Ok(Some(score_data)) => Ok(Some(score_data.score)),
 			Ok(None) => Ok(None),
-			Err(_) => Err("Failed to retrieve PoI score from off-chain storage"),
+			Err(_) => Err("Failed to retrieve inference score from off-chain storage"),
 		}
 	}
 
