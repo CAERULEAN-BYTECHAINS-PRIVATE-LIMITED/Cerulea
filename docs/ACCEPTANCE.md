@@ -435,8 +435,8 @@ exportable, and both hold. The question register carries the gap.
 ### 15. Security passes
 
 **Passed on the checks. The evidence set rebuild was still running when this
-document was written, with 13 of 25 controls re-proven in that pass and the
-other 12 holding a pass from earlier the same day.**
+session closed, with 15 of the 25 controls re-proven in that pass and the
+other 10 holding a pass from earlier the same day.**
 
 Controls implemented, certification not held.
 
@@ -445,7 +445,7 @@ Controls implemented, certification not held.
 | The security project of Cerulea APIs | 217 tests over 23 files | passed |
 | The secret scan over every tracked source file | SECRET SCAN PASSED | passed |
 | The chain protocol evidence | 4 controls | present |
-| The evidence set rebuild | 13 of 25 re-proven in this pass | in flight |
+| The evidence set rebuild | 15 of 25 re-proven in this pass | in flight |
 
 The security project covers the whole of Section 16. Blueprint static
 analysis, the application security standard, multi-factor authentication,
@@ -467,7 +467,10 @@ read an empty register, ran no control and still reported
 nothing missing and nothing failing. That output is a false pass and the
 question register carries it. The rerun supplied the name and the collector
 began proving each control in turn, reporting `COLLECT` for every one it
-reached.
+reached. Each control runs its own suite over the mounted Windows volume, at
+two to four minutes each, so the whole rebuild runs longer than this session
+held. Running `bash scripts/acceptance/15-security.sh` with the interpreter
+named on the path finishes it.
 
 - Evidence: `test-results/acceptance/15-security/`, `security/evidence/`,
   `chain/security/evidence/`
