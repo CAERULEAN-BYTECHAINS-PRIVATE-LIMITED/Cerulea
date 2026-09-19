@@ -622,3 +622,21 @@ impl pallet_cerulea_tier::Config for Runtime {
     type MaxAddons = ConstU32<64>;
     type MaxWatchedDeployments = ConstU32<64>;
 }
+
+// === The Cerulea relayer module ===
+// The relayer module keeps the end-user experience free of gas, wallets
+// and fees. The user authorises an action by signing a short statement.
+// The relayer submits and carries the cost. The Blockchain records the
+// original authoriser as the actor. Metering continues internally for
+// quota enforcement while the user encounters no fee. Quota is per tenant
+// and rate limits apply per account and per action.
+impl pallet_cerulea_relayer::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_relayer::weights::CeruleaWeight<Runtime>;
+    type Identities = crate::Identity;
+    type Entitlements = crate::Tier;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type UnitsPerSubmission = ConstU64<1>;
+    type MaxAuthorisationSpan = ConstU64<3600000>;
+}
