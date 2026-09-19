@@ -1,5 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// The pallet-side Admission Engine of the Dynamic Consensus Framework
+pub mod engines;
+
 pub use pallet::*;
 
 use sp_runtime::SaturatedConversion;
@@ -533,8 +536,8 @@ sp_api::decl_runtime_apis! {
 
             VoteRecords::<T>::insert(current_round, &vote.validator_account, vote.clone());
             
-            let new_tally = VoteTallies::<T>::get(&vote.block_hash).saturating_add(voter_weight);
-            VoteTallies::<T>::insert(&vote.block_hash, new_tally);
+            let new_tally = VoteTallies::<T>::get(vote.block_hash).saturating_add(voter_weight);
+            VoteTallies::<T>::insert(vote.block_hash, new_tally);
 
             let total_weight = TotalVotingWeight::<T>::get();
             let threshold_target = T::FinalityThreshold::get() * total_weight;
@@ -744,11 +747,9 @@ sp_api::decl_runtime_apis! {
             let validator_set = ValidatorSet::<T>::get();
             if validator_set.contains(&who) {
                 let mut active_validators = ActiveValidators::<T>::get();
-                if !active_validators.contains(&who) {
-                    if active_validators.len() < <T as Config>::MaxValidators::get() as usize {
-                        let _ = active_validators.try_push(who.clone());
-                        ActiveValidators::<T>::put(active_validators);
-                    }
+                if !active_validators.contains(&who) && active_validators.len() < <T as Config>::MaxValidators::get() as usize {
+                    let _ = active_validators.try_push(who.clone());
+                    ActiveValidators::<T>::put(active_validators);
                 }
                 pallet_cerulea_pos::Validators::<T>::insert(&who, true);
             }
@@ -849,9 +850,7 @@ sp_api::decl_runtime_apis! {
             for (validator, stake, _score) in validators {
                 let normalized_weight = if total_stake > 0 {
                     stake.saturating_mul(VOTE_WEIGHT_SCALE) / total_stake
-                } else {
-                    if validator_count > 0 { VOTE_WEIGHT_SCALE / validator_count } else { 0 }
-                };
+                } else if validator_count > 0 { VOTE_WEIGHT_SCALE / validator_count } else { 0 };
 
                 EpochVotingWeight::<T>::insert(validator, normalized_weight);
                 total_epoch_weight = total_epoch_weight.saturating_add(normalized_weight);
@@ -978,7 +977,7 @@ sp_api::decl_runtime_apis! {
             });
 
             Self::prune_vote_records(round);
-            VoteTallies::<T>::remove(&block_hash);
+            VoteTallies::<T>::remove(block_hash);
         }
 
         fn prune_vote_records(current_round: u32) {
@@ -1377,7 +1376,7 @@ impl<T: Config> pallet_cerulea_dcf::traits::ValidatorRegistryProvider<T::Account
     }
 
     fn update_validator_state(validator: &T::AccountId, state: pallet_cerulea_dcf::traits::ValidatorState) {
-        let name_bounded = state.name.map(|n| BoundedVec::truncate_from(n));
+        let name_bounded = state.name.map(BoundedVec::truncate_from);
         let history_bounded = BoundedVec::truncate_from(state.history);
         
         let local_state = ValidatorState::<T> {
