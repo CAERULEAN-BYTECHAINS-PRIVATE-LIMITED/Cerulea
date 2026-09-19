@@ -127,7 +127,7 @@ fn testnet_genesis_with_stakes_and_names(
 		// Configure DVF initial validator weights
 		// Synchronized with DCF validators to ensure consistency between
 		// validator set membership and voting weights at genesis
-		dvf: pallet_cerulea_dvf::GenesisConfig {
+		registry: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
 		},
 	})

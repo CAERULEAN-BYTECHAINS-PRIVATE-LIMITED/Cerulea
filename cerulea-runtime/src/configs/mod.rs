@@ -468,4 +468,7 @@ impl pallet_cerulea_identity::Config for Runtime {
     type MaxUnitDepth = ConstU32<16>;
     type MaxTextBytes = ConstU32<256>;
     type MaxCredentialsPerAccount = ConstU32<64>;
+    type MaxScopePerDelegation = ConstU32<64>;
+    type MaxDelegationsPerAccount = ConstU32<128>;
+    type MaxDelegationDepth = ConstU32<8>;
 }

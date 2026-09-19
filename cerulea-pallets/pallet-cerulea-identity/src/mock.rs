@@ -40,6 +40,9 @@ impl pallet_cerulea_identity::Config for Test {
     type MaxUnitDepth = ConstU32<4>;
     type MaxTextBytes = ConstU32<128>;
     type MaxCredentialsPerAccount = ConstU32<8>;
+    type MaxScopePerDelegation = ConstU32<8>;
+    type MaxDelegationsPerAccount = ConstU32<8>;
+    type MaxDelegationDepth = ConstU32<3>;
 }
 
 const CLOCK: &[u8] = b"cerulea:test:identity:clock";

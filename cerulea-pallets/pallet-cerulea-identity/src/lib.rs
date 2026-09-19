@@ -24,6 +24,7 @@
 extern crate alloc;
 
 pub mod credential;
+pub mod delegate;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -35,6 +36,7 @@ mod mock;
 mod tests;
 
 pub use credential::{Attestation, CredentialFault, RequirementOutcome};
+pub use delegate::{Delegation, DelegationFault, DelegationOutcome};
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -159,6 +161,16 @@ pub trait IdentityRegistry {
         now: u64,
     ) -> RequirementOutcome;
 
+    /// Resolve one action against the delegations one account holds.
+    ///
+    /// A delegation past its expiry resolves to denied.
+    fn delegation_for(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        action: &BoundedName,
+        now: u64,
+    ) -> DelegationOutcome<Self::AccountId>;
+
     /// The clock the module reads, in milliseconds.
     fn now_millis() -> u64;
 }
@@ -209,6 +221,18 @@ pub mod pallet {
         /// The largest number of credentials one account holds.
         #[pallet::constant]
         type MaxCredentialsPerAccount: Get<u32>;
+
+        /// The largest number of actions one delegation passes.
+        #[pallet::constant]
+        type MaxScopePerDelegation: Get<u32>;
+
+        /// The largest number of delegations one account holds.
+        #[pallet::constant]
+        type MaxDelegationsPerAccount: Get<u32>;
+
+        /// The largest number of links one delegation chain holds.
+        #[pallet::constant]
+        type MaxDelegationDepth: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -318,6 +342,35 @@ pub mod pallet {
         ValueQuery,
     >;
 
+    /// Every delegation of every deployment, keyed by its number.
+    #[pallet::storage]
+    pub type Delegations<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        DeploymentId,
+        Twox64Concat,
+        u64,
+        Delegation<T::AccountId, T::MaxScopePerDelegation>,
+        OptionQuery,
+    >;
+
+    /// The number the next delegation of every deployment takes.
+    #[pallet::storage]
+    pub type NextDelegation<T: Config> =
+        StorageMap<_, Blake2_128Concat, DeploymentId, u64, ValueQuery>;
+
+    /// The delegations every account holds, in number order.
+    #[pallet::storage]
+    pub type HeldDelegations<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        DeploymentId,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<u64, T::MaxDelegationsPerAccount>,
+        ValueQuery,
+    >;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -383,6 +436,28 @@ pub mod pallet {
             who: T::AccountId,
             /// The credential.
             credential: BoundedName,
+        },
+        /// An account passed a scope to another account.
+        ScopeDelegated {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The delegation number.
+            delegation: u64,
+            /// The account that passed the scope.
+            grantor: T::AccountId,
+            /// The account that received the scope.
+            holder: T::AccountId,
+            /// The role the scope runs under.
+            role: BoundedName,
+            /// The moment the delegation lapses.
+            expires_at: u64,
+        },
+        /// A grantor withdrew a delegation.
+        DelegationWithdrawn {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The delegation number.
+            delegation: u64,
         },
         /// An account lost a role.
         RoleRevoked {
@@ -458,6 +533,33 @@ pub mod pallet {
         /// The role requires a credential the account lacks. Ask the
         /// issuer to attest the credential first.
         RequirementUnmet,
+        /// The delegation names zero actions. Name at least one action the
+        /// holder runs.
+        ScopeEmpty,
+        /// The delegation passes an action the delegation above it lacks.
+        /// Delegate an action the grantor already carries.
+        ScopeTooWide,
+        /// The registry lacks that delegation. Name a delegation the
+        /// registry holds.
+        DelegationUnknown,
+        /// The account that passed the scope is the only account that
+        /// withdraws it. Submit the call from the grantor account.
+        NotTheGrantor,
+        /// The grantor holds no such delegation to pass onward. Take the
+        /// delegation from a holder that carries the scope.
+        DelegationNotHeld,
+        /// The account holds its full count of delegations. Withdraw a
+        /// delegation, or raise the limit in the runtime.
+        DelegationLimitReached,
+        /// The delegation chain runs past the depth the runtime admits.
+        /// Take the delegation from a holder nearer the role.
+        DelegationDepthReached,
+        /// The delegation lapses at or after the delegation above it.
+        /// Give the delegation an earlier expiry.
+        ExpiryPastTheParent,
+        /// An account passes a scope to itself. Name another account as
+        /// the holder.
+        SelfDelegation,
     }
 
     #[pallet::call]
@@ -735,6 +837,129 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Pass a scope from one account to another.
+        ///
+        /// A first link comes from a role holder. A further link comes
+        /// from a holder of an earlier delegation, and the parent number
+        /// names that link. A further link passes a subset of the scope it
+        /// received and lapses at or before the link above it.
+        #[pallet::call_index(8)]
+        #[pallet::weight(T::WeightInfo::delegate())]
+        pub fn delegate(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            holder: T::AccountId,
+            role: BoundedName,
+            scope: BoundedVec<BoundedName, T::MaxScopePerDelegation>,
+            expires_at: u64,
+            parent: Option<u64>,
+        ) -> DispatchResult {
+            let grantor = ensure_signed(origin)?;
+            ensure!(grantor != holder, Error::<T>::SelfDelegation);
+            ensure!(!scope.is_empty(), Error::<T>::ScopeEmpty);
+            let account = Accounts::<T>::get(&holder).ok_or(Error::<T>::AccountUnknown)?;
+            ensure!(account.active, Error::<T>::AccountSuspended);
+            ensure!(
+                Roles::<T>::get(deployment, &role).is_some(),
+                Error::<T>::RoleUnknown
+            );
+
+            let now = Self::now();
+            ensure!(expires_at > now, Error::<T>::ExpiryInThePast);
+
+            match parent {
+                None => {
+                    ensure!(
+                        Self::active_roles(&deployment, &grantor, now).contains(&role),
+                        Error::<T>::RoleNotHeld
+                    );
+                }
+                Some(number) => {
+                    let above = Delegations::<T>::get(deployment, number)
+                        .ok_or(Error::<T>::DelegationUnknown)?;
+                    ensure!(above.holder == grantor, Error::<T>::DelegationNotHeld);
+                    ensure!(above.role == role, Error::<T>::ScopeTooWide);
+                    ensure!(above.holds_at(now), Error::<T>::DelegationNotHeld);
+                    ensure!(
+                        delegate::scope_within(&scope, &above.scope),
+                        Error::<T>::ScopeTooWide
+                    );
+                    ensure!(
+                        expires_at <= above.expires_at,
+                        Error::<T>::ExpiryPastTheParent
+                    );
+                    let depth = Self::chain_depth(&deployment, number);
+                    ensure!(
+                        depth < T::MaxDelegationDepth::get(),
+                        Error::<T>::DelegationDepthReached
+                    );
+                }
+            }
+
+            let number = NextDelegation::<T>::get(deployment);
+            NextDelegation::<T>::insert(deployment, number.saturating_add(1));
+            let mut ordered: Vec<BoundedName> = Vec::new();
+            for action in scope.into_inner() {
+                delegate::place_scope(&mut ordered, action);
+            }
+            let ordered: BoundedVec<BoundedName, T::MaxScopePerDelegation> =
+                BoundedVec::try_from(ordered).map_err(|_| Error::<T>::ScopeTooWide)?;
+
+            HeldDelegations::<T>::try_mutate(deployment, &holder, |held| {
+                held.try_push(number)
+                    .map_err(|_| Error::<T>::DelegationLimitReached)
+            })?;
+            Delegations::<T>::insert(
+                deployment,
+                number,
+                Delegation {
+                    grantor: grantor.clone(),
+                    holder: holder.clone(),
+                    role: role.clone(),
+                    scope: ordered,
+                    granted_at: now,
+                    expires_at,
+                    parent,
+                    withdrawn: false,
+                },
+            );
+            Self::deposit_event(Event::ScopeDelegated {
+                deployment,
+                delegation: number,
+                grantor,
+                holder,
+                role,
+                expires_at,
+            });
+            Ok(())
+        }
+
+        /// Withdraw one delegation.
+        ///
+        /// The account that passed the scope is the only account that
+        /// withdraws it. Every link below the withdrawn link stops with
+        /// it.
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::WeightInfo::revoke_delegation())]
+        pub fn revoke_delegation(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            delegation: u64,
+        ) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            Delegations::<T>::try_mutate(deployment, delegation, |slot| -> DispatchResult {
+                let held = slot.as_mut().ok_or(Error::<T>::DelegationUnknown)?;
+                ensure!(held.grantor == caller, Error::<T>::NotTheGrantor);
+                held.withdrawn = true;
+                Ok(())
+            })?;
+            Self::deposit_event(Event::DelegationWithdrawn {
+                deployment,
+                delegation,
+            });
+            Ok(())
+        }
+
         /// Take one role away from one account.
         #[pallet::call_index(5)]
         #[pallet::weight(T::WeightInfo::revoke_role())]
@@ -805,6 +1030,105 @@ impl<T: Config> Pallet<T> {
             .filter(|role| Self::assignment_holds(deployment, who, role, now))
             .filter(|role| Self::requirements(deployment, who, role, now).holds())
             .collect()
+    }
+
+    /// The number of links one delegation chain holds.
+    pub fn chain_depth(deployment: &DeploymentId, delegation: u64) -> u32 {
+        let ceiling = T::MaxDelegationDepth::get();
+        let mut depth = 0u32;
+        let mut current = Some(delegation);
+        while let Some(number) = current {
+            depth = depth.saturating_add(1);
+            if depth >= ceiling {
+                break;
+            }
+            current = Delegations::<T>::get(deployment, number).and_then(|held| held.parent);
+        }
+        depth
+    }
+
+    /// Resolve one action against the delegations one account holds.
+    ///
+    /// The walk starts at the delegations the account holds and climbs to
+    /// the role holder. A lapsed link, a withdrawn link or a grantor that
+    /// lost the role stops the walk and the outcome names the reason.
+    pub fn resolve_delegation(
+        deployment: &DeploymentId,
+        who: &T::AccountId,
+        action: &BoundedName,
+        now: u64,
+    ) -> DelegationOutcome<T::AccountId> {
+        let mut fault = DelegationFault::Absent;
+        for number in HeldDelegations::<T>::get(deployment, who).into_iter() {
+            match Self::walk_chain(deployment, number, action, now) {
+                Ok(held) => return held,
+                Err(found) => {
+                    if fault == DelegationFault::Absent {
+                        fault = found;
+                    }
+                }
+            }
+        }
+        DelegationOutcome::Denied(fault)
+    }
+
+    fn walk_chain(
+        deployment: &DeploymentId,
+        start: u64,
+        action: &BoundedName,
+        now: u64,
+    ) -> Result<DelegationOutcome<T::AccountId>, DelegationFault> {
+        let ceiling = T::MaxDelegationDepth::get();
+        let mut current = Some(start);
+        let mut depth = 0u32;
+        let mut horizon = u64::MAX;
+        let mut carried: Option<Vec<BoundedName>> = None;
+
+        while let Some(number) = current {
+            depth = depth.saturating_add(1);
+            if depth > ceiling {
+                return Err(DelegationFault::DepthExceeded);
+            }
+            let held = match Delegations::<T>::get(deployment, number) {
+                Some(found) => found,
+                None => return Err(DelegationFault::ChainBroken),
+            };
+            if held.withdrawn {
+                return Err(DelegationFault::Withdrawn);
+            }
+            if now >= held.expires_at {
+                return Err(DelegationFault::Expired);
+            }
+            if !held.covers(action) {
+                return Err(DelegationFault::Absent);
+            }
+            if let Some(above) = carried.as_ref() {
+                if !above.contains(action) {
+                    return Err(DelegationFault::OutOfScope);
+                }
+            }
+            carried = Some(held.scope.clone().into_inner());
+            if horizon > held.expires_at {
+                horizon = held.expires_at;
+            }
+
+            match held.parent {
+                Some(above) => current = Some(above),
+                None => {
+                    if !Self::active_roles(deployment, &held.grantor, now).contains(&held.role) {
+                        return Err(DelegationFault::RoleLost);
+                    }
+                    return Ok(DelegationOutcome::Allowed {
+                        delegation: start,
+                        role: held.role.clone(),
+                        source: held.grantor,
+                        expires_at: horizon,
+                        depth,
+                    });
+                }
+            }
+        }
+        Err(DelegationFault::ChainBroken)
     }
 
     /// Check every credential one role requires against one account.
@@ -908,6 +1232,15 @@ impl<T: Config> IdentityRegistry for Pallet<T> {
         now: u64,
     ) -> RequirementOutcome {
         Pallet::<T>::requirements(deployment, who, role, now)
+    }
+
+    fn delegation_for(
+        deployment: &DeploymentId,
+        who: &Self::AccountId,
+        action: &BoundedName,
+        now: u64,
+    ) -> DelegationOutcome<Self::AccountId> {
+        Pallet::<T>::resolve_delegation(deployment, who, action, now)
     }
 
     fn now_millis() -> u64 {

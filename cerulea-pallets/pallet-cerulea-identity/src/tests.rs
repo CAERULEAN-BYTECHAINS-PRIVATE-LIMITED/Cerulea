@@ -1,7 +1,8 @@
 //! The tests of the identity module.
 
 use crate::{
-    mock::*, Assignments, CredentialFault, Error, HeldRoles, IdentityRegistry, Pallet, Units,
+    mock::*, Assignments, CredentialFault, DelegationFault, DelegationOutcome, Error, HeldRoles,
+    IdentityRegistry, Pallet, Units,
 };
 use frame_support::{assert_noop, assert_ok, BoundedVec};
 use pallet_cerulea_schema::primitives::{name_of, BoundedName, DeploymentId};
@@ -753,4 +754,474 @@ fn an_attestation_without_an_expiry_holds_until_a_withdrawal() {
             u64::MAX - 1
         ));
     });
+}
+
+const CLERK: u64 = 4;
+
+fn scope(names: &[&str]) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<8>> {
+    BoundedVec::try_from(names.iter().map(|held| name(held)).collect::<Vec<_>>())
+        .expect("the scope fits")
+}
+
+fn registrar_with_role() {
+    register(STEWARD, 1);
+    register(ANITHA, 7);
+    register(BENNY, 8);
+    register(CLERK, 9);
+    build_tree();
+    define_registrar();
+    assert_ok!(Identity::assign_role(
+        RuntimeOrigin::signed(STEWARD),
+        DEPLOYMENT,
+        ANITHA,
+        name("registrar"),
+        None
+    ));
+}
+
+fn delegate_to(
+    grantor: u64,
+    holder: u64,
+    actions: &[&str],
+    expires_at: u64,
+    parent: Option<u64>,
+) -> frame_support::pallet_prelude::DispatchResult {
+    Identity::delegate(
+        RuntimeOrigin::signed(grantor),
+        DEPLOYMENT,
+        holder,
+        name("registrar"),
+        scope(actions),
+        expires_at,
+        parent,
+    )
+}
+
+#[test]
+fn a_delegation_passes_the_named_actions_and_nothing_else() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["record_transfer", "read_parcel"],
+            START + 10_000,
+            None
+        ));
+        let outcome = <Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("record_transfer"),
+            START,
+        );
+        assert!(outcome.is_allowed());
+        match outcome {
+            DelegationOutcome::Allowed {
+                role,
+                source,
+                expires_at,
+                depth,
+                ..
+            } => {
+                assert_eq!(role, name("registrar"));
+                assert_eq!(source, ANITHA);
+                assert_eq!(expires_at, START + 10_000);
+                assert_eq!(depth, 1);
+            }
+            other => unreachable!("the outcome carries {:?}", other),
+        }
+
+        let absent = <Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("retire_parcel"),
+            START,
+        );
+        assert_eq!(absent.fault(), Some(DelegationFault::Absent));
+    });
+}
+
+#[test]
+fn a_delegation_past_its_expiry_resolves_to_denied() {
+    // Design assertion five. A delegation past its expiry resolves to
+    // denied.
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["record_transfer"],
+            START + 10_000,
+            None
+        ));
+        assert!(<Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("record_transfer"),
+            START + 9_999
+        )
+        .is_allowed());
+
+        let denied = <Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("record_transfer"),
+            START + 10_000,
+        );
+        assert!(!denied.is_allowed());
+        assert_eq!(denied.fault(), Some(DelegationFault::Expired));
+        let fault = denied.fault().expect("the outcome names the fault");
+        assert!(!fault.line().is_empty());
+
+        set_clock(START + 50_000);
+        assert!(!<Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("record_transfer"),
+            <Pallet<Test> as IdentityRegistry>::now_millis()
+        )
+        .is_allowed());
+    });
+}
+
+#[test]
+fn a_withdrawn_delegation_resolves_to_denied() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["record_transfer"],
+            START + 10_000,
+            None
+        ));
+        assert_ok!(Identity::revoke_delegation(
+            RuntimeOrigin::signed(ANITHA),
+            DEPLOYMENT,
+            0
+        ));
+        let denied = <Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &BENNY,
+            &name("record_transfer"),
+            START,
+        );
+        assert_eq!(denied.fault(), Some(DelegationFault::Withdrawn));
+    });
+}
+
+#[test]
+fn only_the_grantor_withdraws_a_delegation() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["record_transfer"],
+            START + 10_000,
+            None
+        ));
+        assert_noop!(
+            Identity::revoke_delegation(RuntimeOrigin::signed(BENNY), DEPLOYMENT, 0),
+            Error::<Test>::NotTheGrantor
+        );
+    });
+}
+
+#[test]
+fn a_chain_narrows_the_scope_at_every_link() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["record_transfer", "read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_ok!(delegate_to(
+            BENNY,
+            CLERK,
+            &["read_parcel"],
+            START + 5_000,
+            Some(0)
+        ));
+        let outcome = <Pallet<Test> as IdentityRegistry>::delegation_for(
+            &DEPLOYMENT,
+            &CLERK,
+            &name("read_parcel"),
+            START,
+        );
+        assert!(outcome.is_allowed());
+        match outcome {
+            DelegationOutcome::Allowed {
+                expires_at, depth, ..
+            } => {
+                assert_eq!(expires_at, START + 5_000);
+                assert_eq!(depth, 2);
+            }
+            other => unreachable!("the outcome carries {:?}", other),
+        }
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::delegation_for(
+                &DEPLOYMENT,
+                &CLERK,
+                &name("record_transfer"),
+                START
+            )
+            .fault(),
+            Some(DelegationFault::Absent)
+        );
+    });
+}
+
+#[test]
+fn a_link_passing_a_wider_scope_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_noop!(
+            delegate_to(
+                BENNY,
+                CLERK,
+                &["read_parcel", "record_transfer"],
+                START + 5_000,
+                Some(0)
+            ),
+            Error::<Test>::ScopeTooWide
+        );
+    });
+}
+
+#[test]
+fn a_link_lapsing_after_its_parent_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_noop!(
+            delegate_to(BENNY, CLERK, &["read_parcel"], START + 20_000, Some(0)),
+            Error::<Test>::ExpiryPastTheParent
+        );
+    });
+}
+
+#[test]
+fn a_withdrawn_link_stops_every_link_below_it() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_ok!(delegate_to(
+            BENNY,
+            CLERK,
+            &["read_parcel"],
+            START + 5_000,
+            Some(0)
+        ));
+        assert_ok!(Identity::revoke_delegation(
+            RuntimeOrigin::signed(ANITHA),
+            DEPLOYMENT,
+            0
+        ));
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::delegation_for(
+                &DEPLOYMENT,
+                &CLERK,
+                &name("read_parcel"),
+                START
+            )
+            .fault(),
+            Some(DelegationFault::Withdrawn)
+        );
+    });
+}
+
+#[test]
+fn a_grantor_that_lost_the_role_stops_the_chain() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_ok!(Identity::revoke_role(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            ANITHA,
+            name("registrar")
+        ));
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::delegation_for(
+                &DEPLOYMENT,
+                &BENNY,
+                &name("read_parcel"),
+                START
+            )
+            .fault(),
+            Some(DelegationFault::RoleLost)
+        );
+    });
+}
+
+#[test]
+fn a_delegation_from_an_account_without_the_role_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_noop!(
+            delegate_to(BENNY, CLERK, &["read_parcel"], START + 10_000, None),
+            Error::<Test>::RoleNotHeld
+        );
+    });
+}
+
+#[test]
+fn a_delegation_to_the_grantor_itself_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_noop!(
+            delegate_to(ANITHA, ANITHA, &["read_parcel"], START + 10_000, None),
+            Error::<Test>::SelfDelegation
+        );
+    });
+}
+
+#[test]
+fn a_delegation_naming_zero_actions_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_noop!(
+            delegate_to(ANITHA, BENNY, &[], START + 10_000, None),
+            Error::<Test>::ScopeEmpty
+        );
+    });
+}
+
+#[test]
+fn a_delegation_lapsing_in_the_past_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_noop!(
+            delegate_to(ANITHA, BENNY, &["read_parcel"], START, None),
+            Error::<Test>::ExpiryInThePast
+        );
+    });
+}
+
+#[test]
+fn a_chain_past_its_depth_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        register(5, 11);
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_ok!(delegate_to(
+            BENNY,
+            CLERK,
+            &["read_parcel"],
+            START + 9_000,
+            Some(0)
+        ));
+        assert_ok!(delegate_to(
+            CLERK,
+            5,
+            &["read_parcel"],
+            START + 8_000,
+            Some(1)
+        ));
+        // The test runtime admits three links.
+        assert_noop!(
+            Identity::delegate(
+                RuntimeOrigin::signed(5),
+                DEPLOYMENT,
+                STEWARD,
+                name("registrar"),
+                scope(&["read_parcel"]),
+                START + 7_000,
+                Some(2)
+            ),
+            Error::<Test>::DelegationDepthReached
+        );
+    });
+}
+
+#[test]
+fn a_delegation_from_a_link_the_grantor_lacks_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_ok!(delegate_to(
+            ANITHA,
+            BENNY,
+            &["read_parcel"],
+            START + 10_000,
+            None
+        ));
+        assert_noop!(
+            delegate_to(CLERK, STEWARD, &["read_parcel"], START + 5_000, Some(0)),
+            Error::<Test>::DelegationNotHeld
+        );
+    });
+}
+
+#[test]
+fn a_delegation_naming_an_absent_parent_is_declined() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_noop!(
+            delegate_to(ANITHA, BENNY, &["read_parcel"], START + 10_000, Some(7)),
+            Error::<Test>::DelegationUnknown
+        );
+    });
+}
+
+#[test]
+fn an_account_holding_no_delegation_resolves_to_absent() {
+    new_test_ext().execute_with(|| {
+        registrar_with_role();
+        assert_eq!(
+            <Pallet<Test> as IdentityRegistry>::delegation_for(
+                &DEPLOYMENT,
+                &CLERK,
+                &name("read_parcel"),
+                START
+            )
+            .fault(),
+            Some(DelegationFault::Absent)
+        );
+    });
+}
+
+#[test]
+fn a_scope_list_holds_its_names_in_order_without_a_repeat() {
+    let mut held: Vec<BoundedName> = Vec::new();
+    crate::delegate::place_scope(&mut held, name("read_parcel"));
+    crate::delegate::place_scope(&mut held, name("record_transfer"));
+    crate::delegate::place_scope(&mut held, name("read_parcel"));
+    assert_eq!(held, vec![name("read_parcel"), name("record_transfer")]);
+    assert!(crate::delegate::scope_within(&[name("read_parcel")], &held));
+    assert!(!crate::delegate::scope_within(&[name("retire")], &held));
 }
