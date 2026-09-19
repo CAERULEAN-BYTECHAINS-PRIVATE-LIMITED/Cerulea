@@ -122,6 +122,12 @@ pub struct SlotCommitteeSeat<AccountId> {
     pub draw: Option<PublishedDraw>,
 }
 
+/// One candidate record the committee call holds while it ranks the seats.
+///
+/// The record joins the draw key, the validator that owns it, the key set and
+/// the draw that validator published for the epoch.
+pub type SeatRecord<AccountId> = ([u8; 32], AccountId, ValidatorKeySet, Option<PublishedDraw>);
+
 /// The starting epoch output of one validator.
 ///
 /// A chain produces its first blocks before any validator has published a draw.

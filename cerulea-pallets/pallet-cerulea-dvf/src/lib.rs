@@ -1063,12 +1063,7 @@ sp_api::decl_runtime_apis! {
             let epoch = pallet_cerulea_pos::Pallet::<T>::current_epoch();
             let seed = cerulea_primitives::derive_slot_seed(&parent_hash, slot);
             let mut candidates: Vec<cerulea_primitives::SeatInput> = Vec::new();
-            let mut records: Vec<(
-                [u8; 32],
-                T::AccountId,
-                crate::keys::ValidatorKeySet,
-                Option<crate::keys::PublishedDraw>,
-            )> = Vec::new();
+            let mut records: Vec<crate::keys::SeatRecord<T::AccountId>> = Vec::new();
 
             for validator in ActiveValidators::<T>::get().into_iter() {
                 let set = match Self::key_set_for_epoch(&validator, epoch) {

@@ -20,6 +20,7 @@ use crate::engines::authoring::draw::{derive_slot_seed, DrawInput};
 use crate::import_queue::{committee_from_seats, registry_from_keys};
 use crate::engines::Slot;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
+use cerulea_platform_api::CeruleaPlatformApi;
 use pallet_cerulea_dvf::CeruleaAuthoringApi;
 use sp_keystore::KeystorePtr;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
@@ -41,6 +42,7 @@ where
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
     C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
         + CeruleaAuthoringApi<B, AccountId>
+        + CeruleaPlatformApi<B, AccountId>
         + sp_block_builder::BlockBuilder<B>,
     P: Pair,
     TP: TransactionPool<Block = B> + 'static,
@@ -67,6 +69,7 @@ where
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
     C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
         + CeruleaAuthoringApi<B, AccountId>
+        + CeruleaPlatformApi<B, AccountId>
         + sp_block_builder::BlockBuilder<B>,
     P: Pair,
     TP: TransactionPool<Block = B> + 'static,
@@ -300,7 +303,17 @@ where
     }
 
     /// Ask the Authoring Engine gate whether this node authors the slot.
+    ///
+    /// The gate consults the tier module first. A deployment whose licence
+    /// lapsed produces no further block. Reading and export stay open
+    /// throughout, so a customer reaches every record while the licence is
+    /// renewed.
     fn open_author_gate(&self, slot: Slot, moment_ms: u64) -> ConsensusResult<GateDecision> {
+        if !self.production_permitted() {
+            return Ok(GateDecision::StandDown(
+                crate::engines::authoring::gate::StandDown::ProductionSuspended,
+            ));
+        }
         let (context, registry) = self.slot_context(slot)?;
         if context.committee.is_empty() {
             return Ok(GateDecision::StandDown(
@@ -311,6 +324,25 @@ where
         let gate = AuthorGate::new(self.keystore.clone());
         gate.decide(&context, &registry, &tracker, moment_ms)
             .map_err(|e| ConsensusError::AuthorSelection(e.to_string()))
+    }
+
+    /// Report whether the tier module permits block production.
+    ///
+    /// A chain that answers with a problem keeps producing blocks, since a
+    /// read failure names a node fault rather than a lapsed licence.
+    pub fn production_permitted(&self) -> bool {
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+        match api.production_permitted(best_hash) {
+            Ok(held) => held,
+            Err(e) => {
+                debug!(
+                    "Tier module: the production gate failed to load: {:?}. Fix: check that the node runtime matches the chain specification.",
+                    e
+                );
+                true
+            }
+        }
     }
 
     /// Check if it's time to produce a new block
@@ -731,48 +763,6 @@ where
         );
 
         Ok(())
-    }
-
-    /// Import consensus block through pipeline
-    async fn import_consensus_block(&self, block: B) -> ConsensusResult<()> {
-        let block_hash = block.header().hash();
-        let block_number = *block.header().number();
-        let parent_hash = *block.header().parent_hash();
-
-        debug!(
-            "Importing consensus block #{} ({:?}) with parent {:?}",
-            block_number, block_hash, parent_hash
-        );
-
-        // Create proper block import parameters
-        let mut import_params =
-            BlockImportParams::new(sp_consensus::BlockOrigin::Own, block.header().clone());
-        import_params.body = Some(block.extrinsics().to_vec());
-        import_params.finalized = false;
-        import_params.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
-
-        // Import through our block import
-        match self.block_import.import_block(import_params).await {
-            Ok(ImportResult::Imported(_)) => {
-                debug!("Block #{} successfully imported", block_number);
-                Ok(())
-            }
-            Ok(ImportResult::AlreadyInChain) => {
-                debug!("Block #{} already in chain", block_number);
-                Ok(())
-            }
-            Ok(other) => {
-                debug!("Block #{} import result: {:?}", block_number, other);
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to import block #{}: {:?}", block_number, e);
-                Err(ConsensusError::BlockImport(format!(
-                    "Import failed: {:?}",
-                    e
-                )))
-            }
-        }
     }
 
     /// Update consensus state after successful block production
@@ -1350,6 +1340,7 @@ pub async fn start_dcf_consensus<B, C, TP, BE>(
     C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
     C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
         + CeruleaAuthoringApi<B, AccountId>
+        + CeruleaPlatformApi<B, AccountId>
         + sp_block_builder::BlockBuilder<B>,
     TP: TransactionPool<Block = B> + 'static,
     BE: sc_client_api::Backend<B> + 'static,
