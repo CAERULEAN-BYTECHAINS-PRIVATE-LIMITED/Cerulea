@@ -5,7 +5,7 @@
 //! - Querying expected authors for future blocks
 //! - Verifying actual authors match expected authors
 //! - Author mismatch detection and logging
-//! - CLI utility for querying upcoming authors
+//! - node command utility for querying upcoming authors
 
 use std::time::Duration;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use cerulea_runtime::{AccountId};
 use sp_core::crypto::AccountId32;
 
-/// Configuration for deterministic authoring tests
+/// Start values for deterministic authoring tests
 #[derive(Debug, Clone)]
 pub struct DeterministicAuthoringTestConfig {
     /// Number of future blocks to query
@@ -587,7 +587,7 @@ async fn test_comprehensive_deterministic_authoring() {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/// CLI utility function to query upcoming authors (for CLI implementation)
+/// node command utility function to query upcoming authors (for node command implementation)
 pub fn query_upcoming_authors_cli(
     blocks: u32, 
     validator_count: usize
@@ -602,7 +602,7 @@ pub fn query_upcoming_authors_cli(
     authoring.query_expected_authors(blocks)
 }
 
-/// Format author list for CLI output
+/// Format author list for node command output
 pub fn format_authors_for_cli(authors: &[(u32, AccountId)], format: &str) -> String {
     match format {
         "json" => {

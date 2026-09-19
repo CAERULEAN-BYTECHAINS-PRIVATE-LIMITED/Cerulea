@@ -45,7 +45,7 @@ impl ValidatorBlockStats {
     }
 }
 
-/// Block tracking service configuration
+/// Block tracking service start values
 #[derive(Debug, Clone)]
 pub struct BlockTrackerConfig {
     pub monitoring_interval: Duration,

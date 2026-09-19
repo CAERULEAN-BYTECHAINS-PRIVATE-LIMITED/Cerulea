@@ -1,13 +1,13 @@
-// Test configuration types and builders
+// Test start values types and builders
 //
-// This module provides configuration types and builders for setting up
+// This module provides start values types and builders for setting up
 // test environments with specific parameters and constraints.
 
 #![allow(dead_code)]
 
 use cerulea_runtime::{AccountId, Balance};
 
-/// Configuration for property-based tests
+/// Start values for property-based tests
 /// 
 /// Controls the behavior and limits of property-based test execution.
 #[derive(Clone, Debug)]
@@ -37,7 +37,7 @@ impl Default for PropertyTestConfig {
 }
 
 impl PropertyTestConfig {
-    /// Create a new property test configuration with default values
+    /// Create a new property test start values with default values
     pub fn new() -> Self {
         Self::default()
     }
@@ -73,7 +73,7 @@ impl PropertyTestConfig {
     }
 }
 
-/// Configuration for test runtime setup
+/// Start values for test runtime setup
 /// 
 /// Defines the initial state and parameters for test blockchain instances.
 #[derive(Clone, Debug)]
@@ -84,7 +84,7 @@ pub struct TestConfig {
     pub stakes: Vec<(AccountId, Balance)>,
     /// Initial PoS scores for validators
     pub pos_scores: Vec<(AccountId, u32)>,
-    /// Initial PoI scores for validators
+    /// Initial inference shares for validators
     pub poi_scores: Vec<(AccountId, u32)>,
     /// Consensus weights (pos_weight, poi_weight)
     pub consensus_weights: (u64, u64),
@@ -112,7 +112,7 @@ impl Default for TestConfig {
 }
 
 impl TestConfig {
-    /// Create a new test configuration with default values
+    /// Create a new test start values with default values
     pub fn new() -> Self {
         Self::default()
     }
@@ -135,7 +135,7 @@ impl TestConfig {
         self
     }
     
-    /// Set the initial PoI scores for validators
+    /// Set the initial inference shares for validators
     pub fn with_poi_scores(mut self, scores: Vec<(AccountId, u32)>) -> Self {
         self.poi_scores = scores;
         self
@@ -166,7 +166,7 @@ impl TestConfig {
     }
 }
 
-/// RPC security configuration for testing
+/// RPC security start values for testing
 /// 
 /// Controls security settings and access controls for RPC endpoints during testing.
 #[derive(Clone, Debug)]
@@ -193,12 +193,12 @@ impl Default for RpcSecurityConfig {
 }
 
 impl RpcSecurityConfig {
-    /// Create a new RPC security configuration with default values
+    /// Create a new RPC security start values with default values
     pub fn new() -> Self {
         Self::default()
     }
     
-    /// Create a configuration with Cerulea extensions disabled
+    /// Create a start values with Cerulea extensions disabled
     pub fn disabled_extensions() -> Self {
         Self {
             enable_cerulea_extensions: false,
@@ -206,7 +206,7 @@ impl RpcSecurityConfig {
         }
     }
     
-    /// Create a configuration with unsafe methods enabled (for testing only)
+    /// Create a start values with unsafe methods enabled (for testing only)
     pub fn with_unsafe_methods() -> Self {
         Self {
             expose_unsafe_methods: true,

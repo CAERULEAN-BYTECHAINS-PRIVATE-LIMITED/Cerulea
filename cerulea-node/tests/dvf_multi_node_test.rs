@@ -20,7 +20,7 @@ use sp_keyring::Ed25519Keyring;
 // DVF TEST CONFIGURATION
 // =============================================================================
 
-/// Configuration for DVF multi-node testing
+/// Start values for DVF multi-node testing
 #[derive(Debug, Clone)]
 pub struct DvfMultiNodeConfig {
     /// Number of validator nodes
@@ -64,7 +64,7 @@ impl Default for DvfMultiNodeConfig {
 }
 
 impl DvfMultiNodeConfig {
-    /// Create configuration with equal weights
+    /// Create start values with equal weights
     pub fn equal_weights() -> Self {
         Self {
             validator_weights: vec![33, 33, 34],
@@ -72,7 +72,7 @@ impl DvfMultiNodeConfig {
         }
     }
 
-    /// Create configuration with unequal weights
+    /// Create start values with unequal weights
     pub fn unequal_weights() -> Self {
         Self {
             validator_weights: vec![50, 30, 20],
@@ -80,7 +80,7 @@ impl DvfMultiNodeConfig {
         }
     }
 
-    /// Create configuration with dominant validator
+    /// Create start values with dominant validator
     pub fn dominant_validator() -> Self {
         Self {
             validator_weights: vec![70, 20, 10],

@@ -41,7 +41,7 @@ struct Validator {
     rewards: u32,
 }
 
-// Simulation configuration
+// Simulation start values
 #[derive(Debug, Clone)]
 struct SimulationConfig {
     num_epochs: u32,
@@ -224,8 +224,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================");
     println!("Total Epochs: {}", config.num_epochs);
     println!("Total Validators: {}", config.num_validators);
-    println!("PoS Weight: {}%", config.pos_weight);
-    println!("PoI Weight: {}%", config.poi_weight);
+    println!("standing share: {}%", config.pos_weight);
+    println!("inference share: {}%", config.poi_weight);
 
     // Print individual validator stats
     println!("\nValidator Statistics:");

@@ -10,7 +10,7 @@ use frame_support::{
 use sp_core::ConstU32;
 use codec::MaxEncodedLen;
 
-/// Private chain configuration and allowlist management
+/// Private chain start values and allowlist management
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct PrivateChainConfig<AccountId: MaxEncodedLen + Ord> {
     /// Whether private chain mode is enabled
@@ -171,7 +171,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
     
-    /// Get current private chain configuration
+    /// Get current private chain start values
     pub fn get_private_chain_config() -> PrivateChainConfig<T::AccountId> {
         PrivateChainConfigStorage::<T>::get().unwrap_or_default()
     }

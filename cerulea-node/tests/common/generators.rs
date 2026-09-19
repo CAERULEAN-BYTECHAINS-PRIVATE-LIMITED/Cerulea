@@ -39,7 +39,7 @@ pub fn pos_score_strategy() -> impl Strategy<Value = u32> {
 
 /// Strategy to generate valid PoI confidence scores
 /// 
-/// Generates PoI (Proof of Intelligence) confidence scores in the valid range [0, 100].
+/// Generates PoI (the retired inference path) confidence scores in the valid range [0, 100].
 /// These scores represent validator performance in the PoI consensus.
 pub fn poi_score_strategy() -> impl Strategy<Value = u32> {
     0u32..=100u32
@@ -195,7 +195,7 @@ mod tests {
             assert!(score <= 100);
         }
         
-        // Test PoI scores
+        // Test inference shares
         let poi_strategy = poi_score_strategy();
         for _ in 0..10 {
             let score = poi_strategy.new_tree(&mut runner).unwrap().current();

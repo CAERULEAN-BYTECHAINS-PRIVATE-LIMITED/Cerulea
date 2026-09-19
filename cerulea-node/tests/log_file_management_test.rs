@@ -22,7 +22,7 @@ async fn test_log_file_creation() {
 
 #[test]
 fn test_startup_info_display() {
-    // Test that StartupInfo can be created and configured
+    // Test that StartupInfo can be created and set
     let mut startup_info = cerulea_node::logging::StartupInfo::new(
         "1.0.0".to_string(),
         "0.1.0".to_string(),

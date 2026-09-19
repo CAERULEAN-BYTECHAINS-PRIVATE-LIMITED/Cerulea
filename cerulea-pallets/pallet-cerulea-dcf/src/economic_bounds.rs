@@ -11,7 +11,7 @@ use sp_std::collections::btree_map::BTreeMap;
 // Type alias to resolve ambiguous Balance type
 type BalanceOf<T> = <T as pallet::Config>::Balance;
 
-/// Per-epoch economic bounds configuration
+/// Per-epoch economic bounds start values
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 pub struct EpochEconomicBounds<Balance> {
     /// Maximum total slashing amount per epoch across all validators
@@ -351,7 +351,7 @@ impl<T: Config> Pallet<T> {
     /// Get economic bounds for a specific epoch
     pub fn get_epoch_economic_bounds(epoch: u32) -> EpochEconomicBounds<T::Balance> {
         EpochEconomicBoundsStorage::<T>::get(epoch).unwrap_or_else(|| {
-            // Generate default bounds based on current configuration
+            // Generate default bounds based on current start values
             let total_stake: T::Balance = Self::validator_set()
                 .iter()
                 .map(|v| T::Currency::reserved_balance(v))
@@ -414,7 +414,7 @@ impl<T: Config> Pallet<T> {
         Self::set_epoch_economic_tracker(new_epoch, tracker);
     }
 
-    /// Validate economic bounds configuration
+    /// Validate economic bounds start values
     pub fn validate_economic_bounds(
         bounds: &EpochEconomicBounds<T::Balance>,
     ) -> Result<(), Error<T>> {
@@ -472,7 +472,7 @@ impl<T: Config> Pallet<T> {
 pub mod economic_storage {
     use super::*;
 
-    /// Economic bounds configuration per epoch
+    /// Economic bounds start values per epoch
     #[pallet::storage]
     #[pallet::getter(fn epoch_economic_bounds)]
     pub type EpochEconomicBoundsStorage<T: Config> = StorageMap<

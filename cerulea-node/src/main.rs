@@ -9,7 +9,7 @@ fn main() -> sc_cli::Result<()> {
     
     let cli = cli::Cli::parse();
 
-    // Initialize lifecycle tracer based on CLI flags
+    // Initialize lifecycle tracer based on node command flags
     if cli.lifecycle_trace {
         let output_file = cli.lifecycle_trace_output.as_ref().map(PathBuf::from);
         let tracer_config = lifecycle_tracer::TracerConfig::from_cli_flags(
@@ -31,7 +31,7 @@ fn main() -> sc_cli::Result<()> {
             None,
         );
         
-        // STEP 2: CLI configuration parsed
+        // STEP 2: node command start values parsed
         let cli_metadata = lifecycle_tracer::TraceMetadata {
             block_number: None,
             block_hash: None,
@@ -57,15 +57,15 @@ fn main() -> sc_cli::Result<()> {
         lifecycle_tracer::LifecycleTracer::global().trace_step(
             2,
             "main.rs",
-            "CLI configuration parsed",
+            "node command start values parsed",
             Some(cli_metadata),
         );
     }
 
-    // Configure RUST_LOG environment variable (but don't initialize logger)
+    // Set RUST_LOG environment variable (but don't initialize logger)
     let log_config = logging::init_cerulea_logging_config(cli.cerulea_log_only, cli.quiet);
     
-    // STEP 3: Logging system configured
+    // STEP 3: Logging system set
     if cli.lifecycle_trace {
         let log_metadata = lifecycle_tracer::TraceMetadata {
             block_number: None,
@@ -84,7 +84,7 @@ fn main() -> sc_cli::Result<()> {
         lifecycle_tracer::LifecycleTracer::global().trace_step(
             3,
             "main.rs",
-            "Logging system configured",
+            "Logging system set",
             Some(log_metadata),
         );
     }

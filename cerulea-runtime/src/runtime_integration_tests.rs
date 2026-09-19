@@ -1,7 +1,7 @@
 //! Runtime-level integration tests for the Cerulea system
 //! 
 //! These tests verify that all pallets work together correctly within the runtime
-//! and that the runtime configuration is properly set up.
+//! and that the runtime start values is properly set up.
 
 #[cfg(test)]
 mod tests {
@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn test_runtime_constants() {
         new_test_ext().execute_with(|| {
-            // Test that runtime constants are properly configured
+            // Test that runtime constants are properly set
             
             // System constants
             assert_eq!(System::block_hash_count(), 2400);
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn test_runtime_weights() {
         new_test_ext().execute_with(|| {
-            // Test that runtime weights are properly configured
+            // Test that runtime weights are properly set
             use crate::configs::weights::*;
             
             // Verify weights are non-zero
@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn test_runtime_genesis_configuration() {
         new_test_ext().execute_with(|| {
-            // Test that genesis configuration is applied correctly
+            // Test that genesis start values is applied correctly
             
             // Verify validators were set up
             let validators = DcfPallet::validator_set();
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_runtime_consensus_weights() {
         new_test_ext().execute_with(|| {
-            // Test consensus weight configuration
+            // Test consensus weight start values
             let pos_weight = DcfPallet::pos_weight();
             let poi_weight = DcfPallet::poi_weight();
             
@@ -196,7 +196,7 @@ mod tests {
         new_test_ext_for_epochs().execute_with(|| {
             let initial_epoch = DcfPallet::current_epoch();
             
-            // Test epoch configuration
+            // Test epoch start values
             let epoch_config = pallet_cerulea_dcf::EpochConfigStorage::<Runtime>::get();
             assert_eq!(epoch_config.blocks_per_epoch, 100);
             assert_eq!(epoch_config.min_stake, 1000);

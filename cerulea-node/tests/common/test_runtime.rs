@@ -1,6 +1,6 @@
 // Test runtime builder for integration testing
 //
-// This module provides utilities for creating and configuring test blockchain
+// This module provides utilities for creating and setting test blockchain
 // instances with specific validator sets, stakes, and consensus parameters.
 
 #![allow(dead_code)]
@@ -10,14 +10,14 @@ use cerulea_runtime::{AccountId, Balance};
 
 /// Builder for creating test runtime instances
 /// 
-/// Provides a fluent interface for configuring test blockchain instances
+/// Provides a fluent interface for setting test blockchain instances
 /// with specific validator sets, stakes, scores, and consensus parameters.
 pub struct TestRuntimeBuilder {
     config: TestConfig,
 }
 
 impl TestRuntimeBuilder {
-    /// Create a new test runtime builder with default configuration
+    /// Create a new test runtime builder with default start values
     pub fn new() -> Self {
         Self {
             config: TestConfig::default(),
@@ -42,7 +42,7 @@ impl TestRuntimeBuilder {
         self
     }
     
-    /// Set the initial PoI scores for validators
+    /// Set the initial inference shares for validators
     pub fn with_poi_scores(mut self, scores: Vec<(AccountId, u32)>) -> Self {
         self.config.poi_scores = scores;
         self
@@ -66,10 +66,10 @@ impl TestRuntimeBuilder {
         self
     }
     
-    /// Build the test client with the configured parameters
+    /// Build the test client with the set parameters
     /// 
     /// Note: This is a placeholder implementation. In a full implementation,
-    /// this would create an actual Substrate test client with the configured
+    /// this would create an actual Substrate test client with the set
     /// genesis state and runtime parameters.
     pub fn build(self) -> TestClient {
         TestClient::new(self.config)
@@ -93,7 +93,7 @@ pub struct TestClient {
 }
 
 impl TestClient {
-    /// Create a new test client with the given configuration
+    /// Create a new test client with the given start values
     pub fn new(config: TestConfig) -> Self {
         Self {
             config,
@@ -102,7 +102,7 @@ impl TestClient {
         }
     }
     
-    /// Get the current configuration
+    /// Get the current start values
     pub fn config(&self) -> &TestConfig {
         &self.config
     }
@@ -149,7 +149,7 @@ impl TestClient {
             .map(|(_, score)| *score)
     }
     
-    /// Get validator PoI score by account
+    /// Get validator inference share by account
     pub fn get_validator_poi_score(&self, validator: &AccountId) -> Option<u32> {
         self.config.poi_scores.iter()
             .find(|(account, _)| account == validator)
@@ -200,10 +200,10 @@ pub fn create_test_client_with_validators(
         .build()
 }
 
-/// Helper function to create a test client with full validator configuration
+/// Helper function to create a test client with full validator start values
 /// 
 /// Convenience function for creating a test client with validators, stakes,
-/// and both PoS and PoI scores configured.
+/// and both PoS and inference shares set.
 pub fn create_test_client_with_full_config(
     validators: Vec<AccountId>,
     stakes: Vec<(AccountId, Balance)>,
@@ -220,7 +220,7 @@ pub fn create_test_client_with_full_config(
 
 /// Test scenario builder for common testing patterns
 /// 
-/// Provides pre-configured test scenarios for common testing situations.
+/// Provides pre-set test scenarios for common testing situations.
 pub struct TestScenarioBuilder;
 
 impl TestScenarioBuilder {

@@ -82,7 +82,7 @@ pub enum TestError {
     IntegrationSetupFailed {
         reason: String,
     },
-    /// Mock configuration error
+    /// Mock start values error
     MockConfigurationError {
         component: String,
         error: String,
@@ -118,7 +118,7 @@ impl fmt::Display for TestError {
                 write!(f, "Integration test setup failed: {}", reason)
             }
             TestError::MockConfigurationError { component, error } => {
-                write!(f, "Mock configuration error in {}: {}", component, error)
+                write!(f, "Mock start values error in {}: {}", component, error)
             }
             TestError::TestTimeout { operation, timeout_ms } => {
                 write!(f, "Test timeout after {}ms during: {}", timeout_ms, operation)

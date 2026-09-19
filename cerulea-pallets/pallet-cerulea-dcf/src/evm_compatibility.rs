@@ -19,7 +19,7 @@ pub struct EvmEventValidator;
 impl EvmEventValidator {
     /// Check if EVM pallet is enabled in the runtime
     pub fn is_evm_enabled() -> bool {
-        // This would check if the EVM pallet is configured in the runtime
+        // This would check if the EVM pallet is set in the runtime
         // For now, we'll assume it's always potentially available
         true
     }
@@ -234,7 +234,7 @@ pub enum EvmCompatibilityError {
 impl<T: Config> Pallet<T> {
     /// Check if EVM pallet is enabled in the runtime
     pub fn is_evm_enabled() -> bool {
-        // This would check if the EVM pallet is configured in the runtime
+        // This would check if the EVM pallet is set in the runtime
         // For now, we'll assume it's always potentially available
         true
     }

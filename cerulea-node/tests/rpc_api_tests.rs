@@ -391,7 +391,7 @@ impl TestRpcSecurityConfig {
 
 #[test]
 fn test_production_security_config() {
-    // Test default security configuration
+    // Test default security start values
     let default_config = TestRpcSecurityConfig::default();
     assert!(!default_config.enable_cerulea_extensions);
     assert!(!default_config.expose_unsafe_methods);
@@ -401,7 +401,7 @@ fn test_production_security_config() {
     // Test that Cerulea extensions are disabled by default
     assert!(default_config.check_cerulea_extensions_enabled().is_err());
     
-    // Test enabled configuration
+    // Test enabled start values
     let enabled_config = TestRpcSecurityConfig {
         enable_cerulea_extensions: true,
         expose_unsafe_methods: false,
@@ -553,10 +553,10 @@ fn test_comprehensive_production_rpc_functionality() {
     assert!(rate_limiter.check_rate_limit("test_client"));
     println!("  ✓ Rate limiting functionality verified");
     
-    // Test 2: Security configuration (access control)
+    // Test 2: Security start values (access control)
     let security_config = TestRpcSecurityConfig::default();
     assert!(security_config.check_cerulea_extensions_enabled().is_err());
-    println!("  ✓ Security configuration verified");
+    println!("  ✓ Security start values verified");
     
     // Test 3: Type serialization (API responses)
     let validator_profile = TestValidatorProfile {
@@ -1162,7 +1162,7 @@ fn test_final_comprehensive_production_rpc_suite() {
     println!("│ Access Control               │ PASSED    │ Extension flags  │");
     println!("│ Type Serialization           │ PASSED    │ camelCase JSON   │");
     println!("│ Block Authoring Tracking     │ PASSED    │ Real-time stats  │");
-    println!("│ Trust Score Calculation      │ PASSED    │ PoS+PoI weights  │");
+    println!("│ Trust Score Calculation      │ PASSED    │ PoS+inference shares  │");
     println!("│ Network Health Monitoring    │ PASSED    │ Status reporting │");
     println!("│ Performance Optimization     │ PASSED    │ <50ms response   │");
     println!("│ Multi-Validator Analytics    │ PASSED    │ Network metrics  │");

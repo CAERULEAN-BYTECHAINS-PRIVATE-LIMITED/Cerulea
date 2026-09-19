@@ -1,6 +1,6 @@
 // Test logging utilities
 //
-// This module provides logging configuration and utilities for test execution,
+// This module provides logging start values and utilities for test execution,
 // including structured logging for property tests and integration tests.
 
 #![allow(dead_code)]
@@ -9,7 +9,7 @@ use std::sync::Once;
 
 static INIT: Once = Once::new();
 
-/// Initialize test logging with appropriate configuration
+/// Initialize test logging with appropriate start values
 /// 
 /// Sets up logging for test execution with appropriate levels and formatting.
 /// This should be called once at the beginning of test suites that need logging.

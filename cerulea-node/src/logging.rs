@@ -250,7 +250,7 @@ impl CeruleaLogFormatter {
     }
 }
 
-/// Configure RUST_LOG environment variable for Cerulea logging
+/// Set RUST_LOG environment variable for Cerulea logging
 pub fn configure_rust_log(cerulea_log_only: bool, quiet: bool) -> String {
     let log_config = if quiet {
         // Minimal logging - only errors and warnings
@@ -268,7 +268,7 @@ pub fn configure_rust_log(cerulea_log_only: bool, quiet: bool) -> String {
     log_config.to_string()
 }
 
-/// Initialize Cerulea logging configuration (RUST_LOG only, no custom logger)
+/// Initialize Cerulea logging start values (RUST_LOG only, no custom logger)
 pub fn init_cerulea_logging_config(cerulea_log_only: bool, quiet: bool) -> String {
     configure_rust_log(cerulea_log_only, quiet)
 }
@@ -277,12 +277,12 @@ pub fn init_cerulea_logging_config(cerulea_log_only: bool, quiet: bool) -> Strin
 /// 
 /// **WARNING**: This function should only be used in tests!
 /// In production, Substrate handles logger initialization automatically.
-/// Use `init_cerulea_logging_config()` instead to just configure RUST_LOG.
+/// Use `init_cerulea_logging_config()` instead to just set RUST_LOG.
 /// 
 /// Returns Ok(()) if successful, Err if logger is already initialized
 #[cfg(test)]
 pub fn init_cerulea_logging(_enable_colors: bool, cerulea_log_only: bool, log_file_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    // Configure RUST_LOG environment variable
+    // Set RUST_LOG environment variable
     configure_rust_log(cerulea_log_only, false);
     
     // Initialize env_logger (this might fail if already initialized, which is fine)

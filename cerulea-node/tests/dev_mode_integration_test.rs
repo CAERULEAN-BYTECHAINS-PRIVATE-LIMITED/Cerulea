@@ -2,8 +2,8 @@
 //! 
 //! This module contains integration tests that verify the Cerulea node operates correctly
 //! in development mode. These tests validate:
-//! - Node configuration for dev mode
-//! - RPC client setup and configuration
+//! - Node start values for dev mode
+//! - RPC client setup and start values
 //! - Test infrastructure for dev mode testing
 //! - Mock dev mode scenarios
 
@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::process::Command;
 use tempfile::TempDir;
 
-/// Configuration for dev mode testing
+/// Start values for dev mode testing
 #[derive(Debug, Clone)]
 pub struct DevModeTestConfig {
     /// Port for RPC server
@@ -45,7 +45,7 @@ impl Default for DevModeTestConfig {
 }
 
 impl DevModeTestConfig {
-    /// Create a new dev mode test configuration with unique ports
+    /// Create a new dev mode test start values with unique ports
     pub fn new_with_unique_ports() -> Self {
         use std::sync::atomic::{AtomicU16, Ordering};
         static PORT_COUNTER: AtomicU16 = AtomicU16::new(9950);
@@ -112,12 +112,12 @@ impl DevModeTestConfig {
         args
     }
     
-    /// Get RPC URL for this configuration
+    /// Get RPC URL for this start values
     pub fn rpc_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.rpc_port)
     }
     
-    /// Get WebSocket URL for this configuration
+    /// Get WebSocket URL for this start values
     pub fn ws_url(&self) -> String {
         format!("ws://127.0.0.1:{}", self.ws_port)
     }
@@ -145,7 +145,7 @@ impl MockDevModeNode {
     /// Simulate starting the node
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         log::info!("Mock: Starting Cerulea node in dev mode");
-        log::info!("Mock: Node configuration: {:?}", self.config);
+        log::info!("Mock: Node start values: {:?}", self.config);
         
         // Simulate startup delay
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -485,7 +485,7 @@ async fn test_comprehensive_dev_mode_functionality() {
 async fn test_dev_mode_configuration_validation() {
     env_logger::try_init().ok();
     
-    // Test configuration creation and validation
+    // Test start values creation and validation
     let config = DevModeTestConfig::new_with_unique_ports()
         .with_temp_dir()
         .expect("Failed to create temp dir")
@@ -493,7 +493,7 @@ async fn test_dev_mode_configuration_validation() {
         .with_timeouts(Duration::from_secs(45), Duration::from_secs(90))
         .with_target_blocks(8);
     
-    // Validate configuration
+    // Validate start values
     assert!(config.rpc_port > 0);
     assert!(config.ws_port > 0);
     assert_ne!(config.rpc_port, config.ws_port);
@@ -515,7 +515,7 @@ async fn test_dev_mode_configuration_validation() {
     assert!(rpc_url.starts_with("http://127.0.0.1:"));
     assert!(ws_url.starts_with("ws://127.0.0.1:"));
     
-    log::info!("✓ Configuration validation test PASSED");
+    log::info!("✓ Start values validation test PASSED");
     log::info!("  RPC URL: {}", rpc_url);
     log::info!("  WS URL: {}", ws_url);
     log::info!("  Args: {:?}", args);

@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
             poi_score: client
                 .request("dcf_getValidatorInferenceScore", rpc_params![validator.clone()])
                 .await
-                .context("Failed to get PoI score")?,
+                .context("Failed to get inference share")?,
             combined_score: client
                 .request("dcf_getValidatorScore", rpc_params![validator.clone()])
                 .await

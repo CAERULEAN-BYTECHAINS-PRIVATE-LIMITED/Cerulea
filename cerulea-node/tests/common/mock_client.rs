@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 /// Mock Runtime API implementation for testing
 /// 
-/// Provides configurable mock responses for all Runtime API methods,
+/// Provides adjustable mock responses for all Runtime API methods,
 /// allowing unit tests to control the behavior of the underlying blockchain state.
 #[derive(Debug, Clone)]
 pub struct MockRuntimeApi {
@@ -97,7 +97,7 @@ impl MockRuntimeApi {
         self
     }
     
-    /// Configure Runtime API calls to fail
+    /// Set Runtime API calls to fail
     pub fn should_fail(mut self) -> Self {
         self.should_fail = true;
         self
@@ -245,7 +245,7 @@ impl Default for MockRuntimeApi {
 pub struct MockClient {
     /// Mock Runtime API instance
     pub runtime_api: MockRuntimeApi,
-    /// RPC security configuration
+    /// RPC security start values
     pub security_config: RpcSecurityConfig,
 }
 
@@ -258,7 +258,7 @@ impl MockClient {
         })
     }
     
-    /// Create a new mock client with custom security configuration
+    /// Create a new mock client with custom security start values
     pub fn with_security_config(
         runtime_api: MockRuntimeApi,
         security_config: RpcSecurityConfig,
@@ -274,7 +274,7 @@ impl MockClient {
         &self.runtime_api
     }
     
-    /// Get the security configuration
+    /// Get the security start values
     pub fn security_config(&self) -> &RpcSecurityConfig {
         &self.security_config
     }
@@ -345,7 +345,7 @@ impl MockClientBuilder {
         self
     }
     
-    /// Configure Runtime API to fail
+    /// Set Runtime API to fail
     pub fn should_fail(mut self) -> Self {
         self.runtime_api = self.runtime_api.should_fail();
         self

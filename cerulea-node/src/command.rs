@@ -197,9 +197,9 @@ pub fn run() -> sc_cli::Result<()> {
 
         None => {
             // Auto-generate the P2P network key before create_runner runs.
-            // Substrate's CLI checks for the key file during create_runner and throws
+            // Substrate's node command checks for the key file during create_runner and throws
             // NetworkKeyNotFound if it's missing for non-dev validator nodes.
-            // We resolve the path from CLI args and write the key first so the runner
+            // We resolve the path from node command args and write the key first so the runner
             // never sees a missing file — same zero-setup experience as --dev.
             ensure_network_key_from_cli(&cli);
 
@@ -379,7 +379,7 @@ fn run_fork_check_cmd(cmd: &ForkCheckCmd, _cli: &Cli) -> sc_cli::Result<()> {
         .map_err(|e| format!("Failed to create async runtime: {}", e))?;
     
     rt.block_on(async {
-        // For CLI usage, we use the standalone fork checker from tools
+        // For node command usage, we use the standalone fork checker from tools
         use jsonrpsee::{
             core::client::ClientT,
             http_client::HttpClientBuilder,
@@ -642,7 +642,7 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &Cli) -> sc_cli::Result<()
     Ok(())
 }
 
-/// Ensures the P2P network key exists before Substrate's CLI runner checks for it.
+/// Ensures the P2P network key exists before Substrate's node command runner checks for it.
 ///
 /// Substrate throws `NetworkKeyNotFound` during `create_runner` for non-dev validator nodes
 /// if `<base-path>/chains/<chain-id>/network/secret_ed25519` is missing. We resolve the

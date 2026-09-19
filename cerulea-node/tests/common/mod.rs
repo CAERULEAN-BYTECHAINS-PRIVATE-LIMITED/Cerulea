@@ -4,7 +4,7 @@
 // - Test data generators for property-based testing
 // - Test runtime builder for integration testing
 // - Mock client builder for unit testing
-// - Test configuration types and utilities
+// - Test start values types and utilities
 // - Logging and error handling utilities
 
 pub mod generators;

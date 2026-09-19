@@ -1,5 +1,5 @@
 // This file is part of the Cerulea Runtime.
-// It defines the benchmarking configuration for various FRAME pallets used in the runtime.
+// It defines the benchmarking start values for various FRAME pallets used in the runtime.
 
 // The macro `frame_benchmarking::define_benchmarks!` is used to register all the benchmarking
 // test modules that will be executed during runtime performance measurement.
@@ -32,7 +32,7 @@ frame_benchmarking::define_benchmarks!(
     // epoch transitions, and all core DCF functionality.
     [pallet_cerulea_dcf, DcfPallet]
 
-    // Benchmarks for the `pallet_cerulea_poi`, which handles Proof-of-Inference functionality.
+    // Benchmarks for the `pallet_cerulea_poi`, which handles the retired inference path functionality.
     // It includes performance tests for inference submission, challenge mechanisms,
     // and inference validation operations.
     [pallet_cerulea_poi, PalletCeruleaPoi]

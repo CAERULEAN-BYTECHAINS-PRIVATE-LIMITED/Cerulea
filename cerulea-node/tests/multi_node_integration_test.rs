@@ -14,7 +14,7 @@ use std::process::Command;
 use std::collections::HashMap;
 use tokio::time::sleep;
 
-/// Configuration for multi-node testing
+/// Start values for multi-node testing
 #[derive(Debug, Clone)]
 pub struct MultiNodeTestConfig {
     /// Number of nodes to start
@@ -57,7 +57,7 @@ impl Default for MultiNodeTestConfig {
 }
 
 impl MultiNodeTestConfig {
-    /// Create a new multi-node test configuration with unique ports
+    /// Create a new multi-node test start values with unique ports
     pub fn new_with_unique_ports() -> Self {
         use std::sync::atomic::{AtomicU16, Ordering};
         static PORT_COUNTER: AtomicU16 = AtomicU16::new(10000);

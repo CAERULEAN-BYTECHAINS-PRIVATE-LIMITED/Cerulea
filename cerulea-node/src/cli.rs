@@ -106,7 +106,7 @@ pub struct FaucetCmd {
     pub amount: u128,
 }
 
-/// Output format for CLI commands
+/// Output format for node command commands
 #[derive(Debug, Clone, clap::ValueEnum)]
 pub enum OutputFormat {
     /// JSON format
