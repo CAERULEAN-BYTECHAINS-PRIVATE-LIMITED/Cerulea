@@ -17,6 +17,7 @@ members = [
     "cerulea-pallets/pallet-cerulea-custody",
     "cerulea-blueprint",
     "cerulea-primitives",
+    "cerulea-platform-api",
     "cerulea-pallets/pallet-cerulea-schema",
     "cerulea-pallets/pallet-cerulea-state",
     "cerulea-pallets/pallet-cerulea-collections",
@@ -32,6 +33,7 @@ members = [
     "cerulea-pallets/pallet-cerulea-evolution",
     "cerulea-pallets/pallet-cerulea-governance",
     "cerulea-pallets/pallet-cerulea-rules",
+    "cerulea-pallets/pallet-cerulea-bridge",
 ]
 resolver = "2"
 
@@ -39,6 +41,7 @@ resolver = "2"
 cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
 cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
 cerulea-primitives = { path = "./cerulea-primitives", default-features = false }
+cerulea-platform-api = { path = "./cerulea-platform-api", default-features = false }
 pallet-cerulea-schema = { path = "./cerulea-pallets/pallet-cerulea-schema", default-features = false }
 pallet-cerulea-state = { path = "./cerulea-pallets/pallet-cerulea-state", default-features = false }
 pallet-cerulea-collections = { path = "./cerulea-pallets/pallet-cerulea-collections", default-features = false }
@@ -54,6 +57,7 @@ pallet-cerulea-oracle = { path = "./cerulea-pallets/pallet-cerulea-oracle", defa
 pallet-cerulea-evolution = { path = "./cerulea-pallets/pallet-cerulea-evolution", default-features = false }
 pallet-cerulea-governance = { path = "./cerulea-pallets/pallet-cerulea-governance", default-features = false }
 pallet-cerulea-rules = { path = "./cerulea-pallets/pallet-cerulea-rules", default-features = false }
+pallet-cerulea-bridge = { path = "./cerulea-pallets/pallet-cerulea-bridge", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
@@ -111,6 +115,7 @@ sp-transaction-pool = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
+sp-trie = { version = "39.1.0", default-features = false }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }
 serde = { version = "1.0.219", default-features=false }
 sc-chain-spec = { version = "42.0.0", default-features = false }

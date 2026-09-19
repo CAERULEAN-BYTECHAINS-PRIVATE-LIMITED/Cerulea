@@ -84,6 +84,9 @@ impl pallet_cerulea_state::Config for Test {
     type MaxIndexEntries = ConstU32<128>;
     type MaxIndexesPerCollection = ConstU32<8>;
     type MaxBucketEntries = ConstU32<64>;
+    type MaxVersionHistory = ConstU32<32>;
+    type MaxWatchedCollections = ConstU32<64>;
+    type MaxRetentionScan = ConstU32<64>;
 }
 
 impl pallet_cerulea_logic::Config for Test {

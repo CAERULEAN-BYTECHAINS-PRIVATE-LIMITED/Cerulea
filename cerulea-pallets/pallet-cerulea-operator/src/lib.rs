@@ -333,6 +333,39 @@ pub mod pallet {
     pub type NextRequest<T: Config> =
         StorageMap<_, Blake2_128Concat, DeploymentId, u64, ValueQuery>;
 
+    /// The operators a chain specification appoints at genesis.
+    ///
+    /// Every customer deployment carries a Cerulea operator role from the
+    /// first block. A chain specification therefore names the account and
+    /// the deployment the role covers.
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// The deployment and account pairs the chain appoints.
+        pub operators: alloc::vec::Vec<(DeploymentId, T::AccountId)>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            for (deployment, operator) in self.operators.iter() {
+                Operators::<T>::insert(
+                    deployment,
+                    operator,
+                    OperatorRecord {
+                        appointed_at: 0,
+                        appointed_block: frame_system::Pallet::<T>::block_number(),
+                        active: true,
+                    },
+                );
+                Pallet::<T>::deposit_event(Event::OperatorAppointed {
+                    deployment: *deployment,
+                    operator: operator.clone(),
+                });
+            }
+        }
+    }
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {

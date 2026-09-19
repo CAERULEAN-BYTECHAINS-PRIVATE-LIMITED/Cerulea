@@ -3,11 +3,137 @@
 // when starting a development or local testnet chain.
 
 use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, Cerulea}; // Runtime-specific types
+use cerulea_blueprint::{Blueprint, BlueprintMeta};
+use codec::{Decode, Encode};
+use frame_support::BoundedVec;
+use pallet_cerulea_schema::primitives::{name_of, DeploymentId};
+use pallet_cerulea_tier::{Application, Licence, Tier};
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
 use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
 use sp_genesis_builder::{self, PresetId}; // Genesis builder utilities and PresetId for pre-defined configs
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring}; // Keyring to easily access dev accounts
+
+/// The Blueprint every Cerulea chain starts with.
+///
+/// The Blueprint carries the header alone. The header names the
+/// deployment, states what the deployment does and names its owner. Every
+/// section beside the header stays empty, so the first deployment of a
+/// fresh chain holds no customer data.
+pub fn starting_blueprint() -> Blueprint {
+    Blueprint::new(BlueprintMeta::new(
+        "Cerulea deployment",
+        "The deployment a fresh Cerulea chain starts with.",
+        "Caerulean Bytechains Private Limited",
+    ))
+}
+
+/// The deployment identifier of the starting Blueprint.
+///
+/// The identifier is the content address of the Blueprint, so every chain
+/// built from the same Blueprint names the same deployment.
+pub fn starting_deployment() -> DeploymentId {
+    starting_blueprint().id().0
+}
+
+/// The account holding the Cerulea operator role on a development chain.
+///
+/// Every customer deployment carries the role. The role upgrades the
+/// platform version, verifies the licence and stops block production on a
+/// lapse. The role reaches no customer record.
+pub fn cerulea_operator() -> AccountId {
+    Ed25519Keyring::Ferdie.to_account_id()
+}
+
+/// The signature the control plane produced over the development licence.
+///
+/// Signing needs a private key, which the Blockchain runtime holds nowhere.
+/// The control plane signs once and the chain specification carries the
+/// result. The test `the_development_licence_signature_holds` rebuilds the
+/// message and checks these bytes against the control plane key.
+pub const DEVELOPMENT_LICENCE_SIGNATURE: [u8; 64] = [
+    218, 37, 126, 108, 163, 147, 182, 136,
+    95, 160, 253, 74, 107, 118, 53, 130,
+    12, 161, 72, 162, 236, 155, 253, 29,
+    34, 93, 225, 111, 30, 198, 215, 253,
+    126, 112, 23, 9, 168, 137, 171, 140,
+    110, 185, 131, 193, 57, 17, 41, 236,
+    206, 90, 119, 117, 180, 227, 3, 243,
+    190, 188, 58, 152, 121, 121, 183, 3,
+];
+
+/// The licence the starting deployment runs under, with its signature.
+///
+/// The control plane signs every licence with an ed25519 key. A
+/// development chain takes the well known Alice key as its control plane
+/// key, so the chain verifies its own licence from the first block.
+fn starting_licence() -> (DeploymentId, Vec<u8>, Vec<u8>, [u8; 32]) {
+    let deployment = starting_deployment();
+    let features: Vec<_> = [
+        "schema",
+        "state",
+        "collections",
+        "identity",
+        "permission",
+        "logic",
+        "workflow",
+        "rules",
+        "governance",
+        "evolution",
+        "oracle",
+        "relayer",
+        "tier",
+        "audit",
+        "operator",
+        "custody",
+    ]
+    .iter()
+    .filter_map(|held| name_of(held).ok())
+    .collect();
+    let licence: Licence<
+        <crate::Runtime as pallet_cerulea_tier::Config>::MaxFeatures,
+        <crate::Runtime as pallet_cerulea_tier::Config>::MaxAddons,
+    > = Licence {
+        deployment,
+        tier: Tier {
+            application: Application::Enterprise,
+            level: 1,
+        },
+        features: BoundedVec::truncate_from(features),
+        seats: 64,
+        addons: BoundedVec::truncate_from(Vec::new()),
+        issued_at: 0,
+        // The development licence covers one hundred years of wall clock
+        // time, so a development chain never stops producing blocks while
+        // a person works with it.
+        expires_at: 3_155_760_000_000,
+        sequence: 1,
+    };
+    (
+        deployment,
+        licence.encode(),
+        DEVELOPMENT_LICENCE_SIGNATURE.to_vec(),
+        Ed25519Keyring::Alice.public().0,
+    )
+}
+
+/// The licence message the development signature covers.
+///
+/// A test in this crate rebuilds the message and checks the signature
+/// against the control plane key, so the constant above stays true.
+pub fn starting_licence_message() -> Vec<u8> {
+    let (_, attestation, _, _) = starting_licence();
+    let licence = LicenceOf::decode(&mut attestation.as_slice())
+        .expect("the licence the preset builds decodes again");
+    licence.message()
+}
+
+/// The licence the starting deployment runs under, as the tier module
+/// reads it.
+type LicenceOf = Licence<
+    <crate::Runtime as pallet_cerulea_tier::Config>::MaxFeatures,
+    <crate::Runtime as pallet_cerulea_tier::Config>::MaxAddons,
+>;
 
 /// Returns a genesis settings in JSON format with the specified authorities,
 /// endowed accounts, and sudo (root) key.
@@ -108,6 +234,8 @@ fn testnet_genesis_with_stakes_and_names(
 		.map(|((validator, stake), score)| (validator.clone(), *stake, *score as u128))
 		.collect();
 
+	let (deployment, attestation, signature, control_plane_key) = starting_licence();
+
 	build_struct_json_patch!(RuntimeGenesisConfig {
 		// Set initial balances for all endowed accounts with large amounts of tokens
 		balances: BalancesConfig {
@@ -154,6 +282,24 @@ fn testnet_genesis_with_stakes_and_names(
 			initial_validator_weights: dvf_initial_weights,
 			initial_validator_keys: validator_keys,
 		},
+		// Install the starting Blueprint. The logic module validates it,
+		// registers every type and every collection it declares and stores
+		// it under its content address.
+		logic: pallet_cerulea_logic::GenesisConfig {
+			blueprints: vec![starting_blueprint().encode()],
+		},
+		// Install the control plane key and the licence the deployment
+		// starts under. The tier module checks the signature during the
+		// genesis build, so a chain starts under a verified licence.
+		tier: pallet_cerulea_tier::GenesisConfig {
+			control_plane_keys: vec![(deployment, control_plane_key)],
+			licences: vec![(deployment, attestation, signature)],
+		},
+		// Appoint the Cerulea operator role. The role is mandatory in
+		// every deployment and strictly limited.
+		operator: pallet_cerulea_operator::GenesisConfig {
+			operators: vec![(deployment, cerulea_operator())],
+		},
 	})
 }
 
@@ -165,6 +311,7 @@ pub fn development_config_genesis() -> Value {
 	let endowed_accounts = vec![
 		Ed25519Keyring::Alice.to_account_id(),
 		Ed25519Keyring::Bob.to_account_id(),
+		cerulea_operator(),
 	];
 	testnet_genesis(
 		initial_validators,

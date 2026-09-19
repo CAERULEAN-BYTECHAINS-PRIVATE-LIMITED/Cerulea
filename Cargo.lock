@@ -1280,6 +1280,7 @@ name = "cerulea-consensus"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "cerulea-platform-api",
  "cerulea-primitives",
  "cerulea-runtime",
  "frame-benchmarking",
@@ -1332,13 +1333,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "atty",
+ "cerulea-blueprint",
  "cerulea-consensus",
+ "cerulea-node",
+ "cerulea-platform-api",
+ "cerulea-primitives",
  "cerulea-runtime",
  "clap",
  "directories",
  "env_logger",
  "frame-benchmarking-cli",
  "frame-metadata-hash-extension",
+ "frame-support",
  "frame-system",
  "futures",
  "hex",
@@ -1348,11 +1354,24 @@ dependencies = [
  "jsonrpsee-http-server",
  "log",
  "once_cell",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-collections",
  "pallet-cerulea-dcf",
  "pallet-cerulea-dvf",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-logic",
+ "pallet-cerulea-permission",
  "pallet-cerulea-pos",
+ "pallet-cerulea-relayer",
+ "pallet-cerulea-rules",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
+ "pallet-cerulea-tier",
+ "pallet-cerulea-workflow",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
+ "parity-scale-codec",
  "proptest",
  "rand 0.8.5",
  "sc-basic-authorship",
@@ -1382,6 +1401,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-keystore",
  "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
@@ -1390,6 +1410,17 @@ dependencies = [
  "tokio",
  "tokio-test",
  "toml 0.8.23",
+]
+
+[[package]]
+name = "cerulea-platform-api"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -1405,6 +1436,9 @@ dependencies = [
 name = "cerulea-runtime"
 version = "0.1.0"
 dependencies = [
+ "cerulea-blueprint",
+ "cerulea-platform-api",
+ "cerulea-primitives",
  "frame-benchmarking",
  "frame-executive",
  "frame-metadata-hash-extension",
@@ -1416,6 +1450,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-cerulea-audit",
+ "pallet-cerulea-bridge",
  "pallet-cerulea-collections",
  "pallet-cerulea-custody",
  "pallet-cerulea-dcf",
@@ -1424,12 +1459,16 @@ dependencies = [
  "pallet-cerulea-governance",
  "pallet-cerulea-identity",
  "pallet-cerulea-logic",
+ "pallet-cerulea-operator",
+ "pallet-cerulea-oracle",
  "pallet-cerulea-permission",
  "pallet-cerulea-poi",
  "pallet-cerulea-pos",
+ "pallet-cerulea-relayer",
  "pallet-cerulea-rules",
  "pallet-cerulea-schema",
  "pallet-cerulea-state",
+ "pallet-cerulea-tier",
  "pallet-cerulea-workflow",
  "pallet-sudo",
  "pallet-timestamp",
@@ -6430,6 +6469,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-bridge"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-governance",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-logic",
+ "pallet-cerulea-permission",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+ "sp-trie",
+]
+
+[[package]]
 name = "pallet-cerulea-collections"
 version = "0.1.0"
 dependencies = [
@@ -6500,6 +6563,7 @@ dependencies = [
  "pallet-cerulea-pos",
  "parity-scale-codec",
  "scale-info",
+ "serde",
  "sp-api",
  "sp-core",
  "sp-io",
@@ -6584,6 +6648,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-operator"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-evolution",
+ "pallet-cerulea-governance",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-tier",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-oracle"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-cerulea-permission"
 version = "0.1.0"
 dependencies = [
@@ -6637,6 +6740,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cerulea-relayer"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-identity",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-tier",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-cerulea-rules"
 version = "0.1.0"
 dependencies = [
@@ -6680,6 +6803,25 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-cerulea-schema",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-cerulea-tier"
+version = "0.1.0"
+dependencies = [
+ "cerulea-blueprint",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-cerulea-audit",
+ "pallet-cerulea-schema",
+ "pallet-cerulea-state",
  "parity-scale-codec",
  "scale-info",
  "sp-core",

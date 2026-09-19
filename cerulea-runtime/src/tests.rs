@@ -568,20 +568,19 @@ mod runtime_api_tests {
     }
 
     #[test]
-    fn test_dcf_finality_functions() {
+    fn test_registry_finality_functions() {
         new_test_ext().execute_with(|| {
-            // Test finality-related functions
-            let last_finalized = DcfPallet::get_last_finalized_block();
-            assert!(last_finalized >= 0);
-            
-            let is_finalized = DcfPallet::is_block_finalized(1);
-            assert!(is_finalized == true || is_finalized == false);
-            
-            let (finalized_block, current_block) = DcfPallet::get_finality_info();
-            assert!(finalized_block <= current_block);
-            
-            let blocks_since = DcfPallet::blocks_since_finalization(current_block);
-            assert!(blocks_since >= 0);
+            // The validator registry owns finality. The framework pallet
+            // carries no finality marker of its own.
+            let finalized = DvfPallet::finalized_block_number();
+            let current = System::block_number();
+            assert!(finalized <= current);
+
+            let info = DvfPallet::get_finality_info(1);
+            assert!(info.is_finalized == true || info.is_finalized == false);
+            if let Some(checkpoint) = info.finalized_by_checkpoint {
+                assert!(checkpoint <= current);
+            }
         });
     }
 
@@ -637,12 +636,12 @@ mod runtime_api_tests {
             // Test APIs with edge case inputs
             
             // Test with block number 0
-            let is_zero_finalized = DcfPallet::is_block_finalized(0);
-            assert!(is_zero_finalized == true || is_zero_finalized == false);
-            
+            let zero = DvfPallet::get_finality_info(0);
+            assert!(zero.is_finalized == true || zero.is_finalized == false);
+
             // Test finality with edge cases
-            let (finalized_block, current_block) = DcfPallet::get_finality_info();
-            assert!(finalized_block <= current_block);
+            let finalized = DvfPallet::finalized_block_number();
+            assert!(finalized <= System::block_number());
             
             // If we reach here, all edge cases were handled gracefully
             assert!(true);

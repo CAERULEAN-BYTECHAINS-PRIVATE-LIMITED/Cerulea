@@ -50,6 +50,7 @@ pub use pallet_timestamp::Call as TimestampCall; // Expose the `pallet_timestamp
 pub use sp_runtime::BuildStorage; // Utility for building storage during tests or native execution.
 
 pub mod genesis_config_presets; // Preset settingss for the genesis block.
+pub mod platform_api; // The runtime side of the platform interfaces.
 
 // Test and benchmarking modules
 #[cfg(test)]
@@ -57,6 +58,9 @@ pub mod mock; // Mock runtime for testing
 
 #[cfg(test)]
 pub mod tests; // Runtime integration tests with API unit tests
+
+#[cfg(test)]
+pub mod platform_tests; // The platform module wiring and the platform runtime interfaces
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmark_tests; // Benchmarking tests
@@ -259,6 +263,9 @@ mod runtime {
 
     #[runtime::pallet_index(20)]
     pub type Evolution = pallet_cerulea_evolution::Pallet<Runtime>;
+
+    #[runtime::pallet_index(21)]
+    pub type Bridge = pallet_cerulea_bridge::Pallet<Runtime>;
 
     #[runtime::pallet_index(22)]
     pub type Oracle = pallet_cerulea_oracle::Pallet<Runtime>;

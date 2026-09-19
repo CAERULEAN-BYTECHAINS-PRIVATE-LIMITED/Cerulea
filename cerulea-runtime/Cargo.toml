@@ -45,9 +45,13 @@ pallet-cerulea-operator.workspace = true
 pallet-cerulea-relayer.workspace = true
 pallet-cerulea-tier.workspace = true
 pallet-cerulea-oracle.workspace = true
+pallet-cerulea-bridge.workspace = true
 pallet-cerulea-evolution.workspace = true
 pallet-cerulea-governance.workspace = true
 pallet-cerulea-rules.workspace = true
+cerulea-blueprint.workspace = true
+cerulea-platform-api.workspace = true
+cerulea-primitives.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
 pallet-transaction-payment-rpc-runtime-api.workspace = true                      # Payment APIs for transactions
 pallet-transaction-payment.workspace = true                                      # Transaction fee pallet
@@ -105,6 +109,9 @@ std = [
 	"pallet-cerulea-collections/std",
 	"pallet-cerulea-identity/std",
 	"pallet-cerulea-permission/std",
+	"cerulea-blueprint/std",
+	"cerulea-platform-api/std",
+	"cerulea-primitives/std",
 	"pallet-cerulea-logic/std",
 	"pallet-cerulea-audit/std",
 	"pallet-cerulea-workflow/std",
@@ -112,6 +119,7 @@ std = [
 	"pallet-cerulea-relayer/std",
 	"pallet-cerulea-tier/std",
 	"pallet-cerulea-oracle/std",
+	"pallet-cerulea-bridge/std",
 	"pallet-cerulea-evolution/std",
 	"pallet-cerulea-governance/std",
 	"pallet-cerulea-rules/std",
@@ -173,6 +181,7 @@ try-runtime = [
 	"pallet-cerulea-relayer/try-runtime",
 	"pallet-cerulea-tier/try-runtime",
 	"pallet-cerulea-oracle/try-runtime",
+	"pallet-cerulea-bridge/try-runtime",
 	"pallet-cerulea-evolution/try-runtime",
 	"pallet-cerulea-governance/try-runtime",
 	"pallet-cerulea-rules/try-runtime",

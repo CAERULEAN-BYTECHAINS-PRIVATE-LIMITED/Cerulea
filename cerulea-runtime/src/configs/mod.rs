@@ -417,6 +417,9 @@ impl pallet_cerulea_state::Config for Runtime {
     type MaxIndexEntries = ConstU32<4096>;
     type MaxIndexesPerCollection = ConstU32<16>;
     type MaxBucketEntries = ConstU32<256>;
+    type MaxVersionHistory = ConstU32<32>;
+    type MaxWatchedCollections = ConstU32<512>;
+    type MaxRetentionScan = ConstU32<64>;
 }
 
 // === The Cerulea collections module ===
@@ -565,7 +568,80 @@ impl pallet_cerulea_logic::Config for Runtime {
     type StepLimit = ConstU64<2000000>;
     type MaxRowsPerRead = ConstU32<4096>;
     type MaxEffectsPerAction = ConstU32<256>;
-    type Workflows = pallet_cerulea_logic::NoWorkflows<AccountId>;
+    type Workflows = WorkflowTransitions;
+}
+
+/// The workflow sink the logic module drives.
+///
+/// An action effect naming a transition moves one record to another state.
+/// The adapter finds the running process of that record, names the
+/// transition leading to the target state and asks the workflow module to
+/// take it. The workflow module checks the role, the permission and the
+/// guard before the record moves.
+pub struct WorkflowTransitions;
+
+impl pallet_cerulea_logic::TransitionSink for WorkflowTransitions {
+    type AccountId = AccountId;
+
+    fn transition(
+        deployment: &pallet_cerulea_schema::primitives::DeploymentId,
+        workflow: &cerulea_blueprint::types::WorkflowId,
+        collection: &cerulea_blueprint::types::CollectionId,
+        key: &pallet_cerulea_schema::primitives::RecordKey,
+        to: &cerulea_blueprint::types::StateId,
+        actor: &Self::AccountId,
+    ) -> frame_support::pallet_prelude::DispatchResult {
+        use pallet_cerulea_schema::primitives::name_of;
+        let name = name_of(workflow.as_str()).map_err(|_| {
+            sp_runtime::DispatchError::Other(
+                "The workflow name runs past the limit. Shorten the workflow name in the Blueprint.",
+            )
+        })?;
+        let machine = pallet_cerulea_workflow::Pallet::<Runtime>::machine(deployment, &name)?;
+        if machine.collection != *collection {
+            return Err(sp_runtime::DispatchError::Other(
+                "The workflow drives another collection. Name the workflow that drives this collection.",
+            ));
+        }
+
+        let mut found: Option<(u64, alloc::string::String)> = None;
+        for (id, instance) in
+            pallet_cerulea_workflow::Instances::<Runtime>::iter_prefix((*deployment, name.clone()))
+        {
+            if &instance.record != key {
+                continue;
+            }
+            if instance.status != pallet_cerulea_workflow::InstanceStatus::Running {
+                continue;
+            }
+            let from = alloc::string::String::from_utf8_lossy(instance.state.as_slice()).into_owned();
+            found = Some((id, from));
+            break;
+        }
+        let (id, from) = found.ok_or(sp_runtime::DispatchError::Other(
+            "The record runs no process of that workflow. Start the process before moving the record.",
+        ))?;
+
+        let step = machine
+            .transitions
+            .iter()
+            .find(|held| held.from.as_str() == from && held.to == *to)
+            .ok_or(sp_runtime::DispatchError::Other(
+                "The workflow declares no transition from the present state to that state. Name a state the present state reaches.",
+            ))?;
+        let transition = name_of(step.id.as_str()).map_err(|_| {
+            sp_runtime::DispatchError::Other(
+                "The transition name runs past the limit. Shorten the transition name in the Blueprint.",
+            )
+        })?;
+        pallet_cerulea_workflow::Pallet::<Runtime>::take_transition(
+            deployment,
+            &name,
+            id,
+            &transition,
+            actor,
+        )
+    }
 }
 
 // === The Cerulea evolution module ===
@@ -602,6 +678,32 @@ impl pallet_cerulea_oracle::Config for Runtime {
     type MaxValueBytes = ConstU32<65536>;
     type MaxFeedsPerDeployment = ConstU32<256>;
     type MaxDisputeWindow = ConstU64<604800000>;
+}
+
+// === The Cerulea bridge module ===
+// The bridge module carries messages between this deployment and a named
+// network outside it. Seven target networks ship together. Networks
+// running Ethereum Virtual Machine bytecode, Cosmos, Solana, Polkadot,
+// Avalanche, Bitcoin and Layer 2 rollups. Every arriving message carries
+// a proof, and the module holds one verifier per network. A message lands
+// once. The replay registry declines a second attempt. An arriving
+// message runs its Blueprint action through the logic module, under the
+// higher of the class the message carries and the class the endpoint
+// carries.
+impl pallet_cerulea_bridge::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_bridge::weights::CeruleaWeight<Runtime>;
+    type Records = crate::State;
+    type Audit = crate::Audit;
+    type Approvals = crate::Governance;
+    type Actions = pallet_cerulea_bridge::LogicActions<Runtime>;
+    type Time = crate::Timestamp;
+    type MaxEndpointsPerDeployment = ConstU32<64>;
+    type MaxHeadersPerEndpoint = ConstU32<4096>;
+    type MaxPendingPerBucket = ConstU32<512>;
+    type MaxSweepPerBlock = ConstU32<64>;
+    type MaxBucketsPerBlock = ConstU32<16>;
+    type MaxLifetimeMillis = ConstU64<604800000>;
 }
 
 // === The Cerulea tier module ===

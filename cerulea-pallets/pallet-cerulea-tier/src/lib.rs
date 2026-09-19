@@ -323,6 +323,70 @@ pub mod pallet {
     pub type Watched<T: Config> =
         StorageValue<_, BoundedVec<DeploymentId, T::MaxWatchedDeployments>, ValueQuery>;
 
+    /// The tier a chain specification installs at genesis.
+    ///
+    /// A deployment starts under a tier the control plane issued. The
+    /// chain specification carries the public key of the control plane,
+    /// the licence and the signature over it, so the first block already
+    /// runs under a verified licence.
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// The control plane key of each deployment.
+        pub control_plane_keys: Vec<(DeploymentId, [u8; 32])>,
+        /// The licence each deployment starts under.
+        ///
+        /// The first member names the deployment. The second member is the
+        /// canonical encoding of the licence attestation. The third member
+        /// is the sixty four signature bytes the control plane produced
+        /// over it.
+        pub licences: Vec<(DeploymentId, Vec<u8>, Vec<u8>)>,
+        /// Marker carrying the runtime type.
+        #[serde(skip)]
+        pub marker: core::marker::PhantomData<T>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            for (deployment, key) in self.control_plane_keys.iter() {
+                ControlPlaneKey::<T>::insert(deployment, key);
+                Watched::<T>::mutate(|held| {
+                    if !held.contains(deployment) {
+                        let _ = held.try_push(*deployment);
+                    }
+                });
+            }
+            for (deployment, attestation, raw) in self.licences.iter() {
+                let signature: [u8; 64] = raw.as_slice().try_into().expect(
+                    "A genesis licence carries a signature of another length. Supply the sixty four signature bytes the control plane produced.",
+                );
+                let licence = LicenceOf::<T>::decode(&mut attestation.as_slice()).expect(
+                    "A genesis licence fails to decode. Supply the canonical encoding the control plane produces.",
+                );
+                assert!(
+                    licence.tier.is_valid(),
+                    "A genesis licence names a level the application lacks. Issue the licence at a level the application carries.",
+                );
+                assert!(
+                    licence.deployment == *deployment,
+                    "A genesis licence names another deployment. Install the licence issued for this deployment.",
+                );
+                Pallet::<T>::check_signature(deployment, &licence, &signature).expect(
+                    "A genesis licence carries a signature the control plane key refuses. Issue the licence again.",
+                );
+                Licences::<T>::insert(deployment, &licence);
+                Signatures::<T>::insert(deployment, signature);
+                States::<T>::insert(deployment, LicenceState::Live);
+                Watched::<T>::mutate(|held| {
+                    if !held.contains(deployment) {
+                        let _ = held.try_push(*deployment);
+                    }
+                });
+            }
+        }
+    }
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {

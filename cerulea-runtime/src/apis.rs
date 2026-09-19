@@ -528,6 +528,198 @@ impl_runtime_apis! {
 		}
 	}
 
+	// The platform interfaces. Cerulea Explorer, Cerulea Dashboard and the
+	// Cerulea APIs chain client read the sixteen platform modules here.
+	impl cerulea_platform_api::CeruleaPlatformApi<Block, AccountId> for Runtime {
+		fn deployments() -> Vec<cerulea_platform_api::DeploymentId> {
+			crate::platform_api::deployments()
+		}
+
+		fn blueprint_address(deployment: cerulea_platform_api::DeploymentId) -> Option<[u8; 32]> {
+			crate::platform_api::blueprint_address(deployment)
+		}
+
+		fn blueprint(deployment: cerulea_platform_api::DeploymentId) -> Option<Vec<u8>> {
+			crate::platform_api::blueprint(deployment)
+		}
+
+		fn type_names(deployment: cerulea_platform_api::DeploymentId) -> Vec<Vec<u8>> {
+			crate::platform_api::type_names(deployment)
+		}
+
+		fn type_definition(deployment: cerulea_platform_api::DeploymentId, name: Vec<u8>) -> Option<Vec<u8>> {
+			crate::platform_api::type_definition(deployment, name)
+		}
+
+		fn collections(deployment: cerulea_platform_api::DeploymentId) -> Vec<cerulea_platform_api::CollectionSummary> {
+			crate::platform_api::collections(deployment)
+		}
+
+		fn record(
+			deployment: cerulea_platform_api::DeploymentId,
+			collection: Vec<u8>,
+			key: Vec<u8>,
+		) -> Option<cerulea_platform_api::RecordReply> {
+			crate::platform_api::record(deployment, collection, key)
+		}
+
+		fn records(
+			deployment: cerulea_platform_api::DeploymentId,
+			collection: Vec<u8>,
+			prefix: Vec<u8>,
+			limit: u32,
+		) -> Vec<cerulea_platform_api::RecordReply> {
+			crate::platform_api::records(deployment, collection, prefix, limit)
+		}
+
+		fn collection_root(deployment: cerulea_platform_api::DeploymentId, collection: Vec<u8>) -> Option<[u8; 32]> {
+			crate::platform_api::collection_root(deployment, collection)
+		}
+
+		fn verify_record_proof(proof: Vec<u8>, root: [u8; 32]) -> bool {
+			crate::platform_api::verify_record_proof(proof, root)
+		}
+
+		fn resolve_permission(
+			deployment: cerulea_platform_api::DeploymentId,
+			actor: AccountId,
+			collection: Vec<u8>,
+			action: Vec<u8>,
+		) -> cerulea_platform_api::PermissionReply {
+			crate::platform_api::resolve_permission(deployment, actor, collection, action)
+		}
+
+		fn simulate_as_role(
+			deployment: cerulea_platform_api::DeploymentId,
+			role: Vec<u8>,
+			collection: Vec<u8>,
+		) -> cerulea_platform_api::RoleReply {
+			crate::platform_api::simulate_as_role(deployment, role, collection)
+		}
+
+		fn evaluate_view(
+			deployment: cerulea_platform_api::DeploymentId,
+			actor: AccountId,
+			view: Vec<u8>,
+		) -> cerulea_platform_api::ViewReply {
+			crate::platform_api::evaluate_view(deployment, actor, view)
+		}
+
+		fn workflow_names(deployment: cerulea_platform_api::DeploymentId) -> Vec<Vec<u8>> {
+			crate::platform_api::workflow_names(deployment)
+		}
+
+		fn workflow_instance(
+			deployment: cerulea_platform_api::DeploymentId,
+			workflow: Vec<u8>,
+			instance: u64,
+		) -> Option<cerulea_platform_api::WorkflowInstanceReply> {
+			crate::platform_api::workflow_instance(deployment, workflow, instance)
+		}
+
+		fn workflow_instances(
+			deployment: cerulea_platform_api::DeploymentId,
+			workflow: Vec<u8>,
+			limit: u32,
+		) -> Vec<cerulea_platform_api::WorkflowInstanceReply> {
+			crate::platform_api::workflow_instances(deployment, workflow, limit)
+		}
+
+		fn proposals(deployment: cerulea_platform_api::DeploymentId, limit: u32) -> Vec<cerulea_platform_api::ProposalReply> {
+			crate::platform_api::proposals(deployment, limit)
+		}
+
+		fn proposal(deployment: cerulea_platform_api::DeploymentId, id: u64) -> Option<cerulea_platform_api::ProposalReply> {
+			crate::platform_api::proposal(deployment, id)
+		}
+
+		fn proposal_votes(
+			deployment: cerulea_platform_api::DeploymentId,
+			id: u64,
+		) -> Vec<cerulea_platform_api::VoteReply<AccountId>> {
+			crate::platform_api::proposal_votes(deployment, id)
+		}
+
+		fn executed_changes(
+			deployment: cerulea_platform_api::DeploymentId,
+			limit: u32,
+		) -> Vec<cerulea_platform_api::ProposalReply> {
+			crate::platform_api::executed_changes(deployment, limit)
+		}
+
+		fn audit_length(deployment: cerulea_platform_api::DeploymentId) -> u64 {
+			crate::platform_api::audit_length(deployment)
+		}
+
+		fn audit_entries(
+			deployment: cerulea_platform_api::DeploymentId,
+			from: u64,
+			limit: u32,
+		) -> Vec<cerulea_platform_api::AuditReply<AccountId>> {
+			crate::platform_api::audit_entries(deployment, from, limit)
+		}
+
+		fn audit_by_actor(
+			deployment: cerulea_platform_api::DeploymentId,
+			actor: AccountId,
+			limit: u32,
+		) -> Vec<cerulea_platform_api::AuditReply<AccountId>> {
+			crate::platform_api::audit_by_actor(deployment, actor, limit)
+		}
+
+		fn licence_state(deployment: cerulea_platform_api::DeploymentId) -> Option<cerulea_platform_api::LicenceReply> {
+			crate::platform_api::licence_state(deployment)
+		}
+
+		fn production_permitted() -> bool {
+			crate::platform_api::production_permitted()
+		}
+
+		fn oracle_feeds(deployment: cerulea_platform_api::DeploymentId) -> Vec<Vec<u8>> {
+			crate::platform_api::oracle_feeds(deployment)
+		}
+
+		fn oracle_value(
+			deployment: cerulea_platform_api::DeploymentId,
+			feed: Vec<u8>,
+		) -> Option<cerulea_platform_api::OracleReply> {
+			crate::platform_api::oracle_value(deployment, feed)
+		}
+
+		fn versions(deployment: cerulea_platform_api::DeploymentId) -> Vec<cerulea_platform_api::VersionReply> {
+			crate::platform_api::versions(deployment)
+		}
+
+		fn rollback_windows(
+			deployment: cerulea_platform_api::DeploymentId,
+		) -> Vec<cerulea_platform_api::RollbackWindowReply> {
+			crate::platform_api::rollback_windows(deployment)
+		}
+
+		fn operator_accounts(deployment: cerulea_platform_api::DeploymentId) -> Vec<AccountId> {
+			crate::platform_api::operator_accounts(deployment)
+		}
+
+		fn consensus_profile() -> cerulea_platform_api::ConsensusProfileReply {
+			crate::platform_api::consensus_profile()
+		}
+
+		fn custody_history(validator: AccountId, limit: u32) -> Vec<cerulea_platform_api::CustodyReply<AccountId>> {
+			crate::platform_api::custody_history(validator, limit)
+		}
+
+		fn action_manifest(
+			deployment: cerulea_platform_api::DeploymentId,
+			action: Vec<u8>,
+		) -> Option<cerulea_platform_api::ActionManifestReply> {
+			crate::platform_api::action_manifest(deployment, action)
+		}
+
+		fn action_names(deployment: cerulea_platform_api::DeploymentId) -> Vec<Vec<u8>> {
+			crate::platform_api::action_names(deployment)
+		}
+	}
+
 	// Runtime Benchmarking API
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {

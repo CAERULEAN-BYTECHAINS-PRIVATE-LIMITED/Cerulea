@@ -79,6 +79,10 @@ pub enum StandDown {
         /// The rank holding the slot.
         rank: u8,
     },
+    /// The licence of the deployment lapsed, so block production stopped.
+    ///
+    /// Reading stays open throughout. Export stays open throughout.
+    ProductionSuspended,
 }
 
 impl StandDown {
@@ -93,6 +97,9 @@ impl StandDown {
             }
             StandDown::AuthorUnrecorded { .. } => {
                 "The scheduled author sits outside the validator key registry."
+            }
+            StandDown::ProductionSuspended => {
+                "The licence of the deployment lapsed. Renew the subscription and install the new licence."
             }
         }
     }

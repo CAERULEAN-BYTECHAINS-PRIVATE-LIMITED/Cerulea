@@ -28,6 +28,7 @@ extern crate alloc;
 
 pub mod index;
 pub mod proof;
+pub mod retention;
 pub mod validate;
 pub mod weights;
 
@@ -40,6 +41,7 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
+pub use retention::RecordVersion;
 pub use weights::WeightInfo;
 
 use alloc::{vec, vec::Vec};
@@ -267,6 +269,22 @@ pub mod pallet {
         /// collection holds far more records than the slot count admits.
         #[pallet::constant]
         type MaxBucketEntries: Get<u32>;
+
+        /// The largest number of version entries one record keeps.
+        ///
+        /// A write past the bound drops the oldest entry, so the history
+        /// carries the most recent writes and one block never grows
+        /// without bound.
+        #[pallet::constant]
+        type MaxVersionHistory: Get<u32>;
+
+        /// The largest number of collections the retention sweep watches.
+        #[pallet::constant]
+        type MaxWatchedCollections: Get<u32>;
+
+        /// The largest number of records one retention sweep checks.
+        #[pallet::constant]
+        type MaxRetentionScan: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -366,6 +384,71 @@ pub mod pallet {
     pub type Roots<T: Config> =
         StorageMap<_, Blake2_128Concat, CollectionKey, [u8; 32], OptionQuery>;
 
+    /// The wall clock time every record landed at, in milliseconds.
+    ///
+    /// The retention sweep reads this moment and the declared span to
+    /// decide whether a record reached its expiry.
+    #[pallet::storage]
+    pub type WrittenAt<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        CollectionKey,
+        Blake2_128Concat,
+        RecordKey,
+        u64,
+        OptionQuery,
+    >;
+
+    /// The version history of every record, oldest entry first.
+    #[pallet::storage]
+    pub type History<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        CollectionKey,
+        Blake2_128Concat,
+        RecordKey,
+        BoundedVec<retention::RecordVersion<BlockNumberFor<T>, T::AccountId>, T::MaxVersionHistory>,
+        ValueQuery,
+    >;
+
+    /// The collections the retention sweep watches.
+    ///
+    /// A collection whose records stay for the life of the deployment
+    /// reaches no sweep, so the list holds the collections carrying a
+    /// finite span alone.
+    #[pallet::storage]
+    pub type RetentionWatch<T: Config> =
+        StorageValue<_, BoundedVec<CollectionKey, T::MaxWatchedCollections>, ValueQuery>;
+
+    /// The place in the watch list the next sweep starts from.
+    #[pallet::storage]
+    pub type RetentionCursor<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// The records retention already settled, with the moment of the
+    /// settlement.
+    #[pallet::storage]
+    pub type RetentionSettled<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        CollectionKey,
+        Blake2_128Concat,
+        RecordKey,
+        u64,
+        OptionQuery,
+    >;
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// Run the retention sweep of one block.
+        ///
+        /// The sweep checks one watched collection and at most the declared
+        /// count of records inside it, so one block never runs without
+        /// bound.
+        fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+            Self::sweep_retention()
+        }
+    }
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -403,6 +486,45 @@ pub mod pallet {
             key: RecordKey,
             /// The account the chain records as the actor.
             actor: T::AccountId,
+        },
+        /// A record reached the review date its retention rule declares.
+        RetentionReviewDue {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection.
+            collection: BoundedVec<u8, ConstU32<128>>,
+            /// The record key.
+            key: RecordKey,
+        },
+        /// Retention expiry cleared the payload of a record and kept the
+        /// commitment.
+        RetentionErased {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection.
+            collection: BoundedVec<u8, ConstU32<128>>,
+            /// The record key.
+            key: RecordKey,
+        },
+        /// Retention expiry cleared the listed fields of a record.
+        RetentionAnonymised {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection.
+            collection: BoundedVec<u8, ConstU32<128>>,
+            /// The record key.
+            key: RecordKey,
+        },
+        /// Retention expiry moved a record to another collection.
+        RetentionMoved {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection the record sat in.
+            collection: BoundedVec<u8, ConstU32<128>>,
+            /// The record key.
+            key: RecordKey,
+            /// The collection the record moved to.
+            target: BoundedVec<u8, ConstU32<128>>,
         },
     }
 
@@ -545,13 +667,13 @@ impl<T: Config> Pallet<T> {
         cerulea_blueprint::types::Timestamp::from_millis(Self::now_millis())
     }
 
-    fn collection_id(name: &[u8]) -> Result<CollectionId, DispatchError> {
+    pub(crate) fn collection_id(name: &[u8]) -> Result<CollectionId, DispatchError> {
         let text = alloc::string::String::from_utf8(name.to_vec())
             .map_err(|_| Error::<T>::CollectionUnknown)?;
         Ok(CollectionId::new(&text))
     }
 
-    fn storage_key(
+    pub(crate) fn storage_key(
         deployment: &DeploymentId,
         collection: &CollectionId,
     ) -> Result<CollectionKey, DispatchError> {
@@ -559,7 +681,7 @@ impl<T: Config> Pallet<T> {
         Ok(CollectionKey::new(*deployment, name))
     }
 
-    fn event_name(collection: &CollectionId) -> BoundedVec<u8, ConstU32<128>> {
+    pub(crate) fn event_name(collection: &CollectionId) -> BoundedVec<u8, ConstU32<128>> {
         BoundedVec::try_from(collection.as_str().as_bytes().to_vec()).unwrap_or_default()
     }
 
@@ -740,7 +862,11 @@ impl<T: Config> Pallet<T> {
         let version = meta.version;
         Self::set_leaf(&slot, key, Some(value_hash))?;
         Records::<T>::insert(&slot, key, bytes);
-        Meta::<T>::insert(&slot, key, meta);
+        Meta::<T>::insert(&slot, key, &meta);
+        WrittenAt::<T>::insert(&slot, key, Self::now_millis());
+        RetentionSettled::<T>::remove(&slot, key);
+        Self::note_version(&slot, key, &meta);
+        Self::note_retention(&slot, definition);
 
         if version == 1 {
             Self::deposit_event(Event::RecordInserted {
@@ -791,6 +917,9 @@ impl<T: Config> Pallet<T> {
         Records::<T>::remove(&slot, key);
         Meta::<T>::remove(&slot, key);
         KeyOrder::<T>::remove(&slot, key);
+        History::<T>::remove(&slot, key);
+        WrittenAt::<T>::remove(&slot, key);
+        RetentionSettled::<T>::remove(&slot, key);
         RecordCount::<T>::mutate(&slot, |count| *count = count.saturating_sub(1));
 
         Self::deposit_event(Event::RecordDeleted {

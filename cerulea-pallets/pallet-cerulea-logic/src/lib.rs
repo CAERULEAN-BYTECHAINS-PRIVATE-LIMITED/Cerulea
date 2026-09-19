@@ -193,6 +193,44 @@ pub mod pallet {
     #[pallet::storage]
     pub type ActionRuns<T: Config> = StorageMap<_, Blake2_128Concat, DeploymentId, u64, ValueQuery>;
 
+    /// The Blueprints a chain specification installs at genesis.
+    ///
+    /// Each entry is the canonical encoding of one Blueprint. The build
+    /// step validates the Blueprint, registers every type and every
+    /// collection it declares, and stores it under its content address.
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// The canonical encoding of each Blueprint the chain installs.
+        pub blueprints: Vec<Vec<u8>>,
+        /// Marker carrying the runtime type.
+        #[serde(skip)]
+        pub marker: PhantomData<T>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            for bytes in self.blueprints.iter() {
+                let parsed = Blueprint::decode(&mut bytes.as_slice()).expect(
+                    "A genesis Blueprint fails to decode. Supply the canonical encoding the Studio produces.",
+                );
+                parsed.validate().expect(
+                    "A genesis Blueprint carries a diagnostic. Correct the Blueprint before installing it.",
+                );
+                let deployment = parsed.id().0;
+                if Installed::<T>::get(deployment).is_some() {
+                    continue;
+                }
+                T::Schema::register_blueprint(&deployment, &parsed).expect(
+                    "A genesis Blueprint fails to register. Correct the types and collections it declares.",
+                );
+                Installed::<T>::insert(deployment, parsed);
+                InstalledAt::<T>::insert(deployment, frame_system::Pallet::<T>::block_number());
+            }
+        }
+    }
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
