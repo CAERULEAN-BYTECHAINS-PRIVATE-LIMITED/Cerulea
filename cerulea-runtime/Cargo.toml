@@ -40,6 +40,7 @@ pallet-cerulea-identity.workspace = true
 pallet-cerulea-permission.workspace = true
 pallet-cerulea-audit.workspace = true
 pallet-cerulea-workflow.workspace = true
+pallet-cerulea-governance.workspace = true
 pallet-cerulea-rules.workspace = true
 pallet-timestamp.workspace = true                                                # Timestamp pallet
 pallet-transaction-payment-rpc-runtime-api.workspace = true                      # Payment APIs for transactions
@@ -100,6 +101,7 @@ std = [
 	"pallet-cerulea-permission/std",
 	"pallet-cerulea-audit/std",
 	"pallet-cerulea-workflow/std",
+	"pallet-cerulea-governance/std",
 	"pallet-cerulea-rules/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
@@ -154,6 +156,7 @@ try-runtime = [
 	"pallet-cerulea-permission/try-runtime",
 	"pallet-cerulea-audit/try-runtime",
 	"pallet-cerulea-workflow/try-runtime",
+	"pallet-cerulea-governance/try-runtime",
 	"pallet-cerulea-rules/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",

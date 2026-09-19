@@ -24,6 +24,7 @@ members = [
     "cerulea-pallets/pallet-cerulea-permission",
     "cerulea-pallets/pallet-cerulea-audit",
     "cerulea-pallets/pallet-cerulea-workflow",
+    "cerulea-pallets/pallet-cerulea-governance",
     "cerulea-pallets/pallet-cerulea-rules",
 ]
 resolver = "2"
@@ -39,6 +40,7 @@ pallet-cerulea-identity = { path = "./cerulea-pallets/pallet-cerulea-identity", 
 pallet-cerulea-permission = { path = "./cerulea-pallets/pallet-cerulea-permission", default-features = false }
 pallet-cerulea-audit = { path = "./cerulea-pallets/pallet-cerulea-audit", default-features = false }
 pallet-cerulea-workflow = { path = "./cerulea-pallets/pallet-cerulea-workflow", default-features = false }
+pallet-cerulea-governance = { path = "./cerulea-pallets/pallet-cerulea-governance", default-features = false }
 pallet-cerulea-rules = { path = "./cerulea-pallets/pallet-cerulea-rules", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}

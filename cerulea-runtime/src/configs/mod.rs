@@ -533,3 +533,21 @@ impl pallet_cerulea_permission::Config for Runtime {
     type MaxEntriesPerPair = ConstU32<64>;
     type RowStepLimit = ConstU64<100000>;
 }
+
+// === The Cerulea governance module ===
+// The governance module holds the change process of a deployed system.
+// The scope covers a schema change, a permission change, a policy
+// amendment, a validator set change and an upgrade approval. Each kind
+// carries a class of work, and each class carries a threshold. The
+// Governance section of the Blueprint raises a threshold above the floor
+// of its class. The electorate is the weighted register the module keeps.
+impl pallet_cerulea_governance::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_governance::weights::CeruleaWeight<Runtime>;
+    type Roll = pallet_cerulea_governance::RegisteredElectorate<Runtime>;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxPayloadBytes = ConstU32<262144>;
+    type MaxAuthorityRoles = ConstU32<64>;
+    type MaxVoteSpan = ConstU64<2592000000>;
+}

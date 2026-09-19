@@ -247,6 +247,9 @@ mod runtime {
     #[runtime::pallet_index(18)]
     pub type Rules = pallet_cerulea_rules::Pallet<Runtime>;
 
+    #[runtime::pallet_index(19)]
+    pub type Governance = pallet_cerulea_governance::Pallet<Runtime>;
+
     #[runtime::pallet_index(25)]
     pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
 
