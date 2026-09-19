@@ -15,6 +15,8 @@ pub trait WeightInfo {
     fn distribute_key() -> Weight;
     /// Take the content key away from one role.
     fn revoke_access() -> Weight;
+    /// Rotate the content key of one sealed collection.
+    fn rotate_key() -> Weight;
     /// Check one payload against a stored commitment.
     fn verify_commitment() -> Weight;
 }
@@ -47,6 +49,12 @@ impl<T: frame_system::Config> WeightInfo for CeruleaWeight<T> {
             .saturating_add(RocksDbWeight::get().writes(3))
     }
 
+    fn rotate_key() -> Weight {
+        Weight::from_parts(280_000_000, 28_000)
+            .saturating_add(RocksDbWeight::get().reads(46))
+            .saturating_add(RocksDbWeight::get().writes(40))
+    }
+
     fn verify_commitment() -> Weight {
         Weight::from_parts(34_000_000, 4_000).saturating_add(RocksDbWeight::get().reads(2))
     }
@@ -68,6 +76,10 @@ impl WeightInfo for () {
 
     fn revoke_access() -> Weight {
         Weight::from_parts(40_000_000, 5_000)
+    }
+
+    fn rotate_key() -> Weight {
+        Weight::from_parts(280_000_000, 28_000)
     }
 
     fn verify_commitment() -> Weight {

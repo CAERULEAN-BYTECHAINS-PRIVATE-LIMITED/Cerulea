@@ -196,6 +196,15 @@ pub mod pallet {
         /// The largest payload one commitment check carries, in bytes.
         #[pallet::constant]
         type MaxPayloadBytes: Get<u32>;
+
+        /// The number of key epochs the Blockchain keeps behind the live
+        /// one.
+        ///
+        /// A rotation leaves the earlier wrapped keys in place for this
+        /// many epochs, so a holder that reads an export taken before the
+        /// rotation still opens it. An older epoch leaves the Blockchain.
+        #[pallet::constant]
+        type KeyHistoryDepth: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -333,6 +342,26 @@ pub mod pallet {
             /// The key epoch.
             epoch: u32,
         },
+        /// A collection moved to a fresh content key.
+        KeyRotated {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection.
+            collection: BoundedName,
+            /// The key epoch the collection held.
+            from_epoch: u32,
+            /// The key epoch the collection moves to.
+            to_epoch: u32,
+        },
+        /// A key epoch left the Blockchain.
+        EpochRetired {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The collection.
+            collection: BoundedName,
+            /// The key epoch that left.
+            epoch: u32,
+        },
         /// A payload matched the commitment the Blockchain holds.
         CommitmentVerified {
             /// The deployment.
@@ -392,6 +421,12 @@ pub mod pallet {
         /// The role holds no wrapped content key at that key epoch. Ask
         /// the steward to distribute the key to the role.
         RoleWithoutKey,
+        /// The collection holds its records in plain form, so a key
+        /// rotation reaches nothing. Set the class to encrypted first.
+        ClassNotSealed,
+        /// The rotation names the same key twice. Supply a content key the
+        /// collection has yet to hold.
+        KeyUnchanged,
     }
 
     #[pallet::call]
@@ -566,6 +601,93 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Rotate the content key of one sealed collection.
+        ///
+        /// The call raises the key epoch, wraps the new content key for
+        /// every role the call names, and re-seals every record under the
+        /// new key. The rotation runs in pages like a class change, and
+        /// the new epoch takes effect when the last page lands.
+        ///
+        /// A role the call leaves out keeps its wrapped key at the earlier
+        /// epoch alone. That role therefore reads nothing the Blockchain
+        /// holds after the rotation, which is how a revocation takes
+        /// effect against a holder that already saw the earlier key.
+        #[pallet::call_index(5)]
+        #[pallet::weight(T::WeightInfo::rotate_key())]
+        pub fn rotate_key(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            collection: BoundedName,
+            present_key: [u8; 32],
+            next_key: [u8; 32],
+            holders: BoundedVec<(BoundedName, [u8; 32]), T::MaxKeyHolders>,
+        ) -> DispatchResult {
+            let _ = ensure_signed(origin)?;
+            let id = Self::collection_id(&collection)?;
+            let slot = CollectionKey::new(deployment, collection.clone());
+            ensure!(
+                T::Schema::collection(&deployment, &id).is_some(),
+                Error::<T>::CollectionUnknown
+            );
+            ensure!(
+                Changes::<T>::get(&slot).is_none(),
+                Error::<T>::ChangePending
+            );
+            ensure!(
+                Self::level(&deployment, &id).is_sealed(),
+                Error::<T>::ClassNotSealed
+            );
+            ensure!(present_key != next_key, Error::<T>::KeyUnchanged);
+
+            let present_epoch = KeyEpochs::<T>::get(&slot);
+            Self::check_content_key(&slot, present_epoch, Some(present_key))?;
+            let epoch = present_epoch.saturating_add(1);
+            ContentKeyHashes::<T>::insert(&slot, epoch, keys::key_commitment(&next_key));
+
+            let mut names: BoundedVec<BoundedName, T::MaxKeyHolders> = BoundedVec::default();
+            for (role, role_key) in holders.iter() {
+                let wrapped = keys::wrap(role_key, &slot, epoch, role.as_slice(), &next_key);
+                let bounded: BoundedVec<u8, T::MaxWrappedKeyBytes> =
+                    BoundedVec::try_from(wrapped).map_err(|_| Error::<T>::WrappedKeyTooLarge)?;
+                WrappedKeys::<T>::insert((slot.clone(), role.clone(), epoch), bounded);
+                RoleKeyHashes::<T>::insert(
+                    (slot.clone(), role.clone(), epoch),
+                    keys::key_commitment(role_key),
+                );
+                if !names.contains(role) {
+                    names
+                        .try_push(role.clone())
+                        .map_err(|_| Error::<T>::HolderLimitReached)?;
+                }
+                Self::deposit_event(Event::KeyDistributed {
+                    deployment,
+                    collection: collection.clone(),
+                    role: role.clone(),
+                    epoch,
+                });
+            }
+            KeyHolders::<T>::insert(&slot, names);
+
+            Self::retire_epoch(&slot, epoch);
+            Changes::<T>::insert(
+                &slot,
+                PendingChange {
+                    target: PrivacyLevel::Encrypted,
+                    from: PrivacyLevel::Encrypted,
+                    epoch,
+                    cursor: None,
+                    rewritten: 0,
+                },
+            );
+            Self::deposit_event(Event::KeyRotated {
+                deployment,
+                collection: collection.clone(),
+                from_epoch: present_epoch,
+                to_epoch: epoch,
+            });
+            Self::run_page(&deployment, &id, &slot, Some(present_key), Some(next_key))
+        }
+
         /// Check one payload against the commitment the Blockchain holds.
         ///
         /// A matching payload writes the check into the Blockchain record,
@@ -735,6 +857,51 @@ impl<T: Config> Pallet<T> {
                 Ok(keys::seal(&content, &nonce, plain))
             }
         }
+    }
+
+    /// Clear the wrapped keys of every epoch past the history depth.
+    ///
+    /// A rotation keeps the recent epochs so a holder still opens an
+    /// export taken before the rotation. An older epoch leaves the
+    /// Blockchain together with its wrapped keys.
+    fn retire_epoch(slot: &CollectionKey, live: u32) {
+        let depth = T::KeyHistoryDepth::get();
+        if live <= depth {
+            return;
+        }
+        let stale = live.saturating_sub(depth).saturating_sub(1);
+        if stale == 0 {
+            return;
+        }
+        let holders: Vec<BoundedName> = KeyHolders::<T>::get(slot).into_inner();
+        let mut cleared = false;
+        for role in holders.iter() {
+            if WrappedKeys::<T>::contains_key((slot.clone(), role.clone(), stale)) {
+                WrappedKeys::<T>::remove((slot.clone(), role.clone(), stale));
+                RoleKeyHashes::<T>::remove((slot.clone(), role.clone(), stale));
+                cleared = true;
+            }
+        }
+        ContentKeyHashes::<T>::remove(slot, stale);
+        if cleared {
+            Self::deposit_event(Event::EpochRetired {
+                deployment: slot.deployment,
+                collection: slot.name.clone(),
+                epoch: stale,
+            });
+        }
+    }
+
+    /// The wrapped content key one role holds at one key epoch.
+    pub fn wrapped_key_at(
+        deployment: &DeploymentId,
+        collection: &CollectionId,
+        role: &BoundedName,
+        epoch: u32,
+    ) -> Option<Vec<u8>> {
+        let name = name_of(collection.as_str()).ok()?;
+        let slot = CollectionKey::new(*deployment, name);
+        WrappedKeys::<T>::get((slot, role.clone(), epoch)).map(|held| held.into_inner())
     }
 
     /// Open one sealed record with one role key.

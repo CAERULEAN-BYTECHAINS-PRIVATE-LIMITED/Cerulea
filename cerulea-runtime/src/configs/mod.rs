@@ -431,4 +431,5 @@ impl pallet_cerulea_collections::Config for Runtime {
     type MaxKeyHolders = ConstU32<64>;
     type MaxWrappedKeyBytes = ConstU32<128>;
     type MaxPayloadBytes = ConstU32<65536>;
+    type KeyHistoryDepth = ConstU32<2>;
 }

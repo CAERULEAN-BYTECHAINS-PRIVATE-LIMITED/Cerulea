@@ -69,6 +69,7 @@ impl pallet_cerulea_collections::Config for Test {
     type MaxKeyHolders = ConstU32<8>;
     type MaxWrappedKeyBytes = ConstU32<128>;
     type MaxPayloadBytes = ConstU32<8_192>;
+    type KeyHistoryDepth = ConstU32<1>;
 }
 
 /// The test gate. Every request is admitted.

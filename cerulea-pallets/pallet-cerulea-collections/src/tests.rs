@@ -794,3 +794,298 @@ fn every_class_carries_a_label_and_a_shape() {
         PrivacyLevel::HashOnly
     );
 }
+
+fn holder_keys(
+    pairs: &[(&str, [u8; 32])],
+) -> BoundedVec<(BoundedName, [u8; 32]), frame_support::traits::ConstU32<8>> {
+    BoundedVec::try_from(
+        pairs
+            .iter()
+            .map(|(role, key)| (name(role), *key))
+            .collect::<Vec<_>>(),
+    )
+    .expect("the holder list fits")
+}
+
+#[test]
+fn a_rotation_re_seals_every_record_and_re_wraps_every_holder() {
+    new_test_ext().execute_with(|| {
+        install();
+        let record = parcel("12/3", "Anitha");
+        let key = insert(&record);
+        seal_collection();
+        assert_ok!(Collections::distribute_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            name("registrar"),
+            REGISTRAR_KEY,
+            CONTENT_KEY
+        ));
+        let before = <State as RecordStore>::read_bytes(&DEPLOYMENT, &id(), &key)
+            .expect("the store holds the record");
+        let first_epoch = KeyEpochs::<Test>::get(slot());
+
+        assert_ok!(Collections::rotate_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            CONTENT_KEY,
+            NEXT_KEY,
+            holder_keys(&[("registrar", REGISTRAR_KEY), ("clerk", CLERK_KEY)])
+        ));
+
+        assert_eq!(KeyEpochs::<Test>::get(slot()), first_epoch + 1);
+        let after = <State as RecordStore>::read_bytes(&DEPLOYMENT, &id(), &key)
+            .expect("the store holds the record");
+        assert_ne!(before, after);
+
+        for (role, role_key) in [("registrar", REGISTRAR_KEY), ("clerk", CLERK_KEY)] {
+            let opened =
+                Pallet::<Test>::open_record(&DEPLOYMENT, &id(), &key, &name(role), &role_key)
+                    .expect("the rotated key opens the record");
+            assert_eq!(opened, record.canonical_bytes());
+        }
+    });
+}
+
+#[test]
+fn a_rotation_leaves_out_a_role_and_that_role_reads_nothing() {
+    new_test_ext().execute_with(|| {
+        install();
+        let record = parcel("12/3", "Anitha");
+        let key = insert(&record);
+        seal_collection();
+        for (role, role_key) in [("registrar", REGISTRAR_KEY), ("clerk", CLERK_KEY)] {
+            assert_ok!(Collections::distribute_key(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                name(role),
+                role_key,
+                CONTENT_KEY
+            ));
+        }
+        assert_ok!(Collections::rotate_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            CONTENT_KEY,
+            NEXT_KEY,
+            holder_keys(&[("registrar", REGISTRAR_KEY)])
+        ));
+
+        assert_ok!(Pallet::<Test>::open_record(
+            &DEPLOYMENT,
+            &id(),
+            &key,
+            &name("registrar"),
+            &REGISTRAR_KEY
+        ));
+        assert_noop!(
+            Pallet::<Test>::open_record(&DEPLOYMENT, &id(), &key, &name("clerk"), &CLERK_KEY),
+            Error::<Test>::RoleWithoutKey
+        );
+        assert_eq!(
+            <Pallet<Test> as PrivacyRegistry>::key_holders(&DEPLOYMENT, &id()),
+            vec![name("registrar")]
+        );
+    });
+}
+
+#[test]
+fn a_rotation_keeps_the_recent_epoch_and_retires_the_older_one() {
+    new_test_ext().execute_with(|| {
+        install();
+        insert(&parcel("12/3", "Anitha"));
+        seal_collection();
+        assert_ok!(Collections::distribute_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            name("registrar"),
+            REGISTRAR_KEY,
+            CONTENT_KEY
+        ));
+        let first = KeyEpochs::<Test>::get(slot());
+
+        assert_ok!(Collections::rotate_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            CONTENT_KEY,
+            NEXT_KEY,
+            holder_keys(&[("registrar", REGISTRAR_KEY)])
+        ));
+        // The history depth of the test runtime keeps one epoch behind the
+        // live epoch.
+        assert!(
+            Pallet::<Test>::wrapped_key_at(&DEPLOYMENT, &id(), &name("registrar"), first).is_some()
+        );
+
+        let third: [u8; 32] = [99u8; 32];
+        assert_ok!(Collections::rotate_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            NEXT_KEY,
+            third,
+            holder_keys(&[("registrar", REGISTRAR_KEY)])
+        ));
+        assert!(
+            Pallet::<Test>::wrapped_key_at(&DEPLOYMENT, &id(), &name("registrar"), first).is_none()
+        );
+    });
+}
+
+#[test]
+fn a_rotation_of_a_plain_collection_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        install();
+        insert(&parcel("12/3", "Anitha"));
+        assert_noop!(
+            Collections::rotate_key(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                CONTENT_KEY,
+                NEXT_KEY,
+                holder_keys(&[("registrar", REGISTRAR_KEY)])
+            ),
+            Error::<Test>::ClassNotSealed
+        );
+    });
+}
+
+#[test]
+fn a_rotation_declines_the_same_key_twice() {
+    new_test_ext().execute_with(|| {
+        install();
+        insert(&parcel("12/3", "Anitha"));
+        seal_collection();
+        assert_noop!(
+            Collections::rotate_key(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                CONTENT_KEY,
+                CONTENT_KEY,
+                holder_keys(&[("registrar", REGISTRAR_KEY)])
+            ),
+            Error::<Test>::KeyUnchanged
+        );
+    });
+}
+
+#[test]
+fn a_rotation_declines_a_wrong_present_key() {
+    new_test_ext().execute_with(|| {
+        install();
+        insert(&parcel("12/3", "Anitha"));
+        seal_collection();
+        assert_noop!(
+            Collections::rotate_key(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                [77u8; 32],
+                NEXT_KEY,
+                holder_keys(&[("registrar", REGISTRAR_KEY)])
+            ),
+            Error::<Test>::ContentKeyMismatch
+        );
+    });
+}
+
+#[test]
+fn a_rotation_over_several_pages_finishes_with_every_record_re_sealed() {
+    new_test_ext().execute_with(|| {
+        install();
+        let records: Vec<Value> = ["12/3", "44/9", "07/1", "88/2", "55/5"]
+            .iter()
+            .map(|survey| parcel(survey, "Anitha"))
+            .collect();
+        let mut stored = Vec::new();
+        for record in records.iter() {
+            stored.push(insert(record));
+        }
+        assert_ok!(Collections::set_class(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            PrivacyLevel::Encrypted,
+            holders(&["registrar"]),
+            None,
+            Some(CONTENT_KEY)
+        ));
+        while <Pallet<Test> as PrivacyRegistry>::change_pending(&DEPLOYMENT, &id()) {
+            assert_ok!(Collections::advance_class_change(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                None,
+                Some(CONTENT_KEY)
+            ));
+        }
+
+        assert_ok!(Collections::rotate_key(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            CONTENT_KEY,
+            NEXT_KEY,
+            holder_keys(&[("registrar", REGISTRAR_KEY)])
+        ));
+        while <Pallet<Test> as PrivacyRegistry>::change_pending(&DEPLOYMENT, &id()) {
+            assert_ok!(Collections::advance_class_change(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                Some(CONTENT_KEY),
+                Some(NEXT_KEY)
+            ));
+        }
+
+        for key in stored.iter() {
+            let opened = Pallet::<Test>::open_record(
+                &DEPLOYMENT,
+                &id(),
+                key,
+                &name("registrar"),
+                &REGISTRAR_KEY,
+            )
+            .expect("the rotated key opens every record");
+            assert!(records.iter().any(|held| held.canonical_bytes() == opened));
+        }
+    });
+}
+
+#[test]
+fn a_rotation_waits_for_a_pending_class_change() {
+    new_test_ext().execute_with(|| {
+        install();
+        for survey in ["12/3", "44/9", "07/1"] {
+            insert(&parcel(survey, "Anitha"));
+        }
+        assert_ok!(Collections::set_class(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            name("parcel"),
+            PrivacyLevel::Encrypted,
+            holders(&["registrar"]),
+            None,
+            Some(CONTENT_KEY)
+        ));
+        assert_noop!(
+            Collections::rotate_key(
+                RuntimeOrigin::signed(STEWARD),
+                DEPLOYMENT,
+                name("parcel"),
+                CONTENT_KEY,
+                NEXT_KEY,
+                holder_keys(&[("registrar", REGISTRAR_KEY)])
+            ),
+            Error::<Test>::ChangePending
+        );
+    });
+}
