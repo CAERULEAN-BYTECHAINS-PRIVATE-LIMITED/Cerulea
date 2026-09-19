@@ -36,16 +36,16 @@ fn stress_test_concurrent_validator_lifecycle() {
                 
                 // Verify immediate state
                 assert!(DcfPallet::is_validator_active(&validator));
-                let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+                let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
                 assert!(validator_stake > 0);
             }
             
             // Process blocks between batches
             for block in 1..=5 {
                 let block_num = batch * 5 + block;
-                System::set_block_number(block_num as u64);
-                DcfPallet::on_initialize(block_num as u64);
-                DcfPallet::on_finalize(block_num as u64);
+                System::set_block_number(block_num);
+                DcfPallet::on_initialize(block_num);
+                DcfPallet::on_finalize(block_num);
             }
         }
         
@@ -193,7 +193,7 @@ fn stress_test_rapid_epoch_transitions() {
             epoch_data.push((epoch_end_epoch, epoch_end_validators.len()));
             
             // Verify epoch advanced
-            assert!(epoch_end_epoch >= epoch as u32 - 1);
+            assert!(epoch_end_epoch >= epoch - 1);
         }
         
         // Verify epoch progression
@@ -277,9 +277,9 @@ fn stress_test_concurrent_score_updates() {
             if update_round % 5 == 0 {
                 for block in 1..=3 {
                     let block_num = (update_round / 5 - 1) * 3 + block;
-                    System::set_block_number(block_num as u64);
-                    DcfPallet::on_initialize(block_num as u64);
-                    DcfPallet::on_finalize(block_num as u64);
+                    System::set_block_number(block_num);
+                    DcfPallet::on_initialize(block_num);
+                    DcfPallet::on_finalize(block_num);
                 }
             }
         }
@@ -288,8 +288,8 @@ fn stress_test_concurrent_score_updates() {
         for i in 1..=num_validators {
             let validator = 3000 + i;
             assert!(DcfPallet::is_validator_active(&validator));
-            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
-            assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
+            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+            assert!(PalletCeruleaPoi::inference_results(validator).is_some());
         }
         
         // Verify system-wide consistency
@@ -358,7 +358,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
             // PoS slashing for poor performance
             for i in 1..=num_validators / 4 {
                 let validator = 4000 + i;
-                if PalletCeruleaPos::validators(&validator).is_some() {
+                if PalletCeruleaPos::validators(validator).is_some() {
                     let slash_result = mock_slash_validator(&validator, 50);
                     if slash_result.is_ok() {
                         slashing_events += 1;
@@ -385,9 +385,9 @@ fn stress_test_concurrent_challenges_and_slashing() {
             // Process blocks
             for block in 1..=5 {
                 let block_num = (round - 1) * 5 + block;
-                System::set_block_number(block_num as u64);
-                DcfPallet::on_initialize(block_num as u64);
-                DcfPallet::on_finalize(block_num as u64);
+                System::set_block_number(block_num);
+                DcfPallet::on_initialize(block_num);
+                DcfPallet::on_finalize(block_num);
             }
             
             // Re-submit inferences for next round
@@ -497,9 +497,9 @@ fn stress_test_governance_under_load() {
             if proposal_id % 5 == 0 {
                 for block in 1..=3 {
                     let block_num = (proposal_id / 5) * 3 + block;
-                    System::set_block_number(block_num as u64);
-                    DcfPallet::on_initialize(block_num as u64);
-                    DcfPallet::on_finalize(block_num as u64);
+                    System::set_block_number(block_num);
+                    DcfPallet::on_initialize(block_num);
+                    DcfPallet::on_finalize(block_num);
                 }
             }
         }
@@ -562,7 +562,7 @@ fn stress_test_storage_limits() {
                 assert_ok!(PalletCeruleaPos::submit_score(
                     RuntimeOrigin::signed(1),
                     validator,
-                    (70 + (round % 25)) as u32
+                    (70 + (round % 25))
                 ));
                 
                 assert_ok!(DcfPallet::update_validator_stake_score(
@@ -646,7 +646,7 @@ fn stress_test_maximum_system_load() {
                 match op % 8 {
                     0 => {
                         // PoS score update
-                        let score = 60 + ((block_num + op) % 35) as u32;
+                        let score = 60 + ((block_num + op) % 35);
                         let _ = PalletCeruleaPos::submit_score(
                             RuntimeOrigin::signed(1),
                             validator,
@@ -655,8 +655,8 @@ fn stress_test_maximum_system_load() {
                     },
                     1 => {
                         // PoI inference
-                        let result = ((block_num + op) % 80 + 20) as u32;
-                        let confidence = (75 + ((block_num + op) % 20)) as u32;
+                        let result = ((block_num + op) % 80 + 20);
+                        let confidence = (75 + ((block_num + op) % 20));
                         let _ = PalletCeruleaPoi::submit_inference(
                             RuntimeOrigin::signed(validator),
                             result,
@@ -694,7 +694,7 @@ fn stress_test_maximum_system_load() {
                         let proposal_id = (block_num - 1) * 2 + (op / 10); // Approximate proposal ID
                         let _ = DcfPallet::vote_proposal(
                             RuntimeOrigin::signed(validator),
-                            proposal_id as u32,
+                            proposal_id,
                             true
                         );
                     },
@@ -703,7 +703,7 @@ fn stress_test_maximum_system_load() {
                         if op < 3 { // Only 3 challenges per block
                             let target_idx = ((validator_idx + 1) % max_validators) + 1;
                             let target = 7000 + target_idx as u64;
-                            let result = ((block_num + op) % 80 + 20) as u32;
+                            let result = ((block_num + op) % 80 + 20);
                             let _ = PalletCeruleaPoi::challenge_inference(
                                 RuntimeOrigin::signed(validator),
                                 target,

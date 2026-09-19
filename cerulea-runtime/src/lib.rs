@@ -12,7 +12,7 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub mod apis; // Runtime APIs exposed to the outside world.
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks; // Benchmarking logic for runtime performance.
-pub mod configs; // Configuration settings for the runtime.
+pub mod configs; // Settings settings for the runtime.
 
 extern crate alloc; // Import the `alloc` crate for heap-allocated data structures in `no_std` environments.
 use alloc::vec::Vec; // Import the `Vec` type for dynamic arrays.
@@ -23,16 +23,17 @@ use sp_runtime::{
     MultiAddress, MultiSignature,
 };
 
-/// Cerulea DVF consensus key type ID — analogous to Substrate's GRANDPA (`b"gran"`).
-/// All DVF validator signing uses ed25519 keys stored under this type ID.
+/// The Cerulea commit key type identifier.
+/// Every validator signs a commitment with an ed25519 key held under this
+/// identifier.
 pub mod cerulea_key_crypto {
     use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
-    /// Key type ID for Cerulea DVF consensus keys.
+    /// Key type ID for Cerulea the validator registry consensus keys.
     pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cerk");
     app_crypto!(ed25519, KEY_TYPE);
 }
 
-/// The Cerulea DVF public key type used in SessionKeys and for validator identification.
+/// The Cerulea the validator registry public key type used in SessionKeys and for validator identification.
 pub type DcfPublic = cerulea_key_crypto::Public;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion; // Used for native runtime versioning.
@@ -44,7 +45,7 @@ pub use pallet_timestamp::Call as TimestampCall; // Expose the `pallet_timestamp
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage; // Utility for building storage during tests or native execution.
 
-pub mod genesis_config_presets; // Preset configurations for the genesis block.
+pub mod genesis_config_presets; // Preset settingss for the genesis block.
 
 // Test and benchmarking modules
 #[cfg(test)]
@@ -56,9 +57,9 @@ pub mod tests; // Runtime integration tests with API unit tests
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmark_tests; // Benchmarking tests
 
-/// Opaque types are used to abstract away the specifics of runtime data structures.
-/// These types are used by the CLI and other tools to interact with the runtime without
-/// needing to know the exact implementation details.
+/// Opaque types hide the shape of the runtime data structures.
+/// External tools read these types to reach the runtime without holding the
+/// exact implementation.
 pub mod opaque {
     use super::*;
     use sp_runtime::{
@@ -81,7 +82,7 @@ pub mod opaque {
 // Define the session keys used for consensus mechanisms like POS and POI.
 impl_opaque_keys! {
     pub struct SessionKeys {
-        pub dcf: DcfPublic, // DCF consensus key using ed25519
+        pub dcf: DcfPublic, // the framework pallet consensus key using ed25519
     }
 }
 
@@ -100,7 +101,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 mod block_times {
-    /// Defines the average expected block time in milliseconds for DCF consensus
+    /// Defines the average expected block time in milliseconds for the framework pallet consensus
     pub const MILLI_SECS_PER_BLOCK: u64 = 6000;
 
     // The slot duration is the minimum time between blocks
@@ -221,8 +222,9 @@ mod runtime {
     #[runtime::pallet_index(8)]
     pub type Dcf = pallet_cerulea_dcf::Pallet<Runtime>;
 
+    // The validator registry pallet. The Admission Engine lives here.
     #[runtime::pallet_index(10)]
-    pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
+    pub type Registry = pallet_cerulea_dvf::Pallet<Runtime>;
 
     #[runtime::pallet_index(11)]
     pub type Schema = pallet_cerulea_schema::Pallet<Runtime>;
@@ -232,6 +234,12 @@ mod runtime {
 
     #[runtime::pallet_index(13)]
     pub type Collections = pallet_cerulea_collections::Pallet<Runtime>;
+
+    #[runtime::pallet_index(14)]
+    pub type Identity = pallet_cerulea_identity::Pallet<Runtime>;
+
+    #[runtime::pallet_index(25)]
+    pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
 
     #[runtime::pallet_index(27)]
     pub type Custody = pallet_cerulea_custody::Pallet<Runtime>;
@@ -260,14 +268,13 @@ parameter_types! {
     pub const InferenceReward: u128 = 1000;
     pub const ChallengeReward: u128 = 500;
 
-    // DCF parameters
+    // Framework parameters
     pub const DcfMaxValidators: u32 = 100;
-    // TODO(PoI): Restore to 6000/4000 when AI inference integration is complete.
-    // The PoI weight is set to 0 now because inference_score is always 0 (no AI layer yet).
-    // Having poi_weight=4000 with poi_score=0 permanently deflates all validator scores by 40%
-    // relative to pure PoS. When PoI goes live, raise poi_weight via update_consensus_weights.
-    pub const DefaultPosWeight: u64 = 10000; // 100% PoS — pure PoS until PoI integration complete
-    pub const DefaultPoiWeight: u64 = 0;     // 0% PoI — AI inference not yet integrated
+    // The Trust Score composition carries the weighting. The Standing Engine in
+    // the framework pallet holds it. The public-access chain weighs standing at
+    // 40 percent, performance at 30 percent, custody at 20 percent and sampling
+    // at 10 percent. A private chain weighs role at 35 percent, attestation at
+    // 25 percent, performance at 25 percent and custody at 15 percent.
     pub const MinStake: Balance = 1000 * Cerulea; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;

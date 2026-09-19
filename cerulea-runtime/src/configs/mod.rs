@@ -1,5 +1,5 @@
 // This file is part of the Cerulea Runtime.
-// It defines configuration settings for the runtime, including consensus parameters,
+// It defines settings settings for the runtime, including consensus parameters,
 // block weights, and other system-wide constants.
 
 // === Imports ===
@@ -73,8 +73,11 @@ parameter_types! {
     pub const MaxInferenceResults: u32 = 1000;
     pub const ChallengePeriod: u32 = 10;
     pub const MaxChallenges: u32 = 100;
-    pub const PosWeight: u64 = 6000;  // 60% weight for PoS (6000/10000)
-    pub const PoiWeight: u64 = 4000;  // 40% weight for PoI (4000/10000)
+    // The legacy stake and inference split the framework pallet still reads on
+    // its retired scoring path. The Trust Score composition in the Standing
+    // Engine carries the live weighting. These two values reach no live path.
+    pub const RetiredStakeSplit: u64 = 6000;
+    pub const RetiredInferenceSplit: u64 = 4000;
     pub const ValidatorScoreDecay: u32 = 5;  // 5% score decay per inactive epoch
 
     // New parameters for governance
@@ -91,7 +94,7 @@ parameter_types! {
 
 }
 
-// === FRAME System Configuration ===
+// === FRAME System Settings ===
 #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
     type Block = Block;
@@ -108,7 +111,7 @@ impl frame_system::Config for Runtime {
     type MaxConsumers = ConstU32<16>;
 }
 
-// === Timestamping Configuration ===
+// === Timestamping Settings ===
 impl pallet_timestamp::Config for Runtime {
     type Moment = u64;
     type OnTimestampSet = ();
@@ -116,7 +119,7 @@ impl pallet_timestamp::Config for Runtime {
     type WeightInfo = ();
 }
 
-// === Balances Configuration ===
+// === Balances Settings ===
 impl pallet_balances::Config for Runtime {
     type MaxLocks = ConstU32<50>;
     type MaxReserves = ();
@@ -134,7 +137,7 @@ impl pallet_balances::Config for Runtime {
     type DoneSlashHandler = ();
 }
 
-// === Transaction Payment Configuration ===
+// === Transaction Payment Settings ===
 parameter_types! {
     pub FeeMultiplier: Multiplier = Multiplier::one();
 }
@@ -149,7 +152,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type WeightInfo = pallet_transaction_payment::weights::SubstrateWeight<Runtime>;
 }
 
-// === Sudo (Superuser) Configuration ===
+// === Sudo (Superuser) Settings ===
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -157,7 +160,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 
-// === Cerulea POI Pallet Configuration ===
+// === Cerulea POI Pallet Settings ===
 pub struct PosInterfaceImpl;
 impl pallet_cerulea_poi::PosInterface<AccountId> for PosInterfaceImpl {
     fn boost_score(validator: &AccountId, weight: u32) -> frame_support::dispatch::DispatchResult {
@@ -204,7 +207,7 @@ impl pallet_cerulea_poi::Config for Runtime {
     type PercentagePrecision = ConstU32<10000>;
     type OffchainWorkerInterval = ConstU32<5>;
 
-    // Rate limiting configurations for apply_offchain_poi_scores
+    // Rate limiting settingss for apply_offchain_poi_scores
     type MaxValidatorIterationWeight = ConstU64<1_000_000_000>;
     type MaxLoopIterations = ConstU32<1000>;
 }
@@ -236,15 +239,15 @@ impl pallet_cerulea_pos::Config for Runtime {
     type ValidatorHandler = pallet_cerulea_dvf::Pallet<Runtime>;
 }
 
-// === Cerulea DCF Pallet Configuration ===
+// === Cerulea the framework pallet Pallet Settings ===
 impl pallet_cerulea_dcf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Balance = Balance;
 
     // Epoch history and scoring weights
     type MaxEpochHistory = ConstU32<24>;
-    type DefaultPosWeight = PosWeight;
-    type DefaultPoiWeight = PoiWeight;
+    type DefaultPosWeight = RetiredStakeSplit;
+    type DefaultPoiWeight = RetiredInferenceSplit;
 
     // Score decay and activity parameters
     type MaxInactiveEpochs = ConstU32<5>;
@@ -270,7 +273,7 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type MaxValidatorHistoryLength = ConstU32<10>;
     type MaxCommissionRate = ConstU32<10000>; // 100.00%
 
-    // Off-chain worker configuration
+    // Off-chain worker settings
     type OffchainWorkerTimeout = ConstU64<30000>; // 30 seconds
     type EstimatedBlockTime = ConstU64<6000>; // 6 seconds
 
@@ -315,7 +318,7 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type PerformanceRewardPercentage = ConstU32<25>; // 25% for high performers
     type TopPerformerRewardPercentage = ConstU32<15>; // 15% for top performers
     
-    // Misbehavior reporting configuration
+    // Misbehavior reporting settings
     type MaxEvidenceLength = MaxEvidenceLength;
     type MisbehaviorSlashThreshold = MisbehaviorSlashThreshold;
 
@@ -341,9 +344,9 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type MaxTrustScoreDecayRate = ConstU32<200>; // Maximum 2% decay per epoch
     type TrustScoreStabilityFactor = ConstU32<8000>; // 80% stability factor
 
-    // DVF WeightFreezer Integration
+    // the validator registry WeightFreezer Integration
     type WeightFreezer = pallet_cerulea_dvf::Pallet<Runtime>;
-    // DVF is the primary finality authority; DCF progressive finality is capped at the DVF-finalized block
+    // the validator registry is the primary finality authority; the framework pallet progressive finality is capped at the DVF-finalized block
     type DvfFinalizedBlockProvider = pallet_cerulea_dvf::Pallet<Runtime>;
 
     // Validator Registry
@@ -432,4 +435,36 @@ impl pallet_cerulea_collections::Config for Runtime {
     type MaxWrappedKeyBytes = ConstU32<128>;
     type MaxPayloadBytes = ConstU32<65536>;
     type KeyHistoryDepth = ConstU32<2>;
+}
+
+// === The Cerulea audit module ===
+// The audit module holds the typed event log of every deployment. Cerulea
+// Explorer, Cerulea Dashboard and every external subscriber read the log.
+// Every other platform module writes into the log through the audit trait.
+// The log is append only. A correction appends a further entry naming the
+// entry it corrects.
+impl pallet_cerulea_audit::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_audit::weights::CeruleaWeight<Runtime>;
+    type Time = crate::Timestamp;
+    type MaxPayloadBytes = ConstU32<16384>;
+    type MaxEventDefinitions = ConstU32<1024>;
+    type MaxSubscribedEvents = ConstU32<64>;
+    type MaxReadBatch = ConstU32<512>;
+}
+
+// === The Cerulea identity module ===
+// The identity module holds the accounts, the organisation tree, the role
+// definitions, the credential attestations and the delegation chains of
+// every deployment.
+impl pallet_cerulea_identity::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_identity::weights::CeruleaWeight<Runtime>;
+    type Time = crate::Timestamp;
+    type MaxUnitsPerDeployment = ConstU32<4096>;
+    type MaxRolesPerDeployment = ConstU32<1024>;
+    type MaxRolesPerAccount = ConstU32<64>;
+    type MaxCredentialsPerRole = ConstU32<16>;
+    type MaxUnitDepth = ConstU32<16>;
+    type MaxTextBytes = ConstU32<256>;
 }

@@ -196,15 +196,15 @@ fn property_epoch_transitions_preserve_invariants() {
 fn property_slashing_economic_security() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let _initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let _initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
         
         // Test various slashing amounts
         let slash_amounts = vec![100u128, 500u128, 1000u128, 2000u128];
         
         for slash_amount in slash_amounts {
-            let pre_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
-            let pre_slash_balance = Balances::reserved_balance(&validator);
+            let pre_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
+            let pre_slash_balance = Balances::reserved_balance(validator);
             
             if slash_amount < pre_slash_stake {
                 assert_ok!(PalletCeruleaPos::slash_validator(
@@ -213,8 +213,8 @@ fn property_slashing_economic_security() {
                     slash_amount
                 ));
                 
-                let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
-                let post_slash_balance = Balances::reserved_balance(&validator);
+                let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
+                let post_slash_balance = Balances::reserved_balance(validator);
                 
                 // Property: slashing reduces stake by exact amount
                 assert_eq!(pre_slash_stake - post_slash_stake, slash_amount);
@@ -239,15 +239,15 @@ fn property_slashing_economic_security() {
 fn property_reward_distribution_bounds() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Enable governance for rewards
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
         
-        let reward_amounts = vec![100u128, 500u128, 1000u128, 2000u128];
+        let reward_amounts = [100u128, 500u128, 1000u128, 2000u128];
         
         for (i, reward_amount) in reward_amounts.iter().enumerate() {
-            let pre_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+            let pre_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Create and execute reward proposal
             assert_ok!(DcfPallet::propose_reward_validator(
@@ -268,7 +268,7 @@ fn property_reward_distribution_bounds() {
                 i as u32
             ));
             
-            let post_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+            let post_reward_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             
             // Property: rewards increase stake by exact amount
             assert_eq!(post_reward_stake - pre_reward_stake, *reward_amount);
@@ -326,7 +326,7 @@ fn property_governance_system_integrity() {
         assert_ok!(DcfPallet::set_governance_mode(RuntimeOrigin::root(), true));
         
         let validator = 1u64;
-        let proposal_amounts = vec![100u128, 500u128, 1000u128];
+        let proposal_amounts = [100u128, 500u128, 1000u128];
         
         for (i, amount) in proposal_amounts.iter().enumerate() {
             // Create proposal
@@ -462,7 +462,7 @@ fn property_economic_security_alignment() {
     new_test_ext().execute_with(|| {
         let validators = DcfPallet::active_validators();
         let total_stake: u128 = validators.iter()
-            .map(|v| pallet_cerulea_pos::Stake::<Test>::get(v))
+            .map(pallet_cerulea_pos::Stake::<Test>::get)
             .sum();
         
         // Property: higher stake validators have higher influence

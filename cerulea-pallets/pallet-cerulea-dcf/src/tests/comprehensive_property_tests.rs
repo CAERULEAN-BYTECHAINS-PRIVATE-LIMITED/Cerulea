@@ -140,7 +140,7 @@ fn prop_finality_marker_advancement() {
 fn prop_validator_lifecycle_consistency() {
     new_test_ext().execute_with(|| {
         let validator_id = 1u64;
-        let operations = vec![true, false, true]; // true = join, false = leave
+        let operations = [true, false, true]; // true = join, false = leave
         
         let _ = Balances::make_free_balance_be(&validator_id, 1_000_000);
         

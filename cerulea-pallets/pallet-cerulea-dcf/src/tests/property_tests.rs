@@ -241,7 +241,7 @@ fn fuzz_test_random_block_numbers() {
             }
             
             // Finality queries should always work
-            assert!(is_finalized == true || is_finalized == false);
+            assert!(is_finalized || !is_finalized);
             assert!(blocks_since_final >= 0);
         }
     });
@@ -266,7 +266,7 @@ fn property_system_state_consistency() {
             assert!(!active_validators.is_empty()); // Always have validators
             assert!(current_epoch >= 0); // Valid epoch
             assert_eq!(consensus_weights.0 + consensus_weights.1, 10000); // Weights sum correctly
-            assert!(governance_mode == true || governance_mode == false); // Valid boolean
+            assert!(governance_mode || !governance_mode); // Valid boolean
             
             // Validator consistency
             for validator in &active_validators {

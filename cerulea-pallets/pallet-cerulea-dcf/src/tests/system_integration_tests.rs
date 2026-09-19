@@ -84,7 +84,7 @@ fn validator_state_persistence_works() {
         
         // Scores should remain stable (or change predictably)
         for (validator, initial_score) in initial_scores {
-            let current_score = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+            let current_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             // Score should not change dramatically without explicit updates
             assert!(current_score > 0);
         }
@@ -190,12 +190,12 @@ fn error_handling_works() {
         let non_existent_validator = 999u64;
         
         // These should return default values or handle gracefully
-        let score = pallet_cerulea_pos::Stake::<Test>::get(&non_existent_validator);
+        let score = pallet_cerulea_pos::Stake::<Test>::get(non_existent_validator);
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
         
         // Should handle gracefully without panicking
         assert!(score >= 0);
-        assert_eq!(is_active, false);
+        assert!(!is_active);
     });
 }
 
@@ -211,9 +211,9 @@ fn system_initialization_with_genesis_works() {
         assert_eq!(active_validators.len(), 3);
         
         // Verify initial balances
-        assert!(Balances::free_balance(&1) > 0);
-        assert!(Balances::free_balance(&2) > 0);
-        assert!(Balances::free_balance(&3) > 0);
+        assert!(Balances::free_balance(1) > 0);
+        assert!(Balances::free_balance(2) > 0);
+        assert!(Balances::free_balance(3) > 0);
     });
 }
 
@@ -227,14 +227,14 @@ fn balance_integration_for_validator_joining_works() {
         // Set up balance for new validator
         Balances::make_free_balance_be(&new_validator, initial_balance);
         
-        let free_before = Balances::free_balance(&new_validator);
-        let reserved_before = Balances::reserved_balance(&new_validator);
+        let free_before = Balances::free_balance(new_validator);
+        let reserved_before = Balances::reserved_balance(new_validator);
         
         // Join validators - should reserve the minimum stake
         assert_ok!(mock_join_validators(RuntimeOrigin::signed(new_validator), None));
         
-        let free_after = Balances::free_balance(&new_validator);
-        let reserved_after = Balances::reserved_balance(&new_validator);
+        let free_after = Balances::free_balance(new_validator);
+        let reserved_after = Balances::reserved_balance(new_validator);
         
         // Verify balance changes
         assert_eq!(free_before - free_after, min_stake);
@@ -279,13 +279,13 @@ fn balance_integration_for_validator_leaving_works() {
         let validator = 1;
         let cooldown_period: u32 = <<Test as pallet_cerulea_pos::Config>::LeaveCooldown as frame_support::traits::Get<u32>>::get();
         
-        let reserved_before = Balances::reserved_balance(&validator);
+        let reserved_before = Balances::reserved_balance(validator);
         
         // Request to leave
         assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // During cooldown, balance should still be reserved
-        let reserved_during = Balances::reserved_balance(&validator);
+        let reserved_during = Balances::reserved_balance(validator);
         assert_eq!(reserved_before, reserved_during);
         
         // Simulate cooldown period passing
@@ -295,7 +295,7 @@ fn balance_integration_for_validator_leaving_works() {
         }
         
         // After cooldown, balance should be unreserved
-        let reserved_after = Balances::reserved_balance(&validator);
+        let reserved_after = Balances::reserved_balance(validator);
         assert!(reserved_after < reserved_before);
     });
 }
@@ -411,15 +411,15 @@ fn cross_pallet_interaction_works() {
     new_test_ext().execute_with(|| {
         // Test interaction with balance pallet
         let validator = 1;
-        let initial_free = Balances::free_balance(&validator);
-        let initial_reserved = Balances::reserved_balance(&validator);
+        let initial_free = Balances::free_balance(validator);
+        let initial_reserved = Balances::reserved_balance(validator);
         
         // DCF operations should affect balances appropriately
         assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Balance state should be consistent
-        let current_free = Balances::free_balance(&validator);
-        let current_reserved = Balances::reserved_balance(&validator);
+        let current_free = Balances::free_balance(validator);
+        let current_reserved = Balances::reserved_balance(validator);
         
         // During leave request, reserved balance should remain
         assert_eq!(initial_reserved, current_reserved);
@@ -484,7 +484,7 @@ fn system_recovery_from_edge_cases_works() {
 fn concurrent_operations_handling_works() {
     new_test_ext().execute_with(|| {
         // Simulate concurrent validator operations
-        let validators = vec![1, 2, 3];
+        let validators = [1, 2, 3];
         
         // Multiple score updates in same block
         for validator in validators.iter() {

@@ -210,7 +210,7 @@ fn runtime_api_error_handling_works() {
         let non_existent_validator = 999u64;
         
         // These queries should handle non-existent validators gracefully
-        let stake_score = pallet_cerulea_pos::Stake::<Test>::get(&non_existent_validator);
+        let stake_score = pallet_cerulea_pos::Stake::<Test>::get(non_existent_validator);
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
         
         // Should return default/empty values without panicking

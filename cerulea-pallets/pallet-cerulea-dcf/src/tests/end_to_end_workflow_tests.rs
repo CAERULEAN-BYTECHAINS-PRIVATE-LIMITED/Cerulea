@@ -15,7 +15,7 @@ fn end_to_end_validator_complete_lifecycle() {
         
         // Setup: Give validator sufficient balance
         Balances::make_free_balance_be(&validator, 50000);
-        let initial_balance = Balances::free_balance(&validator);
+        let initial_balance = Balances::free_balance(validator);
         
         // Phase 1: Join as validator
         assert_ok!(mock_join_validators(
@@ -25,16 +25,16 @@ fn end_to_end_validator_complete_lifecycle() {
         
         // Verify joining
         assert!(DcfPallet::is_validator_active(&validator));
-        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(validator_stake > 0);
-        assert_eq!(Balances::reserved_balance(&validator), validator_stake);
-        assert_eq!(Balances::free_balance(&validator), initial_balance - stake_amount);
+        assert_eq!(Balances::reserved_balance(validator), validator_stake);
+        assert_eq!(Balances::free_balance(validator), initial_balance - stake_amount);
         
         // Phase 2: Register in PoS system
         assert_ok!(PalletCeruleaPos::register_validator(
             RuntimeOrigin::signed(validator)
         ));
-        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         
         // Phase 3: Participate in PoS scoring
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -42,7 +42,7 @@ fn end_to_end_validator_complete_lifecycle() {
             validator,
             85
         ));
-        assert_eq!(PalletCeruleaPos::validator_scores(&validator), Some(85));
+        assert_eq!(PalletCeruleaPos::validator_scores(validator), Some(85));
         
         // Phase 4: Participate in PoI system
         assert_ok!(PalletCeruleaPoi::submit_inference(
@@ -50,7 +50,7 @@ fn end_to_end_validator_complete_lifecycle() {
             42,
             90
         ));
-        let (result, epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
+        let (result, epoch) = PalletCeruleaPoi::inference_results(validator).unwrap();
         assert_eq!(result, 42);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
@@ -96,7 +96,7 @@ fn end_to_end_validator_complete_lifecycle() {
         assert!(DcfPallet::current_epoch() > 0);
         
         // Phase 8: Leave validator set
-        let _pre_leave_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let _pre_leave_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert_ok!(mock_leave_validators(RuntimeOrigin::signed(validator)));
         
         // Phase 9: Wait for cooldown period
@@ -109,7 +109,7 @@ fn end_to_end_validator_complete_lifecycle() {
         
         // Verify leaving completed
         assert!(!DcfPallet::is_validator_active(&validator));
-        let final_balance = Balances::free_balance(&validator);
+        let final_balance = Balances::free_balance(validator);
         assert!(final_balance > initial_balance - stake_amount); // Got some stake back
     });
 }
@@ -171,17 +171,17 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         ));
         
         // Verify challenge was recorded
-        let (challenged_validator, result, epoch) = PalletCeruleaPoi::challenges(&challenger).unwrap();
+        let (challenged_validator, result, epoch) = PalletCeruleaPoi::challenges(challenger).unwrap();
         assert_eq!(challenged_validator, validator);
         assert_eq!(result, 42);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
         // Simulate poor performance leading to slashing
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // PoS slashing for poor performance
         assert_ok!(mock_slash_validator(&validator, 100));
-        assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
+        assert_eq!(PalletCeruleaPos::slashing_count(validator), Some(1));
         
         // DCF slashing for misbehavior
         let slash_amount = 1000u128;
@@ -191,7 +191,7 @@ fn end_to_end_validator_with_challenges_and_slashing() {
             slash_amount
         ));
         
-        let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let post_slash_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert_eq!(initial_stake - post_slash_stake, slash_amount);
         
         // Multiple slashes in PoS lead to removal
@@ -199,7 +199,7 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         assert_ok!(mock_slash_validator(&validator, 100));
         
         // Validator should be removed from PoS after 3 slashes
-        assert_eq!(PalletCeruleaPos::validators(&validator), None);
+        assert_eq!(PalletCeruleaPos::validators(validator), None);
         
         // But still active in DCF (different slashing rules)
         assert!(DcfPallet::is_validator_active(&validator));
@@ -211,7 +211,7 @@ fn end_to_end_validator_with_challenges_and_slashing() {
             10
         ));
         
-        let challenger_score = PalletCeruleaPos::validator_scores(&challenger).unwrap_or(0);
+        let challenger_score = PalletCeruleaPos::validator_scores(challenger).unwrap_or(0);
         assert!(challenger_score > 85);
     });
 }
@@ -221,10 +221,10 @@ fn end_to_end_validator_with_challenges_and_slashing() {
 fn end_to_end_multi_validator_competition() {
     new_test_ext().execute_with(|| {
         let validators = vec![201u64, 202u64, 203u64, 204u64, 205u64];
-        let _stake_amounts = vec![5000u128, 6000u128, 7000u128, 8000u128, 9000u128];
+        let _stake_amounts = [5000u128, 6000u128, 7000u128, 8000u128, 9000u128];
         
         // Setup all validators
-        for (_i, validator) in validators.iter().enumerate() {
+        for validator in validators.iter() {
             Balances::make_free_balance_be(validator, 50000);
             
             // Join with different stake amounts
@@ -265,7 +265,7 @@ fn end_to_end_multi_validator_competition() {
             // Some validators challenge others
             if round > 1 {
                 // Validator 0 challenges validator 1
-                let target_result = 40 + (1 * 2) + round;
+                let target_result = 40 + 2 + round;
                 assert_ok!(PalletCeruleaPoi::challenge_inference(
                     RuntimeOrigin::signed(validators[0]),
                     validators[1],
@@ -308,7 +308,7 @@ fn end_to_end_multi_validator_competition() {
         
         // Verify ranking makes sense (higher stake + better performance = higher score)
         let top_validator = validator_scores[0].0;
-        let top_stake = pallet_cerulea_pos::Stake::<Test>::get(&top_validator);
+        let top_stake = pallet_cerulea_pos::Stake::<Test>::get(top_validator);
         
         // Top validator should have significant stake
         assert!(top_stake >= 7000u128);
@@ -382,13 +382,13 @@ fn end_to_end_governance_driven_workflow() {
         assert_eq!(voted_proposal.votes_against, 0);
         
         // Phase 3: Proposal execution
-        let pre_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
+        let pre_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
         assert_ok!(DcfPallet::execute_proposal(
             RuntimeOrigin::root(),
             0
         ));
         
-        let post_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
+        let post_execution_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
         assert_eq!(post_execution_stake - pre_execution_stake, reward_amount);
         
         let executed_proposal = crate::Proposals::<Test>::get(0).unwrap();
@@ -460,7 +460,7 @@ fn end_to_end_governance_driven_workflow() {
         }
         
         // Verify governance outcomes
-        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(&beneficiary);
+        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(beneficiary);
         let expected_total_rewards = reward_amount + 500u128 + 1000u128; // Rounds 0, 1, 2 approved
         assert_eq!(final_stake - 7000u128, expected_total_rewards);
     });
@@ -524,9 +524,9 @@ fn end_to_end_high_frequency_operations() {
             // Process some blocks
             for block in 1..=5 {
                 let block_num = (round - 1) * 5 + block;
-                System::set_block_number(block_num as u64);
-                DcfPallet::on_initialize(block_num as u64);
-                DcfPallet::on_finalize(block_num as u64);
+                System::set_block_number(block_num);
+                DcfPallet::on_initialize(block_num);
+                DcfPallet::on_finalize(block_num);
             }
         }
         
@@ -538,8 +538,8 @@ fn end_to_end_high_frequency_operations() {
         for i in 1..=num_validators {
             let validator = 400 + i;
             assert!(DcfPallet::is_validator_active(&validator));
-            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
-            assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
+            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+            assert!(PalletCeruleaPoi::inference_results(validator).is_some());
         }
         
         // Verify system metrics are reasonable

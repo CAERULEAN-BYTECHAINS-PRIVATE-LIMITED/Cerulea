@@ -140,7 +140,7 @@ fn data_integrity_during_migrations_works() {
         for (validator, orig_stake_score, orig_inf_score, orig_stake, orig_active, orig_participation) in validator_data {
             let current_stake_score = DcfPallet::validator_stake_score(&validator);
             let current_inf_score = DcfPallet::validator_inference_score(&validator);
-            let current_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+            let current_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let current_active = DcfPallet::is_validator_active(&validator);
             let current_participation = DcfPallet::validator_participation(&validator);
             

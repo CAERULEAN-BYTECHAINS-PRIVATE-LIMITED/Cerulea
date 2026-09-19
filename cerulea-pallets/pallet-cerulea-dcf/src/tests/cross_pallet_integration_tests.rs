@@ -24,7 +24,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         
         // Verify DCF state
         assert!(DcfPallet::is_validator_active(&validator));
-        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let validator_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(validator_stake > 0);
         
         // Test PoS registration integration
@@ -33,7 +33,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         ));
         
         // Verify PoS state
-        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         
         // Test score submission affects both pallets
         assert_ok!(PalletCeruleaPos::submit_score(
@@ -43,7 +43,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         ));
         
         // Verify score is recorded in PoS
-        assert_eq!(PalletCeruleaPos::validator_scores(&validator), Some(85));
+        assert_eq!(PalletCeruleaPos::validator_scores(validator), Some(85));
         
         // Test DCF score update integration
         assert_ok!(DcfPallet::update_validator_stake_score(
@@ -52,7 +52,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         ));
         
         // Verify DCF reflects the update
-        let updated_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let updated_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(updated_stake > 0);
     });
 }
@@ -76,7 +76,7 @@ fn dcf_poi_integration_inference_tracking() {
         ));
         
         // Verify inference is recorded in PoI
-        let (result, epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
+        let (result, epoch) = PalletCeruleaPoi::inference_results(validator).unwrap();
         assert_eq!(result, inference_result);
         assert_eq!(epoch, DcfPallet::current_epoch());
         
@@ -161,10 +161,10 @@ fn three_way_pallet_integration() {
         // Verify all pallets have consistent state
         assert!(DcfPallet::is_validator_active(&validator));
         assert!(DcfPallet::is_validator_active(&challenger));
-        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
-        assert_eq!(PalletCeruleaPos::validators(&challenger), Some(true));
-        assert!(PalletCeruleaPoi::inference_results(&validator).is_some());
-        assert!(PalletCeruleaPoi::challenges(&challenger).is_some());
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(challenger), Some(true));
+        assert!(PalletCeruleaPoi::inference_results(validator).is_some());
+        assert!(PalletCeruleaPoi::challenges(challenger).is_some());
     });
 }
 
@@ -173,7 +173,7 @@ fn three_way_pallet_integration() {
 fn cross_pallet_validator_slashing() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Register in PoS
         assert_ok!(PalletCeruleaPos::register_validator(
@@ -191,7 +191,7 @@ fn cross_pallet_validator_slashing() {
         assert_ok!(mock_slash_validator(&validator, 100));
         
         // Verify slashing count increased
-        assert_eq!(PalletCeruleaPos::slashing_count(&validator), Some(1));
+        assert_eq!(PalletCeruleaPos::slashing_count(validator), Some(1));
         
         // Test DCF slashing integration
         let slash_amount = 1000u128;
@@ -202,7 +202,7 @@ fn cross_pallet_validator_slashing() {
         ));
         
         // Verify DCF stake was reduced
-        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(new_stake < initial_stake);
         
         // Test that excessive slashing removes validator from PoS
@@ -210,7 +210,7 @@ fn cross_pallet_validator_slashing() {
         assert_ok!(mock_slash_validator(&validator, 100));
         
         // After 3 slashes, validator should be removed from PoS
-        assert_eq!(PalletCeruleaPos::validators(&validator), None);
+        assert_eq!(PalletCeruleaPos::validators(validator), None);
     });
 }
 
@@ -219,7 +219,7 @@ fn cross_pallet_validator_slashing() {
 fn cross_pallet_validator_rewards() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Register in PoS
         assert_ok!(PalletCeruleaPos::register_validator(
@@ -258,7 +258,7 @@ fn cross_pallet_validator_rewards() {
         ));
         
         // Verify reward was applied
-        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let new_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         assert!(new_stake > initial_stake);
     });
 }
@@ -302,7 +302,7 @@ fn cross_pallet_epoch_transitions() {
         
         // Verify validator states persist across epoch
         assert!(DcfPallet::is_validator_active(&validator));
-        assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
     });
 }
 
@@ -465,7 +465,7 @@ fn cross_pallet_concurrent_operations() {
         ));
         
         // Verify challenge was recorded
-        assert!(PalletCeruleaPoi::challenges(&validators[1]).is_some());
+        assert!(PalletCeruleaPoi::challenges(validators[1]).is_some());
     });
 }
 
@@ -508,8 +508,8 @@ fn cross_pallet_data_consistency() {
         ));
         
         // Verify data consistency
-        let pos_score = PalletCeruleaPos::validator_scores(&validator).unwrap_or(0);
-        let (poi_result, poi_epoch) = PalletCeruleaPoi::inference_results(&validator).unwrap();
+        let pos_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
+        let (poi_result, poi_epoch) = PalletCeruleaPoi::inference_results(validator).unwrap();
         let dcf_stake_score = DcfPallet::validator_stake_score(&validator);
         let dcf_inference_score = DcfPallet::validator_inference_score(&validator);
         
@@ -522,7 +522,7 @@ fn cross_pallet_data_consistency() {
         
         // Verify validator is consistently active
         if dcf_active {
-            assert_eq!(PalletCeruleaPos::validators(&validator), Some(true));
+            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
         }
     });
 }

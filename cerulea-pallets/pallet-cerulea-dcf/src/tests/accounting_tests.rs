@@ -66,8 +66,8 @@ fn reserved_balance_consistency_works() {
 fn balance_changes_during_operations_work() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_free = Balances::free_balance(&validator);
-        let initial_reserved = Balances::reserved_balance(&validator);
+        let initial_free = Balances::free_balance(validator);
+        let initial_reserved = Balances::reserved_balance(validator);
         let initial_total = initial_free + initial_reserved;
         
         // Simulate some operations (advance blocks)
@@ -77,8 +77,8 @@ fn balance_changes_during_operations_work() {
             DcfPallet::on_finalize(block_num);
         }
         
-        let final_free = Balances::free_balance(&validator);
-        let final_reserved = Balances::reserved_balance(&validator);
+        let final_free = Balances::free_balance(validator);
+        let final_reserved = Balances::reserved_balance(validator);
         let final_total = final_free + final_reserved;
         
         // Balance changes should be logical
@@ -134,7 +134,7 @@ fn reward_distribution_consistency_works() {
         
         // Check that balances remain consistent
         for (validator, initial_balance) in initial_balances {
-            let current_balance = Balances::free_balance(&validator);
+            let current_balance = Balances::free_balance(validator);
             
             // Balance should not decrease (no slashing in these tests)
             assert!(current_balance >= 0);
@@ -187,8 +187,8 @@ fn accounting_precision_works() {
 fn balance_updates_during_score_changes_work() {
     new_test_ext().execute_with(|| {
         let validator = 1u64;
-        let initial_balance = Balances::free_balance(&validator);
-        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let initial_balance = Balances::free_balance(validator);
+        let initial_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         // Get current scores
         let initial_stake_score = DcfPallet::validator_stake_score(&validator);
@@ -202,8 +202,8 @@ fn balance_updates_during_score_changes_work() {
         }
         
         // Check that accounting remains consistent
-        let final_balance = Balances::free_balance(&validator);
-        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(&validator);
+        let final_balance = Balances::free_balance(validator);
+        let final_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
         
         assert!(final_balance >= 0);
         assert!(final_stake >= 0);

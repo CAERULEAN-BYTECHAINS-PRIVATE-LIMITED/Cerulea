@@ -28,7 +28,7 @@ fn block_finality_status_works() {
         let is_future_block_finalized = DcfPallet::is_block_finalized(1000);
         
         // Block 0 might be finalized (genesis)
-        assert!(is_block_0_finalized == true || is_block_0_finalized == false);
+        assert!(is_block_0_finalized || !is_block_0_finalized);
         
         // Future blocks should not be finalized
         assert!(!is_future_block_finalized);
@@ -129,7 +129,7 @@ fn block_author_validation_works() {
                 let validation_result = DcfPallet::validate_expected_author(block_num, *validator);
                 
                 // Should return true or false without panicking
-                assert!(validation_result == true || validation_result == false);
+                assert!(validation_result || !validation_result);
             }
         }
     });

@@ -48,7 +48,7 @@ fn production_error_handling_test() {
         let malicious_inputs = vec![0u64, u64::MAX, 999999];
         
         for malicious_validator in malicious_inputs {
-            let _ = pallet_cerulea_pos::Stake::<Test>::get(&malicious_validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(malicious_validator);
             let _ = DcfPallet::is_validator_active(&malicious_validator);
         }
         

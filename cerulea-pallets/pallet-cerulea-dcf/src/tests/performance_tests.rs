@@ -144,7 +144,7 @@ fn block_processing_performance_works() {
         }
         
         // Average weight should be reasonable
-        let avg_weight = total_weight.ref_time() / block_count as u64;
+        let avg_weight = total_weight.ref_time() / block_count;
         assert!(avg_weight > 0);
         assert!(avg_weight < 1_000_000_000); // Less than 1 second
     });

@@ -194,7 +194,7 @@ fn system_health_metrics_work() {
         
         // Check validator distribution
         let total_stake: u128 = active_validators.iter()
-            .map(|v| pallet_cerulea_pos::Stake::<Test>::get(v))
+            .map(pallet_cerulea_pos::Stake::<Test>::get)
             .sum();
         assert!(total_stake > 0); // Total stake is positive
     });

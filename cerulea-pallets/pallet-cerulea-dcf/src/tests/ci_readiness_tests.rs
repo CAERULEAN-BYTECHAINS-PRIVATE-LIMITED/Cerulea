@@ -85,13 +85,13 @@ fn ci_error_handling_graceful() {
         
         for invalid_validator in invalid_validators {
             // These should not panic, should return defaults
-            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
+            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
             let inference_score = crate::PoiWeight::<Test>::get();
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
             let participation = DcfPallet::validator_states(&invalid_validator);
-            let last_active = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
+            let last_active = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
             let score_history = DcfPallet::validator_set();
-            let stake = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
             
             // Should return reasonable defaults
             assert!(stake_score >= 0);
@@ -115,7 +115,7 @@ fn ci_error_handling_graceful() {
             
             // Should handle gracefully
             assert!(expected_author.is_some() || expected_author.is_none());
-            assert!(is_finalized == true || is_finalized == false);
+            assert!(is_finalized || !is_finalized);
             assert!(blocks_since >= 0);
         }
     });
@@ -304,7 +304,7 @@ fn ci_public_api_coverage() {
         let (pos, poi) = (crate::PosWeight::<Test>::get(), crate::PoiWeight::<Test>::get());
         assert_eq!(pos + poi, 10000);
         
-        assert!(DcfPallet::get_governance_mode() == true || DcfPallet::get_governance_mode() == false);
+        assert!(DcfPallet::get_governance_mode() || !DcfPallet::get_governance_mode());
         assert!(DcfPallet::get_total_validators_count() > 0);
         
         let (active_count, total_count, max_count) = DcfPallet::get_validator_set_info();
@@ -358,7 +358,7 @@ fn ci_multi_epoch_validation() {
                 System::set_block_number(block as u64);
                 
                 // Test epoch transition
-                if (block as u32) % epoch_length == 0 {
+                if block % epoch_length == 0 {
                     let current_epoch = DcfPallet::current_epoch();
                     assert!(current_epoch >= initial_epoch + epoch);
                 }
@@ -435,7 +435,7 @@ fn ci_comprehensive_invariant_validation() {
         
         // Test governance invariants
         let governance_mode = DcfPallet::get_governance_mode();
-        assert!(governance_mode == true || governance_mode == false);
+        assert!(governance_mode || !governance_mode);
         
         // Test validator set invariants
         let (active_count, total_count, max_count) = DcfPallet::get_validator_set_info();
@@ -499,7 +499,7 @@ fn ci_error_recovery_test() {
         
         for invalid_validator in invalid_validators {
             // These should not panic
-            let _ = pallet_cerulea_pos::Stake::<Test>::get(&invalid_validator);
+            let _ = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
             let _ = DcfPallet::is_validator_active(&invalid_validator);
             let _ = DcfPallet::validator_trust_scores(&invalid_validator);
         }

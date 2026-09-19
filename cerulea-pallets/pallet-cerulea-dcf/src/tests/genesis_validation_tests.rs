@@ -140,7 +140,7 @@ fn custom_genesis_configuration_works() {
         
         // Check custom scores
         for (i, validator) in active_validators.iter().enumerate() {
-            let expected_scores = vec![5000, 6000, 7000, 8000];
+            let expected_scores = [5000, 6000, 7000, 8000];
             let actual_score = DcfPallet::validator_stake_score(validator);
             
             // Score should be reasonable (exact match may depend on implementation)
