@@ -3758,6 +3758,133 @@ pub mod pallet {
     pub type AssuranceClassTable<T: Config> =
         StorageValue<_, crate::engines::assurance::ClassTable, ValueQuery>;
 
+    /// The custody share of each validator, in parts per million.
+    ///
+    /// The Custody Engine reports the share after every settled challenge. The
+    /// Standing Engine folds the share into the Trust Score.
+    #[pallet::storage]
+    #[pallet::getter(fn custody_share_of)]
+    pub type CustodyShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, OptionQuery>;
+
+    /// The proven custody faults of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn custody_faults_of)]
+    pub type CustodyFaults<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+
+    /// The network this deployment runs.
+    ///
+    /// The public-access chain and a private chain weigh a validator
+    /// differently, so the Trust Score composition reads this value.
+    #[pallet::storage]
+    #[pallet::getter(fn chain_kind)]
+    pub type DeploymentChainKind<T: Config> =
+        StorageValue<_, crate::engines::standing::ChainKind, ValueQuery>;
+
+    /// The epochs of service that carry a validator to the whole standing
+    /// share.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_ramp_epochs)]
+    pub type StandingRampEpochs<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// The service record of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn service_record)]
+    pub type ServiceRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::ServiceRecord,
+        ValueQuery,
+    >;
+
+    /// The verification sampling record of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn sampling_record)]
+    pub type SamplingRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::SamplingRecord,
+        ValueQuery,
+    >;
+
+    /// The standing share of each validator, after decay.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_share_of)]
+    pub type StandingShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The measured operational performance of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn performance_share_of)]
+    pub type PerformanceShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The role weight of each validator on a private chain.
+    #[pallet::storage]
+    #[pallet::getter(fn role_share_of)]
+    pub type RoleShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The credential attestation share of each validator on a private chain.
+    #[pallet::storage]
+    #[pallet::getter(fn attestation_share_of)]
+    pub type AttestationShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The reset each validator carries from proven misconduct.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_reset_of)]
+    pub type StandingResets<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::ResetRecord,
+        OptionQuery,
+    >;
+
+    /// The decay the Standing Engine applies during inactivity.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_decay_settings)]
+    pub type StandingDecay<T: Config> =
+        StorageValue<_, crate::engines::standing::DecaySettings, ValueQuery>;
+
+    /// The eight policies of this deployment profile.
+    #[pallet::storage]
+    #[pallet::getter(fn policy_set)]
+    pub type Policies<T: Config> =
+        StorageValue<_, crate::engines::amendment::PolicySet, ValueQuery>;
+
+    /// The identifier the next amendment receives.
+    #[pallet::storage]
+    #[pallet::getter(fn next_amendment_id)]
+    pub type NextAmendmentId<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// The amendments under way.
+    #[pallet::storage]
+    #[pallet::getter(fn amendment)]
+    pub type Amendments<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u64,
+        crate::engines::amendment::Amendment,
+        OptionQuery,
+    >;
+
+    /// The accounts that approved each amendment.
+    #[pallet::storage]
+    pub type AmendmentApprovals<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        u64,
+        Blake2_128Concat,
+        T::AccountId,
+        bool,
+        ValueQuery,
+    >;
+
     /// The identifier the next scheduled change receives.
     #[pallet::storage]
     #[pallet::getter(fn next_scheduled_change_id)]
@@ -5196,6 +5323,87 @@ pub mod pallet {
             /// The block at which the change took effect.
             released_at: u32,
         },
+    
+        /// The Custody Engine reported a custody share for one validator.
+        CustodyShareRecorded {
+            /// The validator the report names.
+            validator: T::AccountId,
+            /// The custody share, in parts per million.
+            share: u32,
+        },
+        /// The Custody Engine proved a custody fault.
+        CustodyFaultRecorded {
+            /// The validator the fault names.
+            validator: T::AccountId,
+            /// The fault count after the report.
+            faults: u32,
+        },
+    
+        /// One epoch of service counted toward standing.
+        ServiceEpochCounted {
+            /// The validator that served.
+            validator: T::AccountId,
+            /// The epoch that counted.
+            epoch: u32,
+            /// The epochs the validator has served.
+            epochs_served: u32,
+            /// The standing share after the epoch.
+            standing: sp_runtime::Perbill,
+        },
+        /// One verification sampling report settled.
+        SamplingReportSettled {
+            /// The validator that reported.
+            validator: T::AccountId,
+            /// The outcome the chain recorded.
+            outcome: crate::engines::standing::SampleOutcome,
+            /// The sampling share after the report.
+            sampling: sp_runtime::Perbill,
+        },
+        /// Standing fell through inactivity.
+        StandingDecayed {
+            /// The validator that fell.
+            validator: T::AccountId,
+            /// The idle epochs the chain counted.
+            idle_epochs: u32,
+            /// The standing share after the fall.
+            standing: sp_runtime::Perbill,
+        },
+        /// Proven misconduct returned standing to zero.
+        StandingReset {
+            /// The validator the chain proved misconduct against.
+            validator: T::AccountId,
+            /// The misconduct the chain proved.
+            misconduct: crate::engines::standing::Misconduct,
+            /// The epochs of service the reset destroyed.
+            epochs_destroyed: u32,
+        },
+        /// An amendment opened against one policy.
+        AmendmentOpened {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The policy the amendment changes.
+            policy: crate::engines::amendment::PolicyKind,
+            /// The approvals the amendment needs.
+            approvals_required: u32,
+            /// The first block at which the amendment takes effect.
+            effective_at: u32,
+        },
+        /// An account approved an amendment.
+        AmendmentApproved {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The account that approved.
+            approver: T::AccountId,
+            /// The approvals collected so far.
+            approvals: u32,
+        },
+        /// An amendment took effect and the policy changed.
+        AmendmentEnacted {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The policy the amendment changed.
+            policy: crate::engines::amendment::PolicyKind,
+        },
     }
 
     /// Errors that can occur during replay validation.
@@ -5795,6 +6003,27 @@ pub mod pallet {
         ScheduledChangeAlreadyReleased,
         /// The queue of scheduled changes is full for this block.
         ScheduledChangeQueueFull,
+    
+        /// The epoch already counted toward standing.
+        ServiceEpochAlreadyCounted,
+        /// The evidence misses a service condition.
+        ServiceConditionsUnmet,
+        /// No amendment carries that identifier.
+        AmendmentNotFound,
+        /// The account lacks the authority this deployment names.
+        AmendmentAuthorityAbsent,
+        /// The approvals fall short of the quorum.
+        AmendmentQuorumShort,
+        /// The delay window still holds.
+        AmendmentDelayWindowOpen,
+        /// The amendment already took effect.
+        AmendmentAlreadyEnacted,
+        /// The voting window closed with the quorum unmet.
+        AmendmentVotingWindowClosed,
+        /// The account already approved this amendment.
+        AmendmentAlreadyApproved,
+        /// The chosen profile crosses a fixed limit.
+        ProfileCrossesFixedLimit,
     }
 
     // --- Dispatchable Calls --- //
@@ -6879,10 +7108,353 @@ pub mod pallet {
             Self::release_change(id)
         }
 
+        /// Count one epoch of service toward the standing of a validator.
+        ///
+        /// An epoch counts once. Every service condition holds for the epoch to
+        /// count.
+        #[pallet::call_index(41)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_validator_activity())]
+        pub fn record_service_epoch(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            epoch: u32,
+            evidence: crate::engines::standing::ServiceEvidence,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(
+                evidence.meets_conditions(),
+                Error::<T>::ServiceConditionsUnmet
+            );
+
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let counted = crate::engines::standing::record_epoch(&mut record, epoch, evidence);
+            ensure!(counted, Error::<T>::ServiceEpochAlreadyCounted);
+            ServiceRecords::<T>::insert(&validator, record);
+
+            let ramp = Self::ramp_epochs();
+            let standing = crate::engines::standing::accumulated(&record, ramp);
+            StandingShares::<T>::insert(&validator, standing);
+
+            Self::deposit_event(Event::ServiceEpochCounted {
+                validator,
+                epoch,
+                epochs_served: record.epochs_served,
+                standing,
+            });
+            Ok(())
+        }
+
+        /// Settle one verification sampling report.
+        #[pallet::call_index(42)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_validator_activity())]
+        pub fn report_sampling_outcome(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            outcome: crate::engines::standing::SampleOutcome,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let mut record = SamplingRecords::<T>::get(&validator);
+            let sampling = crate::engines::standing::settle_sample(&mut record, outcome);
+            SamplingRecords::<T>::insert(&validator, record);
+            Self::deposit_event(Event::SamplingReportSettled {
+                validator,
+                outcome,
+                sampling,
+            });
+            Ok(())
+        }
+
+        /// Return the standing of one validator to zero on proven misconduct.
+        #[pallet::call_index(43)]
+        #[pallet::weight(<T as Config>::WeightInfo::report_validator_misbehavior())]
+        pub fn prove_misconduct(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            misconduct: crate::engines::standing::Misconduct,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let epoch = Self::current_epoch();
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let outcome = crate::engines::standing::reset(&mut record, misconduct, epoch);
+            ServiceRecords::<T>::insert(&validator, record);
+            StandingShares::<T>::insert(&validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(&validator, outcome);
+
+            Self::deposit_event(Event::StandingReset {
+                validator,
+                misconduct,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            Ok(())
+        }
+
+        /// Open an amendment against one policy.
+        ///
+        /// The amendment runs under the Amendment policy in force at this
+        /// block.
+        #[pallet::call_index(44)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_proposal())]
+        pub fn open_amendment(
+            origin: OriginFor<T>,
+            policy: crate::engines::amendment::PolicyKind,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let policies = Policies::<T>::get();
+            let seated = T::ValidatorRegistry::is_validator_active(&who);
+            ensure!(
+                crate::engines::amendment::holds_authority(
+                    policies.amendment.authority,
+                    false,
+                    seated,
+                    seated,
+                ),
+                Error::<T>::AmendmentAuthorityAbsent
+            );
+
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let body_size = T::ValidatorRegistry::get_active_validators().len() as u32;
+            let amendment = crate::engines::amendment::open(
+                &policies,
+                policy,
+                now,
+                body_size,
+                crate::engines::amendment::DEFAULT_VOTING_WINDOW_BLOCKS,
+            );
+
+            let id = NextAmendmentId::<T>::get();
+            NextAmendmentId::<T>::put(id.saturating_add(1));
+            let approvals_required = crate::engines::amendment::approvals_for_quorum(
+                amendment.body_size,
+                amendment.quorum,
+            );
+            let effective_at = amendment.effective_at;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentOpened {
+                id,
+                policy,
+                approvals_required,
+                effective_at,
+            });
+            Ok(())
+        }
+
+        /// Approve an amendment.
+        #[pallet::call_index(45)]
+        #[pallet::weight(<T as Config>::WeightInfo::vote_proposal())]
+        pub fn approve_amendment(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(
+                T::ValidatorRegistry::is_validator_active(&who),
+                Error::<T>::AmendmentAuthorityAbsent
+            );
+            ensure!(
+                !AmendmentApprovals::<T>::get(id, &who),
+                Error::<T>::AmendmentAlreadyApproved
+            );
+
+            let mut amendment =
+                Amendments::<T>::get(id).ok_or(Error::<T>::AmendmentNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            crate::engines::amendment::approve(&mut amendment, now)
+                .map_err(Self::amendment_error)?;
+
+            AmendmentApprovals::<T>::insert(id, &who, true);
+            let approvals = amendment.approvals;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentApproved {
+                id,
+                approver: who,
+                approvals,
+            });
+            Ok(())
+        }
+
+        /// Enact an amendment that reached the quorum and waited out the delay.
+        #[pallet::call_index(46)]
+        #[pallet::weight(<T as Config>::WeightInfo::execute_proposal())]
+        pub fn enact_amendment(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            ensure_signed(origin)?;
+            let mut amendment =
+                Amendments::<T>::get(id).ok_or(Error::<T>::AmendmentNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let policy = crate::engines::amendment::enact(&mut amendment, now)
+                .map_err(Self::amendment_error)?;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentEnacted { id, policy });
+            Ok(())
+        }
+
+        /// Replace the eight policies with a profile the solver returned.
+        ///
+        /// The profile passes every fixed limit before it reaches storage.
+        #[pallet::call_index(47)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn adopt_policy_set(
+            origin: OriginFor<T>,
+            policies: crate::engines::amendment::PolicySet,
+            point: crate::engines::amendment::CandidatePoint,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            crate::engines::amendment::inspect_point(&point)
+                .map_err(|_| Error::<T>::ProfileCrossesFixedLimit)?;
+            Policies::<T>::put(policies);
+            Ok(())
+        }
+
     }
 
     // --- Internal Logic --- //
     impl<T: Config> Pallet<T> {
+        /// The epochs of service that carry a validator to the whole standing
+        /// share.
+        pub fn ramp_epochs() -> u32 {
+            let held = StandingRampEpochs::<T>::get();
+            if held == 0 {
+                crate::engines::standing::DEFAULT_RAMP_EPOCHS
+            } else {
+                held
+            }
+        }
+
+        /// The decay the Standing Engine applies during inactivity.
+        pub fn decay_settings() -> crate::engines::standing::DecaySettings {
+            let held = StandingDecay::<T>::get();
+            if held.decay_percent == 0 && held.grace_epochs == 0 {
+                crate::engines::standing::DecaySettings::starting_profile()
+            } else {
+                held
+            }
+        }
+
+        /// The standing share of one validator.
+        pub fn standing_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            StandingShares::<T>::get(validator).unwrap_or_else(|| {
+                crate::engines::standing::accumulated(
+                    &ServiceRecords::<T>::get(validator),
+                    Self::ramp_epochs(),
+                )
+            })
+        }
+
+        /// The verification sampling share of one validator.
+        pub fn sampling_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            SamplingRecords::<T>::get(validator).share()
+        }
+
+        /// The measured operational performance of one validator.
+        pub fn performance_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            PerformanceShares::<T>::get(validator).unwrap_or_else(sp_runtime::Perbill::one)
+        }
+
+        /// The Trust Score of one validator.
+        ///
+        /// The composition reads the network this deployment runs. The
+        /// public-access chain weighs standing, performance, custody and
+        /// sampling. A private chain weighs role, attestation, performance and
+        /// custody.
+        pub fn trust_score(validator: &T::AccountId) -> crate::engines::standing::TrustScore {
+            let components = crate::engines::standing::Components {
+                standing: Self::standing_share(validator),
+                performance: Self::performance_share(validator),
+                custody: sp_runtime::Perbill::from_parts(Self::custody_share(validator)),
+                sampling: Self::sampling_share(validator),
+                role: RoleShares::<T>::get(validator).unwrap_or_default(),
+                attestation: AttestationShares::<T>::get(validator).unwrap_or_default(),
+            };
+            crate::engines::standing::compose(DeploymentChainKind::<T>::get(), components)
+        }
+
+        /// The voting weight of one validator.
+        pub fn trust_weight(validator: &T::AccountId) -> u128 {
+            Self::trust_score(validator).weight()
+        }
+
+        /// Lower the standing of every validator that let an epoch pass.
+        ///
+        /// The block initialisation hook calls this at every epoch boundary, so
+        /// an absent validator drifts downward with no person acting.
+        pub fn apply_standing_decay(current_epoch: u32) -> u32 {
+            let settings = Self::decay_settings();
+            let ramp = Self::ramp_epochs();
+            let mut moved = 0u32;
+            let records: sp_std::vec::Vec<(T::AccountId, crate::engines::standing::ServiceRecord)> =
+                ServiceRecords::<T>::iter().collect();
+            for (validator, record) in records {
+                let idle =
+                    crate::engines::standing::idle_epochs(current_epoch, record.last_served_epoch);
+                if idle <= settings.grace_epochs {
+                    continue;
+                }
+                let base = crate::engines::standing::accumulated(&record, ramp);
+                let held = crate::engines::standing::decayed(base, idle, settings);
+                let previous = StandingShares::<T>::get(&validator).unwrap_or(base);
+                if held != previous {
+                    StandingShares::<T>::insert(&validator, held);
+                    moved = moved.saturating_add(1);
+                    Self::deposit_event(Event::StandingDecayed {
+                        validator,
+                        idle_epochs: idle,
+                        standing: held,
+                    });
+                }
+            }
+            moved
+        }
+
+        /// Draw the verification sample for one round.
+        ///
+        /// Every node draws the same positions from the parent block hash and
+        /// the round number.
+        pub fn draw_sampling_positions(round: u64, window: u32) -> sp_std::vec::Vec<u32> {
+            let parent = frame_system::Pallet::<T>::parent_hash();
+            let parent = sp_core::H256::from_slice(parent.as_ref());
+            crate::engines::standing::draw_sample(
+                parent,
+                round,
+                window,
+                crate::engines::standing::DEFAULT_SAMPLE_SIZE,
+            )
+        }
+
+        /// Solve for deployment profiles from five plain-language declarations.
+        ///
+        /// The call is pure, so the same answer reaches a chain query and an
+        /// off-chain question. Every profile passes the fixed limits.
+        pub fn solve_profiles(
+            declarations: crate::engines::amendment::Declarations,
+        ) -> sp_std::vec::Vec<crate::engines::amendment::Profile> {
+            crate::engines::amendment::solve(declarations)
+        }
+
+        /// Map an amendment failure onto a pallet error.
+        pub fn amendment_error(
+            failure: crate::engines::amendment::AmendmentError,
+        ) -> DispatchError {
+            match failure {
+                crate::engines::amendment::AmendmentError::AuthorityAbsent => {
+                    Error::<T>::AmendmentAuthorityAbsent.into()
+                }
+                crate::engines::amendment::AmendmentError::QuorumShort => {
+                    Error::<T>::AmendmentQuorumShort.into()
+                }
+                crate::engines::amendment::AmendmentError::DelayWindowOpen => {
+                    Error::<T>::AmendmentDelayWindowOpen.into()
+                }
+                crate::engines::amendment::AmendmentError::AlreadyEnacted => {
+                    Error::<T>::AmendmentAlreadyEnacted.into()
+                }
+                crate::engines::amendment::AmendmentError::VotingWindowClosed => {
+                    Error::<T>::AmendmentVotingWindowClosed.into()
+                }
+                crate::engines::amendment::AmendmentError::AlreadyApproved => {
+                    Error::<T>::AmendmentAlreadyApproved.into()
+                }
+            }
+        }
+
         /// The share one domain needs, resolved from the classes present.
         ///
         /// A domain is one group of transactions that touch overlapping state.
@@ -9523,6 +10095,19 @@ pub mod pallet {
                 }
             }
             
+            // Lower the standing of every validator that let an epoch pass.
+            // An absent validator drifts downward with no person acting.
+            let epoch_length = <T as Config>::EpochLength::get();
+            if epoch_length > 0 && block_number > 0 && block_number % epoch_length == 0 {
+                let moved = Self::apply_standing_decay(current_epoch);
+                if moved > 0 {
+                    weight = weight.saturating_add(Weight::from_parts(
+                        40_000u64.saturating_mul(moved as u64),
+                        0,
+                    ));
+                }
+            }
+
             // Release every change whose delay window has run out. A
             // constitutional change takes effect with no person acting.
             let released = Self::release_matured_changes(block_number);
@@ -14251,3 +14836,40 @@ mod tests;
 mod mock;
 
 // Removed redundant weight verification module
+
+
+/// The Custody Engine reports into the Standing Engine through this
+/// implementation. The framework pallet holds the Trust Score, so the custody
+/// share and the proven faults land here.
+impl<T: Config> pallet_cerulea_custody::CustodyStanding<T::AccountId> for Pallet<T> {
+    fn report_custody_share(validator: &T::AccountId, share: u32) {
+        CustodyShares::<T>::insert(validator, share);
+        Self::deposit_event(Event::CustodyShareRecorded {
+            validator: validator.clone(),
+            share,
+        });
+    }
+
+    fn report_custody_fault(validator: &T::AccountId, faults: u32) {
+        CustodyFaults::<T>::insert(validator, faults);
+        Self::deposit_event(Event::CustodyFaultRecorded {
+            validator: validator.clone(),
+            faults,
+        });
+    }
+}
+
+impl<T: Config> Pallet<T> {
+    /// The custody share of one validator, in parts per million.
+    ///
+    /// A validator that has settled no challenge carries the starting share.
+    pub fn custody_share(validator: &T::AccountId) -> u32 {
+        CustodyShares::<T>::get(validator)
+            .unwrap_or(pallet_cerulea_custody::score::STARTING_SHARE)
+    }
+
+    /// The proven custody faults of one validator.
+    pub fn custody_faults(validator: &T::AccountId) -> u32 {
+        CustodyFaults::<T>::get(validator)
+    }
+}
