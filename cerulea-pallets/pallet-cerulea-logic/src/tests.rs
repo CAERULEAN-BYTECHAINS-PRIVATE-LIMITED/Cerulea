@@ -75,6 +75,15 @@ pub fn base_blueprint() -> Blueprint {
     blueprint.types.push(parcel_type());
     blueprint.collections.push(parcel_collection());
     blueprint
+        .identities
+        .roles
+        .push(cerulea_blueprint::identities::RoleDef::new(
+            "registrar",
+            None,
+            "Registrar",
+            "The registrar records land transfers.",
+        ));
+    blueprint
 }
 
 pub fn install(blueprint: &Blueprint) -> DeploymentId {
@@ -272,4 +281,303 @@ fn an_absent_blueprint_names_the_fix() {
             Error::<Test>::BlueprintAbsent
         );
     });
+}
+
+fn transfer_action() -> cerulea_blueprint::actions::Action {
+    let mut action = cerulea_blueprint::actions::Action::new(
+        "record_transfer",
+        "The registrar records a transfer of one parcel.",
+    );
+    action.params = vec![cerulea_blueprint::actions::Param::new(
+        "parcel",
+        TypeExpr::Record(TypeId::new("parcel")),
+        "The parcel the registrar records.",
+    )];
+    action.effects = vec![cerulea_blueprint::actions::Effect::Insert {
+        collection: CollectionId::new("parcel"),
+        key: cerulea_blueprint::collections::KeySelector::Exact(Expr::field(
+            Expr::bound("parcel"),
+            "survey_number",
+        )),
+        record: Expr::bound("parcel"),
+    }];
+    action
+        .roles
+        .push(cerulea_blueprint::types::RoleId::new("registrar"));
+    action
+}
+
+fn action_blueprint() -> Blueprint {
+    let mut blueprint = base_blueprint();
+    blueprint.actions.push(transfer_action());
+    blueprint
+}
+
+fn arguments(record: &Value) -> Bindings {
+    vec![(ParamName::new("parcel"), record.clone())]
+}
+
+#[test]
+fn an_action_runs_its_effect_sequence_through_the_state_module() {
+    new_test_ext().execute_with(|| {
+        let blueprint = action_blueprint();
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_everything(deployment);
+        let record = parcel("12/3", "Anitha", 400);
+        let outcome = Pallet::<Test>::run_action(
+            &deployment,
+            &crate::tests_support::ACTOR,
+            "record_transfer",
+            &arguments(&record),
+        )
+        .expect("the action runs");
+        assert_eq!(outcome.effects, 1);
+        assert!(outcome.succeeded());
+        assert_eq!(
+            <State as pallet_cerulea_state::RecordStore>::count(
+                &deployment,
+                &CollectionId::new("parcel")
+            ),
+            1
+        );
+    });
+}
+
+#[test]
+fn an_action_call_writes_the_execution_event() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&action_blueprint());
+        crate::tests_support::grant_everything(deployment);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_ok!(Logic::execute_action(
+            RuntimeOrigin::signed(crate::tests_support::ACTOR),
+            deployment,
+            crate::tests_support::name("record_transfer"),
+            bounded(arguments(&record).encode())
+        ));
+        let found = System::events()
+            .into_iter()
+            .filter_map(|held| match held.event {
+                RuntimeEvent::Logic(crate::Event::ActionExecuted { effects, .. }) => Some(effects),
+                _ => None,
+            })
+            .last()
+            .expect("the call wrote an event");
+        assert_eq!(found, 1);
+    });
+}
+
+#[test]
+fn an_action_missing_a_parameter_is_declined() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&action_blueprint());
+        crate::tests_support::grant_everything(deployment);
+        assert_noop!(
+            Pallet::<Test>::run_action(
+                &deployment,
+                &crate::tests_support::ACTOR,
+                "record_transfer",
+                &Vec::new()
+            ),
+            Error::<Test>::ParameterMissing
+        );
+    });
+}
+
+#[test]
+fn an_absent_action_names_the_fix() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&action_blueprint());
+        crate::tests_support::grant_everything(deployment);
+        assert_noop!(
+            Pallet::<Test>::run_action(
+                &deployment,
+                &crate::tests_support::ACTOR,
+                "retire_parcel",
+                &Vec::new()
+            ),
+            Error::<Test>::ActionUnknown
+        );
+    });
+}
+
+#[test]
+fn an_action_without_the_declared_role_is_declined() {
+    new_test_ext().execute_with(|| {
+        let deployment = install(&action_blueprint());
+        let record = parcel("12/3", "Anitha", 400);
+        // The account registers and holds no role.
+        assert_ok!(Identity::register_account(
+            RuntimeOrigin::signed(crate::tests_support::ACTOR),
+            crate::tests_support::ACTOR,
+            [7u8; 32]
+        ));
+        assert_noop!(
+            Pallet::<Test>::run_action(
+                &deployment,
+                &crate::tests_support::ACTOR,
+                "record_transfer",
+                &arguments(&record)
+            ),
+            Error::<Test>::PermissionDenied
+        );
+    });
+}
+
+#[test]
+fn every_effect_of_an_action_sits_inside_its_manifest() {
+    new_test_ext().execute_with(|| {
+        let mut blueprint = action_blueprint();
+        blueprint.actions[0]
+            .effects
+            .push(cerulea_blueprint::actions::Effect::Delete {
+                collection: CollectionId::new("parcel"),
+                key: cerulea_blueprint::collections::KeySelector::Full,
+            });
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_everything(deployment);
+        let record = parcel("12/3", "Anitha", 400);
+        // The manifest derives from the effects themselves, so the full
+        // range the second effect names sits inside it.
+        let outcome = Pallet::<Test>::run_action(
+            &deployment,
+            &crate::tests_support::ACTOR,
+            "record_transfer",
+            &arguments(&record),
+        )
+        .expect("the action runs");
+        assert_eq!(outcome.effects, 2);
+        assert_eq!(
+            <State as pallet_cerulea_state::RecordStore>::count(
+                &deployment,
+                &CollectionId::new("parcel")
+            ),
+            0
+        );
+    });
+}
+
+#[test]
+fn a_failing_action_runs_its_compensating_steps_in_reverse() {
+    new_test_ext().execute_with(|| {
+        let mut blueprint = base_blueprint();
+        let mut ledger = parcel_collection();
+        ledger.id = CollectionId::new("ledger");
+        blueprint.collections.push(ledger);
+
+        let mut action = transfer_action();
+        // The second effect reads a record the collection lacks, so the
+        // run fails part way through.
+        action
+            .effects
+            .push(cerulea_blueprint::actions::Effect::Read {
+                collection: CollectionId::new("ledger"),
+                key: cerulea_blueprint::collections::KeySelector::Exact(Expr::text("absent")),
+                binding: ParamName::new("entry"),
+                element: TypeExpr::Record(TypeId::new("parcel")),
+            });
+        // The compensating step writes a marker into the ledger.
+        action.compensation = vec![cerulea_blueprint::actions::Effect::Insert {
+            collection: CollectionId::new("ledger"),
+            key: cerulea_blueprint::collections::KeySelector::Exact(Expr::field(
+                Expr::bound("parcel"),
+                "survey_number",
+            )),
+            record: Expr::bound("parcel"),
+        }];
+        blueprint.actions.push(action);
+
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_over(deployment, &["parcel", "ledger"], &[]);
+        let record = parcel("12/3", "Anitha", 400);
+        let outcome = Pallet::<Test>::run_action(
+            &deployment,
+            &crate::tests_support::ACTOR,
+            "record_transfer",
+            &arguments(&record),
+        )
+        .expect("the compensating steps run");
+        assert!(!outcome.succeeded());
+        assert!(!outcome
+            .failure
+            .expect("the run names the failure")
+            .is_empty());
+        // The effects rolled back and the compensation landed.
+        assert_eq!(
+            <State as pallet_cerulea_state::RecordStore>::count(
+                &deployment,
+                &CollectionId::new("parcel")
+            ),
+            0
+        );
+        assert_eq!(
+            <State as pallet_cerulea_state::RecordStore>::count(
+                &deployment,
+                &CollectionId::new("ledger")
+            ),
+            1
+        );
+    });
+}
+
+#[test]
+fn a_failing_action_without_compensation_aborts_the_transaction() {
+    new_test_ext().execute_with(|| {
+        let mut blueprint = base_blueprint();
+        let mut action = transfer_action();
+        action
+            .effects
+            .push(cerulea_blueprint::actions::Effect::Read {
+                collection: CollectionId::new("parcel"),
+                key: cerulea_blueprint::collections::KeySelector::Exact(Expr::text("absent")),
+                binding: ParamName::new("entry"),
+                element: TypeExpr::Record(TypeId::new("parcel")),
+            });
+        blueprint.actions.push(action);
+        let deployment = install(&blueprint);
+        crate::tests_support::grant_everything(deployment);
+        let record = parcel("12/3", "Anitha", 400);
+        assert_noop!(
+            Pallet::<Test>::run_action(
+                &deployment,
+                &crate::tests_support::ACTOR,
+                "record_transfer",
+                &arguments(&record)
+            ),
+            Error::<Test>::RecordInvalid
+        );
+        assert_eq!(
+            <State as pallet_cerulea_state::RecordStore>::count(
+                &deployment,
+                &CollectionId::new("parcel")
+            ),
+            0
+        );
+    });
+}
+
+#[test]
+fn a_field_path_writes_the_value_it_names() {
+    let record = parcel("12/3", "Anitha", 400);
+    let changed = crate::execute::set_at(
+        &record,
+        &cerulea_blueprint::types::FieldPath::parse("holder"),
+        Value::Text("Benny".to_string()),
+    )
+    .expect("the field takes the value");
+    match changed {
+        Value::Record(held) => {
+            assert_eq!(
+                held.field(&FieldName::new("holder")),
+                Some(&Value::Text("Benny".to_string()))
+            );
+        }
+        other => unreachable!("the write produced {:?}", other),
+    }
+    assert!(crate::execute::set_at(
+        &record,
+        &cerulea_blueprint::types::FieldPath::parse("ward"),
+        Value::Text("north".to_string())
+    )
+    .is_none());
 }

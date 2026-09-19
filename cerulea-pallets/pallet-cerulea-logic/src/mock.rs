@@ -98,6 +98,7 @@ impl pallet_cerulea_logic::Config for Test {
     type StepLimit = ConstU64<200_000>;
     type MaxRowsPerRead = ConstU32<256>;
     type MaxEffectsPerAction = ConstU32<64>;
+    type Workflows = pallet_cerulea_logic::NoWorkflows<u64>;
 }
 
 const CLOCK: &[u8] = b"cerulea:test:logic:clock";

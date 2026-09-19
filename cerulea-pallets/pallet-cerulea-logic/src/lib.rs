@@ -24,6 +24,7 @@
 
 extern crate alloc;
 
+pub mod execute;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -36,6 +37,7 @@ mod tests;
 #[cfg(test)]
 mod tests_support;
 
+pub use execute::{ExecutionOutcome, NoWorkflows, TransitionSink};
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -145,6 +147,9 @@ pub mod pallet {
 
         /// The registry that answers which roles an actor holds.
         type Identity: IdentityRegistry<AccountId = Self::AccountId>;
+
+        /// The place a transition effect sends its request.
+        type Workflows: crate::execute::TransitionSink<AccountId = Self::AccountId>;
 
         /// The largest encoded Blueprint the module accepts, in bytes.
         #[pallet::constant]
@@ -355,6 +360,28 @@ pub mod pallet {
                 installer,
             });
             Ok(())
+        }
+
+        /// Execute one action.
+        ///
+        /// The call runs the effect sequence the Blueprint declares. A
+        /// failure part way through rolls the effects back. An action
+        /// that declares compensating steps runs those steps in reverse
+        /// order and the Blockchain keeps the compensation.
+        #[pallet::call_index(2)]
+        #[pallet::weight(T::WeightInfo::execute_action())]
+        pub fn execute_action(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            action: BoundedName,
+            arguments: BoundedVec<u8, T::MaxPayloadBytes>,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let parsed = Bindings::decode(&mut arguments.as_slice())
+                .map_err(|_| Error::<T>::PayloadUnreadable)?;
+            let text = alloc::string::String::from_utf8(action.to_vec())
+                .map_err(|_| Error::<T>::ActionUnknown)?;
+            Self::run_action(&deployment, &who, &text, &parsed).map(|_| ())
         }
 
         /// Evaluate one expression and write its result digest.

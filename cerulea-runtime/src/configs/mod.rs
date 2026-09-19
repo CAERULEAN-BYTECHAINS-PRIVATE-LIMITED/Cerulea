@@ -603,3 +603,22 @@ impl pallet_cerulea_oracle::Config for Runtime {
     type MaxFeedsPerDeployment = ConstU32<256>;
     type MaxDisputeWindow = ConstU64<604800000>;
 }
+
+// === The Cerulea tier module ===
+// The tier module gates entitlement on the Blockchain as well as in
+// Cerulea APIs. The module holds the deployment tier, the enabled feature
+// set, the seat count, the add-on registry and the licence attestation
+// with its expiry. The control plane signs every licence with an ed25519
+// key and the deployment checks the signature against the stored key.
+// A lapsed licence stops block production through the production gate the
+// authoring engine consults. Every existing record stays readable and
+// exportable throughout.
+impl pallet_cerulea_tier::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_tier::weights::CeruleaWeight<Runtime>;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxFeatures = ConstU32<256>;
+    type MaxAddons = ConstU32<64>;
+    type MaxWatchedDeployments = ConstU32<64>;
+}
