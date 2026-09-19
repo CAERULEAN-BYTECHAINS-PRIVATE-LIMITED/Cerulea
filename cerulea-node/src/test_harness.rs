@@ -43,6 +43,7 @@ use cerulea_consensus::engines::execution::roots::StateRoots;
 use cerulea_consensus::engines::execution::runner::DomainRunner;
 use cerulea_consensus::engines::manifest::{AccessManifest, CollectionAccess, PendingTransaction};
 use cerulea_consensus::engines::manifest_guard::MemoryStateStore;
+use cerulea_consensus::engines::peers::{DiversityPolicy, PeerAddress, PeerRecord, PeerSet};
 use cerulea_consensus::engines::{
     CollectionId, CommitEngine, CommitteeMember, EngineError, KeyRange, Rank, Slot,
     TransactionClass, TrustScore,
@@ -87,6 +88,12 @@ pub struct ValidatorNode {
     pub committed: BTreeMap<u32, [u8; 32]>,
     /// Whether this node reaches the rest of the network.
     pub reachable: bool,
+    /// The peers this node holds.
+    ///
+    /// An eclipse attack isolates a node behind attacker-controlled peers. The
+    /// peer set counts the distinct address ranges the node reaches, and a node
+    /// failing the requirement halts authoring.
+    pub peers: PeerSet,
 }
 
 impl ValidatorNode {
@@ -109,7 +116,35 @@ impl ValidatorNode {
             chain: Vec::new(),
             committed: BTreeMap::new(),
             reachable: true,
+            peers: healthy_peers(seed),
         }
+    }
+
+    /// Place this node behind peers of one address range.
+    ///
+    /// Every peer sits in one range, so the peer set fails the diversity
+    /// requirement and the node halts authoring.
+    pub fn eclipse(&mut self) {
+        let mut set = PeerSet::new(DiversityPolicy::public_chain());
+        for index in 0..8u8 {
+            set.admit(PeerRecord::new(
+                &format!("eclipse-{}", index),
+                PeerAddress::V4([203, 0, 113, index]),
+                None,
+            ))
+            .expect("a public chain admits every peer");
+        }
+        self.peers = set;
+    }
+
+    /// Return this node to a peer set spanning several address ranges.
+    pub fn restore_peers(&mut self, seed: u8) {
+        self.peers = healthy_peers(seed);
+    }
+
+    /// Report whether this node may author a block.
+    pub fn authoring_allowed(&self) -> bool {
+        self.peers.authoring_allowed()
     }
 
     /// The two keys this validator carries.
@@ -129,6 +164,22 @@ impl ValidatorNode {
             None => [0u8; 32],
         }
     }
+}
+
+/// A peer set spanning four address ranges.
+///
+/// The set meets the diversity requirement, so a node holding it authors.
+pub fn healthy_peers(seed: u8) -> PeerSet {
+    let mut set = PeerSet::new(DiversityPolicy::public_chain());
+    for index in 0..4u8 {
+        set.admit(PeerRecord::new(
+            &format!("peer-{}-{}", seed, index),
+            PeerAddress::V4([10, 0, index, seed]),
+            None,
+        ))
+        .expect("a public chain admits every peer");
+    }
+    set
 }
 
 /// What one slot produced.
@@ -362,7 +413,13 @@ impl TestNetwork {
                 let gate = AuthorGate::new(self.nodes[author_index].keystore.clone());
                 let tracker = FallbackTracker::new(schedule);
                 match gate
-                    .decide(&context, &registry, &tracker, moment_ms)
+                    .decide_with_peers(
+                        &context,
+                        &registry,
+                        &tracker,
+                        moment_ms,
+                        &self.nodes[author_index].peers,
+                    )
                     .expect("the keystore answers the gate")
                 {
                     GateDecision::Author(ticket) => ticket,
@@ -455,8 +512,9 @@ impl TestNetwork {
             .iter()
             .map(|node| (node.seal_key, node.standing))
             .collect();
-        let mut collector = SignatureCollector::open(slot, hash, &set, opens_ms, COLLECTION_WINDOW_MS)
-            .expect("the validator set holds members");
+        let mut collector =
+            SignatureCollector::open(slot, hash, &set, opens_ms, COLLECTION_WINDOW_MS)
+                .expect("the validator set holds members");
         for node in self.nodes.iter().filter(|node| node.reachable) {
             let vote = cast_vote(&node.keystore, &node.seal_key, slot, hash)
                 .expect("the keystore signs the vote");
@@ -481,9 +539,8 @@ impl TestNetwork {
 
     /// Ask the Commit Engine whether one routine domain commits.
     fn commit_domain(&self, slot: Slot, hash: [u8; 32], _signed_weight: u128) -> bool {
-        let mut committer =
-            DomainCommitter::open(slot, hash, self.total_weight(), self.thresholds)
-                .expect("the validator set carries weight");
+        let mut committer = DomainCommitter::open(slot, hash, self.total_weight(), self.thresholds)
+            .expect("the validator set carries weight");
         for node in self.nodes.iter().filter(|node| node.reachable) {
             committer
                 .add_signer(node.seal_key, node.standing)

@@ -26,6 +26,7 @@ use super::draw::{draw_from_keystore, DrawResult};
 use super::fallback::FallbackTracker;
 use super::seal::{SealClaim, ValidatorKeys};
 use super::verify::{SlotContext, ValidatorRegistry};
+use crate::engines::peers::PeerSet;
 use crate::engines::{EngineError, Rank, Slot};
 use crate::CERULEA_KEY_TYPE;
 
@@ -83,6 +84,12 @@ pub enum StandDown {
     ///
     /// Reading stays open throughout. Export stays open throughout.
     ProductionSuspended,
+    /// The peer set fails the diversity requirement, so authoring halted.
+    ///
+    /// An eclipse attack isolates a node behind attacker-controlled peers.
+    /// Reading stays open throughout. Import stays open throughout. Authoring
+    /// resumes as soon as the peer set recovers.
+    Eclipsed,
 }
 
 impl StandDown {
@@ -100,6 +107,9 @@ impl StandDown {
             }
             StandDown::ProductionSuspended => {
                 "The licence of the deployment lapsed. Renew the subscription and install the new licence."
+            }
+            StandDown::Eclipsed => {
+                "The peer set of this node fails the diversity requirement. Add peers in other address ranges."
             }
         }
     }
@@ -204,6 +214,26 @@ impl AuthorGate {
             draw,
             moment_ms,
         })))
+    }
+
+    /// Decide whether the local node produces the block, reading the peer set.
+    ///
+    /// An eclipse attack isolates a node behind attacker-controlled peers. A
+    /// node whose peer set fails the diversity requirement halts authoring and
+    /// stands down. Reading stays open. Import stays open. Authoring resumes as
+    /// soon as the peer set recovers.
+    pub fn decide_with_peers<R: ValidatorRegistry>(
+        &self,
+        context: &SlotContext,
+        registry: &R,
+        tracker: &FallbackTracker,
+        moment_ms: u64,
+        peers: &PeerSet,
+    ) -> Result<GateDecision, EngineError> {
+        if !peers.authoring_allowed() {
+            return Ok(GateDecision::StandDown(StandDown::Eclipsed));
+        }
+        self.decide(context, registry, tracker, moment_ms)
     }
 }
 
