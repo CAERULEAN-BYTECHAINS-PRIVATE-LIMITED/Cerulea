@@ -256,6 +256,9 @@ mod runtime {
     #[runtime::pallet_index(20)]
     pub type Evolution = pallet_cerulea_evolution::Pallet<Runtime>;
 
+    #[runtime::pallet_index(22)]
+    pub type Oracle = pallet_cerulea_oracle::Pallet<Runtime>;
+
     #[runtime::pallet_index(25)]
     pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
 

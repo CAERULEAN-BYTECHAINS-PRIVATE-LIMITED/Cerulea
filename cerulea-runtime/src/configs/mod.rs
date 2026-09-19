@@ -565,6 +565,7 @@ impl pallet_cerulea_logic::Config for Runtime {
     type StepLimit = ConstU64<2000000>;
     type MaxRowsPerRead = ConstU32<4096>;
     type MaxEffectsPerAction = ConstU32<256>;
+    type Workflows = pallet_cerulea_logic::NoWorkflows<AccountId>;
 }
 
 // === The Cerulea evolution module ===
@@ -584,4 +585,21 @@ impl pallet_cerulea_evolution::Config for Runtime {
     type MaxPlanBytes = ConstU32<262144>;
     type MaxVersionsPerDeployment = ConstU32<1024>;
     type MaxRollbackWindow = ConstU64<2592000000>;
+}
+
+// === The Cerulea oracle module ===
+// The oracle module carries external data into a deployment with an
+// attestation behind every value. A feed names the accounts that attest
+// and the count of attestations one value collects. A value reaching that
+// count opens a dispute window. A value passing the window without an
+// upheld dispute becomes the current value of the feed.
+impl pallet_cerulea_oracle::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_cerulea_oracle::weights::CeruleaWeight<Runtime>;
+    type Audit = crate::Audit;
+    type Time = crate::Timestamp;
+    type MaxAttestorsPerFeed = ConstU32<64>;
+    type MaxValueBytes = ConstU32<65536>;
+    type MaxFeedsPerDeployment = ConstU32<256>;
+    type MaxDisputeWindow = ConstU64<604800000>;
 }

@@ -41,6 +41,7 @@ pallet-cerulea-permission.workspace = true
 pallet-cerulea-logic.workspace = true
 pallet-cerulea-audit.workspace = true
 pallet-cerulea-workflow.workspace = true
+pallet-cerulea-oracle.workspace = true
 pallet-cerulea-evolution.workspace = true
 pallet-cerulea-governance.workspace = true
 pallet-cerulea-rules.workspace = true
@@ -104,6 +105,7 @@ std = [
 	"pallet-cerulea-logic/std",
 	"pallet-cerulea-audit/std",
 	"pallet-cerulea-workflow/std",
+	"pallet-cerulea-oracle/std",
 	"pallet-cerulea-evolution/std",
 	"pallet-cerulea-governance/std",
 	"pallet-cerulea-rules/std",
@@ -161,6 +163,7 @@ try-runtime = [
 	"pallet-cerulea-logic/try-runtime",
 	"pallet-cerulea-audit/try-runtime",
 	"pallet-cerulea-workflow/try-runtime",
+	"pallet-cerulea-oracle/try-runtime",
 	"pallet-cerulea-evolution/try-runtime",
 	"pallet-cerulea-governance/try-runtime",
 	"pallet-cerulea-rules/try-runtime",
