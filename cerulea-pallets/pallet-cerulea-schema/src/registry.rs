@@ -100,3 +100,82 @@ impl SchemaSnapshot {
         self.types.is_empty() && self.collections.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock::{new_test_ext, RuntimeOrigin, Schema};
+    use cerulea_blueprint::{
+        collections::PurposeDeclaration,
+        types::{FieldDef, RecordDef, TypeExpr},
+    };
+    use codec::Encode;
+    use frame_support::{assert_ok, BoundedVec};
+
+    const DEPLOYMENT: DeploymentId = [5u8; 32];
+
+    fn permit_type() -> TypeDef {
+        TypeDef::Record(RecordDef {
+            id: TypeId::new("permit"),
+            fields: alloc::vec![FieldDef::new(
+                "number",
+                TypeExpr::Text,
+                "The permit number."
+            )],
+            summary: "One permit.".into(),
+        })
+    }
+
+    fn permits() -> Collection {
+        let mut held = Collection::new("permit", "permit", "number", "The register of permits.");
+        held.purpose = PurposeDeclaration::new("The register records permits.", &["licensing"]);
+        held
+    }
+
+    #[test]
+    fn an_empty_deployment_loads_an_empty_snapshot() {
+        new_test_ext().execute_with(|| {
+            let snapshot = SchemaSnapshot::load::<Schema>(&DEPLOYMENT);
+            assert!(snapshot.is_empty());
+            assert!(snapshot.type_registry().is_empty());
+            assert!(snapshot.collection(&CollectionId::new("permit")).is_none());
+        });
+    }
+
+    #[test]
+    fn a_snapshot_holds_every_registered_type_and_collection() {
+        new_test_ext().execute_with(|| {
+            let bytes: BoundedVec<u8, _> =
+                BoundedVec::try_from(permit_type().encode()).expect("the type fits");
+            assert_ok!(Schema::register_type(
+                RuntimeOrigin::signed(1),
+                DEPLOYMENT,
+                bytes
+            ));
+            let bytes: BoundedVec<u8, _> =
+                BoundedVec::try_from(permits().encode()).expect("the collection fits");
+            assert_ok!(Schema::register_collection(
+                RuntimeOrigin::signed(1),
+                DEPLOYMENT,
+                bytes
+            ));
+
+            let snapshot = SchemaSnapshot::load::<Schema>(&DEPLOYMENT);
+            assert!(!snapshot.is_empty());
+            assert_eq!(snapshot.types, alloc::vec![permit_type()]);
+            assert_eq!(
+                snapshot.collection(&CollectionId::new("permit")),
+                Some(&permits())
+            );
+            assert_eq!(snapshot.type_registry().len(), 1);
+            assert!(snapshot
+                .type_registry()
+                .record(&TypeId::new("permit"))
+                .is_some());
+            assert!(snapshot
+                .collection_registry()
+                .get(&CollectionId::new("permit"))
+                .is_some());
+        });
+    }
+}

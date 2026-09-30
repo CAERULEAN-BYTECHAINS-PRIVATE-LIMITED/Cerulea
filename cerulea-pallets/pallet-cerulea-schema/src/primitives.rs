@@ -160,4 +160,34 @@ mod tests {
         assert_eq!(key.deployment, [3u8; 32]);
         assert_eq!(key.name_text(), "parcel");
     }
+
+    #[test]
+    fn a_record_key_inside_the_bound_converts_and_a_longer_one_reports_it() {
+        let fits = alloc::vec![1u8; MAX_KEY_BYTES as usize];
+        assert_eq!(
+            record_key_of(fits.clone()).map(|held| held.into_inner()),
+            Ok(fits)
+        );
+        let long = alloc::vec![1u8; MAX_KEY_BYTES as usize + 1];
+        assert_eq!(record_key_of(long), Err(NameTooLong));
+    }
+
+    #[test]
+    fn a_short_index_value_keeps_its_bytes() {
+        let short = alloc::vec![4u8, 5, 6];
+        assert_eq!(index_value_of(short.clone()).into_inner(), short);
+    }
+
+    #[test]
+    fn a_collection_key_over_a_long_name_reports_the_bound() {
+        let long = "c".repeat(MAX_NAME_BYTES as usize + 1);
+        assert_eq!(CollectionKey::from_text([3u8; 32], &long), Err(NameTooLong));
+    }
+
+    #[test]
+    fn a_name_carrying_bytes_outside_text_reads_through_the_replacement_character() {
+        let name: BoundedName =
+            BoundedVec::try_from(alloc::vec![b'a', 0xff, b'b']).expect("the name fits");
+        assert_eq!(name_text(&name), "a\u{fffd}b");
+    }
 }
