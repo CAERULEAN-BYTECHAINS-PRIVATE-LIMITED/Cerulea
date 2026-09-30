@@ -62,6 +62,15 @@ pub mod tests; // Runtime integration tests with API unit tests
 #[cfg(test)]
 pub mod platform_tests; // The platform module wiring and the platform runtime interfaces
 
+#[cfg(test)]
+mod platform_api_tests; // The platform runtime interfaces against real runtime state
+
+#[cfg(test)]
+mod apis_tests; // The runtime interfaces the node calls, against real runtime state
+
+#[cfg(test)]
+mod workflow_tests; // The workflow adapter and the workflow reads, against real runtime state
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmark_tests; // Benchmarking tests
 
