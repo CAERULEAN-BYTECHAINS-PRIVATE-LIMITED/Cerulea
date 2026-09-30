@@ -39,6 +39,8 @@ pub mod verify;
 mod mock;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_reject;
 
 pub use pallet::*;
 pub use primitives::{

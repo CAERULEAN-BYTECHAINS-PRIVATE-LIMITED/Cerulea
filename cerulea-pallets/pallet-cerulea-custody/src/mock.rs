@@ -4,10 +4,7 @@
 // real state inside the test externalities.
 use crate as pallet_cerulea_custody;
 use codec::{Decode, Encode};
-use frame_support::{
-    parameter_types,
-    traits::{ConstU32, ConstU64},
-};
+use frame_support::{parameter_types, traits::ConstU32};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
