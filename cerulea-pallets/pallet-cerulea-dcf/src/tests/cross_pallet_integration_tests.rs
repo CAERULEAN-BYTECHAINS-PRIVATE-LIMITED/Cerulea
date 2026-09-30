@@ -576,3 +576,39 @@ fn cross_pallet_stress_test() {
         }
     });
 }
+
+/// The composition reads the inference contribution as a share of one.
+///
+/// A result inside the ceiling reaches the recorded score as it stands, held
+/// at the highest recorded score. A raw result above the ceiling clamps, the
+/// inference module records a fault, and the recorded contribution stays
+/// inside the bound.
+#[test]
+fn the_composition_reads_the_inference_contribution_as_a_share() {
+    new_test_ext().execute_with(|| {
+        System::set_block_number(1);
+        let validator = 1u64;
+        let max_score: u64 = <Test as pallet_cerulea_poi::Config>::MaxValidatorScore::get();
+
+        pallet_cerulea_poi::InferenceResults::<Test>::insert(validator, (42u32, 0u32));
+        assert_eq!(DcfPallet::inference_contribution(&validator), 42);
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
+            RuntimeOrigin::signed(validator),
+            validator
+        ));
+        assert_eq!(DcfPallet::validator_inference_score(&validator), 42);
+        assert_eq!(PalletCeruleaPoi::contribution_faults(validator), 0);
+
+        // A raw result above the ceiling of one clamps and records a fault.
+        let raw = pallet_cerulea_poi::CONTRIBUTION_CEILING as u32 + 5;
+        pallet_cerulea_poi::InferenceResults::<Test>::insert(validator, (raw, 0u32));
+        assert_ok!(PalletCeruleaPoi::update_validator_inference_score(
+            RuntimeOrigin::signed(validator),
+            validator
+        ));
+        assert_eq!(DcfPallet::validator_inference_score(&validator), max_score);
+        assert!(PalletCeruleaPoi::contribution_faults(validator) >= 1);
+        let recorded = crate::ValidatorStates::<Test>::get(&validator).expect("validator state");
+        assert!(recorded.current.final_score <= max_score);
+    });
+}

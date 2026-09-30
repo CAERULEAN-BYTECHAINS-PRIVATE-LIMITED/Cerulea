@@ -312,6 +312,13 @@ A result is accepted provisionally. Any validator challenges inside a window. A
 challenge triggers redundant execution by a randomly drawn committee, and the
 losing side carries the penalty.
 
+The contribution reports a share of one, counted in parts per billion, the way
+every Standing Engine component reports. The inference module answers that
+share. The framework module reads it as a share with a ceiling of one. A raw
+result above the ceiling holds at the ceiling. The module then raises the fault
+count of that validator and reports the event, so an operator finds a validator
+reporting figures the share cannot carry.
+
 ## 12 Where each engine lives
 
 ```

@@ -20,6 +20,14 @@
 
 pub use pallet::*;
 
+/// The ceiling one inference contribution reaches.
+///
+/// The contribution reports a share of one, counted in parts per billion, the
+/// way every Standing Engine component reports. A validator serving the whole
+/// of what the deployment asked reaches this number. A raw result above the
+/// ceiling holds at the ceiling and records a fault against the validator.
+pub const CONTRIBUTION_CEILING: u64 = 1_000_000_000;
+
 // The gate on the optional inference contribution
 pub mod gate;
 
@@ -255,6 +263,17 @@ pub mod pallet {
     pub type ValidatorInferenceCount<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, u64, ValueQuery>;
 
+    /// The count of raw results that sat above the contribution ceiling.
+    ///
+    /// The contribution reports a share of one. A raw result above that
+    /// ceiling holds at the ceiling, and the count here rises by one. An
+    /// operator reads the count to find a validator reporting figures the
+    /// share cannot carry.
+    #[pallet::storage]
+    #[pallet::getter(fn contribution_faults)]
+    pub type ContributionFaults<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+
     /// Events emitted by the PoI pallet.
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -312,6 +331,19 @@ pub mod pallet {
         DeterminismDeclared {
             /// The evidence the deployment declared.
             evidence: crate::gate::DeterminismEvidence,
+        },
+        /// A raw inference result sat above the contribution ceiling.
+        ///
+        /// The share held at the ceiling of one and the fault count rose.
+        ContributionCeilingApplied {
+            /// The validator that reported the result.
+            validator: T::AccountId,
+            /// The raw result the chain holds.
+            raw: u64,
+            /// The share the contribution answered, in parts per billion.
+            held: u64,
+            /// The number of faults this validator now carries.
+            faults: u32,
         },
         /// A challenge against a provisional result settled.
         InferenceChallengeSettled {
@@ -741,6 +773,12 @@ impl<T: Config> Pallet<T> {
         CurrentEpoch::<T>::put(epoch);
     }
 
+    /// The inference contribution of one validator, as a share of one.
+    ///
+    /// The answer reads in parts per billion, the way every Standing Engine
+    /// component reads. A validator with no recorded result answers zero. A
+    /// raw result above [`crate::CONTRIBUTION_CEILING`] holds at the ceiling
+    /// and records a fault.
     pub fn get_score(validator: &T::AccountId) -> u64 {
         Self::get_poi_score(validator)
     }
@@ -750,11 +788,40 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn get_inference_score(validator: &T::AccountId) -> u64 {
-        if let Some((result, _)) = InferenceResults::<T>::get(validator) {
-            result as u64
-        } else {
-            0
+        Self::contribution_share(validator)
+    }
+
+    /// The raw inference result the chain holds for one validator.
+    ///
+    /// The figure carries no ceiling. Read [`Self::contribution_share`] for
+    /// the share the Standing Engine composition takes.
+    pub fn raw_inference_result(validator: &T::AccountId) -> u64 {
+        InferenceResults::<T>::get(validator)
+            .map(|(result, _)| result as u64)
+            .unwrap_or(0)
+    }
+
+    /// The inference contribution of one validator, as a share of one.
+    ///
+    /// The share reads in parts per billion. A raw result above the ceiling
+    /// holds at the ceiling, raises the fault count of that validator and
+    /// reports the event.
+    pub fn contribution_share(validator: &T::AccountId) -> u64 {
+        let raw = Self::raw_inference_result(validator);
+        if raw <= crate::CONTRIBUTION_CEILING {
+            return raw;
         }
+        let faults = ContributionFaults::<T>::mutate(validator, |count| {
+            *count = count.saturating_add(1);
+            *count
+        });
+        Self::deposit_event(Event::ContributionCeilingApplied {
+            validator: validator.clone(),
+            raw,
+            held: crate::CONTRIBUTION_CEILING,
+            faults,
+        });
+        crate::CONTRIBUTION_CEILING
     }
 
     pub fn submit_score(
@@ -940,7 +1007,9 @@ impl<T: Config> Pallet<T> {
         for validator in validators.iter() {
             if let Ok(inference_data) = Self::collect_inference_data(validator, current_epoch) {
                 let poi_score = Self::compute_poi_score(&inference_data);
-                let current_on_chain_score = Self::get_score(validator);
+                // The comparison reads the raw result the chain holds, since
+                // the figure the worker computes is a raw result too.
+                let current_on_chain_score = Self::raw_inference_result(validator);
 
                 if poi_score == current_on_chain_score {
                     log::trace!(

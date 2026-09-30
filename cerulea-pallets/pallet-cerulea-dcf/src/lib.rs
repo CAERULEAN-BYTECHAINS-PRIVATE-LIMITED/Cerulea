@@ -8122,14 +8122,28 @@ pub mod pallet {
             }
         }
 
+        /// The inference contribution one validator carries.
+        ///
+        /// The inference module answers a share of one, counted in parts per
+        /// billion, the way every Standing Engine component answers. The
+        /// composition holds that share at the ceiling of one and then at the
+        /// highest recorded score, so a large raw result never lifts the
+        /// recorded contribution past either bound.
+        pub fn inference_contribution(validator: &T::AccountId) -> u64 {
+            poi::Pallet::<T>::get_score(validator)
+                .min(poi::CONTRIBUTION_CEILING)
+                .min(T::MaxValidatorScore::get())
+        }
+
         /// Recalculate and update the final score for a validator.
         fn update_final_score(validator: &T::AccountId) -> DispatchResult {
             // The inference module owns the contribution figure. Read it back
-            // here, so a submitted inference reaches the recorded score.
-            let contributed = poi::Pallet::<T>::get_score(validator);
+            // here as a share of one, so a submitted inference reaches the
+            // recorded score inside the bound the share carries.
+            let contributed = Self::inference_contribution(validator);
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                state.current.inference_score = contributed.min(T::MaxValidatorScore::get());
+                state.current.inference_score = contributed;
                 let stake_score = state.current.stake_score;
                 let inference_score = state.current.inference_score;
                 let pos_weight = if !PosWeight::<T>::exists() {
@@ -12392,7 +12406,7 @@ pub mod pallet {
                 let pos_score = stake.saturated_into::<u64>();
 
                 // Get fresh inference contribution from inference results
-                let poi_score = poi::Pallet::<T>::get_score(validator);
+                let poi_score = Self::inference_contribution(validator);
 
                 // Calculate combined score using current weights
                 let mut combined_score = (pos_score.saturating_mul(pos_weight)
@@ -12446,7 +12460,7 @@ pub mod pallet {
                 let stake = pos::Pallet::<T>::stake(validator);
                 let pos_score = stake.saturated_into::<u64>();
 
-                let poi_score = poi::Pallet::<T>::get_score(validator);
+                let poi_score = Self::inference_contribution(validator);
 
                 // Calculate combined score
                 let mut combined_score = (pos_score.saturating_mul(pos_weight)
@@ -12819,8 +12833,8 @@ pub mod pallet {
                 let current_epoch = Self::current_epoch();
                 let stake_score = stake.saturated_into::<u64>();
 
-                // Get initial inference score from PoI pallet
-                let inference_score = poi::Pallet::<T>::get_score(validator);
+                // Get initial inference score from the inference module
+                let inference_score = Self::inference_contribution(validator);
 
                 // Calculate initial final score
                 let pos_weight = Self::pos_weight();
@@ -13686,7 +13700,7 @@ pub mod pallet {
                 };
 
                 // Update inference contribution from inference results
-                let inference_score = poi::Pallet::<T>::get_score(validator);
+                let inference_score = Self::inference_contribution(validator);
 
                 // Update validator state with fresh scores
                 if let Ok(()) = ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
@@ -15146,7 +15160,7 @@ pub mod pallet {
                 let current_epoch = Self::current_epoch();
                 let stake_score = stake.saturated_into::<u64>();
 
-                let inference_score = poi::Pallet::<T>::get_score(validator);
+                let inference_score = Self::inference_contribution(validator);
 
                 let pos_weight = if !PosWeight::<T>::exists() {
                     let weight = T::DefaultPosWeight::get();

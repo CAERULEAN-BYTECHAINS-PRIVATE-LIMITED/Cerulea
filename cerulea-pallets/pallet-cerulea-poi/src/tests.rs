@@ -879,4 +879,57 @@ mod tests {
             );
         });
     }
+
+    /// A result inside the ceiling answers as the share it names.
+    #[test]
+    fn a_result_inside_the_ceiling_answers_as_a_share_of_one() {
+        new_test_ext().execute_with(|| {
+            crate::InferenceResults::<Test>::insert(1, (250_000_000u32, 0u32));
+            assert_eq!(PalletCeruleaPoi::get_score(&1), 250_000_000);
+            assert_eq!(PalletCeruleaPoi::contribution_faults(1), 0);
+
+            // A result at the ceiling reads as one whole share.
+            let whole = crate::CONTRIBUTION_CEILING as u32;
+            crate::InferenceResults::<Test>::insert(1, (whole, 0u32));
+            assert_eq!(PalletCeruleaPoi::get_score(&1), crate::CONTRIBUTION_CEILING);
+            assert_eq!(PalletCeruleaPoi::contribution_faults(1), 0);
+        });
+    }
+
+    /// A validator with no recorded result answers a share of zero.
+    #[test]
+    fn a_validator_with_no_result_answers_zero() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(PalletCeruleaPoi::get_score(&7), 0);
+            assert_eq!(PalletCeruleaPoi::contribution_faults(7), 0);
+        });
+    }
+
+    /// A raw result above the ceiling clamps to one and records a fault.
+    #[test]
+    fn a_raw_result_above_the_ceiling_clamps_and_records_a_fault() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(1);
+            let raw = crate::CONTRIBUTION_CEILING as u32 + 1;
+            crate::InferenceResults::<Test>::insert(2, (raw, 0u32));
+
+            assert_eq!(PalletCeruleaPoi::get_score(&2), crate::CONTRIBUTION_CEILING);
+            assert_eq!(PalletCeruleaPoi::raw_inference_result(&2), raw as u64);
+            assert_eq!(PalletCeruleaPoi::contribution_faults(2), 1);
+            System::assert_last_event(
+                crate::Event::ContributionCeilingApplied {
+                    validator: 2,
+                    raw: raw as u64,
+                    held: crate::CONTRIBUTION_CEILING,
+                    faults: 1,
+                }
+                .into(),
+            );
+
+            // Every read of a result above the ceiling records one more fault.
+            crate::InferenceResults::<Test>::insert(2, (u32::MAX, 0u32));
+            assert_eq!(PalletCeruleaPoi::get_score(&2), crate::CONTRIBUTION_CEILING);
+            assert_eq!(PalletCeruleaPoi::contribution_faults(2), 2);
+        });
+    }
 }
