@@ -38,6 +38,10 @@ mod benchmarking;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod read_tests;
+#[cfg(test)]
+mod retention_tests;
+#[cfg(test)]
 mod tests;
 
 pub use pallet::*;

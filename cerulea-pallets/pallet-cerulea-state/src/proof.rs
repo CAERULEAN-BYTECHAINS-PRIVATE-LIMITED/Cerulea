@@ -183,12 +183,15 @@ pub fn verify(proof: &InclusionProof, root: &[u8; 32]) -> bool {
 
 /// The sibling index at one level for one slot.
 pub fn sibling_index(slot: u16, level: u8) -> u16 {
-    (slot >> level) ^ 1
+    node_index(slot, level) ^ 1
 }
 
 /// The node index at one level for one slot.
+///
+/// The root level shifts every bit of the slot away, so the root sits at
+/// index zero. A shift of sixteen places or more yields zero.
 pub fn node_index(slot: u16, level: u8) -> u16 {
-    slot >> level
+    slot.checked_shr(u32::from(level)).unwrap_or(0)
 }
 
 /// Place one entry in a bucket, keeping the bucket in key order.
@@ -247,6 +250,26 @@ mod tests {
 
     fn key(text: &str) -> RecordKey {
         BoundedVec::try_from(text.as_bytes().to_vec()).expect("the key fits")
+    }
+
+    #[test]
+    fn the_root_level_sits_at_index_zero_for_every_slot() {
+        for slot in [0u16, 1, 2, 0x00ff, 0x8000, u16::MAX] {
+            assert_eq!(node_index(slot, TREE_DEPTH), 0);
+            assert_eq!(node_index(slot, 0), slot);
+            assert_eq!(node_index(slot, TREE_DEPTH - 1), slot >> 15);
+        }
+    }
+
+    #[test]
+    fn a_sibling_differs_from_its_node_in_the_lowest_bit_alone() {
+        for level in 0..TREE_DEPTH {
+            let slot = 0b1010_1100_0011_0101u16;
+            let node = node_index(slot, level);
+            let sibling = sibling_index(slot, level);
+            assert_eq!(node ^ sibling, 1);
+            assert_eq!(node >> 1, sibling >> 1);
+        }
     }
 
     #[test]

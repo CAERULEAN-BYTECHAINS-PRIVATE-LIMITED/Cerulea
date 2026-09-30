@@ -186,3 +186,163 @@ pub fn accept<S: SchemaRegistry>(
     let key = check_record::<S>(deployment, definition, &record, path)?;
     Ok((record, key))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock::{new_test_ext, RuntimeOrigin, Schema};
+    use cerulea_blueprint::types::{FieldDef, FieldName, RecordDef, TypeDef, TypeId};
+    use codec::Encode;
+    use frame_support::{assert_ok, BoundedVec};
+
+    const DEPLOYMENT: DeploymentId = [3u8; 32];
+
+    fn tag_type(key: TypeExpr) -> TypeDef {
+        TypeDef::Record(RecordDef {
+            id: TypeId::new("tag"),
+            fields: vec![
+                FieldDef::new("code", key, "The code of the tag."),
+                FieldDef::new("label", TypeExpr::Text, "The label of the tag."),
+            ],
+            summary: "One tag.".to_string(),
+        })
+    }
+
+    fn tag(code: Value) -> Value {
+        let mut held = Value::record(
+            TypeId::new("tag"),
+            vec![
+                (FieldName::new("code"), code),
+                (FieldName::new("label"), Value::Text("Label".to_string())),
+            ],
+        );
+        held.canonicalise();
+        held
+    }
+
+    fn tags() -> Collection {
+        Collection::new("tag", "tag", "code", "The register of tags.")
+    }
+
+    fn at() -> Path {
+        Path::root().field("record")
+    }
+
+    fn fix_of(report: Report) -> String {
+        assert_eq!(report.len(), 1, "{:?}", report.diagnostics);
+        report.diagnostics[0].fix.clone()
+    }
+
+    fn install(key: TypeExpr) {
+        let bytes: BoundedVec<u8, _> =
+            BoundedVec::try_from(tag_type(key).encode()).expect("the type fits");
+        assert_ok!(Schema::register_type(
+            RuntimeOrigin::signed(1),
+            DEPLOYMENT,
+            bytes
+        ));
+    }
+
+    #[test]
+    fn a_payload_the_record_encoding_declines_names_the_studio_encoding() {
+        let report = decode_record(&[0xff, 0xff, 0xff], &at()).expect_err("the bytes decline");
+        assert_eq!(
+            fix_of(report),
+            "Submit the canonical encoding the Studio produces for this collection."
+        );
+    }
+
+    #[test]
+    fn a_decoded_payload_comes_back_in_canonical_form() {
+        let held = tag(Value::Text("T-1".to_string()));
+        let decoded = decode_record(&held.canonical_bytes(), &at()).expect("the bytes decode");
+        assert_eq!(decoded, held);
+    }
+
+    #[test]
+    fn a_collection_naming_an_unregistered_type_names_the_registration_fix() {
+        new_test_ext().execute_with(|| {
+            let report = check_record::<Schema>(
+                &DEPLOYMENT,
+                &tags(),
+                &tag(Value::Text("T-1".to_string())),
+                &at(),
+            )
+            .expect_err("the registry lacks the type");
+            assert_eq!(
+                fix_of(report),
+                "Register the record type before writing records to the collection."
+            );
+        });
+    }
+
+    #[test]
+    fn a_record_of_another_shape_reports_the_field_it_breaks() {
+        new_test_ext().execute_with(|| {
+            install(TypeExpr::Text);
+            let report =
+                check_record::<Schema>(&DEPLOYMENT, &tags(), &tag(Value::Integer(4)), &at())
+                    .expect_err("the code carries a number");
+            assert_eq!(report.len(), 1);
+            assert!(report.diagnostics[0]
+                .location
+                .as_str()
+                .starts_with("record"));
+        });
+    }
+
+    #[test]
+    fn a_record_of_the_registered_shape_yields_its_key_bytes() {
+        new_test_ext().execute_with(|| {
+            install(TypeExpr::Text);
+            let record = tag(Value::Text("T-1".to_string()));
+            let (value, key) =
+                accept::<Schema>(&DEPLOYMENT, &tags(), &record.canonical_bytes(), &at())
+                    .expect("the record carries the shape");
+            assert_eq!(value, record);
+            assert_eq!(key, Value::Text("T-1".to_string()).canonical_bytes());
+        });
+    }
+
+    #[test]
+    fn a_key_without_a_total_order_names_the_key_safe_fields() {
+        let defs = vec![tag_type(TypeExpr::Optional(Box::new(TypeExpr::Text)))];
+        let (types, _) = TypeRegistry::build(&defs, &Path::root().field("types"));
+        let record = tag(Value::some(TypeExpr::Text, Value::Text("T-1".to_string())));
+        let report =
+            check_key(&tags(), &record, &at(), &types).expect_err("the key lacks an order");
+        assert_eq!(
+            fix_of(report),
+            "Point the primary key at a text, integer, timestamp, identity or hash field."
+        );
+    }
+
+    #[test]
+    fn a_record_holding_no_key_value_names_the_field_to_fill() {
+        let defs = vec![tag_type(TypeExpr::Text)];
+        let (types, _) = TypeRegistry::build(&defs, &Path::root().field("types"));
+        let record = Value::record(
+            TypeId::new("tag"),
+            vec![(FieldName::new("label"), Value::Text("Label".to_string()))],
+        );
+        let report = check_key(&tags(), &record, &at(), &types).expect_err("the key is absent");
+        assert_eq!(
+            fix_of(report),
+            "Give the record a value at `code` before submitting it."
+        );
+    }
+
+    #[test]
+    fn a_key_past_the_stored_bound_names_the_shorter_field_fix() {
+        let defs = vec![tag_type(TypeExpr::Text)];
+        let (types, _) = TypeRegistry::build(&defs, &Path::root().field("types"));
+        let record = tag(Value::Text("k".repeat(MAX_KEY_BYTES as usize + 1)));
+        let report = check_key(&tags(), &record, &at(), &types).expect_err("the key is too long");
+        assert_eq!(
+            fix_of(report),
+            "Point the primary key at a shorter field, or shorten the value."
+        );
+        let fits = tag(Value::Text("k".repeat(200)));
+        assert!(check_key(&tags(), &fits, &at(), &types).is_ok());
+    }
+}
