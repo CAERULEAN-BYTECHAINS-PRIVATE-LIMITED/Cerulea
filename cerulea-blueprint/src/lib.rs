@@ -42,9 +42,39 @@ pub mod workflows;
 #[cfg(test)]
 mod actions_tests;
 #[cfg(test)]
+mod address_tests;
+#[cfg(test)]
+mod codec_tests;
+#[cfg(test)]
+mod collections_tests;
+#[cfg(test)]
+mod compose_tests;
+#[cfg(test)]
+mod economics_tests;
+#[cfg(test)]
 mod expression_tests;
 #[cfg(test)]
+mod fold_tests;
+#[cfg(test)]
+mod governance_tests;
+#[cfg(test)]
 mod identities_tests;
+#[cfg(test)]
+mod integrations_tests;
+#[cfg(test)]
+mod interface_tests;
+#[cfg(test)]
+mod lib_tests;
+#[cfg(test)]
+mod permissions_tests;
+#[cfg(test)]
+mod rules_tests;
+#[cfg(all(test, feature = "std"))]
+mod schema_export_tests;
+#[cfg(test)]
+mod test_fixture;
+#[cfg(test)]
+mod types_tests;
 #[cfg(test)]
 mod views_tests;
 #[cfg(test)]
