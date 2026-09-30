@@ -39,7 +39,9 @@ use crate::engines::authoring::equivocation::{
     accept_report, EquivocationProof, EquivocationTracker, ReportQueue,
 };
 use crate::engines::authoring::fallback::{AuthoringPolicy, SlotSchedule};
-use crate::engines::authoring::seal::{extract_seal, BlockSeal, ValidatorKeys};
+use crate::engines::authoring::seal::{
+    extract_seal, is_cerulea_seal, strip_seal, BlockSeal, ValidatorKeys,
+};
 use crate::engines::authoring::verify::{verify_seal, KeyRegistry};
 use crate::engines::{CommitteeMember, Rank, Slot};
 use crate::metrics::ConsensusMetrics;
@@ -439,6 +441,33 @@ where
             "Commit Engine import: block #{} passed the seal checks at slot {} rank {}",
             block_number, authorship.slot.0, authorship.rank
         );
+        // The seal travels as a post digest, the same way the author imports
+        // its own block. Execution reads the header without the seal, so the
+        // digest the runtime counts matches the digest the author built. The
+        // block keeps the hash it arrived under.
+        if block.post_digests.is_empty() {
+            let arrived_hash = block.header.hash();
+            let seal_item = block
+                .header
+                .digest()
+                .logs()
+                .iter()
+                .rev()
+                .find(|item| is_cerulea_seal(item))
+                .cloned();
+            if let Some(item) = seal_item {
+                block.header = strip_seal(&block.header);
+                block.post_digests.push(item);
+                if block.post_header().hash() != arrived_hash {
+                    return Err(format!(
+                        "Block {} carries its Cerulea seal ahead of another digest item. \
+                         Fix: produce the block on a node that places the seal last.",
+                        block_number
+                    ));
+                }
+                block.post_hash = Some(arrived_hash);
+            }
+        }
         if block.fork_choice.is_none() {
             block.fork_choice = Some(sc_consensus::ForkChoiceStrategy::LongestChain);
         }
