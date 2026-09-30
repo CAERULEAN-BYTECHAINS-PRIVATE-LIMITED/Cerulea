@@ -575,3 +575,8 @@ sp_api::decl_runtime_apis! {
         fn action_names(deployment: DeploymentId) -> Vec<Vec<u8>>;
     }
 }
+
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+mod tests_reader;
