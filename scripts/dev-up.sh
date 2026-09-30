@@ -156,7 +156,12 @@ PEER_ONE="$(grep -oE '12D3Koo[A-Za-z0-9]+' "$DATA/peer-one.txt" | head -1)"
 # Local peer discovery stays off. Two tenants on one machine share a genesis, so
 # a discovery broadcast would join their networks. Each validator reaches the
 # tenant bootnode by address alone.
-BASE_ARGS=(--chain local --enable-cerulea-extensions --rpc-cors all --rpc-methods unsafe --no-telemetry --no-mdns)
+# Cerulea APIs reaches each validator from the server and sends no browser
+# origin. The origin list names one address no page is served from, so a web
+# page open on this machine reads no validator answer. A browser opens a socket
+# without the origin check, so the validators answer the safe method set
+# alone. Cerulea APIs calls safe methods only. The key methods stay closed.
+BASE_ARGS=(--chain local --enable-cerulea-extensions --rpc-cors http://cerulea-apis.invalid --rpc-methods safe --no-telemetry --no-mdns)
 start alice   "$NODE_BIN" "${BASE_ARGS[@]}" --alice   --base-path "$DATA/alice"   --port "$P2P_ONE"   --rpc-port "$RPC_ONE"   --node-key-file "$DATA/node-key-one"
 BOOT="/ip4/127.0.0.1/tcp/$P2P_ONE/p2p/$PEER_ONE"
 start bob     "$NODE_BIN" "${BASE_ARGS[@]}" --bob     --base-path "$DATA/bob"     --port "$P2P_TWO"   --rpc-port "$RPC_TWO"   --bootnodes "$BOOT"

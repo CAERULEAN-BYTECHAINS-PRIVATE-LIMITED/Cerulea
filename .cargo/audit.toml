@@ -35,6 +35,10 @@ ignore = [
     "RUSTSEC-2026-0096",
     "RUSTSEC-2026-0222",
     "RUSTSEC-2026-0269",
+    # Published 24 September 2026 and reviewed in the P10-026 assessment. The
+    # advisory sits in the component model record lifting path, which Cerulea
+    # never reaches.
+    "RUSTSEC-2026-0316",
 
     # The transport security stack the framework pins for telemetry and for
     # the light client. Cerulea reaches no telemetry endpoint and runs no
