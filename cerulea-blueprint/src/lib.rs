@@ -39,6 +39,17 @@ pub mod types;
 pub mod views;
 pub mod workflows;
 
+#[cfg(test)]
+mod actions_tests;
+#[cfg(test)]
+mod expression_tests;
+#[cfg(test)]
+mod identities_tests;
+#[cfg(test)]
+mod views_tests;
+#[cfg(test)]
+mod workflows_tests;
+
 use alloc::{
     format,
     string::{String, ToString},
