@@ -33,7 +33,7 @@ its binaries serve, and each record names its side.
 
 | Repository | Head under test | Where it ran |
 | --- | --- | --- |
-| chain | `8274288`, the frozen commit of `NOTICE freeze chain 8274288` | Linux subsystem, git archive export |
+| chain | `8274288`, the frozen commit of `NOTICE freeze chain 8274288`, the node binary under test; gate reruns on the test-only follow-ups `5fbf0a0` and `3c17558` | Linux subsystem, git archive export |
 | apis | `48e3b8a` for criteria 6, 9 to 13, 15 and 18; `22c978e` for the secret scan | Linux subsystem, git archive export; Windows for the browser journey |
 | studio | `3036e02` | Windows, git archive export |
 | explorer | `9f4fec3` | Windows, git archive export |
@@ -42,7 +42,7 @@ its binaries serve, and each record names its side.
 | scripts | `a399593` for the runners; `6f9f6e1` for the secret scan | Linux subsystem, git archive export |
 | security | `7269822` | Linux subsystem, git archive export |
 | intelligence-corpus | `01959fe` | read in place |
-| test-results | `fe84828` holds the service and chain gate logs; `40ff3b8` holds criterion 11 and the route gate over three projects | |
+| test-results | `fe84828` holds the service and chain gate logs; `40ff3b8` holds criterion 11 and the route gate over three projects; `e577f92` and the commit after it hold the follow-up gate lines | |
 | multi-host records | test-results `29b1e28` | nine validator containers inside the subsystem |
 
 Between the start of this pass and the record, apis moved from `48e3b8a` to
@@ -116,28 +116,33 @@ reached a result. Four details of the arrangement differ from 19 September.
 | 13 | Deployment is atomic | Passed. 5 of 5 and 43 passed, 1 skipped of 44 |
 | 14 | The operator role is bounded | Passed, with the duties resolving to `PermissionDenied` |
 | 15 | Security passes | Passed. 25 of 25 controls, 243 tests, secret scan clean on rerun |
-| 16 | Testing passes | Shortfall. Chain 89.86 per cent lines against 90, consensus 64.80, node library unmeasured; 3 chain test failures on 8274288 |
+| 16 | Testing passes | Shortfall. Chain 91.97 per cent lines over 27 crates; node library unmeasured; APIs figure older than the code; consensus 79.52; 3 test failures on 8274288 |
 | 17 | The term check passes | Passed. 11 of 11 repositories |
 | 18 | Recovery works | Passed |
 
 Every criterion carries a measurement from this pass. Criterion 16 also
 reads two coverage figures from records written the same day, for the chain
 and for Cerulea APIs, and names them as records. Seventeen passed. One
-carries a measured shortfall: criterion 16, where the chain reads 89.86 per cent of
-lines against the target of 90, the consensus crate reads 64.80, the node
-library has no figure, and the workspace run on the frozen commit read three
-test failures.
+carries a measured shortfall: criterion 16. Every measured coverage figure
+reads 90 per cent or more, with the chain at 91.97 per cent of lines over 27
+crates. The node library has no figure, the Cerulea APIs figure stands for an
+older commit, the consensus crate reads 79.52, and the workspace run on the
+frozen commit read three test failures.
 
-The chain gate failed on three steps: the format check (four diffs, fixed by
-the formatting commit `1fc15e4`), clippy over every target (sixteen findings
-in test code) and the workspace tests (4,352 passed, 3 failed, 2 ignored).
-The clippy form `verify.sh` runs is clean and the acceptance suite reads nine
-of nine. The gate section below carries each failure with its log.
+The chain gate on the frozen commit failed on three steps: the format check
+(four diffs), clippy over every target (sixteen findings in test code) and
+the workspace tests (4,352 passed, 3 failed, 2 ignored). The clippy form
+`verify.sh` runs is clean and the acceptance suite reads nine of nine. The
+test-only follow-up `5fbf0a0` reads 4,449 passed and 0 failed, and still fails
+the format check and clippy over every target in test code. The lint
+follow-up `3c17558` passes both and reads 4,449 passed and 0
+failed. The
+gate section below carries each line with its logs.
 
 Compared with 19 September, criterion 15 moves from shortfall to passed. The
 software bill of materials now covers the chain, and the four chain controls
-hold fresh test evidence. Criterion 16 stays a shortfall, with the chain gap
-narrowed from 19.91 points over six crates to 0.14 points over 27.
+hold fresh test evidence. Criterion 16 stays a shortfall. The chain line
+figure rose from 70.09 per cent over six crates to 91.97 over 27.
 
 The nine validator run on the frozen node held safety and liveness in all six
 fault exercises that ran. The clock exercise was blocked by tooling.
@@ -544,10 +549,12 @@ the operator to commission.
 
 ### 16. Testing passes
 
-**Shortfall. The chain reads 89.86 per cent of lines against a target of 90,
-a gap of 0.14 points, with the consensus crate at 64.80 and the node library
-unmeasured. The chain workspace run on the frozen commit read 3 failures, and
-the Studio run read 1 failure under load.**
+**Shortfall. Every measured coverage figure reads 90 per cent or more, and
+the chain reads 91.97 per cent of lines over 27 crates. The node library has
+no figure, the Cerulea APIs figure stands for `b168dd2` rather than the code
+under test, and the consensus crate reads 79.52. The workspace run on the
+frozen commit read 3 failures, which the test-only follow-up `5fbf0a0`
+corrects with 0 failures, and the Studio run read 1 failure under load.**
 
 Every category of Section 17.1 has a suite and a place, which
 `test-results/PROGRAMME.md` names one by one. The target of Section 17.2 is 90
@@ -559,8 +566,8 @@ per cent.
 | Cerulea Explorer | 93.62 per cent statements, 3,703 of 3,955 | this pass, explorer `9f4fec3` | above, by 3.62 points |
 | Cerulea Dashboard | 91.70 per cent statements, 5,363 of 5,848 | this pass, dashboard `5cf0946` | above, by 1.70 points |
 | Cerulea APIs | 90.31 per cent statements, 57,310 of 63,455 | 1 October 08:30, apis `b168dd2`, read from the record | above, by 0.31 points, on `b168dd2` |
-| The chain, 27 crates | 89.86 per cent lines, 68,834 of 76,605 | 1 October 16:43, chain `6fda0ee`, read from the coverage stream record | **below, by 0.14 points** |
-| The chain, consensus crate | 64.80 per cent lines, 9,466 of 14,608 | the same record | **below, by 25.20 points** |
+| The chain, 27 crates | 91.97 per cent lines, 74,330 of 80,817 | 1 October, chain `5fbf0a0`, read from the coverage stream record | above, by 1.97 points |
+| The chain, consensus crate | 79.52 per cent lines, 14,736 of 18,532 | the same record | **below, by 10.48 points** |
 | The chain, node library | not measured | the same record | **no figure** |
 
 **Cerulea Studio.** The record states 97.36 per cent on studio `a6c1867`.
@@ -590,17 +597,18 @@ figure stands for `b168dd2` alone.
 
 **The chain.** The final record of the coverage stream,
 `test-results/coverage/chain.md` with `chain-llvm-cov.txt` (test-results
-`b9d44fa`), reads **89.86 per cent of lines, 68,834 of 76,605, over 27
-crates**, at chain `6fda0ee`. Regions read 82.98 and functions 80.85. That
-figure sits 0.14 points below the target of 90. Commit `6fda0ee` follows the
-frozen commit with test files and the formatting commit alone, so its source
-equals `8274288` in every token apart from one trailing comma. Twenty six of
-the 27 crates read 91 per cent or more. The consensus crate, which holds the
-eight engines, reads 64.80 per cent, 25.20 points below the target. The node
-library has no figure: its instrumented build stops at compiler error E0275,
-and the record names that as an open item. The measured coverage runs read
-3,970 passed, 0 failed and 1 ignored. This pass did not repeat the
-measurement; the figure comes from the record, which the coverage stream
+`e902941`), reads **91.97 per cent of lines, 74,330 of 80,817, over 27
+crates**, at chain `5fbf0a0`. Regions read 86.29 and functions 81.95. That
+figure sits 1.97 points above the target of 90. Commit `5fbf0a0` follows the
+frozen commit with test files, test modules, two dev-dependencies and the
+formatting commit alone, so the code it measures is the code of `8274288`.
+The consensus crate, which holds the eight engines, reads 79.52 per cent,
+10.48 points below the target, up from 64.80 at `6fda0ee`. The node library
+sits outside the figure. Its instrumented build stops at compiler error E0275,
+an overflow while the compiler proves the runtime call type can move between
+threads, so it has no coverage figure. The record names that as an open item.
+The earlier record at `6fda0ee` read 89.86 per cent. This pass did not repeat
+the measurement; the figure comes from the record, which the coverage stream
 gathered on this machine the same afternoon.
 
 - Evidence: `test-results/acceptance/16-testing/studio-coverage.log`,
@@ -678,6 +686,36 @@ serves. No step of this criterion started the Rust node.
 
 ## The chain gate
 
+The gate ran on three commits. **The node binary under test is the build of
+the frozen commit `8274288`** (sha256 `031397ac9a9a0296...`). The two later
+commits change test files, `#[cfg(test)]` modules, two dev-dependencies and the
+formatting commit `1fc15e4` alone, which the review in
+`test-results/acceptance/01-to-17-chain/followup-5fbf0a0-diff-review.log`
+confirms hunk by hunk.
+
+| Gate line | Format | Clippy, every target | Workspace tests |
+| --- | --- | --- | --- |
+| Frozen commit `8274288`, as measured | **failed**, 4 diffs | **failed**, 16 findings in test code | **4,352 passed, 3 failed, 2 ignored** over 96 suites |
+| Test-only follow-up `5fbf0a0`, as measured | **failed**, 8 diffs in `cerulea-consensus/src/test_support.rs` | **failed**, 10 findings in `pallet-cerulea-poi/src/tests.rs`; the build stopped at that crate | **4,449 passed, 0 failed, 2 ignored** over 96 suites |
+| Lint follow-up `3c17558`, as measured | clean, exit 0 | clean, exit 0 | **4,449 passed, 0 failed, 2 ignored** over 96 suites |
+
+The lint follow-up `3c17558` changes 13 files after `5fbf0a0`: files under
+the test directories, `test_support.rs` and `tests_reader.rs`, both declared
+under `#[cfg(test)]`. It carries formatting and lint changes in test code
+alone. The full workspace suite ran on it as well, at six jobs, with the
+model server stopped while cargo ran.
+
+On `5fbf0a0` the consensus library reads 501 passed, the runtime library 72,
+the node interface test 8 and the acceptance suite 9. The three tests that
+failed on the frozen commit pass there, as corrected by `6fda0ee`. The
+clippy findings on `5fbf0a0` are eight needless borrows, one module named as
+its parent module and one needless `vec!`. Logs:
+`test-results/acceptance/01-to-17-chain/followup-5fbf0a0/` and
+`lint-followup-3c17558/`. The follow-up runs used six cargo jobs and the
+same target.
+
+### Frozen commit 8274288
+
 The full workspace gate ran on the frozen commit `8274288`, from
 `/root/cerulea-frozen-8274288` with target `/root/cerulea-clean-target`, three
 cargo jobs, every call queued. **The gate failed on three of its steps.**
@@ -692,7 +730,9 @@ cargo jobs, every call queued. **The gate failed on three of its steps.**
 | Acceptance suite | `cargo test --release -p cerulea-node --test acceptance_suite` | 9 passed of 9 |
 | Dependency audit | `cargo audit --no-fetch` | exit 0, 4 allowed warnings |
 
-**Format.** The frozen commit carries four format diffs in the bridge
+#### Format
+
+The frozen commit carries four format diffs in the bridge
 pallet: `src/live_evidence.rs` at lines 277, 408 and 478, and
 `src/networks/polkadot.rs` at line 281. The following commit `1fc15e4`
 changes those two files alone. `git diff -w 8274288 1fc15e4` shows line
@@ -701,13 +741,17 @@ comma rustfmt drops when it joins the call at `live_evidence.rs` line 489.
 `cargo fmt --all -- --check` on a clean export of `1fc15e4` exits 0. The binary
 under test and every test count above come from `8274288`.
 
-**Lint.** Every one of the sixteen errors sits in test code.
+#### Lint
+
+Every one of the sixteen errors sits in test code.
 `cerulea-runtime/tests/runtime_api_tests.rs` holds thirteen `assert!(true)`
 lines. The library test target of `cerulea-consensus` holds three: a `push`
 straight after creation at `engines/commit/collect.rs` line 422, inside its
 test module, and a cast to the same type at `tests/metrics_test.rs` line 170.
 
-**Workspace tests.** Three tests failed.
+#### Workspace tests
+
+Three tests failed.
 
 1. `cerulea-node`, `tests/node_interface_test.rs`,
    `the_reading_paths_answer_on_a_development_chain`, line 321. The collection
@@ -728,11 +772,8 @@ written as measured. Neither file is a coverage-only test: the interface test
 dates from P2-052 and the runtime tests from P2-051 and P1-046.
 
 After the freeze, chain `6fda0ee` corrected all three tests, a change to test
-files alone. The coverage stream reports the runtime integration suite at 12
-passed and the interface test at 8 passed on that commit. This pass did not
-rerun them: the model server stays up after criterion 11, and `CLAUDE.md`
-keeps Cerulea AI and Rust builds apart. The counts above stand for
-`8274288`.
+files alone. All three pass in the run on `5fbf0a0` above. The counts in this
+subsection stand for `8274288`.
 
 The dcf pallet suite read 1,194 passed, 0 failed and 1 ignored. The ignored
 test names the open defect group (h), the migration record from storage
