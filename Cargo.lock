@@ -6521,9 +6521,9 @@ dependencies = [
 name = "pallet-cerulea-custody"
 version = "0.1.0"
 dependencies = [
+ "cerulea-primitives",
  "frame-benchmarking",
  "frame-support",
- "cerulea-primitives",
  "frame-system",
  "log",
  "pallet-balances",
@@ -6642,9 +6642,9 @@ name = "pallet-cerulea-logic"
 version = "0.1.0"
 dependencies = [
  "cerulea-blueprint",
+ "cerulea-primitives",
  "frame-benchmarking",
  "frame-support",
- "cerulea-primitives",
  "frame-system",
  "pallet-cerulea-identity",
  "pallet-cerulea-permission",
@@ -6813,6 +6813,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-cerulea-custody",
  "pallet-cerulea-schema",
  "parity-scale-codec",
  "scale-info",

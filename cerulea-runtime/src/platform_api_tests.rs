@@ -880,7 +880,7 @@ fn a_custody_challenge_answers_in_the_history_of_its_validator() {
         let alice = registrar();
         assert!(api::custody_history(alice.clone(), 10).is_empty());
         assert_ok!(Custody::commit_record(
-            RuntimeOrigin::signed(alice.clone()),
+            RuntimeOrigin::root(),
             parcel_tag(),
             bounded(b"12/3".to_vec()),
             bounded(b"Anitha holds 400 square metres".to_vec())

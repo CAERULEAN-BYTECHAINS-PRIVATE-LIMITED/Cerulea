@@ -95,6 +95,7 @@ impl pallet_cerulea_state::Config for Test {
     type MaxVersionHistory = ConstU32<16>;
     type MaxWatchedCollections = ConstU32<16>;
     type MaxRetentionScan = ConstU32<64>;
+    type Custody = ();
 }
 
 impl pallet_cerulea_logic::Config for Test {

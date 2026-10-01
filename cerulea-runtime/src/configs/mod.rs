@@ -455,6 +455,7 @@ impl pallet_cerulea_state::Config for Runtime {
     type MaxVersionHistory = ConstU32<32>;
     type MaxWatchedCollections = ConstU32<512>;
     type MaxRetentionScan = ConstU32<64>;
+    type Custody = crate::Custody;
 }
 
 // === The Cerulea collections module ===

@@ -65,6 +65,7 @@ impl pallet_cerulea_state::Config for Test {
     type MaxVersionHistory = ConstU32<32>;
     type MaxWatchedCollections = ConstU32<64>;
     type MaxRetentionScan = ConstU32<64>;
+    type Custody = ();
 }
 
 const REFUSED: &[u8] = b"cerulea:test:refused";

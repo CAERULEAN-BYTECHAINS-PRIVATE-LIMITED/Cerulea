@@ -109,9 +109,11 @@ fn the_mock_runtime_implements_every_module_trait() {
     fn requires_store<S: RecordStore>() {}
     fn requires_gate<G: PermissionGate>() {}
     fn requires_hook<H: pallet_cerulea_schema::MigrationHook>() {}
+    fn requires_custody<C: pallet_cerulea_custody::CustodyRecordHook>() {}
     requires_store::<Pallet<Test>>();
     requires_gate::<TestGate>();
     requires_hook::<Pallet<Test>>();
+    requires_custody::<<Test as crate::Config>::Custody>();
 }
 
 #[test]
