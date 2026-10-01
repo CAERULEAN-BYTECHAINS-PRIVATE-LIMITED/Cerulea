@@ -454,7 +454,6 @@ pub mod pallet {
         Eq,
         TypeInfo,
         MaxEncodedLen,
-        Default,
         Serialize,
         Deserialize,
         frame_support::__private::codec::DecodeWithMemTracking,
@@ -464,6 +463,20 @@ pub mod pallet {
         pub blocks_per_epoch: u32,
         pub min_stake: u128,
         pub max_validators: u32,
+    }
+
+    /// The default settings carry the documented epoch length of 100 blocks.
+    ///
+    /// Every epoch reader divides by the epoch length, and genesis refuses a
+    /// zero length, so the default names a length a chain can run.
+    impl Default for EpochConfig {
+        fn default() -> Self {
+            EpochConfig {
+                blocks_per_epoch: 100,
+                min_stake: 0,
+                max_validators: 0,
+            }
+        }
     }
 
     /// Settings for trust score calculation with adjustable weights and bounds.
@@ -6168,8 +6181,9 @@ pub mod pallet {
             poi_weight: u64,
         ) -> DispatchResult {
             ensure_root(origin)?;
+            // A checked sum refuses two shares whose total wraps.
             ensure!(
-                pos_weight + poi_weight == T::PercentagePrecision::get() as u64,
+                pos_weight.checked_add(poi_weight) == Some(T::PercentagePrecision::get() as u64),
                 Error::<T>::InvalidWeight
             );
             PosWeight::<T>::put(pos_weight);
@@ -7133,19 +7147,26 @@ pub mod pallet {
 
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
 
-            // Update last seen
+            // The uptime reads the earlier sighting, so it runs before this
+            // report moves the last seen block to the present one.
+            let uptime_percentage = Self::calculate_uptime_percentage(&validator);
             ValidatorLastSeen::<T>::insert(&validator, current_block);
 
             // Update total counters
-            ValidatorBlocksAuthored::<T>::mutate(&validator, |total| *total += blocks_authored);
-            ValidatorBlocksMissed::<T>::mutate(&validator, |total| *total += blocks_missed);
+            // The counters saturate at their ceiling, so a large report never
+            // wraps and never panics.
+            ValidatorBlocksAuthored::<T>::mutate(&validator, |total| {
+                *total = total.saturating_add(blocks_authored)
+            });
+            ValidatorBlocksMissed::<T>::mutate(&validator, |total| {
+                *total = total.saturating_add(blocks_missed)
+            });
 
             // Update performance history
             let current_epoch = Self::current_epoch();
             let now = Self::get_current_timestamp();
 
             if let Some(state) = ValidatorStates::<T>::get(&validator) {
-                let uptime_percentage = Self::calculate_uptime_percentage(&validator);
 
                 let performance_record = PerformanceRecord {
                     epoch: current_epoch,
@@ -7160,7 +7181,9 @@ pub mod pallet {
                 };
 
                 ValidatorPerformanceHistory::<T>::mutate(&validator, |history| {
-                    if history.len() >= T::MaxPerformanceHistoryLength::get() as usize {
+                    if history.len() >= T::MaxPerformanceHistoryLength::get() as usize
+                        && !history.is_empty()
+                    {
                         history.remove(0); // Remove oldest record
                     }
                     let _ = history.try_push(performance_record);
@@ -8203,7 +8226,7 @@ pub mod pallet {
                 // NOTE: Do NOT write a score-sorted ActiveValidators list back to storage here.
                 // ActiveValidators is sorted by account ID at epoch transitions only.
                 // Score-based ordering is for metrics/display only (see get_validators_by_score).
-                if state.history.len() == state.history.capacity() && !state.history.is_empty() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -8282,7 +8305,7 @@ pub mod pallet {
                     state.current.final_score = T::MaxValidatorScore::get();
                 }
                 state.last_active_epoch = Self::current_epoch();
-                if state.history.len() == state.history.capacity() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -10942,9 +10965,14 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Get current timestamp from the timestamp pallet
+        /// The time of the present block in milliseconds since genesis.
+        ///
+        /// Block execution has no offchain clock, so the time comes from the
+        /// block number and the block time the runtime declares. Every node
+        /// derives the same figure from the same block.
         fn get_current_timestamp() -> u64 {
-            // Use a simple timestamp for now - in production this would be from timestamp pallet
-            sp_io::offchain::timestamp().unix_millis()
+            let block = frame_system::Pallet::<T>::block_number().saturated_into::<u64>();
+            block.saturating_mul(T::EstimatedBlockTime::get())
         }
 
         /// Calculate validator uptime percentage
@@ -11335,6 +11363,12 @@ pub mod pallet {
                     self.validators.len(),
                     MaxValidatorsOf::<T>::get()
                 );
+            }
+
+            // Every epoch reader divides by the epoch length, so genesis refuses
+            // a zero length whether or not strict validation runs.
+            if self.epoch_config.blocks_per_epoch == 0 {
+                panic!("Epoch length cannot be zero. Set blocks_per_epoch above zero.");
             }
 
             // STEP 10.2: Genesis settings loaded
@@ -12381,7 +12415,13 @@ pub mod pallet {
 
             // Determine which epoch this block belongs to
             let epoch_config = Self::epoch_config();
+            // A zero epoch length names no epoch. Genesis refuses it. A record
+            // that still carries one reads through the weighted selection, so
+            // the read answers a seated author and never divides by zero.
             let blocks_per_epoch = epoch_config.blocks_per_epoch;
+            if blocks_per_epoch == 0 {
+                return Self::get_expected_author_legacy(block_number);
+            }
             let epoch = block_number / blocks_per_epoch;
 
             // Try to get author from deterministic sequence first
@@ -14505,8 +14545,10 @@ pub mod pallet {
             if score_change > significant_change_threshold {
                 let current_epoch = Self::current_epoch();
                 TrustScoreHistory::<T>::try_mutate(validator, |history| {
-                    // Remove oldest entry if at capacity and not empty
-                    if history.len() == history.capacity() && !history.is_empty() {
+                    // Drop the oldest entry once the history holds its bound. The
+                    // bound comes from the type, and the allocation says nothing
+                    // about it.
+                    if history.is_full() && !history.is_empty() {
                         history.remove(0);
                     }
                     // Add new entry
@@ -15320,7 +15362,7 @@ pub mod pallet {
                 let new_total_stake = pos::Pallet::<T>::stake(validator);
                 state.current.stake_score = new_total_stake.saturated_into::<u64>();
 
-                if state.history.len() == state.history.capacity() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -15357,7 +15399,7 @@ pub mod pallet {
                 let new_total_stake = pos::Pallet::<T>::stake(validator);
                 state.current.stake_score = new_total_stake.saturated_into::<u64>();
 
-                if state.history.len() == state.history.capacity() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
