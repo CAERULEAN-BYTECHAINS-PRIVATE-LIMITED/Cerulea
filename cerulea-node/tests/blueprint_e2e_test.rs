@@ -272,14 +272,14 @@ fn relay_action(deployment: DeploymentId, action_name: &str, arguments: &[(Param
 
     // The relayer carries the cost of the submission.
     pallet_cerulea_relayer::Pallet::<Runtime>::register_sponsor(
-        RuntimeOrigin::signed(relayer.clone()),
+        RuntimeOrigin::signed(authoriser.clone()),
         deployment,
         relayer.clone(),
         1_000,
     )
-    .expect("the relayer registers as a sponsor");
+    .expect("the steward registers the relayer as a sponsor");
     pallet_cerulea_relayer::Pallet::<Runtime>::set_quota(
-        RuntimeOrigin::signed(relayer.clone()),
+        RuntimeOrigin::signed(authoriser.clone()),
         deployment,
         3_600_000,
         1_000,

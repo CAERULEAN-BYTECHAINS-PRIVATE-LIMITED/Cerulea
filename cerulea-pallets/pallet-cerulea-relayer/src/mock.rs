@@ -90,6 +90,7 @@ impl pallet_cerulea_tier::Config for Test {
 }
 
 impl pallet_cerulea_relayer::Config for Test {
+    type Stewards = TestStewards;
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type Identities = Identity;

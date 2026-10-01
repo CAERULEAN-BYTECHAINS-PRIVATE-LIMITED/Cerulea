@@ -206,6 +206,13 @@ pub mod pallet {
         /// The gate that answers whether the deployment holds the feature.
         type Entitlements: EntitlementGate<AccountId = Self::AccountId>;
 
+        /// The accounts that administer each deployment.
+        ///
+        /// Sponsors, quotas, rate limits and throttles change how relayed
+        /// submission runs for a deployment, so each comes from an account
+        /// that administers the deployment.
+        type Stewards: pallet_cerulea_schema::stewards::DeploymentStewards<Self::AccountId>;
+
         /// The log the module records its work in.
         type Audit: AuditSink<AccountId = Self::AccountId>;
 
@@ -466,6 +473,10 @@ pub mod pallet {
         /// The call differs from the call the authorisation names. Sign the
         /// content hash of the exact call the relayer submits.
         CallMismatch,
+        /// The account administers no part of the deployment. Submit the
+        /// call from the installing account, an appointed operator or the
+        /// control plane key.
+        NotSteward,
     }
 
     #[pallet::call]
@@ -482,6 +493,7 @@ pub mod pallet {
             budget_units: u64,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             let spent = Sponsors::<T>::get(deployment, &sponsor)
                 .map(|held| held.spent_units)
                 .unwrap_or(0);
@@ -521,6 +533,7 @@ pub mod pallet {
             units_per_period: u64,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             let now = Self::now_millis();
             let start = Quotas::<T>::get(deployment)
                 .map(|held| held.period_start)
@@ -563,6 +576,7 @@ pub mod pallet {
             max_count: u32,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             AccountLimit::<T>::insert(
                 deployment,
                 RateLimit {
@@ -597,6 +611,7 @@ pub mod pallet {
             max_count: u32,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             ActionLimit::<T>::insert(
                 deployment,
                 &action,
@@ -699,6 +714,7 @@ pub mod pallet {
             until: u64,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             Throttled::<T>::insert(deployment, &account, until);
             Self::record(
                 &deployment,
@@ -725,6 +741,7 @@ pub mod pallet {
             account: T::AccountId,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             Throttled::<T>::remove(deployment, &account);
             Self::record(
                 &deployment,
@@ -744,6 +761,15 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    /// Check that one account administers the deployment.
+    fn ensure_steward(deployment: &DeploymentId, who: &T::AccountId) -> DispatchResult {
+        ensure!(
+            <T::Stewards as pallet_cerulea_schema::stewards::DeploymentStewards<T::AccountId>>::is_steward(deployment, who),
+            Error::<T>::NotSteward
+        );
+        Ok(())
+    }
+
     /// The wall clock time of the Blockchain, in milliseconds.
     pub fn now_millis() -> u64 {
         T::Time::now().as_millis() as u64

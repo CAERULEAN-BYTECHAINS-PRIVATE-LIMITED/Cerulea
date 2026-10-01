@@ -145,3 +145,37 @@ fn the_control_plane_key_binds_to_the_installer() {
         );
     });
 }
+
+/// Finding two. The relayer settings come from a steward of the deployment.
+///
+/// A stranger meets `NotSteward` on each of the six calls. The installer
+/// succeeds on each.
+#[test]
+fn the_relayer_settings_come_from_a_steward() {
+    development_ext().execute_with(|| {
+        claim_deployment();
+        let action = name("record_parcel");
+        for who in [stranger(), actor()] {
+            let origin = || RuntimeOrigin::signed(who.clone());
+            let outcomes = [
+                Relayer::register_sponsor(origin(), DEPLOYMENT, outsider(), 100),
+                Relayer::set_quota(origin(), DEPLOYMENT, 3_600_000, 100),
+                Relayer::set_account_limit(origin(), DEPLOYMENT, 3_600_000, 10),
+                Relayer::set_action_limit(origin(), DEPLOYMENT, action.clone(), 3_600_000, 10),
+                Relayer::throttle(origin(), DEPLOYMENT, outsider(), 5),
+                Relayer::lift_throttle(origin(), DEPLOYMENT, outsider()),
+            ];
+            for (position, outcome) in outcomes.into_iter().enumerate() {
+                if who == actor() {
+                    assert_ok!(outcome);
+                } else {
+                    assert_eq!(
+                        outcome,
+                        Err(pallet_cerulea_relayer::Error::<Runtime>::NotSteward.into()),
+                        "Call {position} refuses the stranger."
+                    );
+                }
+            }
+        }
+    });
+}

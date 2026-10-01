@@ -807,6 +807,7 @@ impl pallet_cerulea_relayer::Config for Runtime {
     type WeightInfo = pallet_cerulea_relayer::weights::CeruleaWeight<Runtime>;
     type Identities = crate::Identity;
     type Entitlements = crate::Tier;
+    type Stewards = RuntimeStewards;
     type Audit = crate::Audit;
     type Time = crate::Timestamp;
     type UnitsPerSubmission = ConstU64<1>;
