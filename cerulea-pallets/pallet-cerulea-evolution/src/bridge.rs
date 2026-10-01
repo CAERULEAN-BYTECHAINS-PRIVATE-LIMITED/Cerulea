@@ -108,13 +108,17 @@ impl<T: pallet_cerulea_schema::Config> SchemaMigrations for SchemaBridge<T> {
                 DispatchError::Other("The migration plan runs past the plan size limit.")
             })?;
 
-        if pallet_cerulea_schema::Pallet::<T>::migration_entry(
+        // The registry applies only a proposed entry. A reverted entry, or an
+        // entry carrying another plan from the same version, gives way to the
+        // plan the evolution module ordered.
+        let proposed = pallet_cerulea_schema::Pallet::<T>::migration_entry(
             deployment,
             &plan.collection,
             plan.from_version,
         )
-        .is_none()
-        {
+        .map(|held| held.state == MigrationState::Proposed && held.plan == *plan)
+        .unwrap_or(false);
+        if !proposed {
             pallet_cerulea_schema::Pallet::<T>::propose_migration(
                 RawOrigin::Signed(steward.clone()).into(),
                 *deployment,

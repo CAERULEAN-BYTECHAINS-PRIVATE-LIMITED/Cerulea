@@ -25,6 +25,8 @@ pub mod bridge;
 pub mod weights;
 
 #[cfg(test)]
+mod lifecycle_tests;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
