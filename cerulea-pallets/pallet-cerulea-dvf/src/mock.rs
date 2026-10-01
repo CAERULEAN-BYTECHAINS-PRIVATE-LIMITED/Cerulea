@@ -212,6 +212,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         initial_validator_keys: test_validator_keys,
         strict_validation: true,
         validator_licence_key: None,
+        required_licence_class: 0,
     }
     .assimilate_storage(&mut t)
     .unwrap();

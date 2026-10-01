@@ -294,6 +294,7 @@ fn testnet_genesis_with_stakes_and_names(
             // A chain specification for the public-access chain names the
             // key the control plane signs validator licences with.
             validator_licence_key: None,
+            required_licence_class: 0,
         },
         // Install the starting Blueprint. The logic module validates it,
         // registers every type and every collection it declares and stores
@@ -351,6 +352,119 @@ pub fn local_config_genesis() -> Value {
         initial_validators,
         endowed_accounts,
         Ed25519Keyring::Alice.to_account_id(),
+    )
+}
+
+/// The environment variable a deployment build names the control plane key in.
+///
+/// The value is the ed25519 public key the control plane signs licences with,
+/// as sixty four hexadecimal characters with or without a leading `0x`. The
+/// public-access and private presets write it into the validator registry as
+/// the key every validator licence must carry.
+pub const CONTROL_PLANE_KEY_ENV: &str = "CERULEA_CONTROL_PLANE_KEY";
+
+/// A problem with the control plane key a deployment build names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeploymentKeyError {
+    /// The build names no key.
+    Absent,
+    /// The value is not sixty four hexadecimal characters.
+    Malformed,
+    /// The value is a well known development key.
+    DevelopmentKey,
+}
+
+impl core::fmt::Display for DeploymentKeyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DeploymentKeyError::Absent => write!(
+                f,
+                "The deployment specification names no control plane key. Fix: set {} to the ed25519 public key the control plane signs licences with.",
+                CONTROL_PLANE_KEY_ENV
+            ),
+            DeploymentKeyError::Malformed => write!(
+                f,
+                "The control plane key in {} is not sixty four hexadecimal characters. Fix: set it to the hexadecimal ed25519 public key.",
+                CONTROL_PLANE_KEY_ENV
+            ),
+            DeploymentKeyError::DevelopmentKey => write!(
+                f,
+                "The control plane key in {} is a well known development key. Fix: set it to the key of the control plane that issues licences.",
+                CONTROL_PLANE_KEY_ENV
+            ),
+        }
+    }
+}
+
+/// Read the control plane key a deployment build names.
+///
+/// The call refuses an absent value, a malformed value and every well known
+/// development key, so a deployment specification never carries a key whose
+/// secret is public.
+pub fn parse_control_plane_key(value: Option<&str>) -> Result<[u8; 32], DeploymentKeyError> {
+    let text = value.map(str::trim).unwrap_or("");
+    if text.is_empty() {
+        return Err(DeploymentKeyError::Absent);
+    }
+    let digits = text.strip_prefix("0x").unwrap_or(text).as_bytes();
+    if digits.len() != 64 {
+        return Err(DeploymentKeyError::Malformed);
+    }
+    let nibble = |byte: u8| -> Option<u8> {
+        match byte {
+            b'0'..=b'9' => Some(byte - b'0'),
+            b'a'..=b'f' => Some(byte - b'a' + 10),
+            b'A'..=b'F' => Some(byte - b'A' + 10),
+            _ => None,
+        }
+    };
+    let mut key = [0u8; 32];
+    for (index, pair) in digits.chunks(2).enumerate() {
+        let high = nibble(pair[0]).ok_or(DeploymentKeyError::Malformed)?;
+        let low = nibble(pair[1]).ok_or(DeploymentKeyError::Malformed)?;
+        key[index] = (high << 4) | low;
+    }
+    let development = Ed25519Keyring::iter()
+        .map(|held| held.public().0)
+        .chain(sp_keyring::Sr25519Keyring::iter().map(|held| held.public().0))
+        .any(|held| held == key);
+    if development {
+        return Err(DeploymentKeyError::DevelopmentKey);
+    }
+    Ok(key)
+}
+
+/// Write the licence key and the minimum class into one preset.
+fn with_validator_licence(mut genesis: Value, key: [u8; 32], class: u8) -> Value {
+    genesis["registry"]["validatorLicenceKey"] = serde_json::json!(key.to_vec());
+    genesis["registry"]["requiredLicenceClass"] = serde_json::json!(class);
+    genesis
+}
+
+/// The genesis of a public-access chain deployment.
+///
+/// Every validator joins under a licence the control plane key signed, of the
+/// public-access class or higher. The preset starts from the local validator
+/// set, and a deployment names its own validators in the specification it
+/// builds.
+pub fn public_access_config_genesis(control_plane_key: [u8; 32]) -> Value {
+    with_validator_licence(
+        local_config_genesis(),
+        control_plane_key,
+        pallet_cerulea_dvf::engines::admission::licence::LicenceClass::PublicAccess.index(),
+    )
+}
+
+/// The genesis of a private chain deployment.
+///
+/// Every validator joins under a licence the control plane key signed, of the
+/// private class or higher. The preset starts from the local validator set,
+/// and a deployment names its own validators in the specification it builds.
+pub fn private_config_genesis(control_plane_key: [u8; 32]) -> Value {
+    with_validator_licence(
+        local_config_genesis(),
+        control_plane_key,
+        pallet_cerulea_dvf::engines::admission::licence::LicenceClass::Private.index(),
     )
 }
 

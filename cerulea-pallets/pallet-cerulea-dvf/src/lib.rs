@@ -601,6 +601,9 @@ pub mod pallet {
         /// A chain specification that names a key makes every later
         /// validator join under a licence that key signed.
         pub validator_licence_key: Option<[u8; 32]>,
+        /// The lowest licence class a validator of this chain carries, as a
+        /// genesis index: 0 private, 1 public-access, 2 government.
+        pub required_licence_class: u8,
         /// The validators present at genesis.
         ///
         /// Each entry names the validator, the stake it bonded and the Trust
@@ -661,6 +664,13 @@ pub mod pallet {
             if let Some(key) = self.validator_licence_key {
                 ValidatorLicenceKey::<T>::put(key);
             }
+            let class = crate::engines::admission::licence::LicenceClass::from_index(
+                self.required_licence_class,
+            )
+            .expect(
+                "Registry genesis names an unknown licence class. Name 0 for private, 1 for public-access or 2 for government.",
+            );
+            RequiredLicenceClass::<T>::put(class);
 
             log::info!(
                 target: "runtime::registry",

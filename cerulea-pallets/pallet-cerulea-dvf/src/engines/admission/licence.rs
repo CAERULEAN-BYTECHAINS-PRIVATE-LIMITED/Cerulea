@@ -50,6 +50,28 @@ pub enum LicenceClass {
 }
 
 impl LicenceClass {
+    /// The class a genesis index names: 0 private, 1 public-access, 2
+    /// government.
+    ///
+    /// A chain specification carries the class as this index.
+    pub const fn from_index(index: u8) -> Option<Self> {
+        match index {
+            0 => Some(LicenceClass::Private),
+            1 => Some(LicenceClass::PublicAccess),
+            2 => Some(LicenceClass::Government),
+            _ => None,
+        }
+    }
+
+    /// The genesis index of this class.
+    pub const fn index(&self) -> u8 {
+        match self {
+            LicenceClass::Private => 0,
+            LicenceClass::PublicAccess => 1,
+            LicenceClass::Government => 2,
+        }
+    }
+
     /// A plain sentence stating what the class permits.
     pub const fn plain_language(&self) -> &'static str {
         match self {

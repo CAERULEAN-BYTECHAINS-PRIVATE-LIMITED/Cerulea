@@ -48,6 +48,8 @@ impl SubstrateCli for NodeCommand {
             "" | "local" | "local_testnet" => Box::new(chain_spec::local_chain_spec()?),
             "multi_validator" => Box::new(chain_spec::multi_validator_chain_spec()?),
             "high_stake" => Box::new(chain_spec::high_stake_chain_spec()?),
+            "public_access" | "public-access" => Box::new(chain_spec::public_access_chain_spec()?),
+            "private" => Box::new(chain_spec::private_chain_spec()?),
             path => Box::new(chain_spec::ChainSpec::from_json_file(
                 std::path::PathBuf::from(path),
             )?),

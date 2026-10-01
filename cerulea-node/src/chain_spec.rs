@@ -65,6 +65,61 @@ pub fn local_chain_spec() -> Result<ChainSpec, String> {
     Ok(chain_spec)
 }
 
+/// The kind of deployment specification the node builds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeploymentSpec {
+    /// The public-access chain.
+    PublicAccess,
+    /// A private chain of one organisation.
+    Private,
+}
+
+/// Build one deployment specification from a control plane key value.
+///
+/// The value is what `CERULEA_CONTROL_PLANE_KEY` holds at the build. A build
+/// naming no key, a malformed key or a development key stops with the fix
+/// named, so no deployment starts without a licence key.
+pub fn deployment_chain_spec(
+    kind: DeploymentSpec,
+    control_plane_key: Option<&str>,
+) -> Result<ChainSpec, String> {
+    use cerulea_runtime::genesis_config_presets as presets;
+    let key = presets::parse_control_plane_key(control_plane_key).map_err(|e| e.to_string())?;
+    let (name, id, genesis) = match kind {
+        DeploymentSpec::PublicAccess => (
+            "Cerulea Public-Access Chain",
+            "cerulea_public_access",
+            presets::public_access_config_genesis(key),
+        ),
+        DeploymentSpec::Private => (
+            "Cerulea Private Chain",
+            "cerulea_private",
+            presets::private_config_genesis(key),
+        ),
+    };
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    Ok(ChainSpec::builder(wasm_binary, None)
+        .with_name(name)
+        .with_id(id)
+        .with_chain_type(ChainType::Live)
+        .with_protocol_id(PROTOCOL_ID)
+        .with_properties(chain_properties())
+        .with_genesis_config_patch(genesis)
+        .build())
+}
+
+/// The public-access chain specification, keyed from the environment.
+pub fn public_access_chain_spec() -> Result<ChainSpec, String> {
+    let value = std::env::var(cerulea_runtime::genesis_config_presets::CONTROL_PLANE_KEY_ENV).ok();
+    deployment_chain_spec(DeploymentSpec::PublicAccess, value.as_deref())
+}
+
+/// The private chain specification, keyed from the environment.
+pub fn private_chain_spec() -> Result<ChainSpec, String> {
+    let value = std::env::var(cerulea_runtime::genesis_config_presets::CONTROL_PLANE_KEY_ENV).ok();
+    deployment_chain_spec(DeploymentSpec::Private, value.as_deref())
+}
+
 pub fn multi_validator_chain_spec() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
