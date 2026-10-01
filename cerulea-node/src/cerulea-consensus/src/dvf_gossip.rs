@@ -140,6 +140,24 @@ pub enum VoteOffer {
     Conflicting,
 }
 
+/// The answer gossip gives for one offered vote.
+///
+/// `offer` is what the pool did with the vote, or nothing where the checks
+/// refused it: a stale round, an epoch outside the current range, a signer
+/// outside the active set. A refused vote is discarded. The gossip engine
+/// changes the standing of a peer for a kept or processed message, which
+/// earns standing, and for the same bytes sent twice by one peer. A discarded
+/// vote therefore costs the sending peer nothing. A peer that relays old or
+/// repeated votes during a stall keeps its standing and its connection.
+pub fn vote_verdict<H>(offer: Option<VoteOffer>, topic: H) -> ValidationResult<H> {
+    match offer {
+        Some(VoteOffer::Inserted) => ValidationResult::ProcessAndKeep(topic),
+        Some(VoteOffer::Repeated) | Some(VoteOffer::Conflicting) | None => {
+            ValidationResult::Discard
+        }
+    }
+}
+
 /// Two votes one validator signed in one round, naming different blocks.
 pub type VoteEvidence<Hash, AccountId> = (
     DvfVoteMessage<Hash, AccountId>,
@@ -439,6 +457,18 @@ pub fn admit_vote_message(bytes: &[u8]) -> Result<(), crate::engines::EngineErro
     Ok(())
 }
 
+/// Report whether a vote of one epoch is still current.
+///
+/// A vote belongs to a height that has yet to commit, and the validator set
+/// that holds that height stays valid for it until it commits. The vote
+/// therefore stays current from the epoch of the committed head up to one
+/// epoch past the epoch the node runs now, whatever epoch the wall clock has
+/// reached in between.
+pub fn epoch_is_current(vote_epoch: u32, committed_epoch: u32, current_epoch: u32) -> bool {
+    vote_epoch >= committed_epoch.min(current_epoch)
+        && vote_epoch <= current_epoch.saturating_add(1)
+}
+
 /// The most evidence pairs the pool holds before the aggregator reports them.
 pub const MAX_HELD_EVIDENCE: usize = 1024;
 
@@ -516,23 +546,27 @@ where
             }
         }
 
-        // Allow the current epoch or the next one, the grace period at an
-        // epoch boundary.
-        match <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
-            &api, best_hash,
-        ) {
-            Ok(current_epoch) => {
-                if epoch_id != current_epoch && epoch_id != current_epoch.saturating_add(1) {
-                    warn!(
-                        "Commit Engine Gossip: epoch mismatch. Expected {} (or {}), got {}",
-                        current_epoch,
-                        current_epoch.saturating_add(1),
-                        epoch_id
+        // A vote stays current from the epoch of the committed head onward,
+        // so a stall that crosses an epoch boundary keeps its votes.
+        let finalized_hash = self.client.info().finalized_hash;
+        let epoch_at = |at: B::Hash| {
+            <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
+                &api, at,
+            )
+        };
+        match (epoch_at(best_hash), epoch_at(finalized_hash)) {
+            (Ok(current_epoch), Ok(committed_epoch)) => {
+                if !epoch_is_current(epoch_id, committed_epoch, current_epoch) {
+                    debug!(
+                        "Commit Engine Gossip: epoch {} sits outside {} to {}",
+                        epoch_id,
+                        committed_epoch,
+                        current_epoch.saturating_add(1)
                     );
                     return Err(self.reject("epoch_mismatch"));
                 }
             }
-            Err(_) => return Err(self.reject("runtime_api_error")),
+            _ => return Err(self.reject("runtime_api_error")),
         }
 
         match api.get_validator_set_id(best_hash) {
@@ -687,13 +721,13 @@ where
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_received(msg.round_number);
                 }
-                match self.pool.offer_vote(msg.clone()) {
+                let offer = self.pool.offer_vote(msg.clone());
+                match offer {
                     VoteOffer::Inserted => {
                         info!(
                             "Commit Engine Gossip Validator: Accepted vote for block #{} ({:?}) from validator {:?} (round: {})",
                             msg.block_number, msg.block_hash, msg.validator_account_id, msg.round_number
                         );
-                        ValidationResult::ProcessAndKeep(msg_hash_b)
                     }
                     VoteOffer::Repeated => {
                         debug!(
@@ -701,7 +735,6 @@ where
                             msg.validator_account_id, msg.round_number
                         );
                         self.reject("repeated_vote");
-                        ValidationResult::Discard
                     }
                     VoteOffer::Conflicting => {
                         warn!(
@@ -712,9 +745,9 @@ where
                             metrics.record_double_vote_detection();
                         }
                         self.reject("double_vote");
-                        ValidationResult::Discard
                     }
                 }
+                vote_verdict(Some(offer), msg_hash_b)
             }
             Ok(CommitMessage::RoundTimeout(statement)) => {
                 if self.pool.offer_timeout(statement) {
@@ -725,11 +758,13 @@ where
                 }
             }
             Err(reason) => {
-                warn!(
-                    "Commit Engine Gossip Validator: message rejected - reason: {}",
+                // A stale or out of range vote is ordinary during a stall, so
+                // the refusal stays at debug level and costs the peer nothing.
+                debug!(
+                    "Commit Engine Gossip Validator: message refused, reason: {}",
                     reason
                 );
-                ValidationResult::Discard
+                vote_verdict(None, msg_hash_b)
             }
         }
     }
@@ -781,6 +816,40 @@ mod tests {
             validator_public_key: ed25519::Public::from_raw([signer; 32]),
             signature: ed25519::Signature::from_raw([0u8; 64]),
         }
+    }
+
+    /// A stale, repeated or conflicting vote is discarded and never kept.
+    ///
+    /// The gossip engine charges a peer only for the same bytes sent twice by
+    /// that peer, and a discarded message changes no standing. A peer relaying
+    /// the votes of a stall therefore keeps its standing.
+    #[test]
+    fn refused_votes_cost_the_relaying_peer_nothing() {
+        let pool = Pool::new();
+        let topic = H256::repeat_byte(3);
+        let first = pool.offer_vote(vote(1, 9, 1440, 7));
+        assert!(matches!(
+            vote_verdict(Some(first), topic),
+            ValidationResult::ProcessAndKeep(kept) if kept == topic
+        ));
+        let repeat = pool.offer_vote(vote(1, 9, 1440, 7));
+        assert_eq!(repeat, VoteOffer::Repeated);
+        assert!(matches!(
+            vote_verdict(Some(repeat), topic),
+            ValidationResult::Discard
+        ));
+        let conflicting = pool.offer_vote(vote(1, 9, 1440, 8));
+        assert_eq!(conflicting, VoteOffer::Conflicting);
+        assert!(matches!(
+            vote_verdict(Some(conflicting), topic),
+            ValidationResult::Discard
+        ));
+        // A vote the checks refused, such as one from an epoch below the
+        // committed head.
+        assert!(matches!(
+            vote_verdict(None, topic),
+            ValidationResult::Discard
+        ));
     }
 
     /// P-05. A repeated vote from one voter is refused.
@@ -844,6 +913,20 @@ mod tests {
         assert!(!pool.offer_timeout(timeout(1, 5, 50, Some(7))));
         assert!(pool.offer_timeout(timeout(2, 5, 50, None)));
         assert_eq!(pool.timeouts_for(5, 50).len(), 2);
+    }
+
+    /// A vote for an uncommitted height stays current across epochs.
+    #[test]
+    fn a_vote_stays_current_until_its_height_commits() {
+        // The committed head sits in epoch 14 and the node runs epoch 16.
+        assert!(epoch_is_current(14, 14, 16));
+        assert!(epoch_is_current(15, 14, 16));
+        assert!(epoch_is_current(17, 14, 16));
+        assert!(!epoch_is_current(13, 14, 16));
+        assert!(!epoch_is_current(18, 14, 16));
+        // The rule the stall met: current or next epoch alone.
+        let legacy = |vote: u32, current: u32| vote == current || vote == current + 1;
+        assert!(!legacy(14, 16));
     }
 
     /// A signer key must match the account it names.

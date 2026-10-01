@@ -28,8 +28,8 @@ use crate::dvf_gossip::{
     hash_bytes, CommitMessage, DvfVoteMessage, DvfVotePool, RoundTimeoutMessage, VoteOffer,
 };
 use crate::engines::commit::lock::{
-    blocking_locks, certificate_release, choose_vote, CastVote, LedgerStore, TimeoutStatement,
-    VoteChoice, VoteLedger, STATEMENT_WINDOW_ROUNDS,
+    blocking_locks, certificate_release, certificate_undecided, choose_vote, CastVote, LedgerStore,
+    TimeoutStatement, VoteChoice, VoteLedger, STATEMENT_WINDOW_ROUNDS,
 };
 use crate::metrics::DvfMetrics;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
@@ -234,8 +234,11 @@ where
         let is_checkpoint = block_number.saturated_into::<u32>() % view.interval == 0;
         self.announce_timeouts(&view, &mut ledger, &account, &seal, is_checkpoint)?;
 
-        let target = view.best_number - view.best_number % view.interval;
-        if target == 0 || target <= view.finalized {
+        // Every validator votes for the lowest checkpoint above the committed
+        // head, so the target holds still while blocks keep arriving and every
+        // vote of a round lands on one height.
+        let target = commit_target(view.finalized, view.interval);
+        if target > view.best_number {
             return Ok(());
         }
         let Some(candidate) = self
@@ -286,24 +289,29 @@ where
         );
         // A locked node gives the statements of the round of its lock a moment
         // to arrive, so a split round gathers behind one block.
-        if !matches!(
-            choice,
-            VoteChoice::Released { .. } | VoteChoice::Repeat(_) | VoteChoice::Silent
-        ) {
+        if !matches!(choice, VoteChoice::Repeat(_) | VoteChoice::Silent) {
             if let Some(lock) = ledger.lock_at(target) {
-                let stated: u128 = self
+                // The node waits only while the statements heard so far leave
+                // the answer of the certificate open: whether it forms, and
+                // which block it stands behind.
+                let statements: Vec<TimeoutStatement> = self
                     .vote_pool
                     .timeouts_for(lock.round, lock.height)
-                    .iter()
+                    .into_iter()
                     .filter_map(|statement| {
-                        weights
+                        let weight = weights
                             .iter()
                             .find(|(held, _)| *held == statement.validator_account_id)
-                            .map(|(_, weight)| *weight)
+                            .map(|(_, weight)| *weight)?;
+                        Some(TimeoutStatement {
+                            signer: hash_bytes(&statement.validator_account_id),
+                            weight,
+                            voted: statement.voted.as_ref().map(hash_bytes),
+                        })
                     })
-                    .sum();
+                    .collect();
                 let waited = self.round_age(view.round)?;
-                if stated.saturating_mul(3) <= total_weight.saturating_mul(2) && waited < LOCK_WAIT
+                if certificate_undecided(lock.hash, &statements, total_weight) && waited < LOCK_WAIT
                 {
                     debug!(
                         "Commit Engine Vote Creator: waiting for the statements of round {} before voting in round {}",
@@ -550,6 +558,14 @@ where
         gossip_engine.gossip_message(topic, encoded, false);
         Ok(())
     }
+}
+
+/// The checkpoint a round votes for: the lowest one above the committed head.
+pub fn commit_target(finalized: u32, interval: u32) -> u32 {
+    if interval == 0 {
+        return finalized;
+    }
+    (finalized / interval + 1) * interval
 }
 
 /// The bytes one vote signature covers.

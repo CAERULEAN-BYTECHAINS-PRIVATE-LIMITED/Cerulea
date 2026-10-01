@@ -431,6 +431,56 @@ pub fn certificate_release(
     Some(best)
 }
 
+/// Report whether the answer of a round change certificate can still change.
+///
+/// A locked node acts on the certificate in two steps. The certificate forms
+/// or fails, and a formed certificate names the block the most declared
+/// weight stands behind. The answer is settled once no unheard statement
+/// could change either step. The certificate then fails for good or has
+/// formed, and the leading block leads by more than the weight still unheard.
+/// Every node that hears the whole round reaches the same block, so a split
+/// round gathers behind one block. Only while the unheard weight could still
+/// change the answer does a wait help.
+pub fn certificate_undecided(
+    locked: [u8; 32],
+    statements: &[TimeoutStatement],
+    total_weight: u128,
+) -> bool {
+    let mut counted: BTreeMap<[u8; 32], (u128, Option<[u8; 32]>)> = BTreeMap::new();
+    for statement in statements {
+        counted
+            .entry(statement.signer)
+            .or_insert((statement.weight, statement.voted));
+    }
+    let stated: u128 = counted
+        .values()
+        .map(|(weight, _)| *weight)
+        .fold(0u128, |sum, weight| sum.saturating_add(weight));
+    let against: u128 = counted
+        .values()
+        .filter(|(_, voted)| *voted != Some(locked))
+        .map(|(weight, _)| *weight)
+        .fold(0u128, |sum, weight| sum.saturating_add(weight));
+    let unheard = total_weight.saturating_sub(stated);
+    let formed = against.saturating_mul(3) > total_weight;
+    if !formed {
+        return against.saturating_add(unheard).saturating_mul(3) > total_weight;
+    }
+    let mut behind: BTreeMap<[u8; 32], u128> = BTreeMap::new();
+    for (weight, voted) in counted.values() {
+        if let Some(block) = voted {
+            let held = behind.entry(*block).or_default();
+            *held = held.saturating_add(*weight);
+        }
+    }
+    let mut ranked: Vec<u128> = behind.into_values().collect();
+    ranked.sort_unstable_by(|left, right| right.cmp(left));
+    let leading = ranked.first().copied().unwrap_or(0);
+    let following = ranked.get(1).copied().unwrap_or(0);
+    // With every statement heard, the order of the hashes settles a tie.
+    unheard > 0 && following.saturating_add(unheard) >= leading
+}
+
 /// Report whether a round change certificate against one locked block holds.
 pub fn certificate_holds(
     locked: [u8; 32],
@@ -492,6 +542,17 @@ pub fn choose_vote(
                 }
             }
             None => {}
+            // A certificate that stands behind the locked block itself keeps
+            // the lock. Every node that hears the round then reaches the same
+            // block, whichever chain it follows.
+            Some(Some(best)) if best == lock.hash && in_the_way => {
+                if held_back
+                    .map(|held| lock.round > held.round)
+                    .unwrap_or(true)
+                {
+                    held_back = Some(*lock);
+                }
+            }
             Some(best) => {
                 blocked |= in_the_way;
                 // A certificate that stands behind another block moves the
@@ -777,10 +838,65 @@ mod tests {
     }
 
     #[test]
+    fn a_locked_node_waits_only_while_the_certificate_is_undecided() {
+        // Nine of equal weight. Six have stated for the lock: no later
+        // statement can form a certificate, so the node votes at once.
+        let six: Vec<_> = (0..6).map(|index| statement(index, 1, Some(X))).collect();
+        assert!(!certificate_undecided(X, &six, 9));
+        // Four have stated against: the certificate formed, but the five
+        // unheard could still stand behind the lock and lead.
+        let four: Vec<_> = (0..4).map(|index| statement(index, 1, Some(Y))).collect();
+        assert!(certificate_undecided(X, &four, 9));
+        // Five behind Y and three behind the lock, one unheard: Y leads for
+        // good, so every node that hears the round moves to Y.
+        let mut settled: Vec<_> = (0..5).map(|index| statement(index, 1, Some(Y))).collect();
+        settled.extend((5..8).map(|index| statement(index, 1, Some(X))));
+        assert!(!certificate_undecided(X, &settled, 9));
+        assert_eq!(certificate_release(X, &settled, 9), Some(Some(Y)));
+        // Four behind Y and three behind the lock, two unheard: the lead is open.
+        let mut open: Vec<_> = (0..4).map(|index| statement(index, 1, Some(Y))).collect();
+        open.extend((4..7).map(|index| statement(index, 1, Some(X))));
+        assert!(certificate_undecided(X, &open, 9));
+        // Three for the lock and two against: four unheard could tip it.
+        let mut mixed: Vec<_> = (0..3).map(|index| statement(index, 1, Some(X))).collect();
+        mixed.extend((3..5).map(|index| statement(index, 1, Some(Y))));
+        assert!(certificate_undecided(X, &mixed, 9));
+        // Nothing heard yet: the count is open.
+        assert!(certificate_undecided(X, &[], 9));
+    }
+
+    #[test]
     fn a_declaration_for_the_locked_block_counts_for_the_lock() {
         let mut statements: Vec<_> = (0..6).map(|index| statement(index, 1, Some(X))).collect();
         statements.extend((6..9).map(|index| statement(index, 1, None)));
         assert!(!certificate_holds(X, &statements, 9));
+    }
+
+    /// A split round converges on one block from both sides.
+    ///
+    /// Three of five stand behind X and two behind Y. The certificate holds
+    /// against both locks and stands behind X. A node locked on X keeps X
+    /// although its own chain carries Y, and a node locked on Y moves to X.
+    #[test]
+    fn both_sides_of_a_split_round_reach_the_leading_block() {
+        let mut statements: Vec<_> = (0..3).map(|index| statement(index, 1, Some(X))).collect();
+        statements.extend((3..5).map(|index| statement(index, 1, Some(Y))));
+        assert_eq!(certificate_release(X, &statements, 5), Some(Some(X)));
+        assert_eq!(certificate_release(Y, &statements, 5), Some(Some(X)));
+
+        let mut on_x = VoteLedger::new();
+        on_x.record(vote(7, 1440, X)).unwrap();
+        let keep = choose_vote(&on_x, 8, 1440, Y, same_hash(Y), |lock| {
+            certificate_release(lock.hash, &statements, 5)
+        });
+        assert_eq!(keep.as_vote(8), Some(vote(8, 1440, X)));
+
+        let mut on_y = VoteLedger::new();
+        on_y.record(vote(7, 1440, Y)).unwrap();
+        let moved = choose_vote(&on_y, 8, 1440, Y, same_hash(Y), |lock| {
+            certificate_release(lock.hash, &statements, 5)
+        });
+        assert_eq!(moved.as_vote(8), Some(vote(8, 1440, X)));
     }
 
     #[test]

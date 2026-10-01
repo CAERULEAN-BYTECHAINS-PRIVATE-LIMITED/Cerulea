@@ -3,7 +3,7 @@
 //! The harness runs a network of validators through the vote path the node
 //! runs: the vote ledger, the lock, the round timeout statements and the
 //! round change certificate, all from `engines::commit::lock`. A scheduler
-//! delays every message by up to several slots, reorders them, reorganises
+//! delays every message by up to several slots, loses some, reorders them, reorganises
 //! the best chain of every validator at every height and restarts validators
 //! in the middle of a round. A restarted validator keeps only its vote ledger,
 //! the way the node keeps the ledger file on disk.
@@ -14,20 +14,32 @@
 //!    at any moment.
 //! 2. **Progress.** Once the delays end, every validator commits every height.
 //!
-//! A second test replays the delay exercise recorded on the nine validator
-//! network, where six validators signed two votes in round 142 and two groups
-//! of nodes committed two different blocks at height 1440.
+//! Votes carry the epoch they were signed in. The wall clock keeps moving the
+//! epoch while a stall holds, so a schedule crosses epoch boundaries before the
+//! delays end. A vote stays current from the epoch of the committed head
+//! onward. Progress is measured in rounds: once the delays end, every height
+//! commits within a bounded number of rounds.
+//!
+//! Further tests replay the two delay exercises recorded on the nine validator
+//! network: the first, where six validators signed two votes in round 142 and
+//! two groups of nodes committed two different blocks at height 1440, and the
+//! second, where one machine of three ran a second behind for three minutes
+//! and finality stalled across an epoch boundary.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use cerulea_consensus::engines::commit::lock::{
-    blocking_locks, certificate_release, choose_vote, CastVote, TimeoutStatement, VoteChoice,
-    VoteLedger, STATEMENT_WINDOW_ROUNDS,
+    blocking_locks, certificate_release, certificate_undecided, choose_vote, CastVote,
+    TimeoutStatement, VoteChoice, VoteLedger, STATEMENT_WINDOW_ROUNDS,
 };
 use codec::{Decode, Encode};
 
 /// The commit threshold, in percent of the total weight.
 const THRESHOLD_PERCENT: u128 = 67;
+
+/// The share of messages between peers lost while the fault holds, per
+/// thousand.
+const LOSS_PER_THOUSAND: u64 = 100;
 
 /// A small deterministic generator, so every schedule replays exactly.
 struct Rng(u64);
@@ -107,6 +119,8 @@ struct Node {
     sent_timeouts: BTreeSet<(u32, u32)>,
     /// The round the node reached when it last committed.
     commit_round: u32,
+    /// The epoch the node ran when it last committed.
+    commit_epoch: u64,
 }
 
 impl Node {
@@ -124,6 +138,7 @@ impl Node {
             down_until: 0,
             sent_timeouts: BTreeSet::new(),
             commit_round: 0,
+            commit_epoch: 0,
         }
     }
 
@@ -163,13 +178,18 @@ struct Shape {
     reorg_per_thousand: u64,
     restart_per_thousand: u64,
     unequal_weights: bool,
+    /// The ticks one epoch of wall clock lasts.
+    epoch_ticks: u64,
+    /// One machine of validators, by index range, that every message to or
+    /// from runs late by the stated ticks while the fault holds.
+    slow_machine: Option<(usize, usize, u64)>,
 }
 
 struct Network {
     nodes: Vec<Node>,
     weights: Vec<u128>,
     total: u128,
-    queue: BTreeMap<u64, Vec<(usize, Message)>>,
+    queue: BTreeMap<u64, Vec<(usize, Message, u64)>>,
     now: u64,
     /// Every commitment any node made, by height.
     commitments: BTreeMap<u32, BTreeSet<[u8; 32]>>,
@@ -210,20 +230,48 @@ impl Network {
         signed.saturating_mul(100) >= self.total.saturating_mul(THRESHOLD_PERCENT)
     }
 
+    fn epoch_now(&self) -> u64 {
+        self.now / self.shape.epoch_ticks.max(1)
+    }
+
     fn send(&mut self, from: usize, message: Message, rng: &mut Rng) {
+        let epoch = self.epoch_now();
         for to in 0..self.nodes.len() {
-            let delay = if to == from {
+            let mut delay = if to == from {
                 0
             } else if self.healed {
                 rng.below(2)
             } else {
                 rng.below(self.shape.max_delay + 1)
             };
+            if let (Some((low, high, late)), false) = (self.shape.slow_machine, self.healed) {
+                let slow = |index: usize| index >= low && index < high;
+                if to != from && slow(to) != slow(from) {
+                    delay += late;
+                }
+            }
+            // While the fault holds, a share of the messages between peers
+            // is lost. Once it ends, every message arrives.
+            if to != from && !self.healed && rng.chance(LOSS_PER_THOUSAND) {
+                continue;
+            }
+            // The queue of the current tick already ran, so the earliest
+            // arrival is the next tick.
             self.queue
-                .entry(self.now + delay)
+                .entry(self.now + delay.max(1))
                 .or_default()
-                .push((to, message.clone()));
+                .push((to, message.clone(), epoch));
         }
+    }
+
+    /// Report whether a node takes a message signed in one epoch.
+    ///
+    /// A vote stays current from the epoch of the committed head onward, the
+    /// rule `dvf_gossip::epoch_is_current` applies.
+    fn epoch_current(&self, node: usize, epoch: u64) -> bool {
+        let current = self.epoch_now();
+        let committed = self.nodes[node].commit_epoch.min(current);
+        epoch >= committed && epoch <= current + 1
     }
 
     fn record_commit(&mut self, node: usize, height: u32, hash: [u8; 32], rng: &mut Rng) {
@@ -249,11 +297,15 @@ impl Network {
         state.round = state.round.saturating_add(1);
         state.round_started = now;
         state.commit_round = state.round;
+        state.commit_epoch = now / self.shape.epoch_ticks.max(1);
         self.send(node, Message::Commit { height, hash }, rng);
     }
 
-    fn deliver(&mut self, to: usize, message: Message, rng: &mut Rng) {
+    fn deliver(&mut self, to: usize, message: Message, epoch: u64, rng: &mut Rng) {
         if self.nodes[to].down_until > self.now {
+            return;
+        }
+        if !matches!(message, Message::Commit { .. }) && !self.epoch_current(to, epoch) {
             return;
         }
         match message {
@@ -481,18 +533,13 @@ impl Network {
             related,
             certificate,
         );
-        let lock = self.nodes[node].ledger.lock_at(target);
-        if let (Some(lock), false) = (lock, matches!(choice, VoteChoice::Released { .. })) {
+        if let Some(lock) = self.nodes[node].ledger.lock_at(target) {
             // A locked node waits for the statements of the round of its lock
-            // before it votes again: until more than two thirds of the weight
-            // has stated, or until the round is about to close.
-            let stated: u128 = self
-                .statements(node, lock.round, lock.height)
-                .iter()
-                .map(|statement| statement.weight)
-                .sum();
+            // while they leave the answer of the certificate open, up to the
+            // end of the round, the way the node waits.
+            let statements = self.statements(node, lock.round, lock.height);
             let elapsed = self.now.saturating_sub(self.nodes[node].round_started);
-            if stated.saturating_mul(3) <= self.total.saturating_mul(2)
+            if certificate_undecided(lock.hash, &statements, self.total)
                 && elapsed + 1 < self.shape.round_timeout
             {
                 return;
@@ -533,8 +580,8 @@ impl Network {
                 let other = rng.below(index as u64 + 1) as usize;
                 arrivals.swap(index, other);
             }
-            for (to, message) in arrivals {
-                self.deliver(to, message, rng);
+            for (to, message, epoch) in arrivals {
+                self.deliver(to, message, epoch, rng);
             }
         }
         if !self.healed {
@@ -581,13 +628,35 @@ impl Network {
     }
 }
 
-fn run_schedule(seed: u64, shape: Shape) {
+/// The rounds each height needs once the delays end, at the most.
+const ROUNDS_TO_RECOVER_PER_HEIGHT: u32 = 2;
+
+/// The rounds the network needs to gather after the delays end, before the
+/// first height commits.
+const ROUNDS_TO_GATHER: u32 = 2;
+
+/// What one schedule reached.
+struct Outcome {
+    /// The rounds the network needed after the delays ended.
+    rounds_after_heal: u32,
+    /// The epochs the stall crossed before the delays ended.
+    epochs_crossed: u64,
+}
+
+fn run_schedule(seed: u64, shape: Shape) -> Outcome {
     let mut rng = Rng::new(seed);
     let mut network = Network::new(shape, &mut rng);
     network.seed = seed;
     while network.now < shape.fault_ticks {
         network.tick(&mut rng);
     }
+    let epochs_crossed = network.epoch_now();
+    let round_at_heal = network
+        .nodes
+        .iter()
+        .map(|node| node.round)
+        .max()
+        .unwrap_or(0);
     network.heal();
     let limit = network.now + 60 * shape.round_timeout * shape.heights as u64 + 200;
     while !network.all_committed() {
@@ -622,6 +691,23 @@ fn run_schedule(seed: u64, shape: Shape) {
         );
         network.tick(&mut rng);
     }
+    let round_done = network
+        .nodes
+        .iter()
+        .map(|node| node.round)
+        .max()
+        .unwrap_or(0);
+    let rounds_after_heal = round_done.saturating_sub(round_at_heal);
+    assert!(
+        rounds_after_heal <= ROUNDS_TO_RECOVER_PER_HEIGHT * shape.heights + ROUNDS_TO_GATHER,
+        "seed {}: recovery took {} rounds after the delays ended",
+        seed,
+        rounds_after_heal
+    );
+    Outcome {
+        rounds_after_heal,
+        epochs_crossed,
+    }
 }
 
 /// No two conflicting commitments under thousands of adversarial schedules,
@@ -629,6 +715,7 @@ fn run_schedule(seed: u64, shape: Shape) {
 #[test]
 fn no_conflicting_commitment_and_progress_after_delays_end() {
     let mut schedules = 0u32;
+    let mut crossed = 0u64;
     for seed in 1..=5_000u64 {
         let mut pick = Rng::new(seed ^ 0xC0FFEE);
         let round_timeout = 4 + pick.below(6);
@@ -641,10 +728,20 @@ fn no_conflicting_commitment_and_progress_after_delays_end() {
             reorg_per_thousand: pick.below(250),
             restart_per_thousand: pick.below(40),
             unequal_weights: pick.chance(500),
+            epoch_ticks: 10 + pick.below(50),
+            slow_machine: None,
         };
-        run_schedule(seed, shape);
+        let outcome = run_schedule(seed, shape);
+        crossed += u64::from(outcome.epochs_crossed > 0);
         schedules += 1;
     }
+    // Most schedules carry the stall across at least one epoch boundary.
+    assert!(
+        crossed * 2 > u64::from(schedules),
+        "{} of {}",
+        crossed,
+        schedules
+    );
     assert_eq!(schedules, 5_000);
 }
 
@@ -797,4 +894,39 @@ fn a_restart_mid_round_repeats_the_vote_on_disk() {
             hash: replay.first
         }
     );
+}
+
+/// The second delay exercise, replayed.
+///
+/// Nine validators of equal weight run on three machines of three. One tick
+/// stands for 250 milliseconds. For three minutes every message to or from
+/// the second machine runs 500 milliseconds late one way, a second round trip,
+/// and the best chains of its validators fork from the others. The stall
+/// crosses an epoch boundary. Once the delay ends, every height commits within
+/// the round bound and no two blocks commit at one height.
+fn recorded_delay_shape() -> Shape {
+    Shape {
+        validators: 9,
+        heights: 6,
+        fault_ticks: 720,
+        max_delay: 1,
+        round_timeout: 24,
+        reorg_per_thousand: 60,
+        restart_per_thousand: 0,
+        unequal_weights: false,
+        epoch_ticks: 400,
+        slow_machine: Some((3, 6, 2)),
+    }
+}
+
+#[test]
+fn the_recorded_one_second_delay_recovers_after_an_epoch_boundary() {
+    for seed in 1..=64u64 {
+        let outcome = run_schedule(seed, recorded_delay_shape());
+        assert!(outcome.epochs_crossed >= 1, "seed {seed}");
+        assert!(
+            outcome.rounds_after_heal <= ROUNDS_TO_RECOVER_PER_HEIGHT * 6 + ROUNDS_TO_GATHER,
+            "seed {seed}"
+        );
+    }
 }

@@ -154,7 +154,11 @@ threshold at one height, on any node, under any ordering of messages.
    validators holding more than one third of the Trust Score weight, each
    naming a lock other than its block. Without the certificate it repeats its
    locked vote. With it, the validator moves to the block the most declared
-   weight stands behind, so a split round gathers behind one block.
+   weight stands behind. Where that block is its own lock, it keeps the lock,
+   whichever chain it follows. A locked validator waits for the statements of
+   its round until no unheard statement could change the answer, up to the
+   round timeout. Every validator that hears the round therefore reaches the
+   same block, and a split round gathers behind one block.
 3. **The statement.** A round timeout statement names the block the signer is
    locked on at that height as of that round, whether or not it voted in that
    round. A validator that states for a round in which it cast no vote records
@@ -176,9 +180,41 @@ percent in any round and never commits.
 
 The harness at `cerulea-node/tests/vote_lock_test.rs` runs this path through
 five thousand adversarial schedules, with messages delayed by up to several
-slots, reordered, best chains reorganised at every height and validators
-restarted in the middle of a round. Every schedule commits one block per
-height, and every schedule makes progress once the delays end.
+slots, some lost, reordered, best chains reorganised at every height and
+validators restarted in the middle of a round. The wall clock moves the epoch
+while the delays hold, and most schedules cross at least one epoch boundary
+before the delays end. Every schedule commits one block per height. Once the
+delays end, every height commits within two rounds, plus two rounds for the
+network to gather.
+
+### Recovery after a delay
+
+In a delay exercise on the nine validator network, one machine of three ran a
+second behind for three minutes. Finality stopped and stayed stopped after the
+delay ended. The record showed three causes.
+
+1. **Import read the wrong state.** Import checked the seal of every block
+   against the slot committee and key records of the local best state. Two
+   forks carry different epoch draws, so each side refused the blocks of the
+   other, block sync dropped the sending peers and the forks never merged.
+   Import now checks a block against the state its parent left behind. Every
+   node reaches the same answer for one block, whichever fork it follows.
+2. **The vote target moved.** Each validator voted for the checkpoint of its
+   own best chain, so the votes of one round spread across heights. Every
+   validator now votes for the lowest checkpoint above the committed head. The
+   target holds still until it commits.
+3. **Votes expired at the epoch boundary.** Gossip took a vote of the current
+   or the next epoch alone. A stall that crossed a boundary lost every vote it
+   had gathered. The validator set that holds a height stays valid for that
+   height until it commits, so a vote now stays current from the epoch of the
+   committed head up to one epoch ahead.
+
+A refused vote costs the peer that relayed it nothing. Gossip discards a
+stale, repeated or out of range vote, and a discarded message changes no peer
+standing. The harness replays the delay: nine validators on three machines,
+the second machine a second behind for three minutes, an epoch boundary inside
+the stall. Every replay recovers within the round bound with one block per
+height.
 
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries

@@ -106,6 +106,38 @@ pub fn registry_from_keys(
     }))
 }
 
+/// The state a block is checked against: the state of its parent.
+///
+/// The slot committee, the key records and the active set that decide whether
+/// a block was authored correctly are the ones its parent left behind. Two
+/// forks can carry different epoch draws and different key records. A block
+/// checked against the best state of another fork fails although its author
+/// held the slot, and sync then drops the peer that sent it. Checking against
+/// the parent gives every node the same answer for one block, whichever fork
+/// it follows.
+///
+/// `parent_known` answers whether the node holds a block, so the call reads
+/// the parent state only once that state exists.
+pub fn verification_state<H: HeaderT>(
+    header: &H,
+    parent_known: impl Fn(H::Hash) -> Result<bool, String>,
+) -> Result<H::Hash, String> {
+    let parent = *header.parent_hash();
+    match parent_known(parent) {
+        Ok(true) => Ok(parent),
+        Ok(false) => Err(format!(
+            "Block {} arrived before its parent {:?}. Fix: import the parent first, which sync does on its next request.",
+            header.number(),
+            parent
+        )),
+        Err(reason) => Err(format!(
+            "The parent of block {} failed to load: {}. Fix: check the node database.",
+            header.number(),
+            reason
+        )),
+    }
+}
+
 /// What import learned about the author of one block.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SealedAuthorship {
@@ -196,7 +228,13 @@ where
         })?;
 
         let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
+        // Every check reads the state the parent of this block left behind.
+        let state = verification_state(header, |hash| {
+            self.client
+                .header(hash)
+                .map(|held| held.is_some())
+                .map_err(|reason| format!("{:?}", reason))
+        })?;
         let parent_hash = *header.parent_hash();
         let mut parent_bytes = [0u8; 32];
         let reference = parent_hash.as_ref();
@@ -214,7 +252,7 @@ where
         // every active validator. Import reads both and hands them to the
         // Authoring Engine.
         let seats = api
-            .slot_committee(best_hash, seal.claim.slot.0, parent_bytes)
+            .slot_committee(state, seal.claim.slot.0, parent_bytes)
             .map_err(|reason| {
                 format!(
                     "The slot committee failed to load: {:?}. Fix: check that the node runtime \
@@ -229,7 +267,7 @@ where
                 block_number, seal.claim.slot.0
             ));
         }
-        let key_sets = api.active_validator_keys(best_hash).map_err(|reason| {
+        let key_sets = api.active_validator_keys(state).map_err(|reason| {
             format!(
                 "The validator key records failed to load: {:?}. Fix: check that the node runtime \
                  matches the chain specification.",
@@ -238,7 +276,7 @@ where
         })?;
         // The commit weight of a validator is its Trust Score. Import records
         // that weight beside the key pair.
-        let commit_weights = api.validator_commit_weights(best_hash).map_err(|reason| {
+        let commit_weights = api.validator_commit_weights(state).map_err(|reason| {
             format!(
                 "The validator commit weights failed to load: {:?}. Fix: check that the node \
                  runtime matches the chain specification.",
@@ -280,7 +318,7 @@ where
         let author = author_account(&seal);
 
         // Check five. The author holds a seat in the active validator set.
-        let active = api.get_active_validators(best_hash).map_err(|reason| {
+        let active = api.get_active_validators(state).map_err(|reason| {
             format!(
                 "The active validator set failed to load: {:?}. Fix: check that the node runtime \
                  matches the chain specification.",
@@ -442,14 +480,16 @@ where
         debug!("Commit Engine import: checking block #{}", block_number);
 
         let api = self.client.runtime_api();
-        let best_hash = self.client.info().best_hash;
-        let active = api.get_active_validators(best_hash).map_err(|reason| {
-            sp_consensus::Error::ClientImport(format!(
+        // The active set the parent of this block left behind decides.
+        let active = api
+            .get_active_validators(block.parent_hash)
+            .map_err(|reason| {
+                sp_consensus::Error::ClientImport(format!(
                 "The active validator set failed to load: {:?}. Fix: check that the node runtime \
                  matches the chain specification.",
                 reason
             ))
-        })?;
+            })?;
         if active.is_empty() {
             error!(
                 "Commit Engine import: block #{} arrived with no active validators",
@@ -639,5 +679,34 @@ mod tests {
         assert_ne!(one, two);
         assert_ne!(one, three);
         assert_eq!(one, derive_slot_seed(&[1u8; 32], Slot(4)));
+    }
+
+    /// A block is checked against the state its parent left behind.
+    ///
+    /// The best block of the node plays no part, so two nodes on two forks
+    /// reach the same answer for one block.
+    #[test]
+    fn a_block_is_checked_against_the_state_of_its_parent() {
+        let parent = sp_core::H256::repeat_byte(7);
+        let best = sp_core::H256::repeat_byte(9);
+        let child = Header::<u64, BlakeTwo256>::new(
+            12,
+            Default::default(),
+            Default::default(),
+            parent,
+            Digest::default(),
+        );
+        let known =
+            |held: sp_core::H256| -> Result<bool, String> { Ok(held == parent || held == best) };
+        assert_eq!(super::verification_state(&child, known), Ok(parent));
+
+        let unknown = |_: sp_core::H256| -> Result<bool, String> { Ok(false) };
+        let error =
+            super::verification_state(&child, unknown).expect_err("an unknown parent waits");
+        assert!(error.contains("before its parent"), "{error}");
+        assert!(error.contains("Fix:"), "{error}");
+
+        let broken = |_: sp_core::H256| -> Result<bool, String> { Err("closed".into()) };
+        assert!(super::verification_state(&child, broken).is_err());
     }
 }
