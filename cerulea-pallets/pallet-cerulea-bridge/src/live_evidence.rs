@@ -277,7 +277,11 @@ fn cosmos_provider() {
         );
         let signature: [u8; 64] = fixed(&vote["signature"]);
         assert!(check_ed25519(&validators[signer].key, &payload, &signature));
-        assert!(!check_ed25519(&validators[signer].key, &flipped(&payload), &signature));
+        assert!(!check_ed25519(
+            &validators[signer].key,
+            &flipped(&payload),
+            &signature
+        ));
         signed += validators[signer].power;
     }
     assert!(reaches_two_thirds(signed, total_power(&set)));
@@ -408,7 +412,11 @@ fn avalanche_fuji() {
         signature: fixed(&held["attestSignature"]),
     }];
     let signed = avalanche::count_weight(&set, &hash, &signatures).unwrap();
-    assert!(reaches_percent(signed, total_power(&set), number(&held["thresholdPercent"]) as u8));
+    assert!(reaches_percent(
+        signed,
+        total_power(&set),
+        number(&held["thresholdPercent"]) as u8
+    ));
     let other = avalanche::message_hash(network_id, &chain_id, &sender, &[0u8; 32]);
     assert_eq!(
         avalanche::count_weight(&set, &other, &signatures),
@@ -478,12 +486,8 @@ fn bitcoin_signet() {
     };
     let source = ListedHeaders::many(records.clone());
     let registered = VerifierParameters::Bitcoin(params.clone());
-    let state = crate::endpoint::EndpointState::new(
-        &registered,
-        MessageFormat::RawBytes,
-        &source,
-        0,
-    );
+    let state =
+        crate::endpoint::EndpointState::new(&registered, MessageFormat::RawBytes, &source, 0);
     let header = accepted_header(&state, height).unwrap();
     let txid: [u8; 32] = fixed(&held["txid"]);
     assert!(bitcoin::check_branch(&txid, &proof, &header.state_root).is_ok());

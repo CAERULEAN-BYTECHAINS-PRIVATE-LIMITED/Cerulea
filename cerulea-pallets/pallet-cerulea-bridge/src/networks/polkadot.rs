@@ -281,8 +281,7 @@ pub fn check_storage(
     key: &[u8],
     proof: &PolkadotProof,
 ) -> Result<(), BridgeFault> {
-    let store =
-        sp_trie::StorageProof::new(raw_nodes(&proof.nodes)).into_memory_db::<BlakeTwo256>();
+    let store = sp_trie::StorageProof::new(raw_nodes(&proof.nodes)).into_memory_db::<BlakeTwo256>();
     let root = sp_core::H256::from(*state_root);
     let found =
         sp_trie::read_trie_value::<LayoutV1<BlakeTwo256>, _>(&store, &root, key, None, None)
