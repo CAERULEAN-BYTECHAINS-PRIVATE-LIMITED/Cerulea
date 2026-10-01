@@ -66,6 +66,17 @@ pub mod equivocation_tests;
 // Checkpoint anchoring tests
 pub mod checkpoint_tests;
 
+// Line coverage suites. Each file reaches one area of the pallet that the
+// suites above leave unread.
+pub mod coverage_calls_engines_tests;
+pub mod coverage_calls_governance_tests;
+pub mod coverage_epoch_helpers_tests;
+pub mod coverage_hooks_genesis_tests;
+pub mod coverage_runtime_api_tests;
+pub mod coverage_support_modules_tests;
+pub mod coverage_trust_parameter_tests;
+pub mod coverage_weights_tests;
+
 // ---------------------------------------------------------------------------
 // Shared engine checks
 // ---------------------------------------------------------------------------
