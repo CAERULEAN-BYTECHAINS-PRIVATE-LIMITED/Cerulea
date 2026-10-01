@@ -59,6 +59,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod coverage_tests;
+
 #[frame_support::pallet]
 pub mod pallet {
     use alloc::vec::Vec;
@@ -2672,6 +2675,10 @@ impl<T: Config> Pallet<T> {
     ///
     /// The check runs while the chain holds a key for validator licences. A
     /// chain that names no key admits through governance alone.
+    ///
+    /// The held licence meets the class the chain asks for at the moment of
+    /// the join. A class requirement that root raised after the licence
+    /// landed therefore applies to every later join.
     pub fn ensure_licensed(who: &T::AccountId) -> frame_support::dispatch::DispatchResult {
         if ValidatorLicenceKey::<T>::get().is_none() {
             return Ok(());
@@ -2681,6 +2688,10 @@ impl<T: Config> Pallet<T> {
         ensure!(
             crate::engines::admission::licence::licence_holds(&held, now),
             Error::<T>::LicenceRequired
+        );
+        ensure!(
+            held.class >= RequiredLicenceClass::<T>::get(),
+            Error::<T>::LicenceClassTooLow
         );
         Ok(())
     }
