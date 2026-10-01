@@ -29,6 +29,8 @@ pub mod weights;
 mod benchmarking;
 
 #[cfg(test)]
+mod log_tests;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
