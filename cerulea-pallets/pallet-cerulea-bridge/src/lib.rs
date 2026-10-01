@@ -68,6 +68,10 @@ mod live_evidence;
 mod mock;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_calls;
+#[cfg(test)]
+mod tests_verifiers;
 
 pub use pallet::*;
 pub use weights::WeightInfo;

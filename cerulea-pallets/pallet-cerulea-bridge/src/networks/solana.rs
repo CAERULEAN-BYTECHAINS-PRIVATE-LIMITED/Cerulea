@@ -158,6 +158,11 @@ pub struct SolanaHeaderBatch {
 }
 
 /// Check one batch of slot headers and answer with the headers to record.
+///
+/// The lowest header links to the trusted checkpoint and every later header
+/// links to the header below. The relayers and the slot leader sign the
+/// highest header. The parent links carry those signatures down to every
+/// lower header of the batch.
 pub fn accept_headers(
     params: &SolanaParameters,
     batch: &SolanaHeaderBatch,
@@ -166,10 +171,9 @@ pub fn accept_headers(
     if batch.headers.is_empty() {
         return Err(BridgeFault::ChainBroken);
     }
-    let mut found: Vec<HeaderRecord> = Vec::with_capacity(batch.headers.len());
-    let mut previous: Option<SlotHeader> = None;
+    let mut previous: Option<&SlotHeader> = None;
     for header in batch.headers.iter() {
-        match &previous {
+        match previous {
             Some(below) => {
                 if header.parent_bank_hash != below.bank_hash() || header.slot <= below.slot {
                     return Err(BridgeFault::ChainBroken);
@@ -182,9 +186,15 @@ pub fn accept_headers(
                 }
             }
         }
-        let signed = count_relayers(params, header, &batch.signatures)?;
-        check_leader(params, header, &batch.leader)?;
-        found.push(HeaderRecord {
+        previous = Some(header);
+    }
+    let highest = previous.ok_or(BridgeFault::ChainBroken)?;
+    let signed = count_relayers(params, highest, &batch.signatures)?;
+    check_leader(params, highest, &batch.leader)?;
+    Ok(batch
+        .headers
+        .iter()
+        .map(|header| HeaderRecord {
             height: header.slot,
             hash: header.bank_hash(),
             state_root: header.bank_hash(),
@@ -194,10 +204,8 @@ pub fn accept_headers(
                 signed,
                 registered: params.relayers.len() as u32,
             },
-        });
-        previous = Some(header.clone());
-    }
-    Ok(found)
+        })
+        .collect())
 }
 
 /// Count the registered relayers that signed one slot header.

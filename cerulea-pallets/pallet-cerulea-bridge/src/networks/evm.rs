@@ -135,7 +135,8 @@ pub struct EvmHeaderBatch {
 ///
 /// The lowest header of the batch links to the trusted checkpoint. Every
 /// later header links to the header below. A threshold of registered feed
-/// keys signs each header of the batch.
+/// keys signs the highest header. The parent links carry that signature down
+/// to every lower header of the batch.
 pub fn accept_headers(
     params: &crate::endpoint::EvmParameters,
     batch: &EvmHeaderBatch,
@@ -144,11 +145,10 @@ pub fn accept_headers(
     if batch.headers.is_empty() {
         return Err(BridgeFault::ChainBroken);
     }
-    let mut found: Vec<HeaderRecord> = Vec::with_capacity(batch.headers.len());
-    let mut previous: Option<EvmHeader> = None;
+    let mut linked: Vec<EvmHeader> = Vec::with_capacity(batch.headers.len());
     for encoded in batch.headers.iter() {
         let header = read_header(encoded)?;
-        match previous {
+        match linked.last() {
             Some(below) => {
                 if header.parent != below.hash || header.number != below.number.saturating_add(1) {
                     return Err(BridgeFault::ChainBroken);
@@ -157,15 +157,20 @@ pub fn accept_headers(
             None => {
                 let trusted = params.checkpoint;
                 let declared = trusted.height > 0 || trusted.hash != [0u8; 32];
-                let linked = header.parent == trusted.hash
+                let joined = header.parent == trusted.hash
                     && header.number == trusted.height.saturating_add(1);
-                if declared && !linked {
+                if declared && !joined {
                     return Err(BridgeFault::ChainBroken);
                 }
             }
         }
-        let signed = count_feed_signatures(params, &header, &batch.signatures)?;
-        found.push(HeaderRecord {
+        linked.push(header);
+    }
+    let highest = linked.last().ok_or(BridgeFault::ChainBroken)?;
+    let signed = count_feed_signatures(params, highest, &batch.signatures)?;
+    Ok(linked
+        .into_iter()
+        .map(|header| HeaderRecord {
             height: header.number,
             hash: header.hash,
             state_root: header.state_root,
@@ -175,10 +180,8 @@ pub fn accept_headers(
                 signed,
                 registered: params.header_signers.len() as u32,
             },
-        });
-        previous = Some(header);
-    }
-    Ok(found)
+        })
+        .collect())
 }
 
 /// Count the registered feed keys that signed one header.

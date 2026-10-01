@@ -302,6 +302,13 @@ pub fn read_transaction(bytes: &[u8]) -> Result<Transaction, BridgeFault> {
     let (output_count, next) = read_varint(bytes, cursor)?;
     cursor = next;
     let outputs_start = cursor;
+    // Every output takes at least nine bytes: eight for the value and one
+    // for the script length. A count the remaining bytes cannot hold is
+    // malformed, and the reader declines it before reserving memory.
+    let room = (bytes.len().saturating_sub(cursor) / 9) as u64;
+    if output_count > room {
+        return Err(BridgeFault::MalformedEncoding);
+    }
     let mut outputs: Vec<Output> = Vec::with_capacity(output_count as usize);
     for _ in 0..output_count {
         let held = bytes
