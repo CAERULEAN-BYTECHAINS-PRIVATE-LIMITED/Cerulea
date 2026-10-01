@@ -9182,9 +9182,12 @@ pub mod pallet {
             EpochAuthorSequences::<T>::insert(next_epoch, &author_sequence);
             weight = weight.saturating_add(Weight::from_parts(5_000, 0));
 
-            // Capture outputs for replay validation
+            // Capture outputs for replay validation. The standard transition
+            // has recorded the history of the new epoch, so the changes compare
+            // the new epoch with the epoch before it. The replay reads the
+            // same pair.
             let (added_validators, removed_validators) =
-                Self::get_epoch_validator_changes(current_epoch);
+                Self::get_epoch_validator_changes(next_epoch);
             let validator_scores = Self::get_all_validator_scores(&new_active_validators);
             let output_hash = Self::compute_epoch_output_hash(
                 next_epoch,
