@@ -12,7 +12,7 @@ use cerulea_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use sc_cli::SubstrateCli;
 use serde_json::json;
-use sp_core::crypto::AccountId32;
+use sp_core::crypto::{AccountId32, Ss58Codec};
 use sp_keyring::Ed25519Keyring;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -58,8 +58,14 @@ impl SubstrateCli for NodeCommand {
 }
 
 pub fn run() -> sc_cli::Result<()> {
-    let entry = NodeCommand::from_args();
+    run_with(NodeCommand::from_args())
+}
 
+/// Run the node with arguments a caller already parsed.
+///
+/// The binary parses the process arguments and calls this. The tests parse
+/// their own arguments and call it the same way.
+pub fn run_with(entry: NodeCommand) -> sc_cli::Result<()> {
     // Log node startup information
     crate::logging::log_consensus_event(&format!(
         "Starting Cerulea node version {} in {} mode",
@@ -201,7 +207,7 @@ pub fn run() -> sc_cli::Result<()> {
             // Substrate's node command checks for the key file during create_runner and throws
             // NetworkKeyNotFound if it's missing for non-dev validator nodes.
             // We resolve the path from node command args and write the key first so the runner
-            // never sees a missing file — same zero-setup experience as --dev.
+            // never sees a missing file. A development node starts the same way.
             ensure_network_key_from_cli(&entry);
 
             let runner = entry.create_runner(&entry.run)?;
@@ -562,14 +568,13 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
             current_number + 1 // Start from next block
         };
 
-        // Query expected authors for the requested blocks
-        let mut authors = Vec::new();
+        // Query the expected author of every requested block. The chain
+        // answers with an address, or with nothing when it names no author.
+        let mut authors: Vec<(u32, Option<AccountId32>)> = Vec::new();
 
         for i in 0..cmd.blocks {
             let block_number = start_block + i;
-
-            // Try to get expected author via DCF RPC (if available)
-            match timeout(
+            let answer = timeout(
                 timeout_duration,
                 client.request::<serde_json::Value, _>(
                     "dcf_getExpectedAuthor",
@@ -577,35 +582,24 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                 ),
             )
             .await
-            {
-                Ok(Ok(author_result)) => {
-                    if let Some(author_str) = author_result.as_str() {
-                        // Parse the author string into AccountId
-                        if let Ok(author_bytes) = hex::decode(author_str.trim_start_matches("0x")) {
-                            if author_bytes.len() == 32 {
-                                let mut account_bytes = [0u8; 32];
-                                account_bytes.copy_from_slice(&author_bytes);
-                                let author = AccountId32::from(account_bytes);
-                                authors.push((block_number, author));
-                                continue;
-                            }
-                        }
-                    }
-
-                    // If parsing failed, use a placeholder
-                    let placeholder = AccountId32::from([0u8; 32]);
-                    authors.push((block_number, placeholder));
+            .map_err(|_| format!("Timeout reading the expected author of block {block_number}"))?
+            .map_err(|e| {
+                format!(
+                    "The node at {} answers no expected author for block {}: {}.                      Point the query at a Cerulea node serving the Cerulea interface.",
+                    cmd.rpc_url, block_number, e
+                )
+            })?;
+            let author = match answer {
+                serde_json::Value::Null => None,
+                serde_json::Value::String(text) => Some(parse_author(&text)?),
+                other => {
+                    return Err(format!(
+                        "The expected author of block {block_number} arrived as {other}.                          Point the query at a Cerulea node serving the Cerulea interface."
+                    )
+                    .into())
                 }
-                Ok(Err(_)) | Err(_) => {
-                    // If DCF RPC is not available, simulate deterministic selection
-                    // This is a fallback for testing purposes
-                    let validator_index = ((block_number - 1) % 5) as u8; // Assume 5 validators
-                    let mut account_bytes = [0u8; 32];
-                    account_bytes[0] = validator_index + 1; // Start from 1 to avoid zero account
-                    let author = AccountId32::from(account_bytes);
-                    authors.push((block_number, author));
-                }
-            }
+            };
+            authors.push((block_number, author));
         }
 
         // Format and output results
@@ -613,12 +607,17 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
             OutputFormat::Json => {
                 let json_authors: Vec<serde_json::Value> = authors
                     .iter()
-                    .map(|(block, author)| {
-                        json!({
+                    .map(|(block, author)| match author {
+                        Some(held) => json!({
                             "block": block,
-                            "author": format!("{:?}", author),
-                            "author_hex": format!("0x{}", hex::encode(author.as_ref() as &[u8]))
-                        })
+                            "author": held.to_ss58check(),
+                            "author_hex": format!("0x{}", hex::encode(held.as_ref() as &[u8]))
+                        }),
+                        None => json!({
+                            "block": block,
+                            "author": serde_json::Value::Null,
+                            "author_hex": serde_json::Value::Null
+                        }),
                     })
                     .collect();
 
@@ -644,7 +643,10 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
                 println!();
 
                 for (block, author) in &authors {
-                    println!("Block {}: {:?}", block, author);
+                    match author {
+                        Some(held) => println!("Block {}: {}", block, held.to_ss58check()),
+                        None => println!("Block {}: the chain names no author", block),
+                    }
                 }
 
                 if authors.is_empty() {
@@ -668,11 +670,11 @@ fn run_query_authors_cmd(cmd: &QueryAuthorsCmd, _cli: &NodeCommand) -> sc_cli::R
 /// if `<base-path>/chains/<chain-id>/network/secret_ed25519` is missing. We resolve the
 /// base path the same way Substrate does (explicit `--base-path` or the platform default
 /// `~/.local/share/cerulea-node/` on Linux), load the chain spec for the canonical chain ID,
-/// then write a fresh hex-encoded key — so any new node starts with zero manual setup.
+/// then write a fresh hex-encoded key. Any new node therefore starts with no manual setup.
 fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
     use sc_cli::SubstrateCli;
 
-    // Skip dev — Substrate handles ephemeral keys internally.
+    // A development node keeps ephemeral keys, so the step ends here.
     let raw_chain = match entry.run.shared_params.chain.as_deref() {
         Some("dev") | Some("development") | Some("Cerulea") => return,
         None => return,
@@ -719,7 +721,7 @@ fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
         }
     }
 
-    // Write a fresh random key as 64 hex chars — the exact format sc_network expects,
+    // Write a fresh random key as 64 hex characters. The network layer expects that format,
     // identical to `cerulea-node key generate-node-key --file <path>`.
     use sp_core::crypto::Pair as _;
     let (pair, _) = sp_core::ed25519::Pair::generate();
@@ -735,5 +737,46 @@ fn ensure_network_key_from_cli(entry: &crate::node_command::NodeCommand) {
             net_key_path,
             e
         ),
+    }
+}
+
+/// Read one author address the node interface answers with.
+///
+/// The interface writes an account as its SS58 address. A 32 byte hex form
+/// reads too. Any other text names the fix.
+pub fn parse_author(text: &str) -> Result<AccountId32, String> {
+    if let Ok(held) = AccountId32::from_ss58check(text) {
+        return Ok(held);
+    }
+    let bytes = hex::decode(text.trim_start_matches("0x")).map_err(|_| {
+        format!("The author `{text}` reads as neither an SS58 address nor 32 hex bytes. Point the query at a Cerulea node serving the Cerulea interface.")
+    })?;
+    let fixed: [u8; 32] = bytes.try_into().map_err(|_| {
+        format!("The author `{text}` carries a length other than 32 bytes. Point the query at a Cerulea node serving the Cerulea interface.")
+    })?;
+    Ok(AccountId32::from(fixed))
+}
+
+#[cfg(test)]
+mod author_tests {
+    use super::parse_author;
+    use sp_core::crypto::{AccountId32, Ss58Codec};
+
+    #[test]
+    fn an_ss58_address_and_its_hex_form_read_as_one_account() {
+        let account = AccountId32::from([7u8; 32]);
+        assert_eq!(parse_author(&account.to_ss58check()), Ok(account.clone()));
+        assert_eq!(
+            parse_author(&format!("0x{}", hex::encode([7u8; 32]))),
+            Ok(account)
+        );
+    }
+
+    #[test]
+    fn other_text_names_the_fix() {
+        let fault = parse_author("not an address").expect_err("the text reads as neither form");
+        assert!(fault.ends_with("Point the query at a Cerulea node serving the Cerulea interface."));
+        let short = parse_author("0x0102").expect_err("two bytes fall short");
+        assert!(short.contains("a length other than 32 bytes"));
     }
 }

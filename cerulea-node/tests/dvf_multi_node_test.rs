@@ -327,9 +327,7 @@ impl DvfMockNode {
 
         // Add to vote pool
         let mut pool = self.vote_pool.write().unwrap();
-        pool.entry(vote.block_number)
-            .or_insert_with(Vec::new)
-            .push(vote);
+        pool.entry(vote.block_number).or_default().push(vote);
 
         true
     }
@@ -432,7 +430,7 @@ impl DvfMockNetwork {
         let total_weight: u128 = config.validator_weights.iter().sum();
 
         // Create validator nodes
-        let validators = vec![
+        let validators = [
             (Ed25519Keyring::Alice, "Alice"),
             (Ed25519Keyring::Bob, "Bob"),
             (Ed25519Keyring::Charlie, "Charlie"),
@@ -508,7 +506,7 @@ impl DvfMockNetwork {
                     .write()
                     .unwrap()
                     .entry(block_number)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(vote);
             }
         }
@@ -1333,7 +1331,7 @@ async fn test_byzantine_fault_tolerance() {
         network.nodes[0].weight,
     );
 
-    let double_vote_2 = DvfVote::new(
+    let _double_vote_2 = DvfVote::new(
         1, // epoch_id
         1, // validator_set_id
         0, // same round_number
@@ -1362,7 +1360,7 @@ async fn test_byzantine_fault_tolerance() {
     // Test 3: Conflicting vote detection
     log::info!("\nTest 3: Conflicting vote detection");
 
-    let conflicting_vote = DvfVote::new(
+    let _conflicting_vote = DvfVote::new(
         1, // epoch_id
         1, // validator_set_id
         0, // round_number
@@ -1684,7 +1682,7 @@ mod dvf_finality_assertions {
         // The key invariant: after validation framework finalizes block 10, every subsequent checkpoint
         // is also finalized before the client can get more than checkpoint_interval blocks ahead.
         // With checkpoint_interval=10 and progressive finality advancing by 1 per block,
-        // validation framework finalizes at 10, 20, 30 — client never exceeds dvf_finalized by more than
+        // validation framework finalizes at 10, 20, 30. The client never exceeds dvf_finalized by more than
         // checkpoint_interval-1 blocks. The warning condition (client > validation framework) may transiently
         // hold between checkpoints, but once validation framework catches up at each checkpoint it resolves.
         //

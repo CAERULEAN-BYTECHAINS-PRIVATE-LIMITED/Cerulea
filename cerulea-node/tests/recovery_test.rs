@@ -114,7 +114,10 @@ fn read_package(path: &Path) -> Package {
 }
 
 fn hex(bytes: &[u8; 32]) -> String {
-    bytes.iter().map(|byte| format!("{:02x}", byte)).collect()
+    bytes.iter().fold(String::new(), |mut held, byte| {
+        held.push_str(&format!("{byte:02x}"));
+        held
+    })
 }
 
 #[test]

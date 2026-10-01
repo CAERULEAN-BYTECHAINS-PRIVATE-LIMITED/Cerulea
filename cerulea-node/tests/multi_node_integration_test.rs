@@ -649,7 +649,7 @@ async fn test_comprehensive_multi_node_functionality() {
 /// Check if the Cerulea node binary is available for testing
 pub fn check_node_binary_available() -> bool {
     Command::new("cargo")
-        .args(&["check", "--bin", "cerulea-node"])
+        .args(["check", "--bin", "cerulea-node"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)

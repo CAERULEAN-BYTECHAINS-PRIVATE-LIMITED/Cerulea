@@ -732,8 +732,7 @@ where
             )
         })?;
 
-        let trust_score =
-            (pos_score as u64 * pos_weight + poi_score * poi_weight) / (pos_weight + poi_weight);
+        let trust_score = weighted_trust(pos_score as u64, poi_score, pos_weight, poi_weight)?;
 
         // Get validator status
         let active_validators = <C::Api as pallet_cerulea_pos::PosApi<Block, AccountId, Balance>>::get_active_validators(&api, best_hash)
@@ -848,9 +847,9 @@ where
         })?;
 
         // Calculate weighted components
-        let pos_component = pos_score as u64 * pos_weight;
-        let poi_component = poi_score * poi_weight;
-        let total = (pos_component + poi_component) / (pos_weight + poi_weight);
+        let pos_component = (pos_score as u64).saturating_mul(pos_weight);
+        let poi_component = poi_score.saturating_mul(poi_weight);
+        let total = weighted_trust(pos_score as u64, poi_score, pos_weight, poi_weight)?;
 
         Ok(TrustScore {
             total,
@@ -1244,7 +1243,6 @@ where
             // Get the last active block from validator state
             <C::Api as pallet_cerulea_dcf::DcfApi<Block, AccountId, Balance, u32>>::get_validator_last_active(&api, best_hash, validator.clone())
                 .ok()
-                .filter(|&block| block > 0)
         } else {
             None
         };
@@ -1788,4 +1786,58 @@ where
     }
 
     Ok(module)
+}
+
+/// The Trust Score of one validator from its two components and the two
+/// consensus weights.
+///
+/// Each component counts in proportion to its weight. A chain carrying two
+/// zero weights defines no score, so the read answers with an error naming
+/// the fix. The arithmetic saturates, so a large score never wraps.
+pub fn weighted_trust(
+    pos_score: u64,
+    poi_score: u64,
+    pos_weight: u64,
+    poi_weight: u64,
+) -> Result<u64, jsonrpsee::types::ErrorObjectOwned> {
+    let weights = pos_weight.saturating_add(poi_weight);
+    if weights == 0 {
+        return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+            -32000,
+            "The chain holds two zero consensus weights, so the Trust Score has no value.              Raise one weight above zero through a governance proposal.",
+            None::<()>,
+        ));
+    }
+    let weighted = pos_score
+        .saturating_mul(pos_weight)
+        .saturating_add(poi_score.saturating_mul(poi_weight));
+    Ok(weighted / weights)
+}
+
+#[cfg(test)]
+mod trust_tests {
+    use super::weighted_trust;
+
+    #[test]
+    fn each_component_counts_in_proportion_to_its_weight() {
+        assert_eq!(weighted_trust(80, 40, 1, 1).expect("defined"), 60);
+        assert_eq!(weighted_trust(80, 40, 3, 1).expect("defined"), 70);
+        assert_eq!(weighted_trust(80, 40, 0, 5).expect("defined"), 40);
+        assert_eq!(weighted_trust(80, 40, 5, 0).expect("defined"), 80);
+    }
+
+    #[test]
+    fn two_zero_weights_answer_with_the_fix() {
+        let fault = weighted_trust(80, 40, 0, 0).expect_err("no score is defined");
+        assert_eq!(fault.code(), -32000);
+        assert!(fault
+            .message()
+            .ends_with("Raise one weight above zero through a governance proposal."));
+    }
+
+    #[test]
+    fn a_large_score_saturates_rather_than_wrapping() {
+        let held = weighted_trust(u64::MAX, u64::MAX, 2, 2).expect("defined");
+        assert_eq!(held, u64::MAX / 4);
+    }
 }

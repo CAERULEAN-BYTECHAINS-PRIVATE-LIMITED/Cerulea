@@ -164,6 +164,8 @@ pallet-cerulea-tier = { workspace = true, default-features = true }
 pallet-cerulea-custody = { workspace = true, default-features = true }
 pallet-cerulea-bridge = { workspace = true, default-features = true }
 pallet-cerulea-operator = { workspace = true, default-features = true }
+pallet-cerulea-governance = { workspace = true, default-features = true }
+pallet-sudo = { workspace = true, default-features = true }
 pallet-timestamp = { workspace = true, default-features = true }
 proptest = "1.0"
 env_logger = "0.10"

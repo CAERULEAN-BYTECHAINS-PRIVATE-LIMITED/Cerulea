@@ -609,7 +609,7 @@ async fn test_deterministic_author_prediction() {
 
     // Test: Round-robin pattern should be evident
     let validators = authoring.validators();
-    for (_i, (block_number, author)) in first_query.iter().enumerate() {
+    for (block_number, author) in first_query.iter() {
         let expected_validator_index = ((block_number - 1) % validators.len() as u32) as usize;
         let expected_author = &validators[expected_validator_index];
         assert_eq!(
@@ -701,7 +701,7 @@ async fn test_comprehensive_deterministic_authoring() {
     let expected_blocks_per_validator = config.blocks_to_produce / validators.len() as u32;
     for validator in validators {
         let count = author_counts.get(validator).unwrap_or(&0);
-        let diff = (*count as i32 - expected_blocks_per_validator as i32).abs();
+        let diff = (*count - expected_blocks_per_validator as i32).abs();
         assert!(
             diff <= 1,
             "Validator {:?} should get roughly equal blocks: got {}, expected ~{}",

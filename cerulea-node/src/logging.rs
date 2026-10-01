@@ -145,30 +145,34 @@ impl StartupInfo {
         self.network_latency = Some(latency);
     }
 
+    /// Write the startup block to the error stream.
+    ///
+    /// The standard output carries what a subcommand produces, such as the
+    /// chain specification, so the block stays off it.
     pub fn display(&self) {
-        println!("Cerulea Node Startup Information");
-        println!("================================");
-        println!("Node Version:     {}", self.node_version);
-        println!("Runtime Version:  {}", self.runtime_version);
-        println!("Chain:            {}", self.chain_name);
-        println!("Role:             {}", self.node_role);
+        eprintln!("Cerulea Node Startup Information");
+        eprintln!("================================");
+        eprintln!("Node Version:     {}", self.node_version);
+        eprintln!("Runtime Version:  {}", self.runtime_version);
+        eprintln!("Chain:            {}", self.chain_name);
+        eprintln!("Role:             {}", self.node_role);
 
         if let Some(ref peer_id) = self.peer_id {
-            println!("Peer ID:          {}", peer_id);
+            eprintln!("Peer ID:          {}", peer_id);
         }
 
         if let Some(latency) = self.network_latency {
-            println!("Network Latency:  {:?}", latency);
+            eprintln!("Network Latency:  {:?}", latency);
         }
 
-        println!(
+        eprintln!(
             "Timestamp:        {}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
         );
-        println!("================================");
+        eprintln!("================================");
     }
 }
 
