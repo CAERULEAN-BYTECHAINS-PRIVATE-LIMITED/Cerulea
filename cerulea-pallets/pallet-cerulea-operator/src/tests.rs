@@ -75,7 +75,7 @@ fn install_licence(expires_at: u64) {
 
 fn appoint() {
     assert_ok!(Operator::appoint_operator(
-        RuntimeOrigin::signed(STEWARD),
+        RuntimeOrigin::root(),
         DEPLOYMENT,
         OPERATOR
     ));
@@ -120,7 +120,7 @@ fn a_retired_operator_asks_for_nothing() {
     new_test_ext().execute_with(|| {
         appoint();
         assert_ok!(Operator::retire_operator(
-            RuntimeOrigin::signed(STEWARD),
+            RuntimeOrigin::root(),
             DEPLOYMENT,
             OPERATOR
         ));
@@ -404,7 +404,9 @@ fn every_operator_action_appears_in_the_audit_log_with_its_actor() {
 
         let appointed = Audit::query_by_event(&DEPLOYMENT, "operator_appointed", 0, 64);
         assert_eq!(appointed.len(), 1);
-        assert_eq!(appointed[0].actor, STEWARD);
+        // The root origin appoints, so the record names the account the call
+        // appointed.
+        assert_eq!(appointed[0].actor, OPERATOR);
 
         let upgraded = Audit::query_by_event(&DEPLOYMENT, "platform_upgraded", 0, 64);
         assert_eq!(upgraded.len(), 1);

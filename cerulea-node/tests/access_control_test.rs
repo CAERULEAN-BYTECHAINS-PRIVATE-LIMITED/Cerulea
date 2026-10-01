@@ -179,3 +179,36 @@ fn the_relayer_settings_come_from_a_steward() {
         }
     });
 }
+
+/// Finding three. The root origin or an active operator appoints.
+///
+/// A stranger appoints nobody, itself included. The root origin appoints the
+/// first operator. That operator appoints a second and retires it.
+#[test]
+fn the_operator_role_comes_from_root_or_an_operator() {
+    development_ext().execute_with(|| {
+        assert_noop!(
+            Operator::appoint_operator(RuntimeOrigin::signed(stranger()), DEPLOYMENT, stranger()),
+            pallet_cerulea_operator::Error::<Runtime>::NotAnOperator
+        );
+        assert_ok!(Operator::appoint_operator(
+            RuntimeOrigin::root(),
+            DEPLOYMENT,
+            outsider()
+        ));
+        assert_noop!(
+            Operator::retire_operator(RuntimeOrigin::signed(stranger()), DEPLOYMENT, outsider()),
+            pallet_cerulea_operator::Error::<Runtime>::NotAnOperator
+        );
+        assert_ok!(Operator::appoint_operator(
+            RuntimeOrigin::signed(outsider()),
+            DEPLOYMENT,
+            stranger()
+        ));
+        assert_ok!(Operator::retire_operator(
+            RuntimeOrigin::signed(outsider()),
+            DEPLOYMENT,
+            stranger()
+        ));
+    });
+}

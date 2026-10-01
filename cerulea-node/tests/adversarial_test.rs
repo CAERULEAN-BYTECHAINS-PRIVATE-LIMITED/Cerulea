@@ -1375,8 +1375,8 @@ const OPERATOR_ACTION: &str = "land_title_registry_record_parcel";
 /// Every request lands with a refusal outcome and the customer record stands
 /// unchanged. The call answers with success by design, so the record of the
 /// refusal stays. An account outside the role meets `NotAnOperator`.
-/// Documented gap: any signed account appoints an operator. The permission
-/// module still refuses that operator every customer collection.
+/// The chain appoints an operator through the root origin. A stranger appoints
+/// nobody, and an appointed operator appoints beside it.
 #[test]
 fn operator_request_touching_customer_state_is_refused_and_recorded() {
     let library = fragment_library();
@@ -1417,15 +1417,33 @@ fn operator_request_touching_customer_state_is_refused_and_recorded() {
         let record_before = read_record().expect("The parcel record stands.");
         let root_before = read_root();
 
+        // The chain appoints the operator. A stranger appoints nobody,
+        // itself included, and an appointed operator appoints beside it.
         let appointed = outsider();
         assert_ok!(Operator::appoint_operator(
-            RuntimeOrigin::signed(actor()),
+            RuntimeOrigin::root(),
             deployment,
             appointed.clone()
         ));
         let stranger = fourth_party();
+        assert_noop!(
+            Operator::appoint_operator(
+                RuntimeOrigin::signed(stranger.clone()),
+                deployment,
+                stranger.clone()
+            ),
+            pallet_cerulea_operator::Error::<Runtime>::NotAnOperator
+        );
+        assert_noop!(
+            Operator::appoint_operator(
+                RuntimeOrigin::signed(actor()),
+                deployment,
+                stranger.clone()
+            ),
+            pallet_cerulea_operator::Error::<Runtime>::NotAnOperator
+        );
         assert_ok!(Operator::appoint_operator(
-            RuntimeOrigin::signed(stranger.clone()),
+            RuntimeOrigin::signed(appointed.clone()),
             deployment,
             stranger.clone()
         ));
@@ -1501,12 +1519,16 @@ fn operator_retired_from_the_role_is_refused() {
         type Operator = pallet_cerulea_operator::Pallet<Runtime>;
         let deployment = [0xb1u8; 32];
         assert_ok!(Operator::appoint_operator(
-            RuntimeOrigin::signed(actor()),
+            RuntimeOrigin::root(),
             deployment,
             outsider()
         ));
+        assert_noop!(
+            Operator::retire_operator(RuntimeOrigin::signed(actor()), deployment, outsider()),
+            pallet_cerulea_operator::Error::<Runtime>::NotAnOperator
+        );
         assert_ok!(Operator::retire_operator(
-            RuntimeOrigin::signed(actor()),
+            RuntimeOrigin::root(),
             deployment,
             outsider()
         ));

@@ -1228,7 +1228,7 @@ fn criterion_fourteen_the_operator_role_is_bounded() {
             grant.clone(),
         );
         pallet_cerulea_operator::Pallet::<Runtime>::appoint_operator(
-            RuntimeOrigin::signed(actor()),
+            RuntimeOrigin::root(),
             deployment,
             operator.clone(),
         )

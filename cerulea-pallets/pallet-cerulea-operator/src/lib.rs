@@ -445,7 +445,7 @@ pub mod pallet {
             deployment: DeploymentId,
             operator: T::AccountId,
         ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
+            let who = Self::ensure_appointing(origin, &deployment, &operator)?;
             ensure!(
                 Operators::<T>::get(deployment, &operator).is_none(),
                 Error::<T>::OperatorPresent
@@ -482,7 +482,7 @@ pub mod pallet {
             deployment: DeploymentId,
             operator: T::AccountId,
         ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
+            let who = Self::ensure_appointing(origin, &deployment, &operator)?;
             Operators::<T>::try_mutate(deployment, &operator, |slot| -> DispatchResult {
                 let held = slot.as_mut().ok_or(Error::<T>::NotAnOperator)?;
                 held.active = false;
@@ -527,6 +527,29 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    /// Check the origin of an appointment or a retirement.
+    ///
+    /// The root origin appoints and retires, which is the path the chain
+    /// specification and the Amendment Engine take. An active operator of the
+    /// deployment appoints and retires beside it. Every other account meets
+    /// `NotAnOperator`. The answer names the account the audit record carries.
+    fn ensure_appointing(
+        origin: OriginFor<T>,
+        deployment: &DeploymentId,
+        operator: &T::AccountId,
+    ) -> Result<T::AccountId, DispatchError> {
+        match ensure_signed_or_root(origin)? {
+            Some(who) => {
+                ensure!(
+                    <Self as OperatorRole>::is_operator(deployment, &who),
+                    Error::<T>::NotAnOperator
+                );
+                Ok(who)
+            }
+            None => Ok(operator.clone()),
+        }
+    }
+
     /// The wall clock time of the Blockchain, in milliseconds.
     pub fn now_millis() -> u64 {
         T::Time::now().as_millis() as u64
