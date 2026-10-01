@@ -28,11 +28,11 @@ use pallet_cerulea_schema::primitives::{name_of, name_text, BoundedName, Deploym
 extern crate alloc;
 use alloc::{string::ToString, vec, vec::Vec};
 
-const DEPLOYMENT: DeploymentId = [9u8; 32];
-const STEWARD: u64 = 1;
-const SURVEYOR: u64 = 2;
+pub(crate) const DEPLOYMENT: DeploymentId = [9u8; 32];
+pub(crate) const STEWARD: u64 = 1;
+pub(crate) const SURVEYOR: u64 = 2;
 
-fn parcel_state_type() -> TypeDef {
+pub(crate) fn parcel_state_type() -> TypeDef {
     TypeDef::Enumeration(EnumerationDef {
         id: TypeId::new("parcel_state"),
         variants: vec![
@@ -46,7 +46,7 @@ fn parcel_state_type() -> TypeDef {
     })
 }
 
-fn parcel_type() -> TypeDef {
+pub(crate) fn parcel_type() -> TypeDef {
     TypeDef::Record(RecordDef {
         id: TypeId::new("parcel"),
         fields: vec![
@@ -72,7 +72,7 @@ fn parcel_type() -> TypeDef {
     })
 }
 
-fn parcel_collection() -> Collection {
+pub(crate) fn parcel_collection() -> Collection {
     let mut collection = Collection::new(
         "parcel",
         "parcel",
@@ -86,7 +86,7 @@ fn parcel_collection() -> Collection {
     collection
 }
 
-fn parcel(survey: &str, area: i128, due_at: u64, state: &str) -> Value {
+pub(crate) fn parcel(survey: &str, area: i128, due_at: u64, state: &str) -> Value {
     let mut value = Value::record(
         TypeId::new("parcel"),
         vec![
@@ -110,7 +110,7 @@ fn parcel(survey: &str, area: i128, due_at: u64, state: &str) -> Value {
     value
 }
 
-fn machine() -> WorkflowDef {
+pub(crate) fn machine() -> WorkflowDef {
     WorkflowDef {
         id: WorkflowId::new("parcel_registration"),
         collection: cerulea_blueprint::types::CollectionId::new("parcel"),
@@ -154,26 +154,26 @@ fn machine() -> WorkflowDef {
     }
 }
 
-fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
+pub(crate) fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
     BoundedVec::try_from(bytes).expect("the payload sits inside the bound")
 }
 
-fn workflow_name() -> BoundedName {
+pub(crate) fn workflow_name() -> BoundedName {
     name_of("parcel_registration").expect("the name fits")
 }
 
-fn record_key(survey: &str) -> RecordKey {
+pub(crate) fn record_key(survey: &str) -> RecordKey {
     let mut value = Value::Text(survey.to_string());
     value.canonicalise();
     BoundedVec::try_from(value.canonical_bytes()).expect("the key fits")
 }
 
-fn reason(text: &str) -> BoundedVec<u8, ConstU32<256>> {
+pub(crate) fn reason(text: &str) -> BoundedVec<u8, ConstU32<256>> {
     BoundedVec::try_from(text.as_bytes().to_vec()).expect("the reason fits")
 }
 
 /// Register the types, the collection, the roles and one parcel record.
-fn install(area: i128, due_at: u64) {
+pub(crate) fn install(area: i128, due_at: u64) {
     assert_ok!(Schema::register_type(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -230,7 +230,7 @@ fn install(area: i128, due_at: u64) {
     ));
 }
 
-fn start() {
+pub(crate) fn start() {
     assert_ok!(Workflow::start_instance(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -239,11 +239,11 @@ fn start() {
     ));
 }
 
-fn held() -> Instance<u64, u64, ConstU32<64>, ConstU32<8>> {
+pub(crate) fn held() -> Instance<u64, u64, ConstU32<64>, ConstU32<8>> {
     Pallet::<Test>::instance(&DEPLOYMENT, &workflow_name(), 0).expect("the process is running")
 }
 
-fn stored_state() -> alloc::string::String {
+pub(crate) fn stored_state() -> alloc::string::String {
     let record = <Test as crate::Config>::Records::read(
         &DEPLOYMENT,
         &cerulea_blueprint::types::CollectionId::new("parcel"),
@@ -489,7 +489,7 @@ fn a_final_state_settles_the_process() {
     });
 }
 
-fn run_to_registered() {
+pub(crate) fn run_to_registered() {
     assert_ok!(Workflow::attempt_transition(
         RuntimeOrigin::signed(SURVEYOR),
         DEPLOYMENT,
