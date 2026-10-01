@@ -523,3 +523,6 @@ fn every_tier_record_appears_in_the_audit_log_with_its_actor() {
         assert_eq!(suspended[0].actor, OPERATOR);
     });
 }
+
+/// The further tests of the tier module.
+mod licence_tests;
