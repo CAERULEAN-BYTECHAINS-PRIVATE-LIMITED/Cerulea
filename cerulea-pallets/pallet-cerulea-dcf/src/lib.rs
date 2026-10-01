@@ -14568,15 +14568,16 @@ pub mod pallet {
             // Get old trust score for comparison
             let old_trust_score = ValidatorTrustScores::<T>::get(validator);
 
-            // Update current trust score storage
-            ValidatorTrustScores::<T>::insert(validator, new_trust_score);
-
-            // Update trust score in validator state
+            // The validator record comes first, so an unknown validator leaves
+            // every store untouched.
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.trust_score = new_trust_score;
                 Ok::<(), Error<T>>(())
             })?;
+
+            // Update current trust score storage
+            ValidatorTrustScores::<T>::insert(validator, new_trust_score);
 
             // Add to trust score history if score changed significantly
             let score_change = if new_trust_score > old_trust_score {
@@ -15368,13 +15369,19 @@ pub mod pallet {
         ) -> DispatchResult {
             let new_total_stake = pos::Pallet::<T>::stake(validator);
             let new_stake_score = new_total_stake.saturated_into::<u64>();
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+            // The stake score write closes first. The final score then reads
+            // the stored record, so the outer write never overwrites it.
+            let known = ValidatorStates::<T>::mutate(validator, |maybe_state| {
                 if let Some(state) = maybe_state.as_mut() {
                     state.current.stake_score = new_stake_score;
-                    let _ = Self::update_final_score(validator);
+                    true
+                } else {
+                    false
                 }
-                Ok::<(), Error<T>>(())
-            })?;
+            });
+            if known {
+                let _ = Self::update_final_score(validator);
+            }
             Ok(())
         }
 
@@ -15384,13 +15391,19 @@ pub mod pallet {
         ) -> DispatchResult {
             let new_total_stake = pos::Pallet::<T>::stake(validator);
             let new_stake_score = new_total_stake.saturated_into::<u64>();
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+            // The stake score write closes first. The final score then reads
+            // the stored record, so the outer write never overwrites it.
+            let known = ValidatorStates::<T>::mutate(validator, |maybe_state| {
                 if let Some(state) = maybe_state.as_mut() {
                     state.current.stake_score = new_stake_score;
-                    let _ = Self::update_final_score(validator);
+                    true
+                } else {
+                    false
                 }
-                Ok::<(), Error<T>>(())
-            })?;
+            });
+            if known {
+                let _ = Self::update_final_score(validator);
+            }
             Ok(())
         }
 
