@@ -1,6 +1,10 @@
 // Library interface for cerulea-node
 // This allows tests and the binary to access internal modules
 
+// The coverage build checks the runtime call type one level deeper than
+// the default limit admits.
+#![recursion_limit = "256"]
+
 pub mod benchmarking;
 pub mod block_tracker;
 pub mod chain_spec;
