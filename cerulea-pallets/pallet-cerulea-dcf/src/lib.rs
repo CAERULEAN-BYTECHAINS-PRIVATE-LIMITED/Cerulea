@@ -7766,7 +7766,14 @@ pub mod pallet {
             let components = crate::engines::standing::Components {
                 standing: Self::standing_share(validator),
                 performance: Self::performance_share(validator),
-                custody: sp_runtime::Perbill::from_parts(Self::custody_share(validator)),
+                // The Custody Engine reports its share in parts per million and
+                // the score reads parts per billion, so the share scales by a
+                // thousand on the way in.
+                custody: sp_runtime::Perbill::from_parts(
+                    Self::custody_share(validator)
+                        .min(1_000_000)
+                        .saturating_mul(1_000),
+                ),
                 sampling: Self::sampling_share(validator),
                 role: RoleShares::<T>::get(validator).unwrap_or_default(),
                 attestation: AttestationShares::<T>::get(validator).unwrap_or_default(),
