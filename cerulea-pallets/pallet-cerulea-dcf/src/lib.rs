@@ -1595,6 +1595,8 @@ pub mod pallet {
         Approved,
         Rejected,
         Executed,
+        /// The proposal was approved and its action failed when it ran.
+        Failed,
     }
 
     /// History of recent epochs for analytics and tracking.
@@ -6548,41 +6550,48 @@ pub mod pallet {
                     Error::<T>::ProposalNotApproved
                 );
 
-                // Execute action with proper implementation
-                match &prop.action {
+                // Run the action and keep its outcome. A failed action leaves
+                // the proposal marked as failed, so the record never claims an
+                // execution that did not happen.
+                let outcome: DispatchResult = match &prop.action {
                     ProposalAction::Slash { validator, amount } => {
-                        // Implement actual slashing logic
-                        let _ = pos::Pallet::<T>::execute_slash_validator(validator, *amount);
+                        pos::Pallet::<T>::execute_slash_validator(validator, *amount)
                     }
                     ProposalAction::Reward { validator, amount } => {
-                        // Implement actual reward logic
-                        let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                        pos::Pallet::<T>::execute_reward_validator(validator, *amount)
                     }
                     ProposalAction::RewardMultiple { validators, amount } => {
-                        // Reward multiple validators with the same amount
+                        // Every validator receives the amount. The first failure
+                        // stands as the outcome, and the rest still run.
+                        let mut first_failure: DispatchResult = Ok(());
                         for validator in validators.iter() {
-                            let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                            let paid = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                            if first_failure.is_ok() {
+                                first_failure = paid;
+                            }
                         }
                         log::info!(
                             "Rewarded {} validators with amount {:?} each",
                             validators.len(),
                             amount
                         );
+                        first_failure
                     }
                     ProposalAction::Eject { validator, reason } => {
-                        // Implement actual ejection logic
-                        let _ = Self::execute_eject_validator(validator, reason.clone());
+                        Self::execute_eject_validator(validator, reason.clone())
                     }
                     ProposalAction::AddValidator { validator } => {
-                        // Add validator to the validator set
-                        let _ = Self::execute_add_validator(validator);
+                        Self::execute_add_validator(validator)
                     }
                     ProposalAction::RemoveValidator { validator } => {
-                        // Remove validator from the validator set
-                        let _ = Self::execute_remove_validator(validator);
+                        Self::execute_remove_validator(validator)
                     }
-                }
-                prop.status = ProposalStatus::Executed;
+                };
+                prop.status = if outcome.is_ok() {
+                    ProposalStatus::Executed
+                } else {
+                    ProposalStatus::Failed
+                };
                 Self::deposit_event(Event::ProposalExecuted {
                     proposal_id,
                     status: prop.status.clone(),
@@ -12885,9 +12894,11 @@ pub mod pallet {
                 Error::<T>::ValidatorAlreadyExists
             );
 
-            // Check that we haven't exceeded the maximum validators limit
+            // A seat stays free while the set holds fewer validators than the
+            // bound the runtime declares. The allocated capacity of the vector
+            // says nothing about that bound.
             ensure!(
-                validator_set.len() < validator_set.capacity(),
+                validator_set.len() < MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
 
@@ -13009,7 +13020,7 @@ pub mod pallet {
             for (who, action) in actions {
                 match action {
                     ValidatorAction::Join => {
-                        if !active.contains(&who) {
+                        if !active.contains(&who) && !ValidatorLeaveRequests::<T>::contains_key(&who) {
                             join_requests.push(who.clone());
                         }
                     }
@@ -13023,9 +13034,13 @@ pub mod pallet {
             }
 
             // Process leave requests first
+            let left_at = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             for who in leave_requests {
                 if let Some(pos) = active.iter().position(|v| v == &who) {
                     active.remove(pos);
+                    // The leave starts the cooldown, so the automatic addition
+                    // of high scorers passes over this validator until it ends.
+                    RecentlyRemovedValidators::<T>::insert(&who, left_at);
                     actual_removed.push(who.clone());
                     changed = true;
                     log::debug!("DCF: Validator {:?} left the active set", who);
@@ -13045,7 +13060,9 @@ pub mod pallet {
                     score_b.cmp(&score_a) // Descending order
                 });
 
-                let available_slots = active.capacity() - active.len();
+                // The free seats are the bound less the seated validators.
+                let available_slots =
+                    (MaxValidatorsOf::<T>::get() as usize).saturating_sub(active.len());
                 let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
 
                 for who in join_requests.iter().take(available_slots) {
@@ -13381,16 +13398,19 @@ pub mod pallet {
             all_validators_with_scores: &[(T::AccountId, u64)],
             max_validators: usize,
         ) {
-            let available_slots = max_validators - active_validators.len();
+            let available_slots = max_validators.saturating_sub(active_validators.len());
             let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
 
             // Find inactive validators with high scores
             let mut candidates = Vec::new();
             for (validator, score) in all_validators_with_scores {
+                // A validator that asked to leave stays out of the automatic
+                // addition, so its own request decides its seat.
                 if !active_validators.contains(validator)
                     && *score >= min_score_threshold
                     && !Self::has_pending_join_request(validator)
                     && !Self::was_recently_ejected(validator)
+                    && !ValidatorLeaveRequests::<T>::contains_key(validator)
                 {
                     candidates.push((validator.clone(), *score));
                     if candidates.len() >= available_slots {
@@ -13839,24 +13859,27 @@ pub mod pallet {
                         if let Some(prop) = maybe_prop {
                             prop.status = ProposalStatus::Approved;
 
-                            // Execute the proposal immediately
-                            match &prop.action {
+                            // Execute the proposal immediately and keep the outcome,
+                            // so a failed action leaves the proposal marked failed.
+                            let outcome: DispatchResult = match &prop.action {
                                 ProposalAction::AddValidator { validator } => {
-                                    let _ = Self::execute_add_validator(validator);
+                                    Self::execute_add_validator(validator)
                                 }
                                 ProposalAction::RemoveValidator { validator } => {
-                                    let _ = Self::execute_remove_validator(validator);
+                                    Self::execute_remove_validator(validator)
                                 }
                                 ProposalAction::Eject { validator, reason } => {
-                                    let _ =
-                                        Self::execute_eject_validator(validator, reason.clone());
+                                    Self::execute_eject_validator(validator, reason.clone())
                                 }
-                                _ => {
-                                    // Other proposals require manual approval
-                                }
-                            }
+                                // Other proposals require manual approval.
+                                _ => Ok(()),
+                            };
 
-                            prop.status = ProposalStatus::Executed;
+                            prop.status = if outcome.is_ok() {
+                                ProposalStatus::Executed
+                            } else {
+                                ProposalStatus::Failed
+                            };
                             processed_count += 1;
                         }
                         Ok::<(), Error<T>>(())
