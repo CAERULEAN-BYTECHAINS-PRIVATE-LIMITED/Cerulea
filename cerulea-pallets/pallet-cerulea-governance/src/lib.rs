@@ -28,6 +28,8 @@ pub mod roll;
 pub mod weights;
 
 #[cfg(test)]
+mod flow_tests;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
