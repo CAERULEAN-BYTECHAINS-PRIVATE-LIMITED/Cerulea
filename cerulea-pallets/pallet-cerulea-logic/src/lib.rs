@@ -184,6 +184,14 @@ pub mod pallet {
     pub type Installed<T: Config> =
         StorageMap<_, Blake2_128Concat, DeploymentId, Blueprint, OptionQuery>;
 
+    /// The account that installed every deployment.
+    ///
+    /// The account administers the deployment from the first block. The tier
+    /// module binds the first control plane key to this account.
+    #[pallet::storage]
+    pub type InstalledBy<T: Config> =
+        StorageMap<_, Blake2_128Concat, DeploymentId, T::AccountId, OptionQuery>;
+
     /// The block every deployment installed at.
     #[pallet::storage]
     pub type InstalledAt<T: Config> =
@@ -403,6 +411,7 @@ pub mod pallet {
             let actions = u32::try_from(parsed.actions.len()).unwrap_or(u32::MAX);
             Installed::<T>::insert(deployment, parsed);
             InstalledAt::<T>::insert(deployment, frame_system::Pallet::<T>::block_number());
+            InstalledBy::<T>::insert(deployment, &installer);
             Self::deposit_event(Event::BlueprintInstalled {
                 deployment,
                 collections,

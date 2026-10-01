@@ -59,10 +59,30 @@ impl pallet_cerulea_audit::Config for Test {
     type MaxReadBatch = ConstU32<256>;
 }
 
+/// The deployment stewards the tests read.
+///
+/// Account one installed every deployment. The accounts named here
+/// administer it.
+pub struct TestStewards;
+
+impl pallet_cerulea_schema::stewards::DeploymentStewards<u64> for TestStewards {
+    fn installer(_deployment: &pallet_cerulea_schema::primitives::DeploymentId) -> Option<u64> {
+        Some(1)
+    }
+
+    fn is_steward(
+        _deployment: &pallet_cerulea_schema::primitives::DeploymentId,
+        who: &u64,
+    ) -> bool {
+        *who == 1
+    }
+}
+
 impl pallet_cerulea_tier::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type Audit = Audit;
+    type Stewards = TestStewards;
     type Time = TestClock;
     type MaxFeatures = ConstU32<32>;
     type MaxAddons = ConstU32<16>;

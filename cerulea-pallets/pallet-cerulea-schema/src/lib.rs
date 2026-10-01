@@ -29,6 +29,7 @@ pub mod access;
 pub mod migrate;
 pub mod primitives;
 pub mod registry;
+pub mod stewards;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]

@@ -263,6 +263,13 @@ pub mod pallet {
         /// The log the module records its work in.
         type Audit: AuditSink<AccountId = Self::AccountId>;
 
+        /// The accounts that administer each deployment.
+        ///
+        /// The first control plane key binds to the account that installed
+        /// the deployment. Suspension and resumption come from an account
+        /// that administers the deployment.
+        type Stewards: pallet_cerulea_schema::stewards::DeploymentStewards<Self::AccountId>;
+
         /// The clock every expiry reads.
         type Time: UnixTime;
 
@@ -452,6 +459,16 @@ pub mod pallet {
         /// The deployment already holds a control plane key. Install a new
         /// licence rather than a second key.
         ControlPlaneKeyPresent,
+        /// The account did not install the deployment. Submit the first
+        /// control plane key from the account that installed the Blueprint.
+        NotInstaller,
+        /// The account administers no part of the deployment. Submit the
+        /// call from the installing account, an appointed operator or the
+        /// control plane key.
+        NotSteward,
+        /// The rotation carries no signature from the current control plane
+        /// key. Sign the new key with the current key.
+        RotationUnsigned,
         /// The attestation failed to decode. Submit the canonical encoding
         /// the control plane produces.
         AttestationUnreadable,
@@ -506,6 +523,10 @@ pub mod pallet {
         ///
         /// Every licence attestation of this deployment is checked against
         /// this key.
+        ///
+        /// The first key comes from the account that installed the
+        /// deployment. A chain specification places the key of a genesis
+        /// deployment. A later key arrives through a rotation.
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::set_control_plane_key())]
         pub fn set_control_plane_key(
@@ -517,6 +538,10 @@ pub mod pallet {
             ensure!(
                 ControlPlaneKey::<T>::get(deployment).is_none(),
                 Error::<T>::ControlPlaneKeyPresent
+            );
+            ensure!(
+                Self::installer_of(&deployment).as_ref() == Some(&who),
+                Error::<T>::NotInstaller
             );
             ControlPlaneKey::<T>::insert(deployment, key);
             Watched::<T>::try_mutate(|held| -> DispatchResult {
@@ -682,6 +707,7 @@ pub mod pallet {
             reason: Sentence,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             Self::stop_production(&deployment, &who, &reason, LicenceState::Suspended)
         }
 
@@ -690,9 +716,63 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::resume())]
         pub fn resume(origin: OriginFor<T>, deployment: DeploymentId) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
             Self::start_production(&deployment, &who)
         }
+
+        /// Replace the control plane key with a key the current key signed.
+        ///
+        /// The holder of the current key signs the new key under the rotation
+        /// separator. Any account submits the signed rotation. The Amendment
+        /// Engine replaces the key through the root origin with no signature.
+        #[pallet::call_index(7)]
+        #[pallet::weight(T::WeightInfo::set_control_plane_key())]
+        pub fn rotate_control_plane_key(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            key: [u8; 32],
+            signature: Option<[u8; 64]>,
+        ) -> DispatchResult {
+            let caller = ensure_signed_or_root(origin)?;
+            let current =
+                ControlPlaneKey::<T>::get(deployment).ok_or(Error::<T>::ControlPlaneKeyMissing)?;
+            if caller.is_some() {
+                let signature = signature.ok_or(Error::<T>::RotationUnsigned)?;
+                let public = sp_core::ed25519::Public::from_raw(current);
+                let held = sp_core::ed25519::Signature::from_raw(signature);
+                ensure!(
+                    sp_io::crypto::ed25519_verify(
+                        &held,
+                        &rotation_message(&deployment, &key),
+                        &public
+                    ),
+                    Error::<T>::SignatureInvalid
+                );
+            }
+            ControlPlaneKey::<T>::insert(deployment, key);
+            let actor = caller.or_else(|| Self::installer_of(&deployment));
+            if let Some(actor) = actor {
+                Self::record(
+                    &deployment,
+                    "control_plane_key_rotated",
+                    WorkClass::Constitutional,
+                    &actor,
+                    "The deployment replaced the public key of its control plane.",
+                    key.to_vec(),
+                )?;
+            }
+            Self::deposit_event(Event::ControlPlaneKeySet { deployment });
+            Ok(())
+        }
     }
+}
+
+/// The separator mixed into every control plane key rotation.
+pub const ROTATION_DOMAIN: &[u8] = b"cerulea.tier.rotation.v1";
+
+/// The bytes the current control plane key signs to rotate to a new key.
+pub fn rotation_message(deployment: &DeploymentId, key: &[u8; 32]) -> Vec<u8> {
+    (ROTATION_DOMAIN, deployment, key).encode()
 }
 
 impl<T: Config> Pallet<T> {
@@ -715,6 +795,22 @@ impl<T: Config> Pallet<T> {
                 .classed(class)
                 .carrying(payload),
         )
+    }
+
+    /// The account that installed one deployment.
+    pub(crate) fn installer_of(deployment: &DeploymentId) -> Option<T::AccountId> {
+        <T::Stewards as pallet_cerulea_schema::stewards::DeploymentStewards<T::AccountId>>::installer(
+            deployment,
+        )
+    }
+
+    /// Check that one account administers the deployment.
+    pub(crate) fn ensure_steward(deployment: &DeploymentId, who: &T::AccountId) -> DispatchResult {
+        ensure!(
+            <T::Stewards as pallet_cerulea_schema::stewards::DeploymentStewards<T::AccountId>>::is_steward(deployment, who),
+            Error::<T>::NotSteward
+        );
+        Ok(())
     }
 
     /// Check one signature against the control plane key of a deployment.

@@ -752,10 +752,43 @@ impl pallet_cerulea_bridge::Config for Runtime {
 // A lapsed licence stops block production through the production gate the
 // authoring engine consults. Every existing record stays readable and
 // exportable throughout.
+/// The accounts that administer each deployment.
+///
+/// The account that installed the Blueprint administers the deployment. So
+/// does an active Cerulea operator of the deployment, and so does the account
+/// whose public key is the control plane key of the deployment.
+pub struct RuntimeStewards;
+
+impl pallet_cerulea_schema::stewards::DeploymentStewards<AccountId> for RuntimeStewards {
+    fn installer(
+        deployment: &pallet_cerulea_schema::primitives::DeploymentId,
+    ) -> Option<AccountId> {
+        pallet_cerulea_logic::InstalledBy::<Runtime>::get(deployment)
+            .or_else(|| pallet_cerulea_schema::Stewards::<Runtime>::get(deployment))
+    }
+
+    fn is_steward(
+        deployment: &pallet_cerulea_schema::primitives::DeploymentId,
+        who: &AccountId,
+    ) -> bool {
+        if Self::installer(deployment).as_ref() == Some(who) {
+            return true;
+        }
+        if <crate::Operator as pallet_cerulea_operator::OperatorRole>::is_operator(deployment, who)
+        {
+            return true;
+        }
+        pallet_cerulea_tier::ControlPlaneKey::<Runtime>::get(deployment)
+            .map(|key| <AccountId as AsRef<[u8; 32]>>::as_ref(who) == &key)
+            .unwrap_or(false)
+    }
+}
+
 impl pallet_cerulea_tier::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_cerulea_tier::weights::CeruleaWeight<Runtime>;
     type Audit = crate::Audit;
+    type Stewards = RuntimeStewards;
     type Time = crate::Timestamp;
     type MaxFeatures = ConstU32<256>;
     type MaxAddons = ConstU32<64>;

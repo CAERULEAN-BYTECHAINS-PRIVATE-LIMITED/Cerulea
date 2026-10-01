@@ -1202,6 +1202,7 @@ fn user_signing_pair() -> ed25519::Pair {
 /// the tenant holds a quota.
 fn relayer_deployment(deployment: DeploymentId) {
     type Relayer = pallet_cerulea_relayer::Pallet<Runtime>;
+    claim_deployment(deployment);
     let _ = pallet_cerulea_identity::Pallet::<Runtime>::register_account(
         RuntimeOrigin::signed(actor()),
         actor(),
@@ -1559,8 +1560,17 @@ fn tier_licence(
     }
 }
 
+/// Record the test actor as the account that installed one deployment.
+///
+/// A Blueprint install records the installer. The tests below reach the
+/// tier and relayer modules alone, so they record the installer directly.
+fn claim_deployment(deployment: DeploymentId) {
+    pallet_cerulea_logic::InstalledBy::<Runtime>::insert(deployment, actor());
+}
+
 /// Install the control plane key of one deployment.
 fn tier_deployment(deployment: DeploymentId) {
+    claim_deployment(deployment);
     assert_ok!(
         pallet_cerulea_tier::Pallet::<Runtime>::set_control_plane_key(
             RuntimeOrigin::signed(actor()),
