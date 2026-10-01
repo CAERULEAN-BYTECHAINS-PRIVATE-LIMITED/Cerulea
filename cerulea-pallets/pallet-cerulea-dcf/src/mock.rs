@@ -1001,10 +1001,7 @@ pub fn mock_complete_exit(who: u64) -> DispatchResult {
 /// The amount the deployment takes travels the separate root call, so this
 /// helper carries the offence alone.
 pub fn mock_slash_validator(validator: &u64, _amount: u128) -> DispatchResult {
-    pallet_cerulea_pos::Pallet::<Test>::slash_validator_call(
-        RuntimeOrigin::signed(*validator),
-        *validator,
-    )
+    pallet_cerulea_pos::Pallet::<Test>::slash_validator_call(RuntimeOrigin::root(), *validator)
 }
 
 // Build genesis storage according to the mock runtime.

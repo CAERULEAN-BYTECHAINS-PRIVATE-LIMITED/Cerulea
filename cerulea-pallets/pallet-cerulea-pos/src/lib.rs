@@ -9,6 +9,9 @@ pub use weights::*;
 mod mock;
 
 #[cfg(test)]
+mod stake_tests;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -504,7 +507,10 @@ pub mod pallet {
             origin: OriginFor<T>,
             validator: T::AccountId,
         ) -> DispatchResult {
-            let _who = ensure_signed(origin)?;
+            // An offence count removes a validator at its ceiling, so the
+            // root origin alone records one. Any signed account recording
+            // offences would remove validators at will.
+            ensure_root(origin)?;
             ensure!(
                 Validators::<T>::contains_key(&validator),
                 Error::<T>::ValidatorNotRegistered
@@ -727,7 +733,10 @@ pub mod pallet {
                 Error::<T>::InsufficientStake
             );
 
-            let unreserved = T::Currency::unreserve(&who, decrease_amount);
+            // The currency answers with the part it could not release. The
+            // amount released is therefore the request less that remainder.
+            let not_released = T::Currency::unreserve(&who, decrease_amount);
+            let unreserved = decrease_amount.saturating_sub(not_released);
 
             Stake::<T>::mutate(&who, |current_stake| {
                 *current_stake = current_stake.saturating_sub(unreserved);
@@ -772,6 +781,16 @@ pub mod pallet {
             let current_stake = Stake::<T>::get(&validator);
             let slash_amount =
                 current_stake.saturating_mul(percentage.saturated_into()) / 100u32.saturated_into();
+            // A zero amount asks the slash routine for its default share of
+            // the free balance. A zero percentage or a zero stake takes
+            // nothing, so the call checks membership and ends here.
+            if slash_amount == BalanceOf::<T>::default() {
+                ensure!(
+                    Validators::<T>::contains_key(&validator),
+                    Error::<T>::ValidatorNotInSet
+                );
+                return Ok(());
+            }
             Self::execute_slash_validator(&validator, slash_amount)
         }
 
@@ -1062,6 +1081,7 @@ pub mod pallet {
                 BalanceOf::<T>::default()
             };
 
+            let mut distributed = BalanceOf::<T>::default();
             for (validator, score) in &validator_scores {
                 let mut total_reward = base_reward_per_validator;
 
@@ -1073,14 +1093,20 @@ pub mod pallet {
                     total_reward = total_reward.saturating_add(top_performer_reward_per_validator);
                 }
 
+                // A zero amount asks the reward routine for its default
+                // reward. A validator whose share rounds to zero receives
+                // nothing instead.
+                if total_reward == BalanceOf::<T>::default() {
+                    continue;
+                }
+
                 Self::execute_reward_validator(validator, total_reward)?;
+                distributed = distributed.saturating_add(total_reward);
             }
 
             Self::deposit_event(Event::EpochRewardsDistributed {
                 epoch: CurrentEpoch::<T>::get(),
-                total_distributed: base_reward_pool
-                    + performance_reward_pool
-                    + top_performer_reward_pool,
+                total_distributed: distributed,
             });
 
             Ok(())

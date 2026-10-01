@@ -1,598 +1,593 @@
-#[cfg(test)]
-mod tests {
-    use crate::mock::*;
-    use crate::Error;
-    use frame_support::{assert_noop, assert_ok, traits::Get};
+use crate::mock::*;
+use crate::Error;
+use frame_support::{assert_noop, assert_ok, traits::Get};
 
-    #[test]
-    fn test_register_validator_success() {
-        new_test_ext().execute_with(|| {
-            // Test successful validator registration
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
+#[test]
+fn test_register_validator_success() {
+    new_test_ext().execute_with(|| {
+        // Test successful validator registration
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-            // Verify the validator was registered
-            assert_eq!(PalletCeruleaPos::validators(1), Some(true));
-        });
-    }
+        // Verify the validator was registered
+        assert_eq!(PalletCeruleaPos::validators(1), Some(true));
+    });
+}
 
-    #[test]
-    fn test_register_validator_already_registered() {
-        new_test_ext().execute_with(|| {
-            // Register validator first time
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
+#[test]
+fn test_register_validator_already_registered() {
+    new_test_ext().execute_with(|| {
+        // Register validator first time
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-            // Try to register same validator again
-            assert_noop!(
-                PalletCeruleaPos::register_validator(RuntimeOrigin::signed(1)),
-                Error::<Test>::ValidatorAlreadyRegistered
-            );
-        });
-    }
+        // Try to register same validator again
+        assert_noop!(
+            PalletCeruleaPos::register_validator(RuntimeOrigin::signed(1)),
+            Error::<Test>::ValidatorAlreadyRegistered
+        );
+    });
+}
 
-    #[test]
-    fn test_submit_score_success() {
-        new_test_ext().execute_with(|| {
-            // Register validator first
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
+#[test]
+fn test_submit_score_success() {
+    new_test_ext().execute_with(|| {
+        // Register validator first
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-            // Submit score
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                1,
-                75 // score above minimum threshold
-            ));
+        // Submit score
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            1,
+            75 // score above minimum threshold
+        ));
 
-            // Verify the score was stored
-            assert_eq!(PalletCeruleaPos::validator_scores(1), Some(75));
-        });
-    }
+        // Verify the score was stored
+        assert_eq!(PalletCeruleaPos::validator_scores(1), Some(75));
+    });
+}
 
-    #[test]
-    fn test_submit_score_not_registered() {
-        new_test_ext().execute_with(|| {
-            // Try to submit score for non-registered validator
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 75),
-                Error::<Test>::ValidatorNotRegistered
-            );
-        });
-    }
+#[test]
+fn test_submit_score_not_registered() {
+    new_test_ext().execute_with(|| {
+        // Try to submit score for non-registered validator
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 75),
+            Error::<Test>::ValidatorNotRegistered
+        );
+    });
+}
 
-    #[test]
-    fn test_submit_score_too_low() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
+#[test]
+fn test_submit_score_too_low() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-            // Try to submit score below minimum - should fail
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 20),
-                Error::<Test>::ScoreTooLow
-            );
-        });
-    }
+        // Try to submit score below minimum - should fail
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 20),
+            Error::<Test>::ScoreTooLow
+        );
+    });
+}
 
-    #[test]
-    fn test_slash_validator_success() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
+#[test]
+fn test_slash_validator_success() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-            // Slash validator
+        // Slash validator
+        assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+
+        // Verify slashing count
+        assert_eq!(PalletCeruleaPos::slashing_count(1), Some(1));
+    });
+}
+
+#[test]
+fn test_slash_validator_removal() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Slash validator multiple times to reach max count
+        for _ in 0..3 {
             assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+        }
 
-            // Verify slashing count
-            assert_eq!(PalletCeruleaPos::slashing_count(1), Some(1));
-        });
-    }
+        // Verify validator was removed
+        assert_eq!(PalletCeruleaPos::validators(1), None);
+        assert_eq!(PalletCeruleaPos::validator_scores(1), None);
+        assert_eq!(PalletCeruleaPos::slashing_count(1), None);
+    });
+}
 
-    #[test]
-    fn test_slash_validator_removal() {
-        new_test_ext().execute_with(|| {
-            // Register validator
+#[test]
+fn test_slash_validator_not_registered() {
+    new_test_ext().execute_with(|| {
+        // Try to slash non-registered validator
+        assert_noop!(
+            PalletCeruleaPos::slash_validator_stake(&1, 100),
+            Error::<Test>::ValidatorNotRegistered
+        );
+    });
+}
+
+#[test]
+fn test_unauthorized_register() {
+    new_test_ext().execute_with(|| {
+        // Try to register with root origin - should fail
+        assert_noop!(
+            PalletCeruleaPos::register_validator(RuntimeOrigin::root()),
+            sp_runtime::DispatchError::BadOrigin
+        );
+    });
+}
+
+#[test]
+fn test_unauthorized_submit_score() {
+    new_test_ext().execute_with(|| {
+        // Try to submit score with root origin - should fail
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::root(), 1, 75),
+            sp_runtime::DispatchError::BadOrigin
+        );
+    });
+}
+
+#[test]
+fn test_unauthorized_slash() {
+    new_test_ext().execute_with(|| {
+        // Register validator first
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Try to slash - should work as it's an internal function
+        assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+    });
+}
+
+#[test]
+fn test_submit_score_no_registration() {
+    new_test_ext().execute_with(|| {
+        // This should fail because validator is not registered
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 75),
+            Error::<Test>::ValidatorNotRegistered
+        );
+    });
+}
+
+#[test]
+fn test_boost_score_functionality() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Set initial score
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            1,
+            50
+        ));
+
+        // Boost score
+        assert_ok!(PalletCeruleaPos::boost_score(
+            RuntimeOrigin::signed(2),
+            1,
+            10
+        ));
+
+        // Verify score was boosted
+        let new_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
+        assert!(new_score >= 50);
+    });
+}
+
+#[test]
+fn test_slash_score_functionality() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Set initial score
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            1,
+            100
+        ));
+
+        // Slash score
+        assert_ok!(PalletCeruleaPos::slash_score(
+            RuntimeOrigin::signed(2),
+            1,
+            10
+        ));
+
+        // Verify score was slashed
+        let new_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
+        assert!(new_score <= 100);
+    });
+}
+
+#[test]
+fn test_validator_score_decay() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Set initial score
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            1,
+            100
+        ));
+
+        // Apply score decay
+        let decay_amount = <Test as crate::Config>::ValidatorScoreDecay::get();
+        let initial_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
+
+        // Simulate decay (this would normally happen in on_initialize)
+        let expected_score = initial_score.saturating_sub(decay_amount);
+
+        // Verify decay calculation
+        assert!(expected_score <= initial_score);
+    });
+}
+
+#[test]
+fn test_multiple_validators_registration() {
+    new_test_ext().execute_with(|| {
+        // Register multiple validators
+        for i in 1..=5 {
             assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
+                i
             )));
+            assert!(PalletCeruleaPos::validators(i).is_some());
+        }
 
-            // Slash validator multiple times to reach max count
-            for _ in 0..3 {
-                assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
-            }
+        // Verify all are registered
+        for i in 1..=5 {
+            assert_eq!(PalletCeruleaPos::validators(i), Some(true));
+        }
+    });
+}
 
-            // Verify validator was removed
-            assert_eq!(PalletCeruleaPos::validators(1), None);
-            assert_eq!(PalletCeruleaPos::validator_scores(1), None);
-            assert_eq!(PalletCeruleaPos::slashing_count(1), None);
-        });
-    }
+#[test]
+fn test_validator_score_boundaries() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
 
-    #[test]
-    fn test_slash_validator_not_registered() {
-        new_test_ext().execute_with(|| {
-            // Try to slash non-registered validator
-            assert_noop!(
-                PalletCeruleaPos::slash_validator_stake(&1, 100),
-                Error::<Test>::ValidatorNotRegistered
+        // Test minimum score
+        let min_score: u32 = <Test as crate::Config>::MinValidatorScore::get();
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            1,
+            min_score
+        ));
+        assert_eq!(PalletCeruleaPos::validator_scores(1), Some(min_score));
+
+        // Test score below minimum (should fail)
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, min_score - 1),
+            Error::<Test>::ScoreTooLow
+        );
+    });
+}
+
+#[test]
+fn test_slashing_count_tracking() {
+    new_test_ext().execute_with(|| {
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+
+        // Slash validator and check count
+        assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+        assert_eq!(PalletCeruleaPos::slashing_count(1), Some(1));
+
+        // Slash again
+        assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+        assert_eq!(PalletCeruleaPos::slashing_count(1), Some(2));
+
+        // One more slash should remove validator
+        assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
+        assert_eq!(PalletCeruleaPos::validators(1), None);
+        assert_eq!(PalletCeruleaPos::slashing_count(1), None);
+    });
+}
+
+// ================================================================================================
+// Additional Unit Tests for Comprehensive Coverage
+// ================================================================================================
+
+#[test]
+fn test_bond_stake_functionality() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+        let _bond_amount = 1000u64;
+
+        // Register validator first
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+
+        // Test stake bonding (if function exists)
+        // Note: This test assumes bond_stake function exists
+        // If not, this test can be removed or modified
+    });
+}
+
+/// The Admission Engine owns the active validator set.
+///
+/// The stake pallet holds the registration record and the stake. Entry to
+/// the active set belongs to the Admission Engine. This test registers
+/// three validators, admits each one through the engine, and reads the
+/// active set back through the stake pallet. A registration that the
+/// engine never admitted stays outside the active set.
+#[test]
+fn active_validators_come_from_the_admission_engine() {
+    new_test_ext().execute_with(|| {
+        for i in 1..=3u64 {
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                i
+            )));
+        }
+
+        // Registration alone leaves the active set empty.
+        assert!(PalletCeruleaPos::get_active_validators().is_empty());
+
+        let stake: u64 = <Test as crate::Config>::MinStake::get();
+        for i in 1..=3u64 {
+            assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(&i, stake));
+        }
+
+        let active_validators = PalletCeruleaPos::get_active_validators();
+        assert!(active_validators.contains(&1u64));
+        assert!(active_validators.contains(&2u64));
+        assert!(active_validators.contains(&3u64));
+
+        // An exit through the engine takes the validator out again.
+        assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&2u64));
+        let after_exit = PalletCeruleaPos::get_active_validators();
+        assert!(after_exit.contains(&1u64));
+        assert!(!after_exit.contains(&2u64));
+        assert!(after_exit.contains(&3u64));
+
+        // The registration record survives the exit.
+        assert_eq!(PalletCeruleaPos::validators(2), Some(true));
+    });
+}
+
+#[test]
+fn test_validator_activation_deactivation() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+
+        // Test deactivation
+        assert_ok!(PalletCeruleaPos::deactivate_validator(&validator));
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(false));
+
+        // Test reactivation
+        assert_ok!(PalletCeruleaPos::activate_validator(&validator));
+        assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
+    });
+}
+
+#[test]
+fn test_reward_validator_functionality() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+        let reward_amount = 500u64;
+
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+
+        // Test validator reward
+        assert_ok!(PalletCeruleaPos::reward_validator(
+            &validator,
+            reward_amount
+        ));
+
+        // Verify reward was applied (implementation-specific verification)
+    });
+}
+
+#[test]
+fn test_score_overflow_handling() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+
+        // Set score near maximum
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            validator,
+            u32::MAX - 10
+        ));
+
+        // Test score boosting with potential overflow
+        assert_ok!(PalletCeruleaPos::boost_score(
+            RuntimeOrigin::signed(2),
+            validator,
+            20
+        ));
+
+        // The boost saturates at the largest score rather than wrapping.
+        let final_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
+        assert_eq!(final_score, u32::MAX);
+    });
+}
+
+#[test]
+fn test_score_underflow_handling() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+
+        // Register validator
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+
+        // Set low score
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            validator,
+            50
+        ));
+
+        // Test score slashing with potential underflow
+        assert_ok!(PalletCeruleaPos::slash_score(
+            RuntimeOrigin::signed(2),
+            validator,
+            100
+        ));
+
+        // Verify score is floored at zero
+        let final_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
+        assert_eq!(final_score, 0);
+    });
+}
+
+#[test]
+fn test_maximum_validators_constraint() {
+    new_test_ext().execute_with(|| {
+        let max_validators = <Test as crate::Config>::MaxValidators::get();
+
+        // Register validators up to maximum
+        for i in 1..=max_validators {
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                i as u64
+            )));
+        }
+
+        // Try to register one more (should fail)
+        assert_noop!(
+            PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                (max_validators + 1) as u64
+            )),
+            Error::<Test>::TooManyValidators
+        );
+    });
+}
+
+/// The Admission Engine reaches the minimum active validator count.
+///
+/// The stake pallet carries the minimum the deployment asks for. The
+/// Admission Engine admits each validator. The active set meets the
+/// minimum once the engine admitted that many validators.
+#[test]
+fn the_admission_engine_reaches_the_minimum_active_count() {
+    new_test_ext().execute_with(|| {
+        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        let stake: u64 = <Test as crate::Config>::MinStake::get();
+
+        for i in 1..=min_active {
+            let who = i as u64;
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                who
+            )));
+            assert_ok!(
+                <TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(&who, stake)
             );
-        });
-    }
-
-    #[test]
-    fn test_unauthorized_register() {
-        new_test_ext().execute_with(|| {
-            // Try to register with root origin - should fail
-            assert_noop!(
-                PalletCeruleaPos::register_validator(RuntimeOrigin::root()),
-                sp_runtime::DispatchError::BadOrigin
-            );
-        });
-    }
-
-    #[test]
-    fn test_unauthorized_submit_score() {
-        new_test_ext().execute_with(|| {
-            // Try to submit score with root origin - should fail
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::root(), 1, 75),
-                sp_runtime::DispatchError::BadOrigin
-            );
-        });
-    }
-
-    #[test]
-    fn test_unauthorized_slash() {
-        new_test_ext().execute_with(|| {
-            // Register validator first
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Try to slash - should work as it's an internal function
-            assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
-        });
-    }
-
-    #[test]
-    fn test_submit_score_no_registration() {
-        new_test_ext().execute_with(|| {
-            // This should fail because validator is not registered
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, 75),
-                Error::<Test>::ValidatorNotRegistered
-            );
-        });
-    }
-
-    #[test]
-    fn test_boost_score_functionality() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Set initial score
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                1,
-                50
-            ));
-
-            // Boost score
-            assert_ok!(PalletCeruleaPos::boost_score(
-                RuntimeOrigin::signed(2),
-                1,
-                10
-            ));
-
-            // Verify score was boosted
-            let new_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
-            assert!(new_score >= 50);
-        });
-    }
-
-    #[test]
-    fn test_slash_score_functionality() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Set initial score
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                1,
-                100
-            ));
-
-            // Slash score
-            assert_ok!(PalletCeruleaPos::slash_score(
-                RuntimeOrigin::signed(2),
-                1,
-                10
-            ));
-
-            // Verify score was slashed
-            let new_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
-            assert!(new_score <= 100);
-        });
-    }
-
-    #[test]
-    fn test_validator_score_decay() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Set initial score
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                1,
-                100
-            ));
-
-            // Apply score decay
-            let decay_amount = <Test as crate::Config>::ValidatorScoreDecay::get();
-            let initial_score = PalletCeruleaPos::validator_scores(1).unwrap_or(0);
-
-            // Simulate decay (this would normally happen in on_initialize)
-            let expected_score = initial_score.saturating_sub(decay_amount);
-
-            // Verify decay calculation
-            assert!(expected_score <= initial_score);
-        });
-    }
-
-    #[test]
-    fn test_multiple_validators_registration() {
-        new_test_ext().execute_with(|| {
-            // Register multiple validators
-            for i in 1..=5 {
-                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                    i
-                )));
-                assert!(PalletCeruleaPos::validators(i).is_some());
-            }
-
-            // Verify all are registered
-            for i in 1..=5 {
-                assert_eq!(PalletCeruleaPos::validators(i), Some(true));
-            }
-        });
-    }
-
-    #[test]
-    fn test_validator_score_boundaries() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Test minimum score
-            let min_score: u32 = <Test as crate::Config>::MinValidatorScore::get();
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                1,
-                min_score
-            ));
-            assert_eq!(PalletCeruleaPos::validator_scores(1), Some(min_score));
-
-            // Test score below minimum (should fail)
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, min_score - 1),
-                Error::<Test>::ScoreTooLow
-            );
-        });
-    }
-
-    #[test]
-    fn test_slashing_count_tracking() {
-        new_test_ext().execute_with(|| {
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-
-            // Slash validator and check count
-            assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
-            assert_eq!(PalletCeruleaPos::slashing_count(1), Some(1));
-
-            // Slash again
-            assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
-            assert_eq!(PalletCeruleaPos::slashing_count(1), Some(2));
-
-            // One more slash should remove validator
-            assert_ok!(PalletCeruleaPos::slash_validator_stake(&1, 100));
-            assert_eq!(PalletCeruleaPos::validators(1), None);
-            assert_eq!(PalletCeruleaPos::slashing_count(1), None);
-        });
-    }
-
-    // ================================================================================================
-    // Additional Unit Tests for Comprehensive Coverage
-    // ================================================================================================
-
-    #[test]
-    fn test_bond_stake_functionality() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-            let _bond_amount = 1000u64;
-
-            // Register validator first
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-
-            // Test stake bonding (if function exists)
-            // Note: This test assumes bond_stake function exists
-            // If not, this test can be removed or modified
-        });
-    }
-
-    /// The Admission Engine owns the active validator set.
-    ///
-    /// The stake pallet holds the registration record and the stake. Entry to
-    /// the active set belongs to the Admission Engine. This test registers
-    /// three validators, admits each one through the engine, and reads the
-    /// active set back through the stake pallet. A registration that the
-    /// engine never admitted stays outside the active set.
-    #[test]
-    fn active_validators_come_from_the_admission_engine() {
-        new_test_ext().execute_with(|| {
-            for i in 1..=3u64 {
-                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                    i
-                )));
-            }
-
-            // Registration alone leaves the active set empty.
-            assert!(PalletCeruleaPos::get_active_validators().is_empty());
-
-            let stake: u64 = <Test as crate::Config>::MinStake::get();
-            for i in 1..=3u64 {
-                assert_ok!(
-                    <TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(&i, stake)
-                );
-            }
-
-            let active_validators = PalletCeruleaPos::get_active_validators();
-            assert!(active_validators.contains(&1u64));
-            assert!(active_validators.contains(&2u64));
-            assert!(active_validators.contains(&3u64));
-
-            // An exit through the engine takes the validator out again.
-            assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&2u64));
-            let after_exit = PalletCeruleaPos::get_active_validators();
-            assert!(after_exit.contains(&1u64));
-            assert!(!after_exit.contains(&2u64));
-            assert!(after_exit.contains(&3u64));
-
-            // The registration record survives the exit.
-            assert_eq!(PalletCeruleaPos::validators(2), Some(true));
-        });
-    }
-
-    #[test]
-    fn test_validator_activation_deactivation() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-
-            // Test deactivation
-            assert_ok!(PalletCeruleaPos::deactivate_validator(&validator));
-            assert_eq!(PalletCeruleaPos::validators(validator), Some(false));
-
-            // Test reactivation
-            assert_ok!(PalletCeruleaPos::activate_validator(&validator));
-            assert_eq!(PalletCeruleaPos::validators(validator), Some(true));
-        });
-    }
-
-    #[test]
-    fn test_reward_validator_functionality() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-            let reward_amount = 500u64;
-
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-
-            // Test validator reward
-            assert_ok!(PalletCeruleaPos::reward_validator(
-                &validator,
-                reward_amount
-            ));
-
-            // Verify reward was applied (implementation-specific verification)
-        });
-    }
-
-    #[test]
-    fn test_score_overflow_handling() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-
-            // Set score near maximum
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                validator,
-                u32::MAX - 10
-            ));
-
-            // Test score boosting with potential overflow
-            assert_ok!(PalletCeruleaPos::boost_score(
-                RuntimeOrigin::signed(2),
-                validator,
-                20
-            ));
-
-            // Verify score is capped at maximum
-            let final_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
-            assert!(final_score <= u32::MAX);
-        });
-    }
-
-    #[test]
-    fn test_score_underflow_handling() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-
-            // Register validator
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-
-            // Set low score
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                validator,
-                50
-            ));
-
-            // Test score slashing with potential underflow
-            assert_ok!(PalletCeruleaPos::slash_score(
-                RuntimeOrigin::signed(2),
-                validator,
-                100
-            ));
-
-            // Verify score is floored at zero
-            let final_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
-            assert_eq!(final_score, 0);
-        });
-    }
-
-    #[test]
-    fn test_maximum_validators_constraint() {
-        new_test_ext().execute_with(|| {
-            let max_validators = <Test as crate::Config>::MaxValidators::get();
-
-            // Register validators up to maximum
-            for i in 1..=max_validators {
-                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                    i as u64
-                )));
-            }
-
-            // Try to register one more (should fail)
-            assert_noop!(
-                PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                    (max_validators + 1) as u64
-                )),
-                Error::<Test>::TooManyValidators
-            );
-        });
-    }
-
-    /// The Admission Engine reaches the minimum active validator count.
-    ///
-    /// The stake pallet carries the minimum the deployment asks for. The
-    /// Admission Engine admits each validator. The active set meets the
-    /// minimum once the engine admitted that many validators.
-    #[test]
-    fn the_admission_engine_reaches_the_minimum_active_count() {
-        new_test_ext().execute_with(|| {
-            let min_active = <Test as crate::Config>::MinActiveValidators::get();
-            let stake: u64 = <Test as crate::Config>::MinStake::get();
-
-            for i in 1..=min_active {
-                let who = i as u64;
-                assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                    who
-                )));
-                assert_ok!(
-                    <TestAdmission as crate::ValidatorHandler<u64, u64>>::on_joined(&who, stake)
-                );
-            }
-
-            let active_validators = PalletCeruleaPos::get_active_validators();
-            assert!(active_validators.len() >= min_active as usize);
-
-            // One exit takes the set below the minimum, which the deployment
-            // reads as a signal to admit a replacement.
-            assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&1u64));
-            assert!(PalletCeruleaPos::get_active_validators().len() < min_active as usize);
-        });
-    }
-
-    #[test]
-    fn test_validator_score_decay_integration() {
-        new_test_ext().execute_with(|| {
-            let validator = 1u64;
-            let initial_score = 1000u32;
-            let decay_amount = <Test as crate::Config>::ValidatorScoreDecay::get();
-
-            // Register validator and set score
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                validator
-            )));
-            assert_ok!(PalletCeruleaPos::submit_score(
-                RuntimeOrigin::signed(2),
-                validator,
-                initial_score
-            ));
-
-            // Simulate epoch transition with decay
-            let current_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
-            let expected_score = current_score.saturating_sub(decay_amount);
-
-            // Verify decay calculation
-            assert!(expected_score <= current_score);
-            assert_eq!(expected_score, initial_score.saturating_sub(decay_amount));
-        });
-    }
-
-    #[test]
-    fn test_comprehensive_error_handling() {
-        new_test_ext().execute_with(|| {
-            // Test all error variants can be triggered
-
-            // ValidatorNotRegistered
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 999u64, 100),
-                Error::<Test>::ValidatorNotRegistered
-            );
-
-            // ValidatorAlreadyRegistered
-            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
-                1
-            )));
-            assert_noop!(
-                PalletCeruleaPos::register_validator(RuntimeOrigin::signed(1)),
-                Error::<Test>::ValidatorAlreadyRegistered
-            );
-
-            // ScoreTooLow
-            let min_score: u32 = <Test as crate::Config>::MinValidatorScore::get();
-            assert_noop!(
-                PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, min_score - 1),
-                Error::<Test>::ScoreTooLow
-            );
-        });
-    }
+        }
+
+        let active_validators = PalletCeruleaPos::get_active_validators();
+        assert!(active_validators.len() >= min_active as usize);
+
+        // One exit takes the set below the minimum, which the deployment
+        // reads as a signal to admit a replacement.
+        assert_ok!(<TestAdmission as crate::ValidatorHandler<u64, u64>>::on_left(&1u64));
+        assert!(PalletCeruleaPos::get_active_validators().len() < min_active as usize);
+    });
+}
+
+#[test]
+fn test_validator_score_decay_integration() {
+    new_test_ext().execute_with(|| {
+        let validator = 1u64;
+        let initial_score = 1000u32;
+        let decay_amount = <Test as crate::Config>::ValidatorScoreDecay::get();
+
+        // Register validator and set score
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            validator
+        )));
+        assert_ok!(PalletCeruleaPos::submit_score(
+            RuntimeOrigin::signed(2),
+            validator,
+            initial_score
+        ));
+
+        // Simulate epoch transition with decay
+        let current_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
+        let expected_score = current_score.saturating_sub(decay_amount);
+
+        // Verify decay calculation
+        assert!(expected_score <= current_score);
+        assert_eq!(expected_score, initial_score.saturating_sub(decay_amount));
+    });
+}
+
+#[test]
+fn test_comprehensive_error_handling() {
+    new_test_ext().execute_with(|| {
+        // Test all error variants can be triggered
+
+        // ValidatorNotRegistered
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 999u64, 100),
+            Error::<Test>::ValidatorNotRegistered
+        );
+
+        // ValidatorAlreadyRegistered
+        assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+            1
+        )));
+        assert_noop!(
+            PalletCeruleaPos::register_validator(RuntimeOrigin::signed(1)),
+            Error::<Test>::ValidatorAlreadyRegistered
+        );
+
+        // ScoreTooLow
+        let min_score: u32 = <Test as crate::Config>::MinValidatorScore::get();
+        assert_noop!(
+            PalletCeruleaPos::submit_score(RuntimeOrigin::signed(2), 1, min_score - 1),
+            Error::<Test>::ScoreTooLow
+        );
+    });
 }
