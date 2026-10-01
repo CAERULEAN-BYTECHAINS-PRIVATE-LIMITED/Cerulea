@@ -195,10 +195,14 @@ impl<T: Config> Pallet<T> {
             return Ok(());
         }
 
-        // Remove from active set immediately
+        // Remove from the validator set and from the active set at once, so
+        // the account stops authoring the moment it leaves the allowlist.
         ValidatorSet::<T>::mutate(|validators| {
             validators.retain(|v| v != validator);
         });
+        let mut active = ActiveValidators::<T>::get();
+        active.retain(|v| v != validator);
+        ActiveValidators::<T>::put(active);
 
         // Unreserve stake
         let reserved = T::Currency::reserved_balance(validator);
