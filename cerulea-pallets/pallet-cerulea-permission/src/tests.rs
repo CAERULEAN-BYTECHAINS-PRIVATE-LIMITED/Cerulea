@@ -19,24 +19,24 @@ use pallet_cerulea_schema::{
     primitives::{name_of, BoundedName, DeploymentId},
 };
 
-const DEPLOYMENT: DeploymentId = [3u8; 32];
-const STEWARD: u64 = 1;
-const ANITHA: u64 = 2;
-const BENNY: u64 = 3;
+pub(crate) const DEPLOYMENT: DeploymentId = [3u8; 32];
+pub(crate) const STEWARD: u64 = 1;
+pub(crate) const ANITHA: u64 = 2;
+pub(crate) const BENNY: u64 = 3;
 
-fn name(text: &str) -> BoundedName {
+pub(crate) fn name(text: &str) -> BoundedName {
     name_of(text).expect("the name fits")
 }
 
-fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
+pub(crate) fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
     BoundedVec::try_from(bytes).expect("the payload sits inside the bound")
 }
 
-fn text(value: &str) -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
+pub(crate) fn text(value: &str) -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
     BoundedVec::try_from(value.as_bytes().to_vec()).expect("the text fits")
 }
 
-fn parcel_type() -> TypeDef {
+pub(crate) fn parcel_type() -> TypeDef {
     TypeDef::Record(RecordDef {
         id: TypeId::new("parcel"),
         fields: vec![
@@ -52,7 +52,7 @@ fn parcel_type() -> TypeDef {
     })
 }
 
-fn parcel_collection() -> Collection {
+pub(crate) fn parcel_collection() -> Collection {
     let mut collection = Collection::new(
         "parcel",
         "parcel",
@@ -66,7 +66,7 @@ fn parcel_collection() -> Collection {
     collection
 }
 
-fn parcel(survey: &str, holder: &str, ward: &str) -> Value {
+pub(crate) fn parcel(survey: &str, holder: &str, ward: &str) -> Value {
     let mut value = Value::record(
         TypeId::new("parcel"),
         vec![
@@ -82,7 +82,7 @@ fn parcel(survey: &str, holder: &str, ward: &str) -> Value {
     value
 }
 
-fn install() {
+pub(crate) fn install() {
     assert_ok!(Schema::register_type(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -128,7 +128,7 @@ fn install() {
     ));
 }
 
-fn grant(role: &str, capability: CapabilityKey, payload: GrantPayload) {
+pub(crate) fn grant(role: &str, capability: CapabilityKey, payload: GrantPayload) {
     assert_ok!(Permission::grant(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -139,7 +139,7 @@ fn grant(role: &str, capability: CapabilityKey, payload: GrantPayload) {
     ));
 }
 
-fn request(actor: &u64, action: AccessAction) -> AccessRequest<'_, u64> {
+pub(crate) fn request(actor: &u64, action: AccessAction) -> AccessRequest<'_, u64> {
     AccessRequest::new(
         DEPLOYMENT,
         actor,
@@ -336,7 +336,7 @@ fn a_held_out_field_is_refused_and_the_rest_are_admitted() {
     });
 }
 
-fn ward_predicate(ward: &str) -> Expr {
+pub(crate) fn ward_predicate(ward: &str) -> Expr {
     Expr::binary(
         BinaryOp::Equal,
         Expr::field(Expr::bound("record"), "ward"),

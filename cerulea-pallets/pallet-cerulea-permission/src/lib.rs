@@ -36,6 +36,8 @@ pub mod simulate;
 pub mod weights;
 
 #[cfg(test)]
+mod matrix_tests;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
@@ -259,11 +261,14 @@ impl RoleSimulation {
             if first {
                 held.push(' ');
             } else {
-                held.push_str(", ");
+                held.push_str(", and ");
             }
-            held.push_str("and ");
             held.push_str(&alloc::string::ToString::to_string(&self.actions.len()));
-            held.push_str(" actions");
+            if self.actions.len() == 1 {
+                held.push_str(" action");
+            } else {
+                held.push_str(" actions");
+            }
         }
         held.push('.');
         held
