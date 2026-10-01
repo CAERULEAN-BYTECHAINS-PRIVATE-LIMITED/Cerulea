@@ -6439,6 +6439,12 @@ pub mod pallet {
             approve: bool,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            // The quorum counts the active validators, so a vote from outside
+            // that set counts toward nothing and the pallet refuses it.
+            ensure!(
+                ActiveValidators::<T>::get().contains(&who),
+                Error::<T>::NotValidator
+            );
 
             // Check rate limits before proceeding
             let weight = <T as Config>::WeightInfo::vote_proposal();
