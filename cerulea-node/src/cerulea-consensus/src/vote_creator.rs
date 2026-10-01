@@ -651,3 +651,545 @@ mod seal_key_tests {
         assert!(registry_seal_key(&[seal], &registry).is_none());
     }
 }
+
+#[cfg(test)]
+mod service_tests {
+    //! The vote creator, run against the test chain.
+    //!
+    //! The node holds one seal key in a memory keystore. The registry names
+    //! that key and the key of one peer validator. The checkpoint interval is
+    //! ten blocks. The service writes its ledger to a temporary folder and
+    //! multicasts on a gossip engine with no peers, which keeps every message.
+
+    use super::*;
+    use crate::test_support::{
+        capture_logs, gossip_holds, peerless_gossip, AccountId, Block, TestChain, Voter,
+    };
+    use pallet_cerulea_dvf::keys::ValidatorKeySet;
+    use sc_network_gossip::GossipEngine;
+    use sp_core::{Pair as _, H256};
+    use sp_keystore::testing::MemoryKeystore;
+    use std::time::Duration;
+
+    type Pool = DvfVotePool<H256, AccountId>;
+    type Service = VoteCreatorService<Block, TestChain, AccountId>;
+
+    /// A block off the canonical chain, at the first checkpoint.
+    const OFF_CHAIN: [u8; 32] = [0x42; 32];
+
+    struct Scene {
+        chain: Arc<TestChain>,
+        pool: Arc<Pool>,
+        gossip: Arc<Mutex<GossipEngine<Block>>>,
+        keystore: KeystorePtr,
+        seal: ed25519::Public,
+        me: AccountId,
+        peer: Voter,
+        folder: tempfile::TempDir,
+    }
+
+    impl Scene {
+        fn on(chain: Arc<TestChain>) -> Scene {
+            let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
+            let seal = keystore
+                .ed25519_generate_new(crate::CERULEA_KEY_TYPE, Some("//Cerulea//voter"))
+                .expect("the keystore makes the seal key");
+            let me = AccountId::from(seal.0);
+            let peer = Voter::from_seed(2);
+            let answers = &chain.answers;
+            answers.set(
+                "CeruleaAuthoringApi_active_validator_keys",
+                (),
+                vec![
+                    (me.clone(), ValidatorKeySet::new([9u8; 32], seal.0)),
+                    (
+                        peer.account.clone(),
+                        ValidatorKeySet::new([8u8; 32], peer.public().0),
+                    ),
+                ],
+            );
+            answers.set("DvfApi_get_current_round", (), 0u32);
+            answers.set("DvfApi_get_finality_checkpoint_interval", (), 10u32);
+            answers.set("DvfApi_get_current_epoch", (), 1u32);
+            answers.set("DvfApi_get_validator_set_id", (), 1u32);
+            answers.set(
+                "DvfApi_get_validator_weights",
+                (),
+                vec![(me.clone(), 100u128)],
+            );
+            Scene {
+                chain,
+                pool: Pool::new(),
+                gossip: peerless_gossip(),
+                keystore,
+                seal,
+                me,
+                peer,
+                folder: tempfile::tempdir().expect("the folder opens"),
+            }
+        }
+
+        fn store(&self) -> LedgerStore {
+            LedgerStore::under(self.folder.path())
+        }
+
+        fn ledger(&self) -> VoteLedger {
+            self.store().load().expect("the ledger reads")
+        }
+
+        fn service(&self) -> Service {
+            Service::new(
+                self.chain.clone(),
+                self.keystore.clone(),
+                self.gossip.clone(),
+                self.pool.clone(),
+                self.me.clone(),
+                self.store(),
+            )
+        }
+
+        fn round(&self, round: u32) {
+            self.chain
+                .answers
+                .set("DvfApi_get_current_round", (), round);
+        }
+
+        /// The peer validator joins with three times the weight of this node.
+        fn add_heavy_peer(&self) {
+            self.chain.answers.set(
+                "DvfApi_get_validator_weights",
+                (),
+                vec![
+                    (self.me.clone(), 100u128),
+                    (self.peer.account.clone(), 300u128),
+                ],
+            );
+        }
+
+        fn recorded(&self, vote: CastVote) {
+            self.store()
+                .record_before_signing(vote)
+                .expect("the ledger takes the vote");
+        }
+
+        fn sent(&self, message: CommitMessage<H256, AccountId>) -> bool {
+            gossip_holds(&self.gossip, &message.encode())
+        }
+    }
+
+    fn cast(round: u32, height: u32, hash: [u8; 32]) -> CastVote {
+        CastVote {
+            round,
+            height,
+            hash,
+        }
+    }
+
+    #[test]
+    fn the_commit_target_is_the_lowest_checkpoint_above_the_committed_head() {
+        assert_eq!(commit_target(0, 10), 10);
+        assert_eq!(commit_target(9, 10), 10);
+        assert_eq!(commit_target(10, 10), 20);
+        assert_eq!(commit_target(19, 10), 20);
+        // An interval of zero leaves the committed head as the target.
+        assert_eq!(commit_target(7, 0), 7);
+        assert_eq!(LOCK_WAIT, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn the_vote_payload_joins_the_fields_in_order() {
+        let voter = Voter::from_seed(4);
+        let vote = voter.vote(3, 2, 9, 40, H256::repeat_byte(1));
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&3u32.encode());
+        expected.extend_from_slice(&2u32.encode());
+        expected.extend_from_slice(&9u32.encode());
+        expected.extend_from_slice(&40u32.encode());
+        expected.extend_from_slice(&[1u8; 32]);
+        expected.extend_from_slice(&voter.account.encode());
+        assert_eq!(vote_payload(&vote), expected);
+        assert!(ed25519::Pair::verify(
+            &vote.signature,
+            &expected,
+            &voter.public()
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_validator_votes_for_the_lowest_open_checkpoint() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let service = scene.service();
+        let logs = capture_logs();
+
+        service.process_block(10).await.expect("the pass completes");
+
+        let target = scene.chain.hash_at(10);
+        assert_eq!(scene.ledger().vote_in_round(0), Some(cast(0, 10, target.0)));
+        let vote = scene
+            .pool
+            .vote_of(0, &scene.me)
+            .expect("the pool holds the vote");
+        assert_eq!(vote.block_hash, target);
+        assert_eq!(vote.block_number, 10);
+        assert_eq!((vote.epoch_id, vote.validator_set_id), (1, 1));
+        assert_eq!(vote.validator_public_key, scene.seal);
+        assert!(ed25519::Pair::verify(
+            &vote.signature,
+            vote_payload(&vote),
+            &scene.seal
+        ));
+        assert!(scene.sent(CommitMessage::Vote(vote)));
+        assert!(logs.has("voting for #10"));
+    }
+
+    #[tokio::test]
+    async fn a_node_the_registry_leaves_out_signs_nothing() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        scene.chain.answers.set(
+            "CeruleaAuthoringApi_active_validator_keys",
+            (),
+            vec![(
+                scene.peer.account.clone(),
+                ValidatorKeySet::new([8u8; 32], scene.peer.public().0),
+            )],
+        );
+        let logs = capture_logs();
+
+        scene.service().process_block(10).await.unwrap();
+
+        assert!(scene.ledger().is_empty());
+        assert_eq!(scene.pool.total_votes(), 0);
+        assert!(logs.has("Node is not an active validator, skipping"));
+    }
+
+    #[tokio::test]
+    async fn an_interval_of_zero_signs_nothing() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_finality_checkpoint_interval", (), 0u32);
+
+        scene.service().process_block(10).await.unwrap();
+
+        assert!(scene.ledger().is_empty());
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_checkpoint_above_the_best_block_waits() {
+        let scene = Scene::on(TestChain::with_blocks(8));
+
+        scene.service().process_block(8).await.unwrap();
+
+        assert!(scene.ledger().is_empty());
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_vote_already_cast_goes_out_again_only_at_a_checkpoint() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let service = scene.service();
+        let logs = capture_logs();
+
+        service.process_block(10).await.unwrap();
+        let first = scene.pool.vote_of(0, &scene.me).expect("the first vote");
+        service.process_block(11).await.unwrap();
+        assert_eq!(logs.count("voting for #10"), 1);
+        service.process_block(20).await.unwrap();
+        assert_eq!(logs.count("voting for #10"), 2);
+
+        // The repeat carries the same vote, byte for byte.
+        assert_eq!(scene.ledger().len(), 1);
+        assert_eq!(scene.pool.vote_of(0, &scene.me), Some(first));
+        assert_eq!(scene.pool.total_votes(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_locked_node_waits_for_the_statements_of_its_lock_round() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let target = scene.chain.hash_at(10);
+        scene.recorded(cast(0, 10, target.0));
+        scene.add_heavy_peer();
+        scene.round(2);
+        let service = scene.service();
+        let logs = capture_logs();
+
+        service.process_block(10).await.unwrap();
+
+        // Round one closed with no vote from this node. The node recorded the
+        // abstention and stated its lock.
+        let ledger = scene.ledger();
+        assert!(ledger.abstained_in(1));
+        assert_eq!(ledger.vote_in_round(2), None);
+        let statements = scene.pool.timeouts_for(1, 10);
+        assert_eq!(statements.len(), 1);
+        assert_eq!(statements[0].validator_account_id, scene.me);
+        assert_eq!(statements[0].voted, Some(target));
+        assert!(ed25519::Pair::verify(
+            &statements[0].signature,
+            statements[0].payload(),
+            &scene.seal
+        ));
+        assert!(scene.sent(CommitMessage::RoundTimeout(statements[0].clone())));
+        assert!(logs.has("waiting for the statements of round 0 before voting in round 2"));
+
+        // The peer states the same lock. No unheard weight can now form a
+        // certificate, so the node votes at once.
+        assert!(scene
+            .pool
+            .offer_timeout(scene.peer.timeout(1, 1, 0, 10, Some(target))));
+        service.process_block(11).await.unwrap();
+
+        assert_eq!(scene.ledger().vote_in_round(2), Some(cast(2, 10, target.0)));
+        assert_eq!(
+            scene.pool.vote_of(2, &scene.me).map(|vote| vote.block_hash),
+            Some(target)
+        );
+    }
+
+    #[tokio::test]
+    async fn statements_go_out_again_only_at_a_checkpoint() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        scene.recorded(cast(0, 10, scene.chain.hash_at(10).0));
+        scene.add_heavy_peer();
+        scene.round(2);
+        let service = scene.service();
+        let logs = capture_logs();
+        let line = "round 1 closed with no commitment at #10, statement sent";
+
+        service.process_block(10).await.unwrap();
+        assert_eq!(logs.count(line), 1);
+        service.process_block(11).await.unwrap();
+        assert_eq!(logs.count(line), 1);
+        service.process_block(20).await.unwrap();
+        assert_eq!(logs.count(line), 2);
+    }
+
+    #[tokio::test]
+    async fn a_lock_off_the_best_chain_holds_without_a_certificate() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        scene.recorded(cast(0, 10, OFF_CHAIN));
+        scene.round(1);
+        let logs = capture_logs();
+
+        scene.service().process_block(10).await.unwrap();
+
+        assert_eq!(
+            scene.ledger().vote_in_round(1),
+            Some(cast(1, 10, OFF_CHAIN))
+        );
+        assert_eq!(
+            scene.pool.vote_of(1, &scene.me).map(|vote| vote.block_hash),
+            Some(H256::from(OFF_CHAIN))
+        );
+        // The statement for round zero names the lock.
+        let statements = scene.pool.timeouts_for(0, 10);
+        assert_eq!(statements.len(), 1);
+        assert_eq!(statements[0].voted, Some(H256::from(OFF_CHAIN)));
+        assert!(logs.has("the lock at #10 holds in round 1, voting for the locked block again"));
+    }
+
+    #[tokio::test]
+    async fn a_round_change_certificate_moves_the_lock_to_the_leading_block() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let canonical = scene.chain.hash_at(10);
+        scene.recorded(cast(0, 10, OFF_CHAIN));
+        scene.add_heavy_peer();
+        assert!(scene
+            .pool
+            .offer_timeout(scene.peer.timeout(1, 1, 0, 10, Some(canonical))));
+        scene.round(1);
+        let logs = capture_logs();
+
+        scene.service().process_block(10).await.unwrap();
+
+        let ledger = scene.ledger();
+        assert_eq!(ledger.vote_in_round(1), Some(cast(1, 10, canonical.0)));
+        assert_eq!(ledger.lock_at(10), Some(cast(1, 10, canonical.0)));
+        assert!(logs.has("a round change certificate for round 0 released the lock at #10"));
+    }
+
+    #[tokio::test]
+    async fn a_round_stated_as_silent_takes_no_vote() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let mut ledger = VoteLedger::new();
+        ledger.abstain(1).unwrap();
+        scene.store().save(&ledger).unwrap();
+        scene.round(1);
+        let logs = capture_logs();
+
+        scene.service().process_block(10).await.unwrap();
+
+        let ledger = scene.ledger();
+        assert_eq!(ledger.vote_in_round(1), None);
+        assert!(ledger.abstained_in(0));
+        let statements = scene.pool.timeouts_for(0, 10);
+        assert_eq!(statements.len(), 1);
+        assert_eq!(statements[0].voted, None);
+        assert!(logs.has("this node stated it cast no vote in round 1"));
+        assert!(scene.pool.vote_of(1, &scene.me).is_none());
+    }
+
+    #[tokio::test]
+    async fn a_pool_holding_another_vote_of_this_node_stops_the_broadcast() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let mut earlier = DvfVoteMessage {
+            epoch_id: 1,
+            validator_set_id: 1,
+            round_number: 0,
+            block_number: 10,
+            block_hash: H256::from(OFF_CHAIN),
+            validator_account_id: scene.me.clone(),
+            validator_public_key: scene.seal,
+            signature: ed25519::Signature::from_raw([0u8; 64]),
+        };
+        earlier.signature = scene
+            .keystore
+            .ed25519_sign(
+                crate::CERULEA_KEY_TYPE,
+                &scene.seal,
+                &vote_payload(&earlier),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(scene.pool.insert_vote(earlier));
+        let logs = capture_logs();
+
+        scene.service().process_block(10).await.unwrap();
+
+        // The ledger took the vote before the signature existed.
+        assert_eq!(
+            scene.ledger().vote_in_round(0),
+            Some(cast(0, 10, scene.chain.hash_at(10).0))
+        );
+        let evidence = scene.pool.take_evidence();
+        assert_eq!(evidence.len(), 1);
+        assert!(!scene.sent(CommitMessage::Vote(evidence[0].1.clone())));
+        assert!(logs
+            .has("the pool holds a different vote of this node in round 0. Nothing is broadcast."));
+    }
+
+    #[tokio::test]
+    async fn a_committed_height_leaves_the_ledger() {
+        let scene = Scene::on(TestChain::build(10, 12));
+        scene.recorded(cast(0, 10, scene.chain.hash_at(10).0));
+        scene.round(1);
+
+        scene.service().process_block(12).await.unwrap();
+
+        let ledger = scene.ledger();
+        assert!(ledger.is_empty());
+        assert!(ledger.below_floor(0));
+        // The statement for round zero names the next open checkpoint.
+        let statements = scene.pool.timeouts_for(0, 20);
+        assert_eq!(statements.len(), 1);
+        assert_eq!(statements[0].voted, None);
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[tokio::test]
+    async fn every_missing_chain_fact_names_its_query() {
+        let cases = [
+            (
+                "CeruleaAuthoringApi_active_validator_keys",
+                "Failed to read the validator key records: ",
+            ),
+            ("DvfApi_get_current_round", "Failed to get current round: "),
+            (
+                "DvfApi_get_finality_checkpoint_interval",
+                "Failed to get FinalityCheckpointInterval: ",
+            ),
+            ("DvfApi_get_current_epoch", "Failed to get current epoch: "),
+            (
+                "DvfApi_get_validator_set_id",
+                "Failed to get validator set ID: ",
+            ),
+            (
+                "DvfApi_get_validator_weights",
+                "Failed to get validator weights: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let scene = Scene::on(TestChain::with_blocks(12));
+            scene.chain.answers.forget(call);
+            let reason = scene
+                .service()
+                .process_block(10)
+                .await
+                .expect_err("the pass stops at the missing answer");
+            assert!(reason.starts_with(opening), "{call}: {reason}");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_ledger_stops_the_pass_and_names_the_fix() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        std::fs::write(scene.store().path(), [0xffu8, 0xff, 0xff]).unwrap();
+
+        let reason = scene
+            .service()
+            .process_block(10)
+            .await
+            .expect_err("the ledger fails to read");
+
+        assert!(
+            reason.starts_with("The vote ledger failed to read or write ("),
+            "{reason}"
+        );
+        assert!(reason.ends_with("Fix: check that the node base path is writable."));
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[tokio::test]
+    async fn the_running_service_votes_on_each_import() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        let service = scene.service().with_metrics(Arc::new(
+            DvfMetrics::new(&prometheus::Registry::new()).expect("the metrics register"),
+        ));
+        assert!(service.metrics.is_some());
+        let logs = capture_logs();
+        let chain = scene.chain.clone();
+        let driver = async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            chain.announce_import(10);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            chain.close_imports();
+        };
+
+        tokio::join!(service.run(), driver);
+
+        assert!(scene.pool.vote_of(0, &scene.me).is_some());
+        assert!(logs.has("Import notification stream ended"));
+    }
+
+    #[tokio::test]
+    async fn the_running_service_reports_a_failed_pass() {
+        let scene = Scene::on(TestChain::with_blocks(12));
+        scene.chain.answers.forget("DvfApi_get_current_round");
+        let service = scene.service();
+        let logs = capture_logs();
+        let chain = scene.chain.clone();
+        let driver = async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            chain.announce_import(10);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            chain.close_imports();
+        };
+
+        tokio::join!(service.run(), driver);
+
+        assert!(logs.has("Failed to process block #10"));
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[test]
+    fn the_round_clock_restarts_with_each_new_round() {
+        let scene = Scene::on(TestChain::with_blocks(2));
+        let service = scene.service();
+        assert_eq!(service.round_age(4).unwrap(), Duration::ZERO);
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(service.round_age(4).unwrap() >= Duration::from_millis(5));
+        assert_eq!(service.round_age(5).unwrap(), Duration::ZERO);
+    }
+}

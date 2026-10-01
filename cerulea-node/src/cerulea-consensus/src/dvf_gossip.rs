@@ -1459,6 +1459,83 @@ mod tests {
         assert!(!signer_matches(&[9u8; 32], &pair.public()));
     }
 
+    /// Pruning, size limits and the pool counters.
+    #[test]
+    fn the_pool_bounds_its_memory() {
+        let pool = Pool::new();
+        for round in 0..5u32 {
+            pool.offer_vote(vote(1, round, 10, round as u8 + 1));
+        }
+        pool.offer_timeout(timeout(2, 1, 10, None));
+        assert_eq!(pool.size(), 5);
+        assert_eq!(pool.total_votes(), 5);
+        assert_eq!(pool.get_candidate_blocks(3), vec![H256::repeat_byte(4)]);
+        assert!(pool.get_candidate_blocks(9).is_empty());
+
+        // The two oldest rounds leave first.
+        assert_eq!(pool.enforce_max_size(3), 2);
+        assert!(pool.get_votes(0, &H256::repeat_byte(1)).is_empty());
+        assert!(pool.get_votes(1, &H256::repeat_byte(2)).is_empty());
+        assert_eq!(pool.enforce_max_size(3), 0);
+
+        pool.prune_older_rounds(4);
+        assert_eq!(pool.size(), 1);
+        assert!(pool.timeouts_for(1, 10).is_empty());
+        assert!(pool.vote_of(3, &[1u8; 32]).is_none());
+        assert!(pool.vote_of(4, &[1u8; 32]).is_some());
+
+        pool.clear();
+        assert_eq!(pool.size(), 0);
+        assert!(pool.vote_of(4, &[1u8; 32]).is_none());
+    }
+
+    /// Evidence beyond the held ceiling is dropped, and the pair counts once.
+    #[test]
+    fn the_evidence_store_holds_inside_its_ceiling() {
+        let pool = Pool::new();
+        for signer in 0..=MAX_HELD_EVIDENCE as u32 {
+            let mut first = vote(1, 7, 70, 1);
+            first.validator_account_id = signer.to_le_bytes().repeat(8).try_into().unwrap();
+            let mut second = first.clone();
+            second.block_hash = H256::repeat_byte(2);
+            pool.offer_vote(first);
+            assert_eq!(pool.offer_vote(second), VoteOffer::Conflicting);
+        }
+        assert_eq!(pool.take_evidence().len(), MAX_HELD_EVIDENCE);
+    }
+
+    /// An equivocator states nothing in the round it equivocated in.
+    #[test]
+    fn an_equivocator_states_no_timeout_in_that_round() {
+        let pool = Pool::new();
+        pool.offer_vote(vote(1, 5, 50, 7));
+        pool.offer_vote(vote(1, 5, 50, 8));
+        assert!(!pool.offer_timeout(timeout(1, 5, 50, Some(7))));
+        // A statement at another height in the same round stands apart from
+        // the vote, as long as the signer did not equivocate.
+        pool.offer_vote(vote(2, 6, 60, 7));
+        assert!(pool.offer_timeout(timeout(2, 6, 70, None)));
+    }
+
+    /// A message the size bounds refuse never reaches the decoder.
+    #[test]
+    fn the_vote_message_bound_runs_before_decoding() {
+        assert!(admit_vote_message(&[0u8; 256]).is_ok());
+        let refusal = admit_vote_message(&[0u8; 257]).expect_err("the vote bound refuses it");
+        assert!(refusal.to_string().contains("Fix:"), "{}", refusal);
+        assert!(admit_vote_message(&vec![0u8; 9 * 1024]).is_err());
+    }
+
+    /// A short hash fills its tail with zeros.
+    #[test]
+    fn a_hash_reads_as_thirty_two_bytes() {
+        assert_eq!(hash_bytes(&H256::repeat_byte(5)), [5u8; 32]);
+        let mut expected = [0u8; 32];
+        expected[..4].copy_from_slice(&7u32.to_le_bytes());
+        assert_eq!(hash_bytes(&7u32), expected);
+        assert_eq!(DVF_PROTOCOL_NAME, "/cerulea/commit/2");
+    }
+
     /// A timeout signature never passes for a vote signature.
     #[test]
     fn the_timeout_payload_differs_from_the_vote_payload() {
@@ -1471,5 +1548,394 @@ mod tests {
         H256::repeat_byte(7).encode_to(&mut vote_payload);
         statement.validator_account_id.encode_to(&mut vote_payload);
         assert_ne!(statement.payload(), vote_payload);
+    }
+}
+
+#[cfg(test)]
+mod validator_tests {
+    //! The gossip validator, run against the test chain.
+    //!
+    //! The chain commits block two and holds block twelve as its best block.
+    //! The runtime runs epoch five with validator set three. Two of three
+    //! validators sit in the active set.
+
+    use super::*;
+    use crate::test_support::{capture_logs, AccountId, Block, RecordingContext, TestChain, Voter};
+    use sc_network_gossip::Validator as _;
+    use sp_core::{Pair as _, H256};
+
+    type Pool = DvfVotePool<H256, AccountId>;
+    type GossipCheck = DvfGossipValidator<Block, TestChain, AccountId>;
+
+    struct Scene {
+        chain: Arc<TestChain>,
+        pool: Arc<Pool>,
+        metrics: Arc<DvfMetrics>,
+        validator: GossipCheck,
+        active: [Voter; 2],
+        outsider: Voter,
+    }
+
+    fn scene_on(chain: Arc<TestChain>) -> Scene {
+        let active = [Voter::from_seed(1), Voter::from_seed(2)];
+        let outsider = Voter::from_seed(3);
+        chain.answers.set(
+            "DcfApi_get_active_validators",
+            (),
+            vec![active[0].account.clone(), active[1].account.clone()],
+        );
+        chain.answers.set("DvfApi_get_current_epoch", (), 5u32);
+        chain.answers.set("DvfApi_get_validator_set_id", (), 3u32);
+        chain
+            .answers
+            .set("DvfApi_get_validator_set_id_changed_at", (), Some(12u32));
+        let registry = prometheus::Registry::new();
+        let metrics = Arc::new(DvfMetrics::new(&registry).expect("the metrics register"));
+        let pool = Pool::new();
+        let validator = GossipCheck::new(pool.clone(), chain.clone()).with_metrics(metrics.clone());
+        Scene {
+            chain,
+            pool,
+            metrics,
+            validator,
+            active,
+            outsider,
+        }
+    }
+
+    fn scene() -> Scene {
+        scene_on(TestChain::build(2, 12))
+    }
+
+    fn offer(scene: &Scene, data: &[u8]) -> ValidationResult<H256> {
+        let mut context = RecordingContext::default();
+        let verdict = scene
+            .validator
+            .validate(&mut context, &PeerId::random(), data);
+        assert!(
+            context.requests.is_empty(),
+            "the validator sends nothing itself"
+        );
+        verdict
+    }
+
+    fn encoded_vote(vote: DvfVoteMessage<H256, AccountId>) -> Vec<u8> {
+        CommitMessage::Vote(vote).encode()
+    }
+
+    fn rejections(scene: &Scene, reason: &str) -> f64 {
+        scene
+            .metrics
+            .dvf_vote_rejections_total
+            .with_label_values(&[reason])
+            .get()
+    }
+
+    fn kept(verdict: &ValidationResult<H256>, data: &[u8]) -> bool {
+        matches!(verdict, ValidationResult::ProcessAndKeep(topic) if *topic == message_hash::<Block>(data))
+    }
+
+    fn discarded(verdict: &ValidationResult<H256>) -> bool {
+        matches!(verdict, ValidationResult::Discard)
+    }
+
+    #[test]
+    fn a_checked_vote_reaches_the_pool_once() {
+        let scene = scene();
+        let vote = scene.active[0].vote(5, 3, 7, 10, scene.chain.hash_at(10));
+        let data = encoded_vote(vote.clone());
+
+        assert!(kept(&offer(&scene, &data), &data));
+        assert_eq!(scene.pool.vote_of(7, &scene.active[0].account), Some(vote));
+        assert_eq!(
+            scene
+                .metrics
+                .dvf_votes_received_total
+                .with_label_values(&["7"])
+                .get(),
+            1.0
+        );
+
+        // The same bytes again count as seen.
+        assert!(matches!(
+            offer(&scene, &data),
+            ValidationResult::ProcessAndDiscard(topic) if topic == message_hash::<Block>(&data)
+        ));
+        assert_eq!(scene.pool.total_votes(), 1);
+    }
+
+    #[test]
+    fn a_repeat_of_a_held_vote_under_new_bytes_is_refused() {
+        let scene = scene();
+        let block = scene.chain.hash_at(10);
+        let first = encoded_vote(scene.active[0].vote(5, 3, 7, 10, block));
+        // The next epoch is still current, so the repeat passes every check.
+        let repeat = encoded_vote(scene.active[0].vote(6, 3, 7, 10, block));
+
+        assert!(kept(&offer(&scene, &first), &first));
+        assert!(discarded(&offer(&scene, &repeat)));
+        assert_eq!(rejections(&scene, "repeated_vote"), 1.0);
+        assert_eq!(scene.pool.total_votes(), 1);
+    }
+
+    #[test]
+    fn a_second_block_in_one_round_is_kept_as_evidence() {
+        let scene = scene();
+        let first = encoded_vote(scene.active[0].vote(5, 3, 7, 10, scene.chain.hash_at(10)));
+        let second = encoded_vote(scene.active[0].vote(5, 3, 7, 11, scene.chain.hash_at(11)));
+        let logs = capture_logs();
+
+        assert!(kept(&offer(&scene, &first), &first));
+        assert!(discarded(&offer(&scene, &second)));
+
+        assert_eq!(rejections(&scene, "double_vote"), 1.0);
+        assert_eq!(scene.metrics.dvf_double_votes_detected_total.get(), 1.0);
+        assert!(scene.pool.equivocated(7, &scene.active[0].account));
+        assert_eq!(scene.pool.take_evidence().len(), 1);
+        assert!(logs.has("signed two votes in round 7"));
+    }
+
+    #[test]
+    fn unreadable_and_oversized_messages_are_refused_on_sight() {
+        let scene = scene();
+        assert!(discarded(&offer(&scene, &[9u8, 1, 2])));
+        assert_eq!(rejections(&scene, "invalid_encoding"), 1.0);
+        assert!(discarded(&offer(&scene, &[0u8; 300])));
+        assert_eq!(rejections(&scene, "above_bound"), 1.0);
+        assert_eq!(scene.validator.held_count(), 0);
+    }
+
+    #[test]
+    fn a_forged_or_borrowed_signature_is_refused() {
+        let scene = scene();
+        let block = scene.chain.hash_at(10);
+        let mut forged = scene.active[0].vote(5, 3, 7, 10, block);
+        forged.signature = scene.active[0].pair.sign(b"another payload");
+        assert!(discarded(&offer(&scene, &encoded_vote(forged))));
+
+        // The second validator signs in the name of the first.
+        let mut borrowed = scene.active[1].vote(5, 3, 8, 10, block);
+        borrowed.validator_account_id = scene.active[0].account.clone();
+        borrowed.signature = scene.active[1]
+            .pair
+            .sign(&crate::vote_creator::vote_payload(&borrowed));
+        assert!(discarded(&offer(&scene, &encoded_vote(borrowed))));
+
+        assert_eq!(rejections(&scene, "invalid_signature"), 2.0);
+        assert_eq!(scene.pool.total_votes(), 0);
+    }
+
+    #[test]
+    fn a_vote_from_outside_the_active_set_is_refused() {
+        let scene = scene();
+        let data = encoded_vote(scene.outsider.vote(5, 3, 7, 10, scene.chain.hash_at(10)));
+        assert!(discarded(&offer(&scene, &data)));
+        assert_eq!(rejections(&scene, "inactive_validator"), 1.0);
+    }
+
+    #[test]
+    fn a_vote_outside_the_current_epochs_is_refused() {
+        let scene = scene();
+        let block = scene.chain.hash_at(10);
+        let stale = encoded_vote(scene.active[0].vote(4, 3, 7, 10, block));
+        let early = encoded_vote(scene.active[0].vote(7, 3, 8, 10, block));
+        assert!(discarded(&offer(&scene, &stale)));
+        assert!(discarded(&offer(&scene, &early)));
+        assert_eq!(rejections(&scene, "epoch_mismatch"), 2.0);
+        assert_eq!(scene.validator.held_count(), 0);
+    }
+
+    #[test]
+    fn a_lower_committed_epoch_keeps_older_votes_current() {
+        let scene = scene();
+        let committed = scene.chain.info().finalized_hash;
+        scene
+            .chain
+            .answers
+            .set_at("DvfApi_get_current_epoch", committed, (), 3u32);
+        let block = scene.chain.hash_at(10);
+
+        let older = encoded_vote(scene.active[0].vote(3, 3, 7, 10, block));
+        assert!(kept(&offer(&scene, &older), &older));
+        let oldest = encoded_vote(scene.active[1].vote(2, 3, 7, 10, block));
+        assert!(discarded(&offer(&scene, &oldest)));
+    }
+
+    #[test]
+    fn a_committed_head_without_an_epoch_answer_leaves_the_best_block_to_decide() {
+        let scene = scene();
+        let best = scene.chain.info().best_hash;
+        scene.chain.answers.forget("DvfApi_get_current_epoch");
+        scene
+            .chain
+            .answers
+            .set_at("DvfApi_get_current_epoch", best, (), 5u32);
+        let logs = capture_logs();
+
+        let data = encoded_vote(scene.active[0].vote(5, 3, 7, 10, scene.chain.hash_at(10)));
+        assert!(kept(&offer(&scene, &data), &data));
+        assert!(logs.has("the epoch at the committed head is unavailable"));
+    }
+
+    #[test]
+    fn at_genesis_one_epoch_answer_serves_both_ends_of_the_window() {
+        let scene = scene_on(TestChain::build(0, 0));
+        let genesis = scene.chain.hash_at(0);
+        scene.chain.answers.forget("DvfApi_get_current_epoch");
+        scene
+            .chain
+            .answers
+            .set_at("DvfApi_get_current_epoch", genesis, (), 5u32);
+        let data = encoded_vote(scene.active[0].vote(5, 3, 0, 0, genesis));
+        assert!(kept(&offer(&scene, &data), &data));
+    }
+
+    #[test]
+    fn the_previous_validator_set_passes_inside_its_grace_block() {
+        let scene = scene();
+        let block = scene.chain.hash_at(10);
+
+        let inside = encoded_vote(scene.active[0].vote(5, 2, 20, 10, block));
+        assert!(kept(&offer(&scene, &inside), &inside));
+
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_validator_set_id_changed_at", (), Some(5u32));
+        let late = encoded_vote(scene.active[0].vote(5, 2, 21, 10, block));
+        assert!(discarded(&offer(&scene, &late)));
+
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_validator_set_id_changed_at", (), None::<u32>);
+        let unrecorded = encoded_vote(scene.active[0].vote(5, 2, 22, 10, block));
+        assert!(discarded(&offer(&scene, &unrecorded)));
+
+        let older = encoded_vote(scene.active[0].vote(5, 1, 23, 10, block));
+        assert!(discarded(&offer(&scene, &older)));
+
+        assert_eq!(rejections(&scene, "validator_set_mismatch"), 3.0);
+    }
+
+    #[test]
+    fn a_vote_for_an_abandoned_fork_below_the_committed_head_is_refused() {
+        let scene = scene();
+        let fork = H256::repeat_byte(0x5a);
+        let data = encoded_vote(scene.active[0].vote(5, 3, 7, 1, fork));
+        assert!(discarded(&offer(&scene, &data)));
+        assert_eq!(rejections(&scene, "stale_target"), 1.0);
+        assert_eq!(scene.validator.held_count(), 0);
+    }
+
+    #[test]
+    fn a_vote_ahead_of_its_block_waits_for_the_import() {
+        let scene = scene();
+        let next = scene.chain.next_header();
+        let data = encoded_vote(scene.active[0].vote(5, 3, 7, 13, next.hash()));
+
+        assert!(discarded(&offer(&scene, &data)));
+        assert_eq!(scene.validator.held_count(), 1);
+        assert_eq!(rejections(&scene, "target_not_imported"), 1.0);
+        // A retry before the import keeps the message waiting.
+        assert_eq!(scene.validator.retry_held(), 0);
+        assert_eq!(scene.validator.held_count(), 1);
+
+        scene.chain.import(next);
+        assert_eq!(scene.validator.retry_held(), 1);
+        assert_eq!(scene.validator.held_count(), 0);
+        assert!(scene.pool.vote_of(7, &scene.active[0].account).is_some());
+    }
+
+    #[test]
+    fn a_held_message_that_arrived_again_is_decided_once() {
+        let scene = scene();
+        let next = scene.chain.next_header();
+        let data = encoded_vote(scene.active[0].vote(5, 3, 7, 13, next.hash()));
+        assert!(discarded(&offer(&scene, &data)));
+        scene.chain.import(next);
+
+        assert!(kept(&offer(&scene, &data), &data));
+        assert_eq!(scene.validator.retry_held(), 0);
+        assert_eq!(scene.validator.held_count(), 0);
+        assert_eq!(scene.pool.total_votes(), 1);
+    }
+
+    #[test]
+    fn a_silent_runtime_holds_the_message_for_the_next_import() {
+        for call in [
+            "DcfApi_get_active_validators",
+            "DvfApi_get_current_epoch",
+            "DvfApi_get_validator_set_id",
+        ] {
+            let scene = scene();
+            let data = encoded_vote(scene.active[0].vote(5, 3, 7, 10, scene.chain.hash_at(10)));
+            scene.chain.answers.forget(call);
+
+            assert!(discarded(&offer(&scene, &data)), "{call}");
+            assert_eq!(scene.validator.held_count(), 1, "{call}");
+            assert_eq!(rejections(&scene, "runtime_api_error"), 1.0, "{call}");
+        }
+    }
+
+    #[test]
+    fn a_held_message_counts_once_the_runtime_answers_again() {
+        let scene = scene();
+        let data = encoded_vote(scene.active[0].vote(5, 3, 7, 10, scene.chain.hash_at(10)));
+        scene.chain.answers.forget("DcfApi_get_active_validators");
+        assert!(discarded(&offer(&scene, &data)));
+
+        scene.chain.answers.set(
+            "DcfApi_get_active_validators",
+            (),
+            vec![scene.active[0].account.clone()],
+        );
+        assert_eq!(scene.validator.retry_held(), 1);
+        assert!(scene.pool.vote_of(7, &scene.active[0].account).is_some());
+    }
+
+    #[test]
+    fn a_round_timeout_statement_reaches_the_pool_once() {
+        let scene = scene();
+        let block = scene.chain.hash_at(10);
+        let statement = scene.active[0].timeout(5, 3, 7, 10, Some(block));
+        let data = CommitMessage::RoundTimeout(statement.clone()).encode();
+        assert!(kept(&offer(&scene, &data), &data));
+        assert_eq!(scene.pool.timeouts_for(7, 10), vec![statement]);
+
+        // A second statement from the same signer for that round and height.
+        let changed =
+            CommitMessage::RoundTimeout(scene.active[0].timeout(5, 3, 7, 10, None)).encode();
+        assert!(discarded(&offer(&scene, &changed)));
+        assert_eq!(rejections(&scene, "round_timeout_refused"), 1.0);
+    }
+
+    #[test]
+    fn a_round_timeout_statement_passes_the_same_checks_as_a_vote() {
+        let scene = scene();
+        let mut forged = scene.active[0].timeout(5, 3, 7, 10, None);
+        forged.signature = scene.active[0].pair.sign(b"another payload");
+        assert!(discarded(&offer(
+            &scene,
+            &CommitMessage::RoundTimeout(forged).encode()
+        )));
+        assert_eq!(rejections(&scene, "invalid_signature"), 1.0);
+
+        let outsider = scene.outsider.timeout(5, 3, 7, 10, None);
+        assert!(discarded(&offer(
+            &scene,
+            &CommitMessage::RoundTimeout(outsider).encode()
+        )));
+        assert_eq!(rejections(&scene, "inactive_validator"), 1.0);
+        assert!(scene.pool.timeouts_for(7, 10).is_empty());
+    }
+
+    #[test]
+    fn an_unreadable_message_leaves_the_store_at_once() {
+        // Since P1-022 the store keeps only messages it can read and place
+        // inside the commit window. Three stray bytes decode as no message.
+        let scene = scene();
+        let mut expired = scene.validator.message_expired();
+        assert!(expired(H256::zero(), &[1, 2, 3]));
     }
 }

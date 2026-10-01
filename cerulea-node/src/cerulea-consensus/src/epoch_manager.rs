@@ -628,3 +628,567 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod coverage_tests {
+    //! The epoch manager, run against the test chain.
+    //!
+    //! The epoch manager reads the framework interface and reports what it
+    //! finds through its answers and its log lines. Each test fills the
+    //! runtime answers, runs one call and reads both back.
+
+    use super::*;
+    use crate::test_support::{capture_logs, Block, TestChain, Voter};
+    use pallet_cerulea_dcf::{UptimeStats, ValidatorProfile, ValidatorStatus};
+
+    type Manager = EpochManager<Block, TestChain>;
+
+    /// The policy tuple the runtime answers.
+    ///
+    /// Minimum score 100, high score 900, minimum participation 50 percent,
+    /// high participation 90 percent, five missed blocks, three missed blocks
+    /// for high performers, healthy score 300, healthy participation 80
+    /// percent, four missed blocks for a healthy validator, a cooldown of ten
+    /// blocks and two validators in the top list.
+    const POLICY: (u64, u64, u32, u32, u32, u32, u64, u32, u32, u32, u32) =
+        (100, 900, 50, 90, 5, 3, 300, 80, 4, 10, 2);
+
+    fn account(seed: u8) -> AccountId {
+        Voter::from_seed(seed).account
+    }
+
+    fn profile(final_score: u64, contribution: u32) -> ValidatorProfile<AccountId, u128, u32> {
+        ValidatorProfile {
+            stake: 1_000,
+            poi_score: contribution,
+            final_score,
+            trust_score: 0,
+            status: ValidatorStatus::Active,
+            inference_count: 0,
+            name: None,
+            last_active_block: 0,
+            _phantom: Default::default(),
+        }
+    }
+
+    fn manager(chain: &Arc<TestChain>, min_validators: u32, max_validators: u32) -> Manager {
+        Manager::new(
+            chain.clone(),
+            EpochConfig {
+                epoch_length: 10,
+                min_validators,
+                max_validators,
+                min_stake: 0,
+            },
+        )
+    }
+
+    /// Five validators at epoch four on a chain twelve blocks high.
+    fn transition_chain() -> (Arc<TestChain>, [AccountId; 5]) {
+        let chain = TestChain::with_blocks(12);
+        let set = [
+            account(11),
+            account(12),
+            account(13),
+            account(14),
+            account(15),
+        ];
+        let [one, two, three, four, five] = set.clone();
+        let answers = &chain.answers;
+        answers.set("DcfApi_get_current_epoch", (), 4u32);
+        answers.set("DcfApi_get_epoch_length", (), 10u32);
+        answers.set(
+            "DcfApi_get_validator_scores",
+            (),
+            vec![
+                (one.clone(), 950u64),
+                (two.clone(), 400u64),
+                (three.clone(), 200u64),
+                (four.clone(), 600u64),
+                (five.clone(), 500u64),
+            ],
+        );
+        for (validator, last_active) in
+            [(&one, 4u32), (&two, 2), (&three, 1), (&four, 4), (&five, 4)]
+        {
+            answers.set(
+                "DcfApi_get_validator_last_active",
+                validator.clone(),
+                last_active,
+            );
+        }
+        answers.set("DcfApi_get_active_validators", (), set.to_vec());
+        answers.set("DcfApi_get_epoch_manager_config", (), POLICY);
+        // The first validator has no leave request answer at all.
+        answers.set(
+            "DcfApi_get_validator_leave_request",
+            two.clone(),
+            Some(8u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_leave_request",
+            four.clone(),
+            Some(1u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_leave_request",
+            five.clone(),
+            None::<u32>,
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            one.clone(),
+            (95u32, 5u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            two.clone(),
+            (0u32, 0u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            three.clone(),
+            (30u32, 70u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            five.clone(),
+            (80u32, 20u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            one.clone(),
+            Some(profile(950, 1)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            two.clone(),
+            Some(profile(400, 1)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            three.clone(),
+            Some(profile(50, 1)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            five.clone(),
+            Some(profile(500, 1)),
+        );
+        (chain, set)
+    }
+
+    #[test]
+    fn an_epoch_transition_reads_every_validator_and_reports_each_finding() {
+        let (chain, [_one, two, three, _four, five]) = transition_chain();
+        let logs = capture_logs();
+
+        manager(&chain, 6, 2)
+            .handle_epoch_transition()
+            .expect("the transition completes");
+
+        assert!(logs.has(&format!("Validator {:?} inactive for 2 epochs", two)));
+        assert!(logs.has(&format!("Validator {:?} inactive for 3 epochs", three)));
+        assert!(logs.has("Applied score decay to 2 inactive validators"));
+        assert!(logs.has("Failed to check leave request for validator"));
+        assert!(logs.has("still in cooldown period (6 blocks remaining)"));
+        assert!(logs.has("Validator set update - 5 -> 2 active validators"));
+        assert!(logs.has("Active validator count (5) below minimum (6)"));
+        assert!(logs.has("Active validator count (5) exceeds maximum (2)"));
+        assert!(logs.has(&format!(
+            "Low participation rate for validator {:?}: 30%",
+            three
+        )));
+        assert!(logs.has("Average validator participation rate: 76%"));
+        assert!(logs.has(&format!("Underperforming validator detected: {:?}", three)));
+        assert!(logs.has(&format!("Underperforming validator detected: {:?}", five)));
+        assert!(logs.has("Found 2 underperforming validators"));
+        assert!(logs.has("Epoch transition completed successfully"));
+    }
+
+    #[test]
+    fn a_set_inside_its_bounds_raises_no_size_warning() {
+        let (chain, _) = transition_chain();
+        let logs = capture_logs();
+
+        manager(&chain, 1, 10)
+            .handle_epoch_transition()
+            .expect("the transition completes");
+
+        assert!(!logs.has("below minimum"));
+        assert!(!logs.has("exceeds maximum"));
+        assert!(logs.has("Validator set update - 5 -> 3 active validators"));
+    }
+
+    #[test]
+    fn an_epoch_transition_names_each_missing_runtime_answer() {
+        let cases = [
+            ("DcfApi_get_current_epoch", "Failed to get current epoch: "),
+            (
+                "DcfApi_get_validator_scores",
+                "Failed to get validator scores: ",
+            ),
+            (
+                "DcfApi_get_validator_last_active",
+                "Failed to get validator last active: ",
+            ),
+            (
+                "DcfApi_get_active_validators",
+                "Failed to get active validators: ",
+            ),
+            (
+                "DcfApi_get_epoch_manager_config",
+                "Failed to get epoch manager config: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let (chain, _) = transition_chain();
+            chain.answers.forget(call);
+            match manager(&chain, 1, 10).handle_epoch_transition() {
+                Err(ConsensusError::EpochTransition(reason)) => {
+                    assert!(reason.starts_with(opening), "{call}: {reason}")
+                }
+                other => panic!("{call}: the transition answered {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn a_transition_falls_due_once_the_epoch_runs_out() {
+        let (chain, _) = transition_chain();
+        let logs = capture_logs();
+        let manager = manager(&chain, 1, 10);
+
+        assert!(!manager.should_transition_epoch(49).unwrap());
+        assert!(!logs.has("Epoch transition needed"));
+        assert!(manager.should_transition_epoch(50).unwrap());
+        assert!(logs.has("Epoch transition needed at block 50 (epoch 4 -> 5, length: 10)"));
+
+        chain.answers.forget("DcfApi_get_epoch_length");
+        let reason = manager
+            .should_transition_epoch(50)
+            .expect_err("the epoch length is unavailable")
+            .to_string();
+        assert!(reason.starts_with("Epoch transition failed: Failed to get epoch length: "));
+
+        chain.answers.forget("DcfApi_get_current_epoch");
+        let reason = manager
+            .should_transition_epoch(50)
+            .expect_err("the epoch is unavailable")
+            .to_string();
+        assert!(reason.starts_with("Epoch transition failed: Failed to get current epoch: "));
+    }
+
+    #[test]
+    fn the_epoch_information_carries_the_active_set() {
+        let (chain, set) = transition_chain();
+        let manager = manager(&chain, 1, 10);
+
+        assert_eq!(manager.get_current_epoch_info().unwrap(), (4, set.to_vec()));
+
+        chain.answers.forget("DcfApi_get_active_validators");
+        let reason = manager
+            .get_current_epoch_info()
+            .expect_err("the active set is unavailable")
+            .to_string();
+        assert!(reason.starts_with("Epoch transition failed: Failed to get active validators: "));
+
+        chain.answers.forget("DcfApi_get_current_epoch");
+        let reason = manager
+            .get_current_epoch_info()
+            .expect_err("the epoch is unavailable")
+            .to_string();
+        assert!(reason.starts_with("Epoch transition failed: Failed to get current epoch: "));
+    }
+
+    /// Seven validators, one for each reason the proposal list knows.
+    fn proposal_chain() -> (Arc<TestChain>, [AccountId; 7]) {
+        let chain = TestChain::with_blocks(12);
+        let set = [
+            account(21),
+            account(22),
+            account(23),
+            account(24),
+            account(25),
+            account(26),
+            account(27),
+        ];
+        let [low, absent, missing, idle, strong, steady, unknown] = set.clone();
+        let answers = &chain.answers;
+        answers.set("DcfApi_get_epoch_manager_config", (), POLICY);
+        answers.set("DcfApi_get_active_validators", (), set.to_vec());
+        answers.set("DcfApi_get_consensus_weights", (), (40u64, 60u64));
+        answers.set(
+            "DcfApi_get_validator_scores",
+            (),
+            vec![
+                (steady.clone(), 1u64),
+                (low.clone(), 1u64),
+                (strong.clone(), 1u64),
+                (unknown.clone(), 1u64),
+            ],
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            low.clone(),
+            Some(profile(50, 0)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            absent.clone(),
+            Some(profile(500, 3)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            missing.clone(),
+            Some(profile(500, 4)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            idle.clone(),
+            Some(profile(500, 0)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            strong.clone(),
+            Some(profile(950, 7)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            steady.clone(),
+            Some(profile(500, 2)),
+        );
+        answers.set(
+            "DcfApi_get_validator_profile",
+            unknown.clone(),
+            None::<ValidatorProfile<AccountId, u128, u32>>,
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            absent.clone(),
+            (40u32, 60u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            missing.clone(),
+            (96u32, 4u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            idle.clone(),
+            (100u32, 0u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            strong.clone(),
+            (100u32, 0u32),
+        );
+        answers.set(
+            "DcfApi_get_validator_participation",
+            steady.clone(),
+            (100u32, 0u32),
+        );
+        answers.set("DcfApi_get_validator_stake_score", idle.clone(), 0u64);
+        answers.set("DcfApi_get_validator_stake_score", strong.clone(), 10u64);
+        answers.set("DcfApi_get_validator_stake_score", steady.clone(), 10u64);
+        (chain, set)
+    }
+
+    #[test]
+    fn each_proposal_names_the_reason_the_scores_give() {
+        let (chain, [low, absent, missing, idle, strong, _steady, _unknown]) = proposal_chain();
+
+        let proposals = manager(&chain, 1, 10)
+            .generate_validator_management_proposals()
+            .expect("the proposals build");
+
+        let expected = vec![
+            ValidatorManagementProposal {
+                validator: low,
+                reason: "Low combined score: 50".to_string(),
+                combined_score: 50,
+                stake_score: 0,
+                contribution_score: 0,
+            },
+            ValidatorManagementProposal {
+                validator: absent,
+                reason: "Low participation: 40%".to_string(),
+                combined_score: 500,
+                stake_score: 0,
+                contribution_score: 3,
+            },
+            ValidatorManagementProposal {
+                validator: missing,
+                reason: "Too many missed blocks: 4".to_string(),
+                combined_score: 500,
+                stake_score: 0,
+                contribution_score: 4,
+            },
+            ValidatorManagementProposal {
+                validator: idle,
+                reason: "No PoS or PoI contribution".to_string(),
+                combined_score: 500,
+                stake_score: 0,
+                contribution_score: 0,
+            },
+            ValidatorManagementProposal {
+                validator: strong,
+                reason: "High performance reward candidate: 950".to_string(),
+                combined_score: 950,
+                stake_score: 10,
+                contribution_score: 7,
+            },
+        ];
+        assert_eq!(proposals, expected);
+    }
+
+    #[test]
+    fn the_proposal_list_names_each_missing_runtime_answer() {
+        let cases = [
+            (
+                "DcfApi_get_epoch_manager_config",
+                "Failed to get epoch manager config: ",
+            ),
+            (
+                "DcfApi_get_active_validators",
+                "Failed to get active validators: ",
+            ),
+            (
+                "DcfApi_get_consensus_weights",
+                "Failed to get consensus weights: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let (chain, _) = proposal_chain();
+            chain.answers.forget(call);
+            match manager(&chain, 1, 10).generate_validator_management_proposals() {
+                Err(ConsensusError::EpochTransition(reason)) => {
+                    assert!(reason.starts_with(opening), "{call}: {reason}")
+                }
+                other => panic!("{call}: the proposals answered {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn the_top_list_shows_the_strongest_validators_first() {
+        let (chain, [_low, _absent, _missing, _idle, strong, steady, _unknown]) = proposal_chain();
+        let logs = capture_logs();
+
+        manager(&chain, 1, 10)
+            .update_validator_set_by_combined_scores()
+            .expect("the list builds");
+
+        let lines = logs.lines();
+        let first = format!(
+            "  1. {:?} - Combined: 950, PoS: 10 (40%), PoI: 7 (60%)",
+            strong
+        );
+        let second = format!(
+            "  2. {:?} - Combined: 500, PoS: 10 (40%), PoI: 2 (60%)",
+            steady
+        );
+        let first_at = lines.iter().position(|line| *line == first);
+        let second_at = lines.iter().position(|line| *line == second);
+        assert!(first_at.is_some(), "{:?}", lines);
+        assert!(first_at < second_at);
+        // The policy shows two validators.
+        assert!(!lines.iter().any(|line| line.starts_with("  3. ")));
+    }
+
+    #[test]
+    fn the_top_list_names_each_missing_runtime_answer() {
+        let cases = [
+            (
+                "DcfApi_get_validator_scores",
+                "Failed to get validator scores: ",
+            ),
+            (
+                "DcfApi_get_consensus_weights",
+                "Failed to get consensus weights: ",
+            ),
+            (
+                "DcfApi_get_epoch_manager_config",
+                "Failed to get epoch manager config: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let (chain, _) = proposal_chain();
+            chain.answers.forget(call);
+            match manager(&chain, 1, 10).update_validator_set_by_combined_scores() {
+                Err(ConsensusError::EpochTransition(reason)) => {
+                    assert!(reason.starts_with(opening), "{call}: {reason}")
+                }
+                other => panic!("{call}: the list answered {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn validator_information_joins_profile_stake_uptime_and_missed_blocks() {
+        let (chain, [low, _absent, _missing, _idle, strong, _steady, unknown]) = proposal_chain();
+        chain.answers.set(
+            "DcfApi_get_validator_uptime",
+            strong.clone(),
+            Some(UptimeStats {
+                total_epochs: 3,
+                blocks_authored: 30,
+                blocks_missed: 2,
+                uptime_percentage: 9_000,
+                participation_rate: 9_500,
+            }),
+        );
+        chain.answers.set(
+            "DcfApi_get_validator_participation",
+            strong.clone(),
+            (90u32, 6u32),
+        );
+        let manager = manager(&chain, 1, 10);
+
+        let info = manager
+            .get_validator_info(&strong)
+            .unwrap()
+            .expect("the validator carries a profile");
+        let strong_bytes: [u8; 32] = *strong.as_ref();
+        assert_eq!(
+            info.account_id,
+            sp_core::ed25519::Public::from_raw(strong_bytes)
+        );
+        assert_eq!(info.stake, 10);
+        assert_eq!(info.performance_score, 950);
+        assert_eq!(info.blocks_produced, 9_500);
+        assert_eq!(info.blocks_missed, 6);
+
+        // A validator without uptime or participation answers reads as zero.
+        let quiet = manager
+            .get_validator_info(&low)
+            .unwrap()
+            .expect("the validator carries a profile");
+        assert_eq!(quiet.stake, 0);
+        assert_eq!(quiet.performance_score, 50);
+        assert_eq!(quiet.blocks_produced, 0);
+        assert_eq!(quiet.blocks_missed, 0);
+
+        assert!(manager.get_validator_info(&unknown).unwrap().is_none());
+        assert!(manager.get_validator_info(&account(99)).unwrap().is_none());
+    }
+
+    #[test]
+    fn the_runtime_policy_reads_back_field_by_field() {
+        let (chain, _) = proposal_chain();
+        let policy = manager(&chain, 1, 10)
+            .get_runtime_config()
+            .expect("the policy reads");
+        assert_eq!(policy.min_performance_score, 100);
+        assert_eq!(policy.high_performance_score, 900);
+        assert_eq!(policy.min_participation_rate, 50);
+        assert_eq!(policy.high_participation_rate, 90);
+        assert_eq!(policy.max_missed_blocks, 5);
+        assert_eq!(policy.max_missed_blocks_high, 3);
+        assert_eq!(policy.healthy_validator_score, 300);
+        assert_eq!(policy.healthy_participation_rate, 80);
+        assert_eq!(policy.healthy_missed_blocks_max, 4);
+        assert_eq!(policy.leave_cooldown, 10);
+        assert_eq!(policy.top_validators_display_count, 2);
+    }
+}

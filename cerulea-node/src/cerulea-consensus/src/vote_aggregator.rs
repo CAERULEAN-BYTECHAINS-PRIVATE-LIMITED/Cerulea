@@ -880,3 +880,696 @@ where
         );
     }
 }
+
+#[cfg(test)]
+mod coverage_tests {
+    //! The aggregator and the pruning service, run against the test chain.
+    //!
+    //! The test chain keeps real headers in the in-memory backend. The
+    //! aggregator writes its justification there and hands its extrinsics to
+    //! a local pool that keeps them, so each test reads back what the service
+    //! did.
+
+    use super::*;
+    use crate::dvf_gossip::{DvfJustification, DvfVoteMessage};
+    use crate::finality::FinalityNotification;
+    use crate::test_support::{
+        capture_logs, AccountId, Block, InMemBackend, PoolError, SubmissionLog, TestChain, Voter,
+    };
+    use sp_core::H256;
+    use sp_runtime::{MultiSignature, Perbill};
+
+    type Pool = DvfVotePool<H256, AccountId>;
+    type Builder = JustificationBuilder<Block, TestChain, AccountId>;
+    type Aggregator =
+        VoteAggregatorService<Block, InMemBackend, TestChain, AccountId, SubmissionLog>;
+    type Pruner = VotePoolPruningService<Block, TestChain, AccountId>;
+
+    /// One chain, one vote pool, one local transaction pool and three
+    /// validators holding five, three and two tenths of the weight.
+    struct Scene {
+        chain: Arc<TestChain>,
+        pool: Arc<Pool>,
+        submissions: Arc<SubmissionLog>,
+        metrics: Arc<DvfMetrics>,
+        voters: [Voter; 3],
+    }
+
+    fn scene() -> Scene {
+        let chain = TestChain::with_blocks(12);
+        let voters = [
+            Voter::from_seed(1),
+            Voter::from_seed(2),
+            Voter::from_seed(3),
+        ];
+        let answers = &chain.answers;
+        answers.set("DvfApi_get_validator_set_id", (), 1u32);
+        answers.set("DvfApi_get_current_round", (), 5u32);
+        answers.set("DvfApi_get_dvf_finalized_block", (), 0u32);
+        answers.set(
+            "DvfApi_get_finality_threshold_perbill",
+            (),
+            Perbill::from_percent(67),
+        );
+        answers.set(
+            "DvfApi_get_validator_weights",
+            (),
+            vec![
+                (voters[0].account.clone(), 500u128),
+                (voters[1].account.clone(), 300u128),
+                (voters[2].account.clone(), 200u128),
+            ],
+        );
+        answers.set(
+            "DvfApi_get_validator_set",
+            (),
+            voters
+                .iter()
+                .map(|voter| voter.account.clone())
+                .collect::<Vec<_>>(),
+        );
+        let registry = prometheus::Registry::new();
+        let metrics = Arc::new(DvfMetrics::new(&registry).expect("the metrics register"));
+        Scene {
+            chain,
+            pool: Pool::new(),
+            submissions: Arc::new(SubmissionLog::default()),
+            metrics,
+            voters,
+        }
+    }
+
+    fn aggregator(scene: &Scene) -> Aggregator {
+        let builder = Arc::new(Builder::new(scene.chain.clone(), scene.pool.clone()));
+        Aggregator::new(
+            scene.chain.clone(),
+            scene.pool.clone(),
+            builder,
+            scene.submissions.clone(),
+            Duration::from_millis(5),
+        )
+        .with_metrics(scene.metrics.clone())
+    }
+
+    fn chain_vote(vote: &DvfVoteMessage<H256, AccountId>) -> ChainVote {
+        pallet_cerulea_dvf::DvfVote {
+            epoch_id: vote.epoch_id,
+            validator_set_id: vote.validator_set_id,
+            round_id: vote.round_number,
+            block_number: vote.block_number,
+            block_hash: vote.block_hash,
+            validator_account: vote.validator_account_id.clone(),
+            signature: MultiSignature::Ed25519(vote.signature),
+        }
+    }
+
+    /// The bytes of the unsigned extrinsic that submits one justification.
+    fn submission_bytes(justification: &DvfJustification<H256, AccountId>) -> Vec<u8> {
+        let chain_justification = pallet_cerulea_dvf::DvfJustification {
+            round_number: justification.round_number,
+            block_hash: justification.block_hash,
+            votes: justification.votes.iter().map(chain_vote).collect(),
+        };
+        let call = cerulea_runtime::RuntimeCall::from(pallet_cerulea_dvf::Call::<
+            cerulea_runtime::Runtime,
+        >::submit_justification {
+            justification: chain_justification,
+        });
+        cerulea_runtime::UncheckedExtrinsic::new_bare(call).encode()
+    }
+
+    fn weight_label(hash: &H256) -> String {
+        format!("{:?}", hash)
+    }
+
+    #[tokio::test]
+    async fn a_checkpoint_past_the_threshold_commits_with_its_justification() {
+        let scene = scene();
+        let target = scene.chain.hash_at(10);
+        assert!(scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target)));
+        assert!(scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target)));
+        let service = aggregator(&scene);
+
+        service
+            .check_vote_accumulation()
+            .await
+            .expect("the pass completes");
+
+        // The backend marks the block final and keeps the justification.
+        assert_eq!(scene.chain.info().finalized_hash, target);
+        let stored = scene
+            .chain
+            .commit_justification(target)
+            .expect("the block carries the Commit Engine justification");
+        let justification = DvfJustification::<H256, AccountId>::decode(&mut &stored[..])
+            .expect("the stored justification decodes");
+        assert_eq!(justification.round_number, 5);
+        assert_eq!(justification.block_hash, target);
+        let signers: Vec<AccountId> = justification
+            .votes
+            .iter()
+            .map(|vote| vote.validator_account_id.clone())
+            .collect();
+        assert_eq!(
+            signers,
+            vec![
+                scene.voters[0].account.clone(),
+                scene.voters[1].account.clone()
+            ]
+        );
+
+        // The chain hears of the commitment through one unsigned extrinsic.
+        let taken = scene.submissions.taken();
+        assert_eq!(taken.len(), 1);
+        assert_eq!(taken[0].encode(), submission_bytes(&justification));
+
+        assert_eq!(*service.last_triggered_block.read().unwrap(), 10);
+        assert_eq!(*service.last_finalized_round.read().unwrap(), 5);
+        assert!(service.checkpoint_times.read().unwrap().contains_key(&5));
+        assert_eq!(
+            scene
+                .metrics
+                .dvf_accumulated_weight
+                .with_label_values(&[&weight_label(&target)])
+                .get(),
+            800.0
+        );
+        assert_eq!(
+            scene
+                .metrics
+                .dvf_finality_latency_seconds
+                .get_sample_count(),
+            1
+        );
+
+        // A second pass finds the block handled and submits nothing more.
+        service.check_vote_accumulation().await.unwrap();
+        assert_eq!(scene.submissions.taken().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_checkpoint_below_the_threshold_stays_open() {
+        let scene = scene();
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[2].vote(1, 1, 5, 10, target));
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert_eq!(scene.chain.info().finalized_hash, scene.chain.hash_at(0));
+        assert!(scene.chain.commit_justification(target).is_none());
+        assert!(scene.submissions.taken().is_empty());
+        assert_eq!(*service.last_triggered_block.read().unwrap(), 0);
+        assert_eq!(
+            scene
+                .metrics
+                .dvf_accumulated_weight
+                .with_label_values(&[&weight_label(&target)])
+                .get(),
+            200.0
+        );
+        assert!(logs.has("has accumulated weight 200 (threshold: 670, reached: false)"));
+    }
+
+    #[tokio::test]
+    async fn the_heaviest_candidate_past_the_threshold_wins() {
+        let scene = scene();
+        scene.chain.answers.set(
+            "DvfApi_get_finality_threshold_perbill",
+            (),
+            Perbill::from_percent(20),
+        );
+        let ten = scene.chain.hash_at(10);
+        let eleven = scene.chain.hash_at(11);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, ten));
+        scene
+            .pool
+            .insert_vote(scene.voters[2].vote(1, 1, 5, 11, eleven));
+        let service = aggregator(&scene);
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert_eq!(scene.chain.info().finalized_hash, ten);
+        assert!(scene.chain.commit_justification(eleven).is_none());
+        assert_eq!(*service.last_triggered_block.read().unwrap(), 10);
+    }
+
+    #[tokio::test]
+    async fn a_vote_for_an_unknown_block_costs_no_runtime_query() {
+        let scene = scene();
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, H256::repeat_byte(0x77)));
+        // The threshold query fails, and the pass never reaches it.
+        scene
+            .chain
+            .answers
+            .forget("DvfApi_get_finality_threshold_perbill");
+        let service = aggregator(&scene);
+
+        assert_eq!(service.check_vote_accumulation().await, Ok(()));
+        assert!(scene.submissions.taken().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_vote_at_or_below_the_committed_height_is_left_alone() {
+        let scene = scene();
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_dvf_finalized_block", (), 10u32);
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target));
+        let service = aggregator(&scene);
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert!(scene.chain.commit_justification(target).is_none());
+        assert!(scene.submissions.taken().is_empty());
+    }
+
+    #[tokio::test]
+    async fn every_missing_runtime_answer_names_its_query() {
+        let cases = [
+            ("DvfApi_get_current_round", "Failed to get current round: "),
+            (
+                "DvfApi_get_dvf_finalized_block",
+                "Failed to get Commit Engine finalized block: ",
+            ),
+            (
+                "DvfApi_get_finality_threshold_perbill",
+                "Failed to get finality threshold: ",
+            ),
+            (
+                "DvfApi_get_validator_weights",
+                "Failed to get validator weights: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let scene = scene();
+            let target = scene.chain.hash_at(10);
+            scene
+                .pool
+                .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+            scene.chain.answers.forget(call);
+            let reason = aggregator(&scene)
+                .check_vote_accumulation()
+                .await
+                .expect_err("the pass stops at the missing answer");
+            assert!(reason.starts_with(opening), "{call}: {reason}");
+            assert!(reason.contains(call), "{call}: {reason}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_construction_leaves_the_block_open_for_the_next_pass() {
+        let scene = scene();
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target));
+        // The size check reads the validator set, which the runtime withholds.
+        scene.chain.answers.forget("DvfApi_get_validator_set");
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert!(scene.chain.commit_justification(target).is_none());
+        assert!(scene.submissions.taken().is_empty());
+        assert_eq!(*service.last_finalized_round.read().unwrap(), 0);
+        assert!(logs.has("Failed to trigger justification construction"));
+        assert!(logs.has("Failed to get validator set"));
+    }
+
+    #[tokio::test]
+    async fn a_submission_another_node_made_first_raises_no_warning() {
+        let scene = scene();
+        scene
+            .submissions
+            .refuse_with(|| PoolError::AlreadyImported(Box::new(())));
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target));
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        // The block commits locally whatever the pool answers.
+        assert_eq!(scene.chain.info().finalized_hash, target);
+        assert!(scene.submissions.taken().is_empty());
+        assert!(logs.has("was already submitted by another node"));
+        assert!(logs.lines_at(log::Level::Warn).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_refused_submission_raises_a_warning() {
+        let scene = scene();
+        scene
+            .submissions
+            .refuse_with(|| PoolError::InvalidBlockId("the pool lags".to_string()));
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target));
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert_eq!(scene.chain.info().finalized_hash, target);
+        let warnings = logs.lines_at(log::Level::Warn);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0]
+            .contains("Failed to submit justification extrinsic for block #10: InvalidBlockId"));
+    }
+
+    #[tokio::test]
+    async fn two_votes_from_one_validator_in_one_round_reach_the_chain_as_evidence() {
+        let scene = scene();
+        let ten = scene.chain.hash_at(10);
+        let eleven = scene.chain.hash_at(11);
+        let first = scene.voters[0].vote(1, 1, 5, 10, ten);
+        let second = scene.voters[0].vote(1, 1, 5, 11, eleven);
+        scene.pool.insert_vote(first.clone());
+        assert_eq!(
+            scene.pool.offer_vote(second.clone()),
+            crate::dvf_gossip::VoteOffer::Conflicting
+        );
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        let call = cerulea_runtime::RuntimeCall::from(pallet_cerulea_dvf::Call::<
+            cerulea_runtime::Runtime,
+        >::report_vote_equivocation {
+            first: chain_vote(&first),
+            second: chain_vote(&second),
+        });
+        let expected = cerulea_runtime::UncheckedExtrinsic::new_bare(call).encode();
+        let taken = scene.submissions.taken();
+        assert_eq!(taken.len(), 1);
+        assert_eq!(taken[0].encode(), expected);
+        assert!(logs.has("signed two votes in round 5. Reporting the pair to the chain."));
+        // The equivocator counts for nothing, so the checkpoint stays open.
+        assert!(scene.chain.commit_justification(ten).is_none());
+        assert!(scene.pool.take_evidence().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_evidence_report_the_pool_refuses_is_dropped_quietly() {
+        let scene = scene();
+        scene
+            .submissions
+            .refuse_with(|| PoolError::TemporarilyBanned);
+        let ten = scene.chain.hash_at(10);
+        let eleven = scene.chain.hash_at(11);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, ten));
+        scene
+            .pool
+            .offer_vote(scene.voters[0].vote(1, 1, 5, 11, eleven));
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_vote_accumulation().await.unwrap();
+
+        assert!(scene.submissions.taken().is_empty());
+        assert!(logs.has("the evidence report was not taken: TemporarilyBanned"));
+    }
+
+    #[test]
+    fn a_change_of_validator_set_keeps_the_pool() {
+        let scene = scene();
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_validator_set_changes().unwrap();
+        assert_eq!(*service.last_validator_set_id.read().unwrap(), 1);
+        assert!(!logs.has("Validator set ID changed"));
+
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_validator_set_id", (), 2u32);
+        service.check_validator_set_changes().unwrap();
+        assert_eq!(*service.last_validator_set_id.read().unwrap(), 2);
+        assert!(
+            logs.has("Validator set ID changed from 1 to 2 (pool retained for in-flight votes).")
+        );
+        assert_eq!(scene.pool.total_votes(), 1);
+
+        scene.chain.answers.forget("DvfApi_get_validator_set_id");
+        let reason = service
+            .check_validator_set_changes()
+            .expect_err("the set identifier is unavailable");
+        assert!(reason.starts_with("Failed to get validator set ID: "));
+    }
+
+    #[test]
+    fn ten_rounds_without_a_commitment_raise_the_stall_warning() {
+        let scene = scene();
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        service.check_finality_stall(9);
+        assert!(!logs.has("Finality stalled"));
+
+        service.check_finality_stall(15);
+        assert!(logs.has(
+            "Finality stalled! No blocks finalized for 15 rounds (current: 15, last finalized: 0)"
+        ));
+    }
+
+    #[tokio::test]
+    async fn the_running_service_commits_a_checkpoint_on_its_own() {
+        let scene = scene();
+        let target = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 5, 10, target));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 5, 10, target));
+        // Each tick also checks the set identifier, which the runtime withholds.
+        scene.chain.answers.forget("DvfApi_get_validator_set_id");
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        let stopped = tokio::time::timeout(Duration::from_millis(200), service.run()).await;
+
+        assert!(stopped.is_err(), "the service runs until the runtime stops");
+        assert_eq!(scene.chain.info().finalized_hash, target);
+        assert_eq!(scene.submissions.taken().len(), 1);
+        assert!(logs.has("Error checking validator set changes"));
+    }
+
+    #[tokio::test]
+    async fn the_running_service_reports_a_failed_pass_and_keeps_going() {
+        let scene = scene();
+        scene.chain.answers.forget("DvfApi_get_current_round");
+        let service = aggregator(&scene);
+        let logs = capture_logs();
+
+        let stopped = tokio::time::timeout(Duration::from_millis(60), service.run()).await;
+
+        assert!(stopped.is_err());
+        assert!(logs.count("Error checking vote accumulation") >= 2);
+    }
+
+    fn pruning_scene() -> (Scene, Pruner, Arc<FinalityNotifier<Block>>) {
+        let scene = scene();
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_finality_checkpoint_interval", (), 10u32);
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_vote_retention_rounds", (), 2u32);
+        let notifier = Arc::new(FinalityNotifier::new());
+        let pruner = Pruner::new(scene.chain.clone(), scene.pool.clone(), notifier.clone());
+        (scene, pruner, notifier)
+    }
+
+    /// Three entries: an old round, a height below the checkpoint, and the
+    /// checkpoint itself.
+    fn fill_for_pruning(scene: &Scene) {
+        let ten = scene.chain.hash_at(10);
+        scene
+            .pool
+            .insert_vote(scene.voters[0].vote(1, 1, 3, 10, ten));
+        scene
+            .pool
+            .insert_vote(scene.voters[1].vote(1, 1, 9, 10, ten));
+        scene
+            .pool
+            .insert_vote(scene.voters[2].vote(1, 1, 9, 20, H256::repeat_byte(0x20)));
+        assert_eq!(scene.pool.size(), 3);
+    }
+
+    #[test]
+    fn pruning_waits_for_a_checkpoint_boundary() {
+        let (scene, pruner, _notifier) = pruning_scene();
+        fill_for_pruning(&scene);
+        let logs = capture_logs();
+
+        pruner.prune_after_finalization(15, 10);
+
+        assert_eq!(scene.pool.size(), 3);
+        assert!(logs.has("block 15 is not a checkpoint boundary (interval: 10)"));
+    }
+
+    #[test]
+    fn pruning_at_a_checkpoint_keeps_the_checkpoint_votes() {
+        let (scene, pruner, _notifier) = pruning_scene();
+        fill_for_pruning(&scene);
+
+        pruner.prune_after_finalization(20, 10);
+
+        assert_eq!(scene.pool.size(), 1);
+        assert_eq!(scene.pool.total_votes(), 1);
+        assert_eq!(
+            scene
+                .pool
+                .get_votes(9, &H256::repeat_byte(0x20))
+                .first()
+                .map(|vote| vote.validator_account_id.clone()),
+            Some(scene.voters[2].account.clone())
+        );
+        // The one vote per round record outlives the height pruning.
+        assert!(scene.pool.vote_of(9, &scene.voters[1].account).is_some());
+        assert!(scene.pool.vote_of(3, &scene.voters[0].account).is_none());
+    }
+
+    #[test]
+    fn pruning_falls_back_to_the_starting_profile_when_the_runtime_is_silent() {
+        let (scene, pruner, _notifier) = pruning_scene();
+        scene
+            .chain
+            .answers
+            .forget("DvfApi_get_finality_checkpoint_interval");
+        scene
+            .chain
+            .answers
+            .forget("DvfApi_get_vote_retention_rounds");
+        fill_for_pruning(&scene);
+        let logs = capture_logs();
+
+        pruner.prune_after_finalization(20, 25);
+
+        assert!(logs.has("Failed to get FinalityCheckpointInterval"));
+        assert!(logs.has("Using default of 10."));
+        assert!(logs.has("Failed to get VoteRetentionRounds"));
+        assert!(logs.has("Using default of 20."));
+        // A retention of twenty rounds from round 25 drops round three and
+        // keeps round nine. The height rule removes the entry below the
+        // checkpoint. A retention of two rounds would have dropped all three.
+        assert_eq!(scene.pool.size(), 1);
+        assert_eq!(scene.pool.get_votes(9, &H256::repeat_byte(0x20)).len(), 1);
+    }
+
+    #[test]
+    fn an_interval_of_zero_prunes_nothing() {
+        let (scene, pruner, _notifier) = pruning_scene();
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_finality_checkpoint_interval", (), 0u32);
+        fill_for_pruning(&scene);
+
+        pruner.prune_after_finalization(20, 10);
+
+        assert_eq!(scene.pool.size(), 3);
+    }
+
+    #[test]
+    fn a_pool_above_ten_thousand_entries_drops_its_oldest_rounds() {
+        let (scene, pruner, _notifier) = pruning_scene();
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_vote_retention_rounds", (), 100_000u32);
+        for index in 0..10_005u32 {
+            let mut block = [0u8; 32];
+            block[..4].copy_from_slice(&index.to_le_bytes());
+            scene.pool.insert_vote(DvfVoteMessage {
+                epoch_id: 1,
+                validator_set_id: 1,
+                round_number: index,
+                block_number: 30,
+                block_hash: H256::from(block),
+                validator_account_id: scene.voters[0].account.clone(),
+                validator_public_key: scene.voters[0].public(),
+                signature: sp_core::ed25519::Signature::from_raw([0u8; 64]),
+            });
+        }
+        let logs = capture_logs();
+
+        pruner.prune_after_finalization(20, 10_004);
+
+        assert_eq!(scene.pool.size(), 10_000);
+        assert!(scene.pool.get_votes(0, &H256::zero()).is_empty());
+        assert!(logs.has("Vote pool exceeded max size. Pruned 5 oldest entries."));
+    }
+
+    #[tokio::test]
+    async fn the_running_pruner_acts_on_each_commitment_message() {
+        let (scene, pruner, notifier) = pruning_scene();
+        fill_for_pruning(&scene);
+        let target = scene.chain.hash_at(10);
+        let driver = async {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            notifier
+                .notify(FinalityNotification {
+                    block_number: 20,
+                    block_hash: target,
+                    round_id: 10,
+                })
+                .await;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        };
+
+        let (stopped, ()) = tokio::join!(
+            tokio::time::timeout(Duration::from_millis(120), pruner.run()),
+            driver
+        );
+
+        assert!(
+            stopped.is_err(),
+            "the pruner listens until the runtime stops"
+        );
+        assert_eq!(scene.pool.size(), 1);
+    }
+}

@@ -77,6 +77,10 @@ pub mod metrics;
 #[cfg(test)]
 mod tests;
 
+/// The test chain, runtime answers and propagation layer the service tests share.
+#[cfg(test)]
+pub(crate) mod test_support;
+
 // Re-export commonly used types
 pub use dcf::{DcfConsensus, RealBlockImport};
 pub use dvf_config_validator::{ConfigValidationError, DvfConfig};
