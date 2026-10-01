@@ -228,7 +228,9 @@ impl_runtime_apis! {
         fn get_validator_participation(validator: AccountId) -> (u32, u32) {
             pallet_cerulea_dcf::ValidatorStates::<Runtime>::get(&validator)
                 .map(|state| (state.current.authored_blocks, state.current.missed_blocks))
-                .unwrap_or((u32::MAX, u32::MAX))
+                // A validator without state authored no block and missed none.
+                // A sentinel here would reach every reader as a block count.
+                .unwrap_or((0, 0))
         }
 
         fn get_active_validators() -> Vec<AccountId> {

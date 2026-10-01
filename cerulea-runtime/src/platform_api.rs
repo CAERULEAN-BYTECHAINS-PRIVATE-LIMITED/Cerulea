@@ -225,7 +225,12 @@ fn record_at(
 /// The inclusion tree root of one collection.
 pub fn collection_root(deployment: DeploymentId, collection: Vec<u8>) -> Option<[u8; 32]> {
     let id = collection_of(&collection)?;
-    pallet_cerulea_state::Pallet::<Runtime>::collection_root(&deployment, &id)
+    // The store answers a root for a collection the schema registered and
+    // nothing for a name the Blueprint never declared.
+    <pallet_cerulea_state::Pallet<Runtime> as pallet_cerulea_state::RecordStore>::root(
+        &deployment,
+        &id,
+    )
 }
 
 /// Fold one inclusion proof and compare the result with a root.

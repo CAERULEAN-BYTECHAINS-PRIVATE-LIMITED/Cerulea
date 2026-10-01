@@ -328,11 +328,8 @@ fn a_recorded_parcel_answers_with_its_value_history_and_proof() {
             None
         );
         assert_eq!(api::collection_root(deployment, vec![0xff]), None);
-        // A collection holding no record answers the empty tree root.
-        assert_eq!(
-            api::collection_root(deployment, b"deed".to_vec()),
-            Some(pallet_cerulea_state::proof::empty_root())
-        );
+        // A collection the Blueprint never declared carries no root.
+        assert_eq!(api::collection_root(deployment, b"deed".to_vec()), None);
     });
 }
 

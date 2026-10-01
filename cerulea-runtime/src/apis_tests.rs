@@ -364,7 +364,7 @@ fn the_standing_interface_answers_for_the_genesis_validator() {
             <Api as DcfApi<Block, AccountId, Balance, BlockNumber>>::get_validator_participation(
                 bob()
             ),
-            (u32::MAX, u32::MAX)
+            (0, 0)
         );
         let (authored, missed) =
             <Api as DcfApi<Block, AccountId, Balance, BlockNumber>>::get_validator_participation(
@@ -674,10 +674,10 @@ fn the_platform_interface_reaches_every_platform_read() {
             5
         )
         .is_empty());
-        // A collection holding no record answers the empty tree root.
+        // A collection the Blueprint never declared carries no root.
         assert_eq!(
             <Api as PlatformApi<Block, AccountId>>::collection_root(deployment, b"c".to_vec()),
-            Some(pallet_cerulea_state::proof::empty_root())
+            None
         );
         assert!(
             !<Api as PlatformApi<Block, AccountId>>::verify_record_proof(Vec::new(), [0u8; 32])
