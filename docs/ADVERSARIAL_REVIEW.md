@@ -34,6 +34,9 @@ cargo test --release -p cerulea-node --test adversarial_test
 | 13 | A transaction exceeding its metered bound | Execution Engine, resource meter | `ComputationLimitCrossed`, `StorageLimitCrossed` | `transaction_past_*`, `metered_bound_*` | `95c5569` |
 | 14 | A domain commit whose signer bitmap claims a non-member | Commit Engine, aggregate check | `AggregateBitmapMalformed`, `AggregateSignatureRejected` | `domain_commit_*` | none needed |
 
+A placement fault in the hunk staging of the first commits shifted three
+insertions. Commit `a73866a` places them where they belong.
+
 The suite holds 32 tests over the 14 attacks and the review observations
 below. Every test passes on the tree that carries the fixes below. No test is
 ignored.
@@ -150,30 +153,51 @@ as the origin. A call other than the one the authorisation names fails on
 
 ## Decisions recorded
 
-1. **The admission licence library.** The Admission Engine carries a complete
-   attestation check with a signature step, a window step, a nonce step and a
-   class step. The suite drives that check directly. A validator licence
-   reaches the chain through the tier module today. Wiring the attestation
-   check into an extrinsic of the validator registry module is open work for
-   the module owner.
+1. **The admission licence library.** The Admission Engine attestation check
+   now runs on chain through `submit_validator_licence`. A chain that names no
+   licence key admits validators through governance alone, which is the
+   private chain path. A chain specification for the public-access chain
+   names the key.
 
 2. **A repeated header.** The seal check reads one header at a time and holds
    no memory. The block store keys each block on its header hash and keeps one
    copy, so a repeat of one honest block adds nothing.
 
-## Findings outside the attack list
+## Access control on deployment settings
 
-The review noticed calls that any signed account reaches. Each one belongs to
-a module another task owns, so the list below records them for that task.
+The review found calls that any signed account reached. Task P10-027 closes
+each one. The tests sit in `cerulea-node/tests/access_control_test.rs`. Each
+test shows a stranger meeting a named refusal and the account holding the
+authority succeeding.
 
-1. **Tier module.** `set_control_plane_key` accepts the first key any signed
-   account supplies for a deployment that holds none. A party reaching a fresh
-   deployment first could install a licence under its own key.
-2. **Relayer module.** `register_sponsor`, `set_quota`, `set_account_limit`,
-   `set_action_limit`, `throttle` and `lift_throttle` check the signature of
-   the caller and no role.
-3. **Operator module.** `appoint_operator` checks the signature of the caller
-   and no role. The operator role itself stays bounded, so the appointed
-   account still reaches the platform scope alone.
+Three accounts administer a deployment. The account that installed the
+Blueprint, an active Cerulea operator of the deployment and the account whose
+public key is the control plane key. The shared interface
+`DeploymentStewards` in the schema module answers for every module, and the
+runtime joins the three answers.
+
+1. **The control plane key.** The first key binds to the account that
+   installed the deployment. A chain specification places the key of a
+   genesis deployment. A later key arrives through `rotate_control_plane_key`,
+   signed by the current key or carried by the root origin. Suspension and
+   resumption come from an account that administers the deployment. Faults:
+   `NotInstaller`, `RotationUnsigned`, `SignatureInvalid`, `NotSteward`. Fix
+   commit: `c50703c`.
+2. **The relayer settings.** `register_sponsor`, `set_quota`,
+   `set_account_limit`, `set_action_limit`, `throttle` and `lift_throttle`
+   come from an account that administers the deployment. Fault: `NotSteward`.
+   Fix commit: `04de99d`.
+3. **The operator role.** The root origin or an active operator of the
+   deployment appoints and retires an operator. A chain specification appoints
+   the first operator. Fault: `NotAnOperator`. Fix commit: `b29c8f3`.
+4. **The validator licence.** The validator registry module holds the key the
+   control plane signs validator licences with. A validator presents its
+   attestation through `submit_validator_licence`, which runs the Admission
+   Engine check for the signature, the window, the nonce and the class. While
+   the key is present, `join_validators` and `join_validator_set` admit only a
+   validator whose licence still holds. The root origin installs the key and
+   the class. Faults: `LicenceRequired`, `LicenceSignatureRejected`,
+   `LicenceLapsed`, `LicenceReplayed`, `LicenceHolderMismatch`. Fix commit:
+   `a67d8a6`.
 
 Controls implemented, certification not held.
