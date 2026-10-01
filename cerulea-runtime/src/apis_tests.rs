@@ -443,7 +443,7 @@ fn the_standing_interface_answers_for_the_genesis_validator() {
         let _ = <Api as DcfApi<Block, AccountId, Balance, BlockNumber>>::is_validator_at_risk(alice());
         assert_eq!(
             <Api as DcfApi<Block, AccountId, Balance, BlockNumber>>::get_validator_stake(alice()),
-            pallet_cerulea_pos::Pallet::<Runtime>::stake(&alice())
+            pallet_cerulea_pos::Pallet::<Runtime>::stake(alice())
         );
     });
 }

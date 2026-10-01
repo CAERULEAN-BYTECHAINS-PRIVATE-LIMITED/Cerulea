@@ -13,7 +13,6 @@ type PalletCeruleaPos = pallet_cerulea_pos::Pallet<Runtime>;
 type PalletCeruleaPoi = pallet_cerulea_poi::Pallet<Runtime>;
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, traits::Get};
-use sp_runtime::traits::Zero;
 
 #[cfg(test)]
 mod runtime_integration_tests {
@@ -602,7 +601,6 @@ mod runtime_mock_tests {
 #[cfg(test)]
 mod runtime_api_tests {
     use super::*;
-    use sp_runtime::traits::Zero;
 
     #[test]
     fn test_account_nonce_api() {
@@ -636,7 +634,7 @@ mod runtime_api_tests {
             // If validators exist, they should be valid account IDs
             for validator in validators {
                 // AccountId should not be empty - just verify we have validators
-                assert!(validator.encode().len() > 0);
+                assert!(!validator.encode().is_empty());
             }
         });
     }
@@ -663,15 +661,13 @@ mod runtime_api_tests {
             let scores = DcfPallet::get_validators_by_score();
 
             // Should return a list of (validator, score) pairs
-            for (validator, score) in scores {
+            for (validator, _score) in scores {
                 // AccountId should not be empty - just verify we have validators
-                assert!(validator.encode().len() > 0);
-                assert!(score >= 0);
+                assert!(!validator.encode().is_empty());
             }
 
             // Test getting current epoch
-            let epoch = DcfPallet::current_epoch();
-            assert!(epoch >= 0);
+            let _epoch = DcfPallet::current_epoch();
 
             // Test getting consensus weights
             let pos_weight = DcfPallet::pos_weight();
@@ -691,17 +687,13 @@ mod runtime_api_tests {
             let validator = funded_account_id(1);
 
             // Test checking if validator is active
-            let is_active = DcfPallet::is_validator_active(&validator);
-            assert!(is_active == true || is_active == false);
+            let _is_active = DcfPallet::is_validator_active(&validator);
 
             // Test getting validator stake
-            let stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
-            assert!(stake >= 0);
+            let _stake = pallet_cerulea_pos::Stake::<Runtime>::get(&validator);
 
             // Test getting validator participation
-            let (authored, missed) = DcfPallet::validator_participation(&validator);
-            assert!(authored >= 0);
-            assert!(missed >= 0);
+            let (_authored, _missed) = DcfPallet::validator_participation(&validator);
         });
     }
 
@@ -709,8 +701,7 @@ mod runtime_api_tests {
     fn test_dcf_system_functions() {
         new_test_ext().execute_with(|| {
             // Test getting total validators count
-            let count = DcfPallet::get_total_validators_count();
-            assert!(count >= 0);
+            let _count = DcfPallet::get_total_validators_count();
 
             // The set information call answers with the seated count, the
             // active count and the ceiling the deployment published.
@@ -724,8 +715,7 @@ mod runtime_api_tests {
             assert!(ceiling > 0, "The deployment publishes a ceiling");
 
             // Test getting governance mode
-            let governance_enabled = DcfPallet::get_governance_mode();
-            assert!(governance_enabled == true || governance_enabled == false);
+            let _governance_enabled = DcfPallet::get_governance_mode();
         });
     }
 
@@ -739,7 +729,6 @@ mod runtime_api_tests {
             assert!(finalized <= current);
 
             let info = DvfPallet::get_finality_info(1);
-            assert!(info.is_finalized == true || info.is_finalized == false);
             if let Some(checkpoint) = info.finalized_by_checkpoint {
                 assert!(checkpoint <= current);
             }
@@ -762,7 +751,6 @@ mod runtime_api_tests {
             }
 
             // Validator lists should be consistent
-            assert!(dcf_validators.len() >= 0);
         });
     }
 
@@ -788,7 +776,7 @@ mod runtime_api_tests {
             assert_eq!(stake, 0);
 
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
-            assert_eq!(is_active, false);
+            assert!(!is_active);
         });
     }
 
@@ -798,15 +786,13 @@ mod runtime_api_tests {
             // Test APIs with edge case inputs
 
             // Test with block number 0
-            let zero = DvfPallet::get_finality_info(0);
-            assert!(zero.is_finalized == true || zero.is_finalized == false);
+            let _zero = DvfPallet::get_finality_info(0);
 
             // Test finality with edge cases
             let finalized = DvfPallet::finalized_block_number();
             assert!(finalized <= System::block_number());
 
             // If we reach here, all edge cases were handled gracefully
-            assert!(true);
         });
     }
 
@@ -824,10 +810,9 @@ mod runtime_api_tests {
             }
 
             // Test bulk operations
-            let all_scores = DcfPallet::get_validators_by_score();
+            let _all_scores = DcfPallet::get_validators_by_score();
 
             // Should complete without issues
-            assert!(all_scores.len() >= 0);
         });
     }
 }

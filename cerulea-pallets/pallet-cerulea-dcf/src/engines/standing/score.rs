@@ -277,29 +277,37 @@ mod tests {
 
     #[test]
     fn the_public_access_shares_read_forty_thirty_twenty_ten() {
-        let mut components = Components::default();
-        components.standing = Perbill::one();
+        let components = Components {
+            standing: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::PublicAccess, components).total,
             Perbill::from_percent(40)
         );
 
-        let mut components = Components::default();
-        components.performance = Perbill::one();
+        let components = Components {
+            performance: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::PublicAccess, components).total,
             Perbill::from_percent(30)
         );
 
-        let mut components = Components::default();
-        components.custody = Perbill::one();
+        let components = Components {
+            custody: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::PublicAccess, components).total,
             Perbill::from_percent(20)
         );
 
-        let mut components = Components::default();
-        components.sampling = Perbill::one();
+        let components = Components {
+            sampling: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::PublicAccess, components).total,
             Perbill::from_percent(10)
@@ -308,29 +316,37 @@ mod tests {
 
     #[test]
     fn the_private_shares_read_thirty_five_twenty_five_twenty_five_fifteen() {
-        let mut components = Components::default();
-        components.role = Perbill::one();
+        let components = Components {
+            role: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::Private, components).total,
             Perbill::from_percent(35)
         );
 
-        let mut components = Components::default();
-        components.attestation = Perbill::one();
+        let components = Components {
+            attestation: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::Private, components).total,
             Perbill::from_percent(25)
         );
 
-        let mut components = Components::default();
-        components.performance = Perbill::one();
+        let components = Components {
+            performance: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::Private, components).total,
             Perbill::from_percent(25)
         );
 
-        let mut components = Components::default();
-        components.custody = Perbill::one();
+        let components = Components {
+            custody: Perbill::one(),
+            ..Default::default()
+        };
         assert_eq!(
             compose(ChainKind::Private, components).total,
             Perbill::from_percent(15)
@@ -355,8 +371,10 @@ mod tests {
     fn custody_alone_never_reaches_the_whole_score() {
         // The retired model let one component carry the whole score. Custody
         // now carries a fifth on the public-access chain.
-        let mut components = Components::default();
-        components.custody = Perbill::one();
+        let components = Components {
+            custody: Perbill::one(),
+            ..Default::default()
+        };
         let score = compose(ChainKind::PublicAccess, components);
         assert!(score.total < Perbill::one());
         assert_eq!(score.total, Perbill::from_percent(20));

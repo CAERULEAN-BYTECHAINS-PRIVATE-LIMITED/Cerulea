@@ -70,7 +70,6 @@ mod runtime_api_tests {
         assert!(pos_weight + poi_weight == 100);
 
         // If we reach this point, all API types are properly defined
-        assert!(true);
     }
 
     /// Test DCF API method signatures and return types
@@ -122,7 +121,7 @@ mod runtime_api_tests {
         // validate_expected_author(block_number: u32, author: AccountId) -> bool
         let _is_valid: bool = false;
 
-        assert!(true);
+        assert!(!_is_valid && _weights.0 + _weights.1 == 100);
     }
 
     /// Test PoS API method signatures and return types
@@ -140,7 +139,7 @@ mod runtime_api_tests {
         // get_active_validators() -> Vec<AccountId>
         let _validators: Vec<AccountId> = Vec::new();
 
-        assert!(true);
+        assert!(_validators.is_empty() && _count == 0);
     }
 
     /// Test PoI API method signatures and return types
@@ -155,7 +154,7 @@ mod runtime_api_tests {
         // get_current_epoch() -> u32
         let _epoch: u32 = 0;
 
-        assert!(true);
+        assert!(_challenge.is_none() && _epoch == 0);
     }
 
     /// Test API data consistency and relationships
@@ -177,8 +176,6 @@ mod runtime_api_tests {
         let dcf_epoch: u32 = 5;
         let poi_epoch: u32 = 5;
         assert_eq!(dcf_epoch, poi_epoch);
-
-        assert!(true);
     }
 
     /// Test API error handling and edge cases
@@ -213,8 +210,6 @@ mod runtime_api_tests {
         assert!(no_profile.is_none());
         assert!(no_breakdown.is_none());
         assert!(no_uptime.is_none());
-
-        assert!(true);
     }
 
     /// Test API performance characteristics
@@ -235,8 +230,6 @@ mod runtime_api_tests {
 
         // Should complete quickly (under 10ms for 1000 calculations)
         assert!(duration.as_millis() < 100);
-
-        assert!(true);
     }
 
     /// Test DCF system functions
@@ -251,7 +244,8 @@ mod runtime_api_tests {
         let _last_finalized: u32 = 0;
         let _blocks_since: u32 = 0;
 
-        assert!(true);
+        assert_eq!(_consensus_weights.0 + _consensus_weights.1, 100);
+        assert!(_last_finalized <= _blocks_since);
     }
 
     /// Test DCF finality functions
@@ -267,8 +261,6 @@ mod runtime_api_tests {
 
         // Test finality info
         let _finality_info: (u32, u32) = (100, 95);
-
-        assert!(true);
     }
 
     /// Test DCF validator functions
@@ -296,8 +288,6 @@ mod runtime_api_tests {
         assert!(_authored_blocks > 0);
         assert!(_missed_blocks > 0);
         assert!(_participation_rate <= 100);
-
-        assert!(true);
     }
 
     /// Test account nonce API
@@ -307,8 +297,6 @@ mod runtime_api_tests {
         let _nonce: u32 = 0;
 
         assert!(_nonce == 0);
-
-        assert!(true);
     }
 
     /// Test epoch consistency across pallets
@@ -330,8 +318,6 @@ mod runtime_api_tests {
 
         assert!(_calculated_epoch > 0);
         assert!(_epoch_length > 0);
-
-        assert!(true);
     }
 
     /// Test API edge cases
@@ -361,7 +347,5 @@ mod runtime_api_tests {
         assert_eq!(_empty_validators.len(), 0);
         assert_eq!(_empty_scores.len(), 0);
         assert_eq!(_empty_history.len(), 0);
-
-        assert!(true);
     }
 }

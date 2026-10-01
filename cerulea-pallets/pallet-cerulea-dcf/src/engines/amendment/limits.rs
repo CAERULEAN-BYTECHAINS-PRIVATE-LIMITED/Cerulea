@@ -317,7 +317,6 @@ mod tests {
     #[test]
     fn the_timing_assumption_is_stated_in_the_code() {
         assert_eq!(ASSUMED_MESSAGE_DELAY_BOUND_MS, 2_000);
-        assert!(ASSUMED_MESSAGE_DELAY_BOUND_MS > 0);
     }
 
     #[test]

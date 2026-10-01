@@ -253,10 +253,12 @@ mod tests {
     #[test]
     fn a_deployment_asking_for_no_credential_admits_on_approval_alone() {
         let held = PrivateRequirements::starting_profile();
-        let mut evidence = PrivateEvidence::default();
-        evidence.approvals = 1;
-        evidence.licence_holds = true;
-        evidence.licence_class = LicenceClass::Private;
+        let evidence = PrivateEvidence {
+            approvals: 1,
+            licence_holds: true,
+            licence_class: LicenceClass::Private,
+            ..Default::default()
+        };
         assert_eq!(admits(&held, &evidence), Ok(()));
     }
 

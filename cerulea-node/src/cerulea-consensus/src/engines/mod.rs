@@ -1268,6 +1268,5 @@ mod tests {
     fn the_committee_size_and_delay_bound_hold_their_stated_values() {
         assert_eq!(COMMITTEE_SIZE, 5);
         assert_eq!(FAULT_MULTIPLE, 3);
-        assert!(ASSUMED_MESSAGE_DELAY_BOUND_MS > 0);
     }
 }

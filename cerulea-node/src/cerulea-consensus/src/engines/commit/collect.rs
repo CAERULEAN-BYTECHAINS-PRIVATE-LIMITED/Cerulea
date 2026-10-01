@@ -419,10 +419,11 @@ mod tests {
     #[test]
     fn the_signer_weight_follows_the_standing_of_each_signer() {
         let validators = build_validators(3);
-        let mut set: Vec<(ed25519::Public, TrustScore)> = Vec::new();
-        set.push((validators.keys[0], TrustScore::from_percent(10)));
-        set.push((validators.keys[1], TrustScore::from_percent(30)));
-        set.push((validators.keys[2], TrustScore::from_percent(60)));
+        let set: Vec<(ed25519::Public, TrustScore)> = vec![
+            (validators.keys[0], TrustScore::from_percent(10)),
+            (validators.keys[1], TrustScore::from_percent(30)),
+            (validators.keys[2], TrustScore::from_percent(60)),
+        ];
         let mut collector = SignatureCollector::open(SLOT, BLOCK, &set, OPENS, WINDOW)
             .expect("the collector opens");
         assert_eq!(collector.total_weight(), TrustScore::FULL as u128);

@@ -3,21 +3,14 @@
 //! This module provides a comprehensive mock runtime that can be used for testing
 //! the entire Cerulea system including all pallets and their interactions.
 
-use crate::{AccountId, Balance, Balances, BlockNumber, Runtime, RuntimeOrigin, System};
+use crate::{AccountId, Balance, Balances, BlockNumber, Runtime, System};
 use frame_support::{
     parameter_types,
-    traits::{
-        ConstU128, ConstU32, ConstU64, ConstU8, Currency, Everything, Hooks, ReservableCurrency,
-    },
+    traits::{Currency, ReservableCurrency},
     weights::Weight,
-    PalletId,
 };
-use sp_core::H256;
 use sp_runtime::AccountId32;
-use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup, Verify},
-    BuildStorage, Perbill,
-};
+use sp_runtime::{BuildStorage, Perbill};
 
 /// Helper function to create AccountId from u64
 pub fn account_id(id: u64) -> AccountId {

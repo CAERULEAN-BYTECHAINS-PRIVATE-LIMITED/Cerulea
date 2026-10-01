@@ -167,7 +167,7 @@ mod tests {
 
         for i in 0..10000 {
             metrics.update_active_validators(i % 100);
-            metrics.update_total_reserved_stake((i as u64 * 1000) as u128);
+            metrics.update_total_reserved_stake(u128::from(i * 1000));
 
             if i % 100 == 0 {
                 metrics.update_current_epoch((i / 100) as u32);
