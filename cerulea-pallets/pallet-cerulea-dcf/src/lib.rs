@@ -8216,6 +8216,11 @@ pub mod pallet {
             let contributed = Self::inference_contribution(validator);
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                // The detailed event reports the scores held before this update,
+                // so they are read before the new contribution lands.
+                let old_stake_score = state.current.stake_score;
+                let old_inference_score = state.current.inference_score;
+                let old_final_score = state.current.final_score;
                 state.current.inference_score = contributed;
                 let stake_score = state.current.stake_score;
                 let inference_score = state.current.inference_score;
@@ -8239,9 +8244,6 @@ pub mod pallet {
                 if final_score > T::MaxValidatorScore::get() {
                     final_score = T::MaxValidatorScore::get();
                 }
-                let old_stake_score = state.current.stake_score;
-                let old_inference_score = state.current.inference_score;
-                let old_final_score = state.current.final_score;
                 state.current.final_score = final_score;
                 state.last_active_epoch = Self::current_epoch();
 
@@ -8528,6 +8530,13 @@ pub mod pallet {
 
         /// Eject a validator from the active set for a given reason.
         fn eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
+            // The status event reports the status the validator held, so it
+            // is read before the removal changes it.
+            let old_status = if Self::is_validator_active(validator) {
+                ValidatorStatus::Active
+            } else {
+                ValidatorStatus::Inactive
+            };
             let mut active_validators = ActiveValidators::<T>::get();
             if let Some(pos) = active_validators.iter().position(|v| v == validator) {
                 active_validators.remove(pos);
@@ -8536,11 +8545,6 @@ pub mod pallet {
 
             // Emit validator status change event (from Active/Inactive to Ejected)
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let old_status = if Self::is_validator_active(validator) {
-                ValidatorStatus::Active
-            } else {
-                ValidatorStatus::Inactive
-            };
             Self::deposit_event(Event::ValidatorStatusChanged {
                 validator: validator.clone(),
                 old_status,
