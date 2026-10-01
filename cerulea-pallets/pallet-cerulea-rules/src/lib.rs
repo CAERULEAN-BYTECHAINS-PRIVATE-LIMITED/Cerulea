@@ -26,6 +26,8 @@ pub mod weights;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod registry_tests;
+#[cfg(test)]
 mod tests;
 
 pub use explain::{RuleFailure, RuleKind};
