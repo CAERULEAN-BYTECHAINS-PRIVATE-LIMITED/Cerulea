@@ -1,0 +1,50 @@
+{
+  "network": "bitcoin",
+  "slug": "bitcoin-signet",
+  "label": "Bitcoin signet",
+  "endpoint": "https://mempool.space/signet/api",
+  "observedAt": "2026-09-30T05:03:38.887Z",
+  "height": 324295,
+  "hash": "0x00000011e9b88d5df9acda2c09e429b757aeb1f83b25309779e76e16b35ef092",
+  "timestamp": "2026-09-30T03:58:36.000Z",
+  "anchor": "The parent of block 324295 as the checkpoint, and six linked headers above it, each hashing under its own target and under the signet work limit.",
+  "inclusion": "The merkle branch of transaction 41fc3b06296cbd96eb4c47c7b4db8b068e793118d06bd7efd59e1ec3a3630932 at position 1, folded to the root the header carries.",
+  "checks": [
+    "Every header hashes to the hash the source named.",
+    "Every header links to the header below.",
+    "Every header meets its own target.",
+    "The merkle branch folds to the root in the header."
+  ],
+  "outbound": {
+    "sent": false,
+    "detail": "The signet faucets ask for a check against automated use, so the live pass carried no anchor out.",
+    "faucet": "https://signetfaucet.com",
+    "command": "Paste the relayer address into the faucet page, then run: CERULEA_BRIDGE_LIVE=1 pnpm vitest run test/bridge/live.test.ts"
+  },
+  "bundle": {
+    "checkpoint": {
+      "height": 324294,
+      "hash": "0x000000012f51e3827135c9f9e17066121cbb17da9b3e1675a9f5591634afb730"
+    },
+    "workLimit": "0x00000377ae000000000000000000000000000000000000000000000000000000",
+    "headers": [
+      "0x0000002030b7af341659f5a975163e9bda17bb1c126670e1f9c9357182e3512f010000005bd2e5062f36058c252f69cf9e25b70978bfe32c93c249cb1d99527a3e447fa4ec88bc6a0388141de2c88a0f",
+      "0x0000002092f05eb3166ee7799730253bf8b1ae57b729e4092cdaacf95d8db8e911000000f8971bfbb28f3038a819d041cab1dd62cd2bab98a1d9b0b60342e88a2de0e719068cbc6a0388141d9b6b6208",
+      "0x0000002091f559038b47af59514b6bb59ea5635f6f41a57ead9774ed0ae42e2203000000ea8f528f9564802e658c71c4377a3337abda98f45805b80658c0e2e045a8daa10e8cbc6a0388141d1250cf02",
+      "0x000000203ec9241ef0b88df865e1f8ec8fbf9c1dd42b751ceea2cb3630335b98040000003ab521b37378e115f73f6585f33fbc6a75cce38fb9733670a8200c35a9ae7ff5608cbc6a0388141dbd84ff11",
+      "0x000000208d9ebc22a832d761b576eaa31764bcc7b3370823c9d389d27adcace103000000a2c07697bb2e4c0e361021f65cf910cabdc976180cfd733a213384245967d1bfc08cbc6a0388141d656bd70f",
+      "0x00000020856f66e4aeb8634b27ec178b60bf44b6d5315a2623b1ab9f4d95047c1000000010a8879cd166af88d4dc99ae326e8c676cc5e2c78028c57f7af45c33ce2cb6bc7a92bc6a0388141d358d5200"
+    ],
+    "height": 324295,
+    "txid": "0x41fc3b06296cbd96eb4c47c7b4db8b068e793118d06bd7efd59e1ec3a3630932",
+    "position": 1,
+    "branch": [
+      "0xb53de52268400ca8ac94356200bf824ed1e3120cae48827f03bda248448ffe1f",
+      "0xa0e7f2bf0df876193b364f4aaa6b1bfc3f3db104461ad6568b15203f78961b23",
+      "0xf4f4cd3afaa2f86290bc3ba59a0811a47137029d9f577e5e0aae0f9c4e1e098a",
+      "0xf719e3a6026510f327ef11708f58a174c546e819511778fda1b5635ef6aa4d89"
+    ],
+    "transaction": "0x0200000000010178f8e00c57758f75765a3d59a2fc5db2e61b76cd15487d0aef4eb2f477247bf00100000000fdffffff0300000000000000000d6a0b636f696e62696e2e6f72678154a2260100000016001410d8966cb86cfbd51d632a901b16106448a16d444019010000000000160014d3f2a2caff37ca7490a894fb5a01096dc14f9ffc0247304402203be61b3a88a9b67e64b71e265a150b7b1651745b5a3d3e74c9cecf06b4cee2e1022017928a28e429ddb63447f98de3357ed27e9aebb07af77371747b98ac78271b4f012103350229023e059a93dade91a66181da86ff09b5166163a9c080e0cf5090eef19100000000",
+    "confirmations": 6
+  }
+}

@@ -218,11 +218,13 @@ pub struct Account {
 /// The value is a list of four items. The first item is the nonce. The
 /// second item is the balance. The third item is the storage root. The
 /// fourth item is the code hash. The bridge reads the storage root and the
-/// code hash.
+/// code hash. The Avalanche contract chain writes a fifth item, a marker
+/// naming an account that holds more than one native coin, and the reader
+/// takes that form as well.
 pub fn account_of(encoded: &[u8]) -> Result<Account, BridgeFault> {
     let item = rlp::decode(encoded).map_err(|_| BridgeFault::MalformedEncoding)?;
     let held = item.list().map_err(|_| BridgeFault::MalformedEncoding)?;
-    if held.len() != 4 {
+    if held.len() != 4 && held.len() != 5 {
         return Err(BridgeFault::MalformedEncoding);
     }
     Ok(Account {

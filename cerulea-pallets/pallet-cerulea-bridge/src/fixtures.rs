@@ -591,8 +591,17 @@ pub fn polkadot_side(envelope: &MessageEnvelope, base: Checkpoint) -> Prepared {
         trie.insert(b"cerulea.bridge.other", &[9u8; 32])
             .expect("the trie takes the entry");
     }
-    let nodes = sp_trie::generate_trie_proof::<LayoutV1<BlakeTwo256>, _, _, _>(&db, root, [&key])
-        .expect("the trie proof builds");
+    // A far network node answers a storage read proof with the trie nodes
+    // the read passes through. The fixture answers with every node of the
+    // small trie, in hash order, which a read reaches the key through.
+    let mut held: Vec<(sp_core::H256, Vec<u8>)> = db
+        .drain()
+        .into_iter()
+        .filter(|(_, (_, count))| *count > 0)
+        .map(|(hash, (node, _))| (hash, node))
+        .collect();
+    held.sort();
+    let nodes: Vec<Vec<u8>> = held.into_iter().map(|(_, node)| node).collect();
 
     let number = u32::try_from(base.height.saturating_add(1)).expect("the number fits");
     let header = polkadot::encode_header(

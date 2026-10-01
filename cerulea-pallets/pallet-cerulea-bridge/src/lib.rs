@@ -63,6 +63,8 @@ pub mod weights;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
+mod live_evidence;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;

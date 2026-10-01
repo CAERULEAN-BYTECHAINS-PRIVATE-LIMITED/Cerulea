@@ -270,18 +270,27 @@ pub fn check_settlement(
 
 /// Check one storage proof against one state trie root.
 ///
-/// The check runs through the trie crate of the pinned set, so the walk
+/// The proof is the set of trie nodes a far network node answers to a
+/// storage read proof request. The check places the nodes in a store keyed
+/// by their hash and reads the key from the state root through the trie
+/// crate of the pinned set. A read that reaches a node missing from the
+/// set, or a value other than the one the proof names, declines. The walk
 /// matches the far network node byte for byte.
 pub fn check_storage(
     state_root: &[u8; 32],
     key: &[u8],
     proof: &PolkadotProof,
 ) -> Result<(), BridgeFault> {
-    let nodes = raw_nodes(&proof.nodes);
+    let store =
+        sp_trie::StorageProof::new(raw_nodes(&proof.nodes)).into_memory_db::<BlakeTwo256>();
     let root = sp_core::H256::from(*state_root);
-    let items = [(key.to_vec(), Some(proof.value.to_vec()))];
-    sp_trie::verify_trie_proof::<LayoutV1<BlakeTwo256>, _, _, _>(&root, &nodes, items.iter())
-        .map_err(|_| BridgeFault::NodeHashMismatch)
+    let found =
+        sp_trie::read_trie_value::<LayoutV1<BlakeTwo256>, _>(&store, &root, key, None, None)
+            .map_err(|_| BridgeFault::NodeHashMismatch)?;
+    match found {
+        Some(held) if held.as_slice() == proof.value.as_slice() => Ok(()),
+        _ => Err(BridgeFault::NodeHashMismatch),
+    }
 }
 
 /// Record one accepted Polkadot header.

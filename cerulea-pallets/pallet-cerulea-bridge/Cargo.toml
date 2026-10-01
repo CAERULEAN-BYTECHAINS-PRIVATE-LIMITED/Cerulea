@@ -37,6 +37,7 @@ sp-runtime = { default-features = true, workspace = true }
 sp-trie = { default-features = true, workspace = true }
 pallet-cerulea-identity = { default-features = true, workspace = true }
 pallet-cerulea-permission = { default-features = true, workspace = true }
+serde_json = { workspace = true, features = ["std"] }
 
 [features]
 default = ["std"]

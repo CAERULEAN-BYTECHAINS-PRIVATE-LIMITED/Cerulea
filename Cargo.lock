@@ -6491,6 +6491,7 @@ dependencies = [
  "pallet-cerulea-state",
  "parity-scale-codec",
  "scale-info",
+ "serde_json",
  "sp-core",
  "sp-crypto-hashing",
  "sp-io",
