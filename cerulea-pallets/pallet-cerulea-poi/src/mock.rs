@@ -71,6 +71,20 @@ const SCORE_PREFIX: &[u8] = b"mock/score/";
 const ACTIVITY_PREFIX: &[u8] = b"mock/activity/";
 const FINAL_PREFIX: &[u8] = b"mock/final/";
 const EJECTED_KEY: &[u8] = b"mock/ejected";
+const REFUSAL_KEY: &[u8] = b"mock/refusal";
+
+/// The reason the mock interfaces give when a test asks them to refuse.
+pub const MOCK_REFUSAL: &str = "the mock interface refused the call";
+
+/// Report whether a test asked the mock interfaces to refuse every call.
+fn refusing() -> bool {
+    read_value::<bool>(REFUSAL_KEY)
+}
+
+/// The answer a refusing mock interface returns.
+fn refusal() -> frame_support::dispatch::DispatchResult {
+    Err(sp_runtime::DispatchError::Other(MOCK_REFUSAL))
+}
 
 fn key_for(prefix: &[u8], validator: &u64) -> Vec<u8> {
     let mut key = prefix.to_vec();
@@ -94,6 +108,9 @@ pub struct MockStakeInterface;
 
 impl pallet_cerulea_poi::PosInterface<u64> for MockStakeInterface {
     fn boost_score(validator: &u64, weight: u32) -> frame_support::dispatch::DispatchResult {
+        if refusing() {
+            return refusal();
+        }
         let key = key_for(SCORE_PREFIX, validator);
         let current: u64 = read_value(&key);
         write_value(&key, &current.saturating_add(u64::from(weight)));
@@ -101,6 +118,9 @@ impl pallet_cerulea_poi::PosInterface<u64> for MockStakeInterface {
     }
 
     fn slash_score(validator: &u64, weight: u32) -> frame_support::dispatch::DispatchResult {
+        if refusing() {
+            return refusal();
+        }
         let key = key_for(SCORE_PREFIX, validator);
         let current: u64 = read_value(&key);
         write_value(&key, &current.saturating_sub(u64::from(weight)));
@@ -118,6 +138,9 @@ pub struct MockFrameworkInterface;
 
 impl pallet_cerulea_poi::DcfInterface<u64> for MockFrameworkInterface {
     fn record_inference_activity(validator: &u64) -> frame_support::dispatch::DispatchResult {
+        if refusing() {
+            return refusal();
+        }
         let key = key_for(ACTIVITY_PREFIX, validator);
         let current: u32 = read_value(&key);
         write_value(&key, &current.saturating_add(1));
@@ -141,6 +164,9 @@ impl pallet_cerulea_poi::DcfInterface<u64> for MockFrameworkInterface {
     }
 
     fn update_final_score(validator: &u64) -> frame_support::dispatch::DispatchResult {
+        if refusing() {
+            return refusal();
+        }
         let score: u64 = read_value(&key_for(SCORE_PREFIX, validator));
         let activity: u32 = read_value(&key_for(ACTIVITY_PREFIX, validator));
         let settled = score.saturating_add(u64::from(activity));
@@ -172,6 +198,19 @@ pub fn mock_ejected() -> Vec<u64> {
 /// Read the active validator set the mock stake interface serves.
 pub fn mock_active_validators() -> Vec<u64> {
     read_value(ACTIVE_KEY)
+}
+
+/// Replace the active validator set the mock stake interface serves.
+pub fn set_mock_active_validators(validators: Vec<u64>) {
+    write_value(ACTIVE_KEY, &validators);
+}
+
+/// Ask the mock interfaces to refuse every score and activity call.
+///
+/// A refusing interface answers with [`MOCK_REFUSAL`]. The tests use the
+/// refusal to reach the branches the pallet takes when an interface fails.
+pub fn set_mock_refusal(refuse: bool) {
+    write_value(REFUSAL_KEY, &refuse);
 }
 
 impl pallet_cerulea_poi::Config for Test {

@@ -82,3 +82,98 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads_writes(10_u64, 5_u64))
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::Test;
+	use frame_support::weights::constants::WEIGHT_REF_TIME_PER_SECOND;
+
+	/// The reference time one block of the Cerulea chain spends.
+	const BLOCK_REF_TIME: u64 = 2 * WEIGHT_REF_TIME_PER_SECOND;
+
+	/// Check that one figure charges reference time and fits inside one block.
+	fn fits_one_block(call: &str, figure: Weight) {
+		assert!(figure.ref_time() > 0, "the figure of {call} charges reference time");
+		assert!(
+			figure.ref_time() <= BLOCK_REF_TIME,
+			"the figure of {call} fits inside one block"
+		);
+	}
+
+	/// Check one measured figure against the figure a test runtime charges.
+	///
+	/// The measured figure fits inside one block. The measured figure reaches
+	/// the test runtime figure in reference time and in proof size. Both
+	/// figures cover the storage charge the call performs.
+	fn holds(call: &str, measured: Weight, plain: Weight, storage: Weight) {
+		fits_one_block(call, measured);
+		fits_one_block(call, plain);
+		assert!(
+			measured.all_gte(plain),
+			"the figure of {call} reaches the figure a test runtime charges"
+		);
+		assert!(
+			measured.ref_time() >= storage.ref_time(),
+			"the figure of {call} covers the storage charge of the call"
+		);
+		assert!(
+			plain.ref_time() >= storage.ref_time(),
+			"the test runtime figure of {call} covers the storage charge of the call"
+		);
+	}
+
+	#[test]
+	fn every_call_figure_fits_one_block_and_covers_its_storage_charge() {
+		let db = RocksDbWeight::get();
+		holds(
+			"submit_inference",
+			<SubstrateWeight<Test> as WeightInfo>::submit_inference(),
+			<() as WeightInfo>::submit_inference(),
+			db.writes(1),
+		);
+		holds(
+			"challenge_inference",
+			<SubstrateWeight<Test> as WeightInfo>::challenge_inference(),
+			<() as WeightInfo>::challenge_inference(),
+			db.reads_writes(1, 1),
+		);
+		holds(
+			"resolve_challenge",
+			<SubstrateWeight<Test> as WeightInfo>::resolve_challenge(),
+			<() as WeightInfo>::resolve_challenge(),
+			db.reads_writes(2, 2),
+		);
+		holds(
+			"epoch_cleanup",
+			<SubstrateWeight<Test> as WeightInfo>::epoch_cleanup(),
+			<() as WeightInfo>::epoch_cleanup(),
+			db.reads_writes(10, 5),
+		);
+	}
+
+	#[test]
+	fn every_call_figure_rises_with_the_storage_work_of_the_call() {
+		let submit = <SubstrateWeight<Test> as WeightInfo>::submit_inference();
+		let challenge = <SubstrateWeight<Test> as WeightInfo>::challenge_inference();
+		let resolve = <SubstrateWeight<Test> as WeightInfo>::resolve_challenge();
+		let cleanup = <SubstrateWeight<Test> as WeightInfo>::epoch_cleanup();
+		assert!(submit.ref_time() < challenge.ref_time());
+		assert!(challenge.ref_time() < resolve.ref_time());
+		assert!(resolve.ref_time() < cleanup.ref_time());
+	}
+
+	#[test]
+	fn the_template_figure_fits_one_block_and_carries_its_proof_size() {
+		let measured = <SubstrateWeight<Test> as WeightInfo>::store_something();
+		let plain = <() as WeightInfo>::store_something();
+		fits_one_block("store_something", measured);
+		fits_one_block("store_something", plain);
+		// The measured template figure carries a proof size of five hundred
+		// bytes. The test runtime figure carries the storage write in
+		// reference time and a proof size of zero.
+		assert_eq!(measured.proof_size(), 500);
+		assert!(measured.proof_size() >= plain.proof_size());
+		assert!(plain.ref_time() >= RocksDbWeight::get().writes(1).ref_time());
+	}
+}

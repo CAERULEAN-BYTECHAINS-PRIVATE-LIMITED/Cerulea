@@ -42,6 +42,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod contribution_tests;
+
 // --- Benchmarking --- //
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
