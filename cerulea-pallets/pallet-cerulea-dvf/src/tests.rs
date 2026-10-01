@@ -847,17 +847,17 @@ fn test_genesis_weight_initialization_bug_condition() {
     });
 }
 
-/// **Preservation Property Tests**
-///
-/// **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
-///
-/// These tests capture the baseline behavior that must be preserved after the fix.
-/// They test epoch transition logic, weight calculations, validator set changes,
-/// and finalization for all non-genesis scenarios (epoch boundaries > 0).
-///
-/// **IMPORTANT**: These tests are run on UNFIXED code first to observe and document
-/// the correct baseline behavior. They should PASS on unfixed code, confirming the
-/// behavior we need to preserve.
+// **Preservation Property Tests**
+//
+// **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
+//
+// These tests capture the baseline behavior that must be preserved after the fix.
+// They test epoch transition logic, weight calculations, validator set changes,
+// and finalization for all non-genesis scenarios (epoch boundaries > 0).
+//
+// **IMPORTANT**: These tests are run on UNFIXED code first to observe and document
+// the correct baseline behavior. They should PASS on unfixed code, confirming the
+// behavior we need to preserve.
 
 /// **Property 2.1: Epoch Transition Preservation**
 ///
@@ -941,7 +941,7 @@ fn the_commit_engine_share_follows_the_trust_score_pattern() {
 
         // Each pair reads as the Trust Score of Alice beside the Trust Score
         // of Bob, in parts per billion.
-        let patterns = vec![
+        let patterns = [
             (100_000_000u128, 100_000_000u128),
             (500_000_000u128, 100_000_000u128),
             (1_000_000_000u128, 100_000_000u128),
@@ -1670,7 +1670,7 @@ fn genesis_accepts_a_trust_score_at_the_ceiling() {
     let mut ext: sp_io::TestExternalities = t.into();
     ext.execute_with(|| {
         assert_eq!(
-            crate::EpochVotingWeight::<Test>::get(&account_key("Alice")),
+            crate::EpochVotingWeight::<Test>::get(account_key("Alice")),
             Some(crate::VOTE_WEIGHT_SCALE)
         );
     });

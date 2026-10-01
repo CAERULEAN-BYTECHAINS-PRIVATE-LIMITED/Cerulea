@@ -79,7 +79,6 @@ fn prop_trust_score_bounds() {
 
         // Property: Trust scores should be within bounds
         let trust_score = DcfPallet::validator_trust_scores(&validator_id);
-        assert!(trust_score >= 0);
         assert!(trust_score <= 10000);
 
         // Property: Trust score should be deterministic for same input
@@ -101,8 +100,6 @@ fn prop_consensus_weight_invariants() {
         let (actual_pos, actual_poi) = DcfPallet::consensus_weights();
 
         // Property: Weights should be within valid range
-        assert!(actual_pos >= 0);
-        assert!(actual_poi >= 0);
         assert!(actual_pos <= 10000);
         assert!(actual_poi <= 10000);
 
@@ -324,11 +321,11 @@ fn prop_error_handling_robustness() {
 
         // Test operations with invalid inputs
         let _ = DcfPallet::validator_stake_score(&validator_id);
-        let _ = DcfPallet::validator_trust_scores(&validator_id);
+        let trust_score = DcfPallet::validator_trust_scores(&validator_id);
         let _ = DcfPallet::is_validator_active(&validator_id);
 
         // Property: System should handle all inputs gracefully without panicking
-        assert!(true);
+        assert!(trust_score <= 10000);
     });
 }
 

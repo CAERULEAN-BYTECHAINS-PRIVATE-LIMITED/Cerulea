@@ -87,12 +87,7 @@ fn runtime_api_data_flow_integration() {
             // DCF
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(
-                    format!("DataFlowValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("DataFlowValidator{}", validator).into_bytes())
             ));
 
             // PoS
@@ -142,13 +137,10 @@ fn runtime_api_data_flow_integration() {
         // Test individual validator APIs
         for validator in &validators {
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            let (authored, missed) = DcfPallet::validator_participation(validator);
-            let last_active = DcfPallet::validator_last_active(validator);
+            let _ = DcfPallet::validator_participation(validator);
+            let _ = DcfPallet::validator_last_active(validator);
 
             assert!(stake > 0);
-            assert!(authored >= 0);
-            assert!(missed >= 0);
-            assert!(last_active >= 0);
 
             // Cross-pallet data verification
             let pos_score = PalletCeruleaPos::validator_scores(validator).unwrap_or(0);
@@ -174,12 +166,7 @@ fn runtime_api_performance_integration() {
 
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("PerfValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("PerfValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
             assert_ok!(PalletCeruleaPos::submit_score(
@@ -306,7 +293,7 @@ fn runtime_api_state_transitions_integration() {
         // Phase 2: Join DCF
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"StateTransitionValidator".to_vec().try_into().unwrap())
+            Some(b"StateTransitionValidator".to_vec())
         ));
 
         assert!(DcfPallet::is_validator_active(&validator));
@@ -419,7 +406,7 @@ fn runtime_api_finality_integration() {
         Balances::make_free_balance_be(&validator, 50000);
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"FinalityValidator".to_vec().try_into().unwrap())
+            Some(b"FinalityValidator".to_vec())
         ));
 
         // Test finality APIs
@@ -439,16 +426,11 @@ fn runtime_api_finality_integration() {
             assert!(initial_score <= 1_000_000);
 
             // Test expected author for block
+            // No author determined is acceptable.
             let expected_author = DcfPallet::get_expected_author(block as u32);
-            match expected_author {
-                Some(author) => {
-                    let active_validators = DcfPallet::active_validators();
-                    assert!(active_validators.contains(&author));
-                }
-                None => {
-                    // No author determined, which is acceptable
-                    assert!(true);
-                }
+            if let Some(author) = expected_author {
+                let active_validators = DcfPallet::active_validators();
+                assert!(active_validators.contains(&author));
             }
         }
 
@@ -467,8 +449,6 @@ fn runtime_api_finality_integration() {
 
         // Test with validator participation
         let (authored, missed) = DcfPallet::validator_participation(&validator);
-        assert!(authored >= 0);
-        assert!(missed >= 0);
 
         // Total participation should be reasonable
         let total_participation = authored + missed;
@@ -487,12 +467,7 @@ fn runtime_api_epoch_synchronization() {
             Balances::make_free_balance_be(validator, 50000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(
-                    format!("EpochValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("EpochValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(*validator));
             assert_ok!(PalletCeruleaPoi::submit_inference(
@@ -599,7 +574,7 @@ fn runtime_api_configuration_consistency() {
 
         // Test governance mode API
         let governance_enabled = DcfPallet::get_governance_mode();
-        assert!(governance_enabled || !governance_enabled);
+        assert_eq!(governance_enabled, crate::GovernanceModeEnabled::<Test>::get());
 
         // The set information call answers with the seated count, the active
         // count and the ceiling the deployment published.

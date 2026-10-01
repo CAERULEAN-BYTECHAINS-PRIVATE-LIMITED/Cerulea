@@ -20,7 +20,6 @@ fn ci_basic_functionality_check() {
         for validator in &active_validators {
             assert!(DcfPallet::is_validator_active(validator));
             assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
-            assert!(crate::PoiWeight::<Test>::get() >= 0);
         }
     });
 }
@@ -51,7 +50,8 @@ fn ci_initialization_no_panic() {
             let _ = pallet_cerulea_pos::Stake::<Test>::get(validator);
         }
 
-        assert!(true); // All operations completed without panic
+        // All operations completed without panic
+        assert!(!active_validators.is_empty());
     });
 }
 
@@ -65,7 +65,7 @@ fn ci_block_processing_no_panic() {
 
             // These operations should not panic
             let weight = DcfPallet::on_initialize(block_num);
-            assert!(weight.ref_time() >= 0);
+            assert!(weight.ref_time() > 0);
 
             DcfPallet::on_finalize(block_num);
         }
@@ -85,25 +85,12 @@ fn ci_error_handling_graceful() {
 
         for invalid_validator in invalid_validators {
             // These should not panic, should return defaults
-            let stake_score = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
-            let inference_score = crate::PoiWeight::<Test>::get();
             let is_active = DcfPallet::is_validator_active(&invalid_validator);
-            let participation = DcfPallet::validator_states(&invalid_validator);
-            let last_active = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
             let score_history = DcfPallet::validator_set();
-            let stake = pallet_cerulea_pos::Stake::<Test>::get(invalid_validator);
 
             // Should return reasonable defaults
-            assert!(stake_score >= 0);
-            assert!(inference_score >= 0);
             assert!(!is_active);
-            if let Some(state) = participation {
-                assert!(state.current.authored_blocks >= 0);
-                assert!(state.current.missed_blocks >= 0);
-            }
-            assert!(last_active >= 0);
-            assert!(score_history.is_empty() || !score_history.is_empty());
-            assert!(stake >= 0);
+            assert!(!score_history.contains(&invalid_validator));
         }
 
         // Test invalid block numbers
@@ -150,7 +137,8 @@ fn ci_performance_benchmarks() {
             let _ = DcfPallet::trust_score(&1u64);
         }
 
-        assert!(true); // All performance tests completed
+        // All performance tests completed
+        assert!(!active_validators.is_empty());
     });
 }
 
@@ -234,24 +222,14 @@ fn ci_pallet_integration() {
             let reserved_balance = Balances::reserved_balance(validator);
             let total_balance = free_balance + reserved_balance;
 
-            assert!(total_balance >= 0);
-            assert!(free_balance >= 0);
-            assert!(reserved_balance >= 0);
+            assert!(total_balance > 0);
         }
-
-        // Test integration with System pallet
-        let current_block = System::block_number();
-        assert!(current_block >= 0);
 
         // Test that events can be emitted (if any)
         System::reset_events();
         System::set_block_number(1);
         let _ = DcfPallet::on_initialize(1);
         DcfPallet::on_finalize(1);
-
-        // Should not panic
-        let events = System::events();
-        assert!(events.len() >= 0);
     });
 }
 
@@ -301,7 +279,6 @@ fn ci_public_api_coverage() {
 
         // Test all major public APIs
         assert!(!active_validators.is_empty());
-        assert!(DcfPallet::current_epoch() >= 0);
 
         let (pos, poi) = (
             crate::PosWeight::<Test>::get(),
@@ -309,7 +286,10 @@ fn ci_public_api_coverage() {
         );
         assert_eq!(pos + poi, 10000);
 
-        assert!(DcfPallet::get_governance_mode() || !DcfPallet::get_governance_mode());
+        assert_eq!(
+            DcfPallet::get_governance_mode(),
+            crate::GovernanceModeEnabled::<Test>::get()
+        );
         assert!(DcfPallet::get_total_validators_count() > 0);
 
         let (active_count, total_count, max_count) = DcfPallet::get_validator_set_info();
@@ -327,18 +307,8 @@ fn ci_public_api_coverage() {
         // Per-validator APIs
         for validator in &active_validators {
             assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
-            assert!(crate::PoiWeight::<Test>::get() >= 0);
             assert!(DcfPallet::is_validator_active(validator));
 
-            let (authored, missed) = if let Some(state) = DcfPallet::validator_states(validator) {
-                (state.current.authored_blocks, state.current.missed_blocks)
-            } else {
-                (0, 0)
-            };
-            assert!(authored >= 0);
-            assert!(missed >= 0);
-
-            assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) >= 0);
             assert!(pallet_cerulea_pos::Stake::<Test>::get(validator) > 0);
         }
     });
@@ -415,7 +385,6 @@ fn ci_comprehensive_invariant_validation() {
 
             // Test trust score bounds
             let trust_score = DcfPallet::validator_trust_scores(validator);
-            assert!(trust_score >= 0);
             assert!(trust_score <= 10000);
 
             // The Standing Engine holds the Trust Score and every component
@@ -445,7 +414,7 @@ fn ci_comprehensive_invariant_validation() {
 
         // Test governance invariants
         let governance_mode = DcfPallet::get_governance_mode();
-        assert!(governance_mode || !governance_mode);
+        assert_eq!(governance_mode, crate::GovernanceModeEnabled::<Test>::get());
 
         // Test validator set invariants
         let (active_count, total_count, max_count) = DcfPallet::get_validator_set_info();
@@ -496,7 +465,6 @@ fn ci_stress_test_readiness() {
         // System should remain stable
         let final_validators = DcfPallet::active_validators();
         assert!(!final_validators.is_empty());
-        assert!(DcfPallet::current_epoch() >= 0);
     });
 }
 
@@ -624,24 +592,13 @@ fn ci_integration_test() {
         for validator in &active_validators {
             let free_balance = Balances::free_balance(validator);
             let reserved_balance = Balances::reserved_balance(validator);
-            assert!(free_balance >= 0);
-            assert!(reserved_balance >= 0);
+            assert!(free_balance > 0 || reserved_balance > 0);
         }
-
-        // Test System integration
-        let current_block = System::block_number();
-        assert!(current_block >= 0);
 
         // Test event emission
         System::reset_events();
         System::set_block_number(1);
         let _ = DcfPallet::on_initialize(1);
         DcfPallet::on_finalize(1);
-
-        let events = System::events();
-        assert!(events.len() >= 0);
-
-        // Test that all operations complete successfully
-        assert!(true);
     });
 }

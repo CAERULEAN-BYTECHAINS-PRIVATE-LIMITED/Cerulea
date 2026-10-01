@@ -15,7 +15,7 @@ fn basic_dos_protection_works() {
         }
 
         // System should remain responsive
-        assert!(true);
+        assert!(!DcfPallet::active_validators().is_empty());
     });
 }
 
@@ -35,7 +35,7 @@ fn query_rate_limiting_works() {
         }
 
         // Should handle without degradation
-        assert!(true);
+        assert_eq!(DcfPallet::active_validators(), active_validators);
     });
 }
 
@@ -92,9 +92,6 @@ fn memory_usage_limits_work() {
 #[test]
 fn computation_limits_work() {
     new_test_ext().execute_with(|| {
-        // Test computationally intensive operations
-        let active_validators = DcfPallet::active_validators();
-
         // Test consensus weight calculation
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         assert_eq!(pos_weight + poi_weight, 10000);
@@ -102,9 +99,6 @@ fn computation_limits_work() {
         // Test validator ranking
         let validators_by_score = DcfPallet::validators_by_score();
         assert!(!validators_by_score.is_empty());
-
-        // Should complete within reasonable time
-        assert!(true);
     });
 }
 
@@ -138,23 +132,16 @@ fn input_validation_limits_work() {
         let large_validator_id = u64::MAX;
 
         // Should handle gracefully without panicking
-        let score = DcfPallet::validator_stake_score(&large_validator_id);
-        let inference_score = DcfPallet::validator_inference_score(&large_validator_id);
+        let _ = DcfPallet::validator_stake_score(&large_validator_id);
+        let _ = DcfPallet::validator_inference_score(&large_validator_id);
         let is_active = DcfPallet::is_validator_active(&large_validator_id);
 
-        assert!(score >= 0);
-        assert!(inference_score >= 0);
         assert!(!is_active);
 
         // Test edge case block numbers
         let large_block = u32::MAX;
-        let expected_author = DcfPallet::expected_author(large_block);
-
         // Should handle gracefully
-        match expected_author {
-            Some(_) => assert!(true),
-            None => assert!(true),
-        }
+        let _ = DcfPallet::expected_author(large_block);
     });
 }
 

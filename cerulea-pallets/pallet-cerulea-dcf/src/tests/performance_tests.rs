@@ -114,9 +114,6 @@ fn memory_usage_patterns_work() {
 #[test]
 fn computational_complexity_works() {
     new_test_ext().execute_with(|| {
-        // Test operations that scale with validator count
-        let active_validators = DcfPallet::active_validators();
-
         // O(n) operations
         let validators_by_score = DcfPallet::validators_by_score();
         assert!(!validators_by_score.is_empty());
@@ -225,9 +222,6 @@ fn cache_performance_works() {
             let validators_check = DcfPallet::active_validators();
             assert_eq!(validators_check, active_validators);
 
-            let epoch_check = DcfPallet::current_epoch();
-            assert!(epoch_check >= 0);
-
             let weights_check = DcfPallet::consensus_weights();
             assert_eq!(weights_check.0 + weights_check.1, 10000);
         }
@@ -272,7 +266,6 @@ fn query_response_time_consistency_works() {
         for round in 0..test_rounds {
             // Basic queries
             let start_validators = DcfPallet::active_validators();
-            let start_epoch = DcfPallet::current_epoch();
             let start_weights = DcfPallet::consensus_weights();
 
             // Complex queries
@@ -282,7 +275,6 @@ fn query_response_time_consistency_works() {
             // Results should be consistent across rounds
             if round > 0 {
                 assert_eq!(start_validators, active_validators);
-                assert!(start_epoch >= 0);
                 assert_eq!(start_weights.0 + start_weights.1, 10000);
                 assert!(!start_by_score.is_empty());
                 assert!(start_set_info.0 > 0);

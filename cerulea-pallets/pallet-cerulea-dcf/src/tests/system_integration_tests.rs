@@ -26,17 +26,12 @@ fn block_authorship_tracking_works() {
     new_test_ext().execute_with(|| {
         // Test expected author functionality
         let expected_author = DcfPallet::get_expected_author(1);
-        // Should return Some validator or None if not determined yet
-        match expected_author {
-            Some(author) => {
-                // Author should be one of the active validators
-                let active_validators = DcfPallet::validator_set();
-                assert!(active_validators.contains(&author));
-            }
-            None => {
-                // This is acceptable for early blocks
-                assert!(true);
-            }
+        // Should return Some validator or None if not determined yet.
+        // None is acceptable for early blocks.
+        if let Some(author) = expected_author {
+            // Author should be one of the active validators
+            let active_validators = DcfPallet::validator_set();
+            assert!(active_validators.contains(&author));
         }
     });
 }
@@ -49,6 +44,7 @@ fn epoch_boundary_processing_works() {
 
         // Advance to near epoch boundary
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
+        assert!(epoch_length > 4);
 
         // Run through some blocks without hitting the epoch boundary
         for block_num in 1..5 {
@@ -84,7 +80,7 @@ fn validator_state_persistence_works() {
         assert_eq!(initial_validators, current_validators);
 
         // Scores should remain stable (or change predictably)
-        for (validator, initial_score) in initial_scores {
+        for (validator, _initial_score) in initial_scores {
             let current_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
             // Score should not change dramatically without explicit updates
             assert!(current_score > 0);
@@ -118,10 +114,9 @@ fn event_emission_works() {
         let _ = DcfPallet::on_initialize(1);
         DcfPallet::on_finalize(1);
 
-        // Check that some events were emitted (if any)
-        let events = System::events();
-        // Events may or may not be emitted depending on the block, which is fine
-        assert!(events.len() >= 0);
+        // Events may or may not be emitted depending on the block, which is fine.
+        // The block the events belong to is block one.
+        assert_eq!(System::block_number(), 1);
     });
 }
 
@@ -136,8 +131,8 @@ fn storage_consistency_works() {
         for validator in &active_validators {
             let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
-            // Scores should be non-negative
-            assert!(stake_score >= 0);
+            // Scores should be positive
+            assert!(stake_score > 0);
 
             // Validator should be marked as active
             assert!(DcfPallet::is_validator_active(validator));
@@ -195,7 +190,7 @@ fn error_handling_works() {
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
 
         // Should handle gracefully without panicking
-        assert!(score >= 0);
+        assert_eq!(score, 0);
         assert!(!is_active);
     });
 }
@@ -629,7 +624,7 @@ fn validator_uptime_updated_events_work() {
             // Verify the event structure
             let (
                 validator,
-                epoch,
+                _epoch,
                 blocks_expected,
                 blocks_authored,
                 blocks_missed,
@@ -639,7 +634,6 @@ fn validator_uptime_updated_events_work() {
             // Basic sanity checks
             assert!(**blocks_expected >= **blocks_authored + **blocks_missed);
             assert!(**uptime_percentage <= 10000); // Should be <= 100%
-            assert!(**epoch >= 0); // Valid epoch number
 
             // Verify validator is valid
             let validator_set = DcfPallet::validator_set();

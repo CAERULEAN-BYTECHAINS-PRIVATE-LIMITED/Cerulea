@@ -1,7 +1,6 @@
 //! Runtime API integration tests for DCF pallet
 
 use crate::mock::*;
-use frame_support::traits::Get;
 
 /// Tests basic runtime API functionality
 #[test]
@@ -15,7 +14,7 @@ fn runtime_api_basic_queries_work() {
         for validator in &active_validators {
             let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
-            assert!(stake_score >= 0);
+            assert!(stake_score > 0);
         }
     });
 }
@@ -40,7 +39,7 @@ fn runtime_api_consensus_weights_work() {
 fn runtime_api_epoch_queries_work() {
     new_test_ext().execute_with(|| {
         let current_epoch = DcfPallet::current_epoch();
-        assert!(current_epoch >= 0);
+        assert_eq!(current_epoch, 0);
 
         // Test epoch-related queries
         let governance_mode = DcfPallet::get_governance_mode();
@@ -61,7 +60,7 @@ fn runtime_api_validator_activity_works() {
 
             // Test basic validator data
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            assert!(stake >= 0);
+            assert!(stake > 0);
         }
     });
 }
@@ -74,16 +73,11 @@ fn runtime_api_block_authorship_works() {
         for block_num in 1..=5 {
             let expected_author = DcfPallet::get_expected_author(block_num);
 
-            match expected_author {
-                Some(author) => {
-                    // Author should be an active validator
-                    let active_validators = DcfPallet::validator_set();
-                    assert!(active_validators.contains(&author));
-                }
-                None => {
-                    // This is acceptable if author scheduling isn't ready
-                    assert!(true);
-                }
+            // No author is acceptable while author scheduling is not ready.
+            if let Some(author) = expected_author {
+                // Author should be an active validator
+                let active_validators = DcfPallet::validator_set();
+                assert!(active_validators.contains(&author));
             }
         }
     });
@@ -100,7 +94,7 @@ fn runtime_api_score_history_works() {
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
             // History should be accessible (simplified)
-            assert!(stake >= 0);
+            assert!(stake > 0);
         }
     });
 }
@@ -115,16 +109,9 @@ fn runtime_api_validator_metadata_works() {
             // Test basic validator information
             let name = DcfPallet::get_validator_name(validator);
 
-            // Name query should not panic
-            match name {
-                Some(_name) => {
-                    // Profile exists, which is fine
-                    assert!(true);
-                }
-                None => {
-                    // No profile yet, which is also fine
-                    assert!(true);
-                }
+            // Name query should not panic. A stored name stays inside its bound.
+            if let Some(name) = name {
+                assert!(name.len() <= 32);
             }
         }
     });
@@ -139,7 +126,7 @@ fn runtime_api_system_config_works() {
         let validator_set = DcfPallet::validator_set();
 
         // Basic system state should be available
-        assert!(current_epoch >= 0);
+        assert_eq!(current_epoch, 0);
         assert!(!validator_set.is_empty());
     });
 }
@@ -198,12 +185,11 @@ fn runtime_api_validators_by_score_works() {
 fn runtime_api_finality_queries_work() {
     new_test_ext().execute_with(|| {
         // Test basic block information
-        let current_block = System::block_number();
-        assert!(current_block >= 0);
+        let _ = System::block_number();
 
         // Test current system state
         let current_epoch = DcfPallet::current_epoch();
-        assert!(current_epoch >= 0);
+        assert_eq!(current_epoch, 0);
     });
 }
 
@@ -218,7 +204,7 @@ fn runtime_api_error_handling_works() {
         let is_active = DcfPallet::is_validator_active(&non_existent_validator);
 
         // Should return default/empty values without panicking
-        assert!(stake_score >= 0);
+        assert_eq!(stake_score, 0);
         assert!(!is_active);
     });
 }

@@ -20,7 +20,7 @@ fn end_to_end_validator_complete_lifecycle() {
         // Phase 1: Join as validator
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"TestValidator".to_vec().try_into().unwrap())
+            Some(b"TestValidator".to_vec())
         ));
 
         // Verify joining
@@ -135,11 +135,11 @@ fn end_to_end_validator_with_challenges_and_slashing() {
         // Both join as validators
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"Validator".to_vec().try_into().unwrap())
+            Some(b"Validator".to_vec())
         ));
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(challenger),
-            Some(b"Challenger".to_vec().try_into().unwrap())
+            Some(b"Challenger".to_vec())
         ));
 
         // Both register in PoS
@@ -241,12 +241,7 @@ fn end_to_end_multi_validator_competition() {
             // Join with different stake amounts
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(
-                    format!("Validator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("Validator{}", validator).into_bytes())
             ));
 
             // Register in PoS
@@ -359,12 +354,7 @@ fn end_to_end_governance_driven_workflow() {
             Balances::make_free_balance_be(validator, 50000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(
-                    format!("Validator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("Validator{}", validator).into_bytes())
             ));
         }
 
@@ -493,12 +483,7 @@ fn end_to_end_high_frequency_operations() {
 
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("Validator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("Validator{}", validator).into_bytes())
             ));
 
             assert_ok!(mock_register_validator(validator));
@@ -564,9 +549,6 @@ fn end_to_end_high_frequency_operations() {
         // Verify system metrics are reasonable
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         assert_eq!(pos_weight + poi_weight, 10000);
-
-        let current_epoch = DcfPallet::current_epoch();
-        assert!(current_epoch >= 0);
     });
 }
 
@@ -582,7 +564,7 @@ fn end_to_end_system_recovery_workflow() {
             Balances::make_free_balance_be(validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(format!("CriticalValidator{}", validator).into_bytes().try_into().unwrap())
+                Some(format!("CriticalValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(*validator));
         }
@@ -592,7 +574,7 @@ fn end_to_end_system_recovery_workflow() {
             Balances::make_free_balance_be(validator, 50000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(format!("BackupValidator{}", validator).into_bytes().try_into().unwrap())
+                Some(format!("BackupValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(*validator));
         }
@@ -653,7 +635,7 @@ fn end_to_end_system_recovery_workflow() {
             Balances::make_free_balance_be(validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(*validator),
-                Some(format!("ReplacementValidator{}", validator).into_bytes().try_into().unwrap())
+                Some(format!("ReplacementValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(*validator));
         }

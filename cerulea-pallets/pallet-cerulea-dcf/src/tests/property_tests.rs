@@ -145,9 +145,8 @@ fn property_balances_non_negative() {
                 let free_balance = Balances::free_balance(validator);
                 let reserved_balance = Balances::reserved_balance(validator);
 
-                // Property: balances >= 0
-                assert!(free_balance >= 0);
-                assert!(reserved_balance >= 0);
+                // Property: every active validator holds a balance
+                assert!(free_balance > 0 || reserved_balance > 0);
             }
         }
     });
@@ -167,9 +166,8 @@ fn property_participation_counters_non_negative() {
             for validator in &active_validators {
                 let (authored, missed) = DcfPallet::validator_participation(validator);
 
-                // Property: participation counters >= 0
-                assert!(authored >= 0);
-                assert!(missed >= 0);
+                // Property: participation counters stay within the blocks produced
+                assert!(authored + missed <= block_num as u32);
             }
         }
     });
@@ -187,18 +185,12 @@ fn fuzz_test_random_validator_queries() {
         for validator_id in test_validators {
             // All queries should handle invalid validators gracefully
             let stake_score = DcfPallet::validator_stake_score(&validator_id);
-            let inference_score = DcfPallet::validator_inference_score(&validator_id);
+            let _ = DcfPallet::validator_inference_score(&validator_id);
             let is_active = DcfPallet::is_validator_active(&validator_id);
-            let participation = DcfPallet::validator_participation(&validator_id);
-            let last_active = DcfPallet::validator_last_active(&validator_id);
+            let _ = DcfPallet::validator_participation(&validator_id);
+            let _ = DcfPallet::validator_last_active(&validator_id);
 
             // Should not panic, should return reasonable defaults
-            assert!(stake_score >= 0);
-            assert!(inference_score >= 0);
-            assert!(participation.0 >= 0);
-            assert!(participation.1 >= 0);
-            assert!(last_active >= 0);
-
             if active_validators.contains(&validator_id) {
                 assert!(is_active);
                 assert!(stake_score > 0);
@@ -221,17 +213,11 @@ fn fuzz_test_random_block_numbers() {
             let threshold = DcfPallet::assurance_class_table()
                 .threshold_percent(crate::engines::assurance::TransactionClass::Routine);
 
-            // Should not panic
-            match expected_author {
-                Some(author) => {
-                    let active_validators = DcfPallet::active_validators();
-                    // If author is returned, should be valid
-                    assert!(active_validators.contains(&author) || active_validators.is_empty());
-                }
-                None => {
-                    // No author determined, which is fine
-                    assert!(true);
-                }
+            // Should not panic. No author determined is fine.
+            if let Some(author) = expected_author {
+                let active_validators = DcfPallet::active_validators();
+                // If author is returned, should be valid
+                assert!(active_validators.contains(&author) || active_validators.is_empty());
             }
 
             // The Assurance Engine holds the routine share above half.
@@ -251,15 +237,11 @@ fn property_system_state_consistency() {
 
             // Capture system state
             let active_validators = DcfPallet::active_validators();
-            let current_epoch = DcfPallet::current_epoch();
             let consensus_weights = DcfPallet::consensus_weights();
-            let governance_mode = DcfPallet::governance_mode();
 
             // Property: State should be internally consistent
             assert!(!active_validators.is_empty()); // Always have validators
-            assert!(current_epoch >= 0); // Valid epoch
             assert_eq!(consensus_weights.0 + consensus_weights.1, 10000); // Weights sum correctly
-            assert!(governance_mode || !governance_mode); // Valid boolean
 
             // Validator consistency
             for validator in &active_validators {

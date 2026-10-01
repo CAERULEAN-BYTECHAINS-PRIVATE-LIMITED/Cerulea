@@ -28,10 +28,8 @@ fn genesis_validator_initialization_works() {
         // Check that all genesis validators have proper scores
         for validator in &active_validators {
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
 
             assert!(stake_score > 0); // Should have non-zero stake score
-            assert!(inference_score >= 0); // Inference score can be 0 initially
         }
     });
 }
@@ -154,8 +152,7 @@ fn custom_genesis_configuration_works() {
         assert!(active_validators.contains(&13));
 
         // Check custom scores
-        for (i, validator) in active_validators.iter().enumerate() {
-            let expected_scores = [5000, 6000, 7000, 8000];
+        for validator in active_validators.iter() {
             let actual_score = DcfPallet::validator_stake_score(validator);
 
             // Score should be reasonable (exact match may depend on implementation)
@@ -213,11 +210,9 @@ fn genesis_state_consistency_works() {
             assert!(DcfPallet::is_validator_active(validator));
 
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
             assert!(stake_score > 0);
-            assert!(inference_score >= 0);
             assert!(stake >= <Test as pallet_cerulea_pos::Config>::MinStake::get());
         }
     });

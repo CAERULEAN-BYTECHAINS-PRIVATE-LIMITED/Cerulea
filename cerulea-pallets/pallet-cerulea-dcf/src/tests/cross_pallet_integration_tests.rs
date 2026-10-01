@@ -1,6 +1,6 @@
 //! Cross-pallet integration tests for DCF, PoS, and PoI interactions
 
-use crate::{mock::*, Error};
+use crate::mock::*;
 use frame_support::{
     assert_noop, assert_ok,
     traits::{Currency, Get, OnFinalize, OnInitialize},
@@ -19,7 +19,7 @@ fn dcf_pos_integration_validator_lifecycle() {
         // Test DCF validator joining
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"TestValidator".to_vec().try_into().unwrap())
+            Some(b"TestValidator".to_vec())
         ));
 
         // Verify DCF state
@@ -105,11 +105,11 @@ fn three_way_pallet_integration() {
         // 1. Join DCF as validator
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(validator),
-            Some(b"Validator".to_vec().try_into().unwrap())
+            Some(b"Validator".to_vec())
         ));
         assert_ok!(mock_join_validators(
             RuntimeOrigin::signed(challenger),
-            Some(b"Challenger".to_vec().try_into().unwrap())
+            Some(b"Challenger".to_vec())
         ));
 
         // 2. Register in PoS

@@ -37,8 +37,6 @@ fn economic_invariants_hold() {
 
             // Economic invariants
             assert!(stake >= min_stake); // Minimum stake requirement
-            assert!(free_balance >= 0); // Non-negative free balance
-            assert!(reserved_balance >= 0); // Non-negative reserved balance
             assert!(stake <= free_balance + reserved_balance); // Stake can't exceed total balance
         }
     });
@@ -111,18 +109,9 @@ fn validator_activity_invariants_hold() {
         let active_validators = DcfPallet::active_validators();
 
         for validator in &active_validators {
-            let (authored, missed) = if let Some(state) = DcfPallet::validator_states(validator) {
-                (state.current.authored_blocks, state.current.missed_blocks)
-            } else {
-                (0, 0)
-            };
-            let last_active = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let is_active = DcfPallet::is_validator_active(validator);
 
             // Activity invariants
-            assert!(authored >= 0); // Non-negative authored blocks
-            assert!(missed >= 0); // Non-negative missed blocks
-            assert!(last_active >= 0); // Non-negative last active block
             assert!(is_active); // Active validators should be marked as active
         }
     });
@@ -136,7 +125,7 @@ fn trust_score_invariants_hold() {
         let max_trust_score: u64 = <Test as crate::Config>::MaxTrustScore::get();
         let min_trust_score: u64 = <Test as crate::Config>::MinTrustScore::get();
 
-        for validator in &active_validators {
+        for _validator in &active_validators {
             // Trust score bounds would be checked if available
             // For now, just verify the start values is reasonable
             assert!(max_trust_score > min_trust_score);
@@ -154,11 +143,10 @@ fn storage_consistency_invariants_hold() {
         // All active validators should have consistent data
         for validator in &active_validators {
             let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            let inference_score = crate::PoiWeight::<Test>::get();
             let is_active = DcfPallet::is_validator_active(validator);
 
             // Consistency checks
-            assert!(stake_score > 0 || inference_score >= 0); // At least some score data
+            assert!(stake_score > 0); // At least some score data
             assert!(is_active); // Active validators must be marked active
         }
     });
@@ -188,7 +176,6 @@ fn configuration_invariants_hold() {
 fn system_health_metrics_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let current_epoch = DcfPallet::current_epoch();
         let (pos_weight, poi_weight) = (
             crate::PosWeight::<Test>::get(),
             crate::PoiWeight::<Test>::get(),
@@ -196,7 +183,6 @@ fn system_health_metrics_work() {
 
         // Health metrics should indicate healthy system
         assert!(!active_validators.is_empty()); // Have active validators
-        assert!(current_epoch >= 0); // Valid epoch
         assert!(pos_weight + poi_weight == 10000); // Weights sum correctly
 
         // Check validator distribution
@@ -215,10 +201,6 @@ fn invariant_preservation_across_blocks_works() {
         // Record initial state
         let initial_validators = DcfPallet::active_validators();
         let initial_epoch = DcfPallet::current_epoch();
-        let initial_weights = (
-            crate::PosWeight::<Test>::get(),
-            crate::PoiWeight::<Test>::get(),
-        );
 
         // Advance through multiple blocks
         for block_num in 1..=15 {

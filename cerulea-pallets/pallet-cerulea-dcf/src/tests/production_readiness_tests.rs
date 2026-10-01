@@ -102,12 +102,12 @@ fn production_monitoring_readiness_test() {
         let _ = DcfPallet::current_epoch();
         let _ = crate::PosWeight::<Test>::get();
         let _ = DcfPallet::get_governance_mode();
-        let _ = DcfPallet::get_total_validators_count();
+        let total_validators = DcfPallet::get_total_validators_count();
         let _ = DcfPallet::get_validator_set_info();
         let _ = DcfPallet::get_validators_by_score();
         let _ = DcfPallet::trust_score(&1u64);
         let _ = DcfPallet::assurance_class_table();
 
-        assert!(true); // All monitoring APIs available
+        assert!(total_validators > 0); // All monitoring APIs available
     });
 }

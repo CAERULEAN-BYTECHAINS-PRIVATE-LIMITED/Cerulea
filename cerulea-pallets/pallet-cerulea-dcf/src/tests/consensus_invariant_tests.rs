@@ -91,7 +91,6 @@ fn property_validator_economic_bounds() {
 
             for validator in &active_validators {
                 let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-                let free_balance = Balances::free_balance(validator);
                 let reserved_balance = Balances::reserved_balance(validator);
 
                 // Property: active validators meet minimum stake
@@ -99,10 +98,6 @@ fn property_validator_economic_bounds() {
 
                 // Property: reserved balance covers stake
                 assert!(reserved_balance >= stake);
-
-                // Property: total balance is non-negative
-                assert!(free_balance >= 0);
-                assert!(reserved_balance >= 0);
 
                 // Property: stake is consistent with reserved balance
                 assert_eq!(stake, reserved_balance);
@@ -324,10 +319,6 @@ fn property_participation_tracking_consistency() {
                 let (authored, missed) = DcfPallet::validator_participation(validator);
                 let last_active = DcfPallet::validator_last_active(validator);
 
-                // Property: participation counters are non-negative
-                assert!(authored >= 0);
-                assert!(missed >= 0);
-
                 // Property: last active is reasonable
                 assert!(last_active as u64 <= block_num);
 
@@ -422,7 +413,7 @@ fn property_system_liveness() {
                         Balances::make_free_balance_be(&i, 50000);
                         assert_ok!(mock_join_validators(
                             RuntimeOrigin::signed(i),
-                            Some(b"TestValidator".to_vec().try_into().unwrap())
+                            Some(b"TestValidator".to_vec())
                         ));
                     }
                 },
@@ -469,9 +460,6 @@ fn property_system_liveness() {
             // Property: system maintains liveness after each scenario
             let active_validators = DcfPallet::active_validators();
             assert!(active_validators.len() >= min_active as usize);
-
-            let current_epoch = DcfPallet::current_epoch();
-            assert!(current_epoch >= 0);
 
             let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
             assert_eq!(pos_weight + poi_weight, 10000);

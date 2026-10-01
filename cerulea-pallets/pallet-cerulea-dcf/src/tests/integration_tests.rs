@@ -27,7 +27,6 @@ fn validator_scoring_works() {
         let validator_states = crate::ValidatorStates::<Test>::get(&1);
         if let Some(state) = validator_states {
             assert!(state.current.stake_score > 0);
-            assert!(state.current.inference_score >= 0);
         }
     });
 }
@@ -105,8 +104,9 @@ fn the_epoch_length_matches_the_rotation_policy() {
 #[test]
 fn storage_version_is_set() {
     new_test_ext().execute_with(|| {
-        // This test ensures storage version is properly tracked
-        assert!(true); // Placeholder for storage version checks
+        // This test ensures storage version is properly tracked.
+        // The stored version never runs ahead of the code.
+        assert!(crate::pallet::StorageVersion::<Test>::get() <= crate::CURRENT_STORAGE_VERSION);
     });
 }
 

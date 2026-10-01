@@ -1,7 +1,6 @@
 //! Validator lifecycle and edge case tests
 
 use crate::mock::*;
-use frame_support::traits::Get;
 
 /// Tests validator joining process
 #[test]
@@ -79,7 +78,7 @@ fn validator_scoring_boundaries_work() {
             let stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
             // Scores should be within bounds
-            assert!(stake_score >= 0);
+            assert!(stake_score > 0);
         }
     });
 }
@@ -110,7 +109,7 @@ fn validator_activity_tracking_works() {
 
             // Test basic validator data
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            assert!(stake >= 0);
+            assert!(stake > 0);
         }
     });
 }
@@ -124,7 +123,7 @@ fn validator_score_history_works() {
         for validator in &active_validators {
             // Test basic validator score info
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            assert!(stake >= 0);
+            assert!(stake > 0);
         }
     });
 }
@@ -138,16 +137,10 @@ fn validator_profile_information_works() {
         for validator in &active_validators {
             let name = DcfPallet::get_validator_name(validator);
 
-            // Name may or may not exist
-            match name {
-                Some(_name_data) => {
-                    // Name exists and should be valid
-                    assert!(true);
-                }
-                None => {
-                    // No name set, which is acceptable
-                    assert!(true);
-                }
+            // Name may or may not exist. No name set is acceptable.
+            if let Some(name_data) = name {
+                // Name exists and should be valid
+                assert!(name_data.len() <= 32);
             }
         }
     });
@@ -165,12 +158,6 @@ fn maximum_validators_edge_case_works() {
 
         // Current validator count should not exceed maximum
         assert!(active_validators.len() <= max_validators as usize);
-
-        // If at maximum, no more validators should be able to join
-        if active_validators.len() == max_validators as usize {
-            // This is a valid state
-            assert!(true);
-        }
     });
 }
 
@@ -197,7 +184,7 @@ fn validator_score_update_edge_cases_work() {
             let current_stake_score = pallet_cerulea_pos::Stake::<Test>::get(validator);
 
             // Scores should be within valid ranges
-            assert!(current_stake_score >= 0);
+            assert!(current_stake_score > 0);
         }
     });
 }

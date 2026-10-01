@@ -79,14 +79,11 @@ fn trust_score_calculation_consistency_works() {
         for validator in &active_validators {
             // These would be trust score components if available
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            let (authored, missed) = DcfPallet::validator_participation(validator);
+            let _ = DcfPallet::validator_inference_score(validator);
+            let _ = DcfPallet::validator_participation(validator);
 
             // Verify components are in valid ranges
-            assert!(stake_score >= 0);
-            assert!(inference_score >= 0);
-            assert!(authored >= 0);
-            assert!(missed >= 0);
+            assert!(stake_score > 0);
 
             // Trust score calculation would use these components
             // with the set weights
@@ -126,7 +123,6 @@ fn trust_score_stability_over_time_works() {
 
             // Scores should not change dramatically without external input
             assert!(current_stake_score > 0);
-            assert!(current_inf_score >= 0);
 
             // Changes should be bounded by stability factors
             let stake_change = current_stake_score.abs_diff(initial_stake_score);
@@ -205,9 +201,6 @@ fn trust_score_decay_mechanisms_work() {
         for validator in &active_validators {
             // All current validators should be active (no decay)
             assert!(DcfPallet::is_validator_active(validator));
-
-            let last_active = DcfPallet::validator_last_active(validator);
-            assert!(last_active >= 0);
         }
     });
 }

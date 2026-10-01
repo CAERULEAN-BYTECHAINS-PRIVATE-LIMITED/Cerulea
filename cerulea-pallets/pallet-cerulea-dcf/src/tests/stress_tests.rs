@@ -31,7 +31,7 @@ fn stress_test_concurrent_validator_lifecycle() {
 
                 assert_ok!(mock_join_validators(
                     RuntimeOrigin::signed(validator),
-                    Some(format!("Validator{}", validator).into_bytes().try_into().unwrap())
+                    Some(format!("Validator{}", validator).into_bytes())
                 ));
 
                 // Verify immediate state
@@ -116,7 +116,7 @@ fn stress_test_rapid_epoch_transitions() {
             Balances::make_free_balance_be(&validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(format!("BaseValidator{}", validator).into_bytes().try_into().unwrap())
+                Some(format!("BaseValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
         }
@@ -133,7 +133,7 @@ fn stress_test_rapid_epoch_transitions() {
                 Balances::make_free_balance_be(&(validator as u64), 100000);
                 assert_ok!(mock_join_validators(
                     RuntimeOrigin::signed(validator as u64),
-                    Some(format!("EpochValidator{}", validator).into_bytes().try_into().unwrap())
+                    Some(format!("EpochValidator{}", validator).into_bytes())
                 ));
                 assert_ok!(mock_register_validator(validator as u64));
             }
@@ -228,12 +228,7 @@ fn stress_test_concurrent_score_updates() {
             Balances::make_free_balance_be(&validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("ScoreValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("ScoreValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
         }
@@ -283,9 +278,7 @@ fn stress_test_concurrent_score_updates() {
 
                 // Verify scores are reasonable
                 let stake_score = DcfPallet::validator_stake_score(&validator);
-                let inference_score = DcfPallet::validator_inference_score(&validator);
                 assert!(stake_score > 0);
-                assert!(inference_score >= 0);
             }
 
             // Process blocks periodically
@@ -329,7 +322,7 @@ fn stress_test_concurrent_challenges_and_slashing() {
             Balances::make_free_balance_be(&validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(format!("ChallengeValidator{}", validator).into_bytes().try_into().unwrap())
+                Some(format!("ChallengeValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
         }
@@ -430,9 +423,6 @@ fn stress_test_concurrent_challenges_and_slashing() {
         // Verify system consistency
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         assert_eq!(pos_weight + poi_weight, 10000);
-
-        let current_epoch = DcfPallet::current_epoch();
-        assert!(current_epoch >= 0);
     });
 }
 
@@ -449,12 +439,7 @@ fn stress_test_governance_under_load() {
             Balances::make_free_balance_be(&validator, 100000);
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("GovernanceValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("GovernanceValidator{}", validator).into_bytes())
             ));
         }
 
@@ -525,7 +510,6 @@ fn stress_test_governance_under_load() {
 
         // Verify governance system handled load
         assert!(successful_proposals > 0);
-        assert!(failed_proposals >= 0);
         assert_eq!(successful_proposals + failed_proposals, num_proposals);
 
         // Verify all proposals have final status
@@ -565,12 +549,7 @@ fn stress_test_storage_limits() {
 
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("StorageValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("StorageValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
         }
@@ -654,12 +633,7 @@ fn stress_test_maximum_system_load() {
 
             assert_ok!(mock_join_validators(
                 RuntimeOrigin::signed(validator),
-                Some(
-                    format!("MaxLoadValidator{}", validator)
-                        .into_bytes()
-                        .try_into()
-                        .unwrap()
-                )
+                Some(format!("MaxLoadValidator{}", validator).into_bytes())
             ));
             assert_ok!(mock_register_validator(validator));
         }
@@ -780,9 +754,6 @@ fn stress_test_maximum_system_load() {
         // Verify system consistency after stress
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
         assert_eq!(pos_weight + poi_weight, 10000);
-
-        let current_epoch = DcfPallet::current_epoch();
-        assert!(current_epoch >= 0);
 
         // Verify validators maintained reasonable state
         for validator in final_validators.iter().take(10) {

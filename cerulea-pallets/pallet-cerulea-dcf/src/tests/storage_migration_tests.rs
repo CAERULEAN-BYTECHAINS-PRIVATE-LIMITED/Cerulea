@@ -16,10 +16,8 @@ fn storage_version_tracking_works() {
         // Storage should be in a consistent state
         for validator in &active_validators {
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
 
-            assert!(stake_score >= 0);
-            assert!(inference_score >= 0);
+            assert!(stake_score > 0);
         }
     });
 }
@@ -42,12 +40,9 @@ fn storage_consistency_after_initialization_works() {
         for validator in &active_validators {
             let is_active = DcfPallet::is_validator_active(validator);
             let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
-            let participation = DcfPallet::validator_participation(validator);
 
             assert!(is_active);
             assert!(stake > 0);
-            assert!(participation.0 >= 0);
-            assert!(participation.1 >= 0);
         }
     });
 }
@@ -71,7 +66,7 @@ fn backward_compatibility_works() {
         }
 
         // System should function normally
-        assert!(true);
+        assert!(!active_validators.is_empty());
     });
 }
 
@@ -142,24 +137,20 @@ fn data_integrity_during_migrations_works() {
         // Verify data integrity
         for (
             validator,
-            orig_stake_score,
-            orig_inf_score,
+            _orig_stake_score,
+            _orig_inf_score,
             orig_stake,
-            orig_active,
-            orig_participation,
+            _orig_active,
+            _orig_participation,
         ) in validator_data
         {
-            let current_stake_score = DcfPallet::validator_stake_score(&validator);
-            let current_inf_score = DcfPallet::validator_inference_score(&validator);
             let current_stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             let current_active = DcfPallet::is_validator_active(&validator);
-            let current_participation = DcfPallet::validator_participation(&validator);
 
             // Core data should remain stable without external changes
             assert!(current_active); // Should remain active
-            assert!(current_stake >= orig_stake || current_stake == orig_stake); // Stake shouldn't decrease
-            assert!(current_stake_score >= 0);
-            assert!(current_inf_score >= 0);
+            assert!(current_stake >= orig_stake || current_stake == orig_stake);
+            // Stake shouldn't decrease
         }
     });
 }
@@ -246,7 +237,7 @@ fn migration_performance_works() {
         }
 
         // Should complete without performance issues
-        assert!(true);
+        assert_eq!(DcfPallet::active_validators(), active_validators);
     });
 }
 
@@ -270,9 +261,8 @@ fn cross_version_compatibility_works() {
             .collect::<Vec<_>>();
 
         // Verify all data is accessible and valid
-        for (validator, stake_score, inf_score, stake) in current_state_snapshot {
-            assert!(stake_score >= 0);
-            assert!(inf_score >= 0);
+        for (validator, stake_score, _inf_score, stake) in current_state_snapshot {
+            assert!(stake_score > 0);
             assert!(stake > 0);
             assert!(DcfPallet::is_validator_active(&validator));
         }
@@ -291,15 +281,10 @@ fn storage_cleanup_after_migration_works() {
         for validator in &active_validators {
             // All active validators should have complete data
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
             let is_active = DcfPallet::is_validator_active(validator);
-            let participation = DcfPallet::validator_participation(validator);
 
-            assert!(stake_score >= 0);
-            assert!(inference_score >= 0);
+            assert!(stake_score > 0);
             assert!(is_active);
-            assert!(participation.0 >= 0);
-            assert!(participation.1 >= 0);
         }
 
         // System should be in clean state

@@ -87,7 +87,7 @@ fn deterministic_block_processing_works() {
 
         // Process the same block multiple times (conceptually)
         for _ in 0..3 {
-            let weight = DcfPallet::on_initialize(1);
+            let _ = DcfPallet::on_initialize(1);
             DcfPallet::on_finalize(1);
 
             // State should remain consistent
@@ -114,9 +114,6 @@ fn deterministic_epoch_state_works() {
         // Epoch should be stable within same block
         assert_eq!(epoch1, epoch2);
         assert_eq!(epoch2, epoch3);
-
-        // Should be non-negative
-        assert!(epoch1 >= 0);
     });
 }
 
