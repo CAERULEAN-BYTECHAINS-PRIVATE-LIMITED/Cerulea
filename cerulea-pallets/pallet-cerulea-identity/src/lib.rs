@@ -33,6 +33,8 @@ mod benchmarking;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod registry_tests;
+#[cfg(test)]
 mod tests;
 
 pub use credential::{Attestation, CredentialFault, RequirementOutcome};
@@ -1082,7 +1084,6 @@ impl<T: Config> Pallet<T> {
         let mut current = Some(start);
         let mut depth = 0u32;
         let mut horizon = u64::MAX;
-        let mut carried: Option<Vec<BoundedName>> = None;
 
         while let Some(number) = current {
             depth = depth.saturating_add(1);
@@ -1100,14 +1101,14 @@ impl<T: Config> Pallet<T> {
                 return Err(DelegationFault::Expired);
             }
             if !held.covers(action) {
-                return Err(DelegationFault::Absent);
-            }
-            if let Some(above) = carried.as_ref() {
-                if !above.contains(action) {
+                // The first link names the action the holder asked for. A
+                // link above it that lacks the action cuts the scope the
+                // chain passes down.
+                if depth > 1 {
                     return Err(DelegationFault::OutOfScope);
                 }
+                return Err(DelegationFault::Absent);
             }
-            carried = Some(held.scope.clone().into_inner());
             if horizon > held.expires_at {
                 horizon = held.expires_at;
             }

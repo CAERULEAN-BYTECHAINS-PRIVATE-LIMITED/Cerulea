@@ -7,25 +7,27 @@ use crate::{
 use frame_support::{assert_noop, assert_ok, BoundedVec};
 use pallet_cerulea_schema::primitives::{name_of, BoundedName, DeploymentId};
 
-const DEPLOYMENT: DeploymentId = [8u8; 32];
-const STEWARD: u64 = 1;
-const ANITHA: u64 = 2;
-const BENNY: u64 = 3;
+pub(crate) const DEPLOYMENT: DeploymentId = [8u8; 32];
+pub(crate) const STEWARD: u64 = 1;
+pub(crate) const ANITHA: u64 = 2;
+pub(crate) const BENNY: u64 = 3;
 
-fn name(text: &str) -> BoundedName {
+pub(crate) fn name(text: &str) -> BoundedName {
     name_of(text).expect("the name fits")
 }
 
-fn text(value: &str) -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
+pub(crate) fn text(value: &str) -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
     BoundedVec::try_from(value.as_bytes().to_vec()).expect("the text fits")
 }
 
-fn credentials(names: &[&str]) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<4>> {
+pub(crate) fn credentials(
+    names: &[&str],
+) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<4>> {
     BoundedVec::try_from(names.iter().map(|held| name(held)).collect::<Vec<_>>())
         .expect("the credential list fits")
 }
 
-fn register(who: u64, identity: u8) {
+pub(crate) fn register(who: u64, identity: u8) {
     assert_ok!(Identity::register_account(
         RuntimeOrigin::signed(STEWARD),
         who,
@@ -33,7 +35,7 @@ fn register(who: u64, identity: u8) {
     ));
 }
 
-fn build_tree() {
+pub(crate) fn build_tree() {
     assert_ok!(Identity::create_unit(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -52,7 +54,7 @@ fn build_tree() {
     ));
 }
 
-fn define_registrar() {
+pub(crate) fn define_registrar() {
     assert_ok!(Identity::define_role(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -465,7 +467,7 @@ fn the_stored_unit_carries_its_parent_and_its_title() {
     });
 }
 
-fn define_surveyor() {
+pub(crate) fn define_surveyor() {
     assert_ok!(Identity::define_role(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -476,7 +478,7 @@ fn define_surveyor() {
     ));
 }
 
-fn attest(issuer: u64, who: u64, credential: &str, expires_at: Option<u64>) {
+pub(crate) fn attest(issuer: u64, who: u64, credential: &str, expires_at: Option<u64>) {
     assert_ok!(Identity::attest_credential(
         RuntimeOrigin::signed(issuer),
         DEPLOYMENT,
@@ -756,14 +758,14 @@ fn an_attestation_without_an_expiry_holds_until_a_withdrawal() {
     });
 }
 
-const CLERK: u64 = 4;
+pub(crate) const CLERK: u64 = 4;
 
-fn scope(names: &[&str]) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<8>> {
+pub(crate) fn scope(names: &[&str]) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<8>> {
     BoundedVec::try_from(names.iter().map(|held| name(held)).collect::<Vec<_>>())
         .expect("the scope fits")
 }
 
-fn registrar_with_role() {
+pub(crate) fn registrar_with_role() {
     register(STEWARD, 1);
     register(ANITHA, 7);
     register(BENNY, 8);
@@ -779,7 +781,7 @@ fn registrar_with_role() {
     ));
 }
 
-fn delegate_to(
+pub(crate) fn delegate_to(
     grantor: u64,
     holder: u64,
     actions: &[&str],
