@@ -1,7 +1,7 @@
 //! Equivocation detection inside the Authoring Engine.
 //!
-//! Equivocation means one validator sealing two different headers for one slot
-//! at one rank. A slot is one fixed span of time. Each slot draws a committee
+//! Equivocation means one validator sealing two different headers for one
+//! slot, whatever rank each header claims. A slot is one fixed span of time. Each slot draws a committee
 //! and names one author at each rank. An author that seals two headers for one
 //! slot has signed two futures for one moment. That breaks the single history
 //! every participant relies on.
@@ -9,7 +9,7 @@
 //! # The two paths that reach detection
 //!
 //! 1. **Import.** Every node keeps the sealed head of each block it imports.
-//!    A second head arriving for one slot, one rank and one seal key raises the
+//!    A second head arriving for one slot and one seal key raises the
 //!    proof at once. The node holding both headers builds the evidence without
 //!    help.
 //! 2. **A propagation report.** A node that saw only one of the two headers
@@ -23,8 +23,8 @@
 //!
 //! # What keeps the memory bounded
 //!
-//! The tracker remembers one sealed head for each slot, rank and seal key it
-//! has seen. Two limits hold the memory inside a ceiling. A slot window drops
+//! The tracker remembers one sealed head for each slot and seal key it has
+//! seen. Two limits hold the memory inside a ceiling. A slot window drops
 //! heads that fall far below the highest slot seen. A capacity limit drops the
 //! lowest slots once the count reaches the ceiling. The report path carries a
 //! hard byte bound checked before any decoding.
@@ -34,7 +34,8 @@ use std::collections::BTreeMap;
 use codec::{Decode, Encode};
 use sp_runtime::traits::Header as HeaderT;
 
-use super::seal::{extract_seal, pre_seal_hash, BlockSeal};
+use super::seal::{check_seal_signature, extract_seal, pre_seal_hash, BlockSeal};
+use super::verify::ValidatorRegistry;
 use crate::engines::EngineError;
 
 pub use cerulea_primitives::equivocation::{
@@ -66,9 +67,9 @@ pub const DEFAULT_TRACKED_HEADS: usize = 4_096;
 
 /// The key one sealed head sits under.
 ///
-/// The key joins the slot, the rank and the author seal key. Two heads under
-/// one key name one author at one rank of one slot.
-pub type HeadKey = (u64, u8, [u8; 32]);
+/// The key joins the slot and the author seal key. Two heads under one key
+/// name one author sealing twice for one slot, whatever rank each claims.
+pub type HeadKey = (u64, [u8; 32]);
 
 /// Read one sealed head out of a block header and its seal.
 ///
@@ -109,13 +110,13 @@ pub fn sealed_head_of<H: HeaderT>(header: &H) -> Result<SealedHead, EngineError>
 
 /// The key one sealed head sits under.
 pub fn head_key(head: &SealedHead) -> HeadKey {
-    (head.slot(), head.rank(), head.seal_key())
+    (head.slot(), head.seal_key())
 }
 
 /// The memory of sealed heads one node keeps.
 ///
 /// The tracker answers one question. Has this author already sealed another
-/// header for this slot at this rank. An answer of yes carries the earlier head
+/// header for this slot. An answer of yes carries the earlier head
 /// back, so the node pairs the two into evidence.
 #[derive(Clone, Debug)]
 pub struct EquivocationTracker {
@@ -184,7 +185,7 @@ impl EquivocationTracker {
 
     /// Record one sealed head and report any equivocation it completes.
     ///
-    /// A head arriving for a slot, a rank and a seal key the tracker already
+    /// A head arriving for a slot and a seal key the tracker already
     /// holds under another pre-seal hash completes a proof. The tracker keeps
     /// the earlier head, so a validator sealing a third header raises the proof
     /// again.
@@ -214,6 +215,34 @@ impl EquivocationTracker {
         Ok(self.observe(sealed_head(header, seal)?))
     }
 
+    /// Record the head of a header import refused on its claimed rank.
+    ///
+    /// A validator holds one rank in a slot. A header claiming another rank
+    /// fails import, and the author still signed it. The call checks that the
+    /// seal key is the one recorded for the draw key the claim names and that
+    /// the seal signature holds. The head then joins the memory, so a second
+    /// header from the same author for the same slot completes the evidence.
+    /// Nobody frames a validator with a header the validator never signed.
+    pub fn observe_refused<H, R>(
+        &mut self,
+        header: &H,
+        seal: &BlockSeal,
+        registry: &R,
+    ) -> Result<Option<EquivocationProof>, EngineError>
+    where
+        H: HeaderT,
+        R: ValidatorRegistry,
+    {
+        let recorded = registry
+            .seal_key_of(&seal.claim.draw.validator)
+            .ok_or(EngineError::ValidatorKeysUnrecorded)?;
+        if recorded != seal.claim.author {
+            return Err(EngineError::ValidatorKeysMismatch);
+        }
+        check_seal_signature(header, seal)?;
+        self.observe_header(header, seal)
+    }
+
     /// The head the tracker holds under one key.
     pub fn held(&self, key: &HeadKey) -> Option<&SealedHead> {
         self.heads.get(key)
@@ -229,7 +258,7 @@ impl EquivocationTracker {
     fn prune(&mut self) {
         let floor = self.highest_slot.saturating_sub(self.window_slots);
         if floor > 0 {
-            self.heads = self.heads.split_off(&(floor, 0, [0u8; 32]));
+            self.heads = self.heads.split_off(&(floor, [0u8; 32]));
         }
         while self.heads.len() >= self.capacity {
             let lowest = match self.heads.keys().next().copied() {
@@ -266,7 +295,12 @@ impl EquivocationReport {
 /// length comparison. The call reports a problem naming the fix wherever the
 /// message fails a check.
 pub fn read_report(bytes: &[u8]) -> Result<EquivocationReport, EngineError> {
-    if bytes.len() > MAX_EQUIVOCATION_REPORT_BYTES {
+    if crate::engines::bounds::admit(
+        crate::engines::bounds::MessagePath::EquivocationReport,
+        bytes.len(),
+    )
+    .is_err()
+    {
         return Err(EngineError::EquivocationReportTooLarge {
             bytes: bytes.len(),
             limit: MAX_EQUIVOCATION_REPORT_BYTES,
@@ -298,7 +332,7 @@ pub fn accept_report(bytes: &[u8]) -> Result<(EquivocationReport, EquivocationFa
 
 /// The proofs one node holds while the evidence extrinsic waits to go out.
 ///
-/// The queue holds one proof for each slot, rank and seal key. A repeat report
+/// The queue holds one proof for each slot and seal key. A repeat report
 /// of a proof already queued changes nothing, so a stream of reports raises no
 /// memory.
 #[derive(Clone, Debug)]
@@ -349,8 +383,8 @@ impl ReportQueue {
 
     /// Place one checked proof in the queue.
     ///
-    /// The call reports whether the queue took the proof. A proof for a slot,
-    /// a rank and a seal key already queued leaves the queue unchanged.
+    /// The call reports whether the queue took the proof. A proof for a slot
+    /// and a seal key already queued leaves the queue unchanged.
     pub fn place(&mut self, proof: EquivocationProof) -> bool {
         let key = head_key(&proof.first);
         if self.entries.contains_key(&key) {
@@ -535,8 +569,8 @@ mod tests {
         tracker.observe(head(&keystore, author, 1, 1, 1));
         tracker.observe(head(&keystore, author, 2, 100, 1));
         assert_eq!(tracker.len(), 1, "the head far below the window is gone");
-        assert!(tracker.held(&(1, 1, author.0)).is_none());
-        assert!(tracker.held(&(100, 1, author.0)).is_some());
+        assert!(tracker.held(&(1, author.0)).is_none());
+        assert!(tracker.held(&(100, author.0)).is_some());
     }
 
     #[test]

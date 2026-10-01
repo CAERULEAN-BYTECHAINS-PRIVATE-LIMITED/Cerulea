@@ -141,9 +141,17 @@ pub fn pre_seal_hash<H: HeaderT>(header: &H) -> H::Hash {
 }
 
 /// Read the Cerulea seal out of a block header.
+///
+/// The size bound of the block seal path runs before the decoding. A seal item
+/// longer than the bound reads as no seal, so import refuses the header.
 pub fn extract_seal<H: HeaderT>(header: &H) -> Option<BlockSeal> {
     header.digest().logs().iter().find_map(|item| match item {
         DigestItem::Seal(engine, payload) if *engine == CERULEA_ENGINE_ID => {
+            crate::engines::bounds::admit(
+                crate::engines::bounds::MessagePath::BlockSeal,
+                payload.len(),
+            )
+            .ok()?;
             BlockSeal::decode(&mut &payload[..]).ok()
         }
         _ => None,

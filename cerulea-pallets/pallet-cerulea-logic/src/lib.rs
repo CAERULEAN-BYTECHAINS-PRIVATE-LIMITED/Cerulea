@@ -362,6 +362,9 @@ pub mod pallet {
         RecordInvalid,
     }
 
+        /// The Blueprint runs longer than the Blueprint artefact path admits.
+        /// Split the Blueprint into smaller modules.
+        BlueprintAboveBound,
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Install one Blueprint.
@@ -378,6 +381,13 @@ pub mod pallet {
             let installer = ensure_signed(origin)?;
             let parsed = Blueprint::decode(&mut blueprint.as_slice())
                 .map_err(|_| Error::<T>::PayloadUnreadable)?;
+            // The Blueprint artefact path carries a hard size bound. The
+            // shared check runs before the decoding.
+            cerulea_primitives::bounds::admit(
+                cerulea_primitives::bounds::MessagePath::BlueprintArtefact,
+                blueprint.len(),
+            )
+            .map_err(|_| Error::<T>::BlueprintAboveBound)?;
             parsed
                 .validate()
                 .map_err(|_| Error::<T>::BlueprintInvalid)?;

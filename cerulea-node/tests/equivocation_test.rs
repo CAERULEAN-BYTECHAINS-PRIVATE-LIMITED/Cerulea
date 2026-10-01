@@ -1,7 +1,7 @@
 //! Equivocation detection across the multi-node harness.
 //!
 //! Equivocation means one validator sealing two different headers for one slot
-//! at one rank. A slot is one fixed span of time. These tests run the real
+//! at any rank. A slot is one fixed span of time. These tests run the real
 //! Authoring Engine. One node seals two headers for one slot. Every other node
 //! detects the pair, builds the evidence and checks it.
 //!

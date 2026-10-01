@@ -823,6 +823,19 @@ pub enum EngineError {
         moment_ms: u64,
     },
 
+    /// The block claimed a moment the local clock has yet to reach.
+    #[error(
+        "Rank {rank} claims the slot at {claimed_ms} milliseconds and the block arrived at {arrival_ms} milliseconds. Fix: publish the block once the window of the claimed rank opens."
+    )]
+    SealMomentAhead {
+        /// The rank the block claimed.
+        rank: u8,
+        /// The moment the seal claimed, in milliseconds.
+        claimed_ms: u64,
+        /// The moment the block arrived, in milliseconds.
+        arrival_ms: u64,
+    },
+
     /// The validator key pair sits outside the registry.
     #[error(
         "The validator key pair sits outside the registry.          Fix: admit the validator through the Admission Engine before it authors."

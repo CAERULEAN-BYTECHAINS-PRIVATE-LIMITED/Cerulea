@@ -239,6 +239,44 @@ mod tests {
                 .ed25519_generate_new(CERULEA_KEY_TYPE, Some(&format!("//Cerulea//{}", seed)))
                 .expect("the keystore generates a key");
             registry.record(ValidatorKeys::new(pair.public(), seal));
+/// The lead a claimed moment may hold over the local clock, in milliseconds.
+///
+/// Two honest clocks drift apart by a small margin. The allowance covers that
+/// margin and stays well below one rank timeout, so a later rank never gains
+/// the window of an earlier rank.
+pub const ARRIVAL_ALLOWANCE_MS: u64 = 500;
+
+/// Check one seal on arrival against the local clock.
+///
+/// The seal claims the moment the author took the slot, and the rank window
+/// check reads that moment. A claimed moment is only a claim. A committee
+/// member at a later rank could name a moment inside its own window and
+/// publish the block while an earlier rank still holds the slot. The call
+/// therefore also refuses a claimed moment the local clock has yet to reach,
+/// beyond the drift allowance. A block fetched long after its slot passes this
+/// check, since its claimed moment sits in the past.
+pub fn verify_seal_on_arrival<H, R>(
+    header: &H,
+    seal: &BlockSeal,
+    context: &SlotContext,
+    registry: &R,
+    arrival_ms: u64,
+) -> Result<VerifiedSeal, EngineError>
+where
+    H: HeaderT,
+    R: ValidatorRegistry,
+{
+    let claimed_ms = seal.claim.moment_ms;
+    if claimed_ms > arrival_ms.saturating_add(ARRIVAL_ALLOWANCE_MS) {
+        return Err(EngineError::SealMomentAhead {
+            rank: seal.claim.rank.0,
+            claimed_ms,
+            arrival_ms,
+        });
+    }
+    verify_seal(header, seal, context, registry, claimed_ms)
+}
+
             seal_keys.insert(pair.public(), seal);
             entries.push((draw(&pair, &input), TrustScore::from_percent(50)));
         }

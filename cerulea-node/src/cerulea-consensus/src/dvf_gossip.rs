@@ -223,6 +223,20 @@ impl<
     }
 }
 
+/// Check the length of one commit vote message before any decoding.
+///
+/// The message crosses two bounds. The propagation layer bound covers every
+/// message on the path. The commit vote bound covers the one vote the message
+/// carries. A message longer than either bound is refused on the length alone.
+pub fn admit_vote_message(bytes: &[u8]) -> Result<(), crate::engines::EngineError> {
+    crate::engines::bounds::admit(
+        crate::engines::bounds::MessagePath::GossipMessage,
+        bytes.len(),
+    )?;
+    crate::engines::bounds::admit(crate::engines::bounds::MessagePath::CommitVote, bytes.len())?;
+    Ok(())
+}
+
 /// Validator for Commit Engine gossip messages.
 /// Filters, validates, and manages routing of `/cerulea/commit/1` messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
@@ -265,12 +279,9 @@ where
         &self,
         message_data: &[u8],
     ) -> Result<DvfVoteMessage<B::Hash, AccountId>, &'static str> {
-        // The size bound of the propagation path runs before the decoding, so
-        // an oversized message costs one length comparison.
-        if let Err(reason) = crate::engines::bounds::admit(
-            crate::engines::bounds::MessagePath::GossipMessage,
-            message_data.len(),
-        ) {
+        // The size bounds of the propagation path and the vote path run before
+        // the decoding, so an oversized message costs two length comparisons.
+        if let Err(reason) = admit_vote_message(message_data) {
             warn!("Commit Engine Gossip: {}", reason);
             if let Some(ref metrics) = self.metrics {
                 metrics.record_vote_rejection("above_bound");

@@ -74,6 +74,17 @@ use crate::{
 // === Constants ===
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
+/// The bytes one block carries.
+const BLOCK_LENGTH_BYTES: u32 = 5 * 1024 * 1024;
+
+// The extrinsic body path of the shared bound table equals the normal share of
+// the block length. The transaction pool check reads the block length, so one
+// extrinsic body longer than the path bound fails validation before dispatch.
+const _: () = assert!(
+    (BLOCK_LENGTH_BYTES as usize) * 75 / 100
+        == cerulea_primitives::bounds::MessagePath::ExtrinsicBody.max_bytes()
+);
+
 // === Global Runtime Parameters ===
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
@@ -86,7 +97,7 @@ parameter_types! {
     );
 
     // Max block size: 5MB with 75% for normal transactions.
-    pub RuntimeBlockLength: BlockLength = BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+    pub RuntimeBlockLength: BlockLength = BlockLength::max_with_normal_ratio(BLOCK_LENGTH_BYTES, NORMAL_DISPATCH_RATIO);
 
     // Substrate address prefix.
     pub const SS58Prefix: u8 = 42;

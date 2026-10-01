@@ -568,6 +568,12 @@ pub mod pallet {
                 );
             }
             Self::check_signature(&deployment, &licence, &signature)?;
+            // An attestation whose expiry has passed grants nothing. The
+            // module refuses that attestation, so a lapsed deployment stays stopped.
+            ensure!(
+                licence.holds_at(Self::now_millis()),
+                Error::<T>::LicenceLapsed
+            );
 
             let tier = licence.tier;
             let expires_at = licence.expires_at;

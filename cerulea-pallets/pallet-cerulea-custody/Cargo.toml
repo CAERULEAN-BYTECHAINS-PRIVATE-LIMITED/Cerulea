@@ -12,6 +12,7 @@ description = "The Custody Engine of the Cerulea Dynamic Consensus Framework"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+cerulea-primitives = { workspace = true, default-features = false }
 codec = { features = ["derive"], workspace = true }
 frame-benchmarking = { optional = true, workspace = true }
 frame-support.workspace = true
@@ -32,6 +33,7 @@ sp-runtime = { default-features = true, workspace = true }
 [features]
 default = ["std"]
 std = [
+	"cerulea-primitives/std",
 	"codec/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",

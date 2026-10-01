@@ -48,6 +48,13 @@ pub fn deliver<T: Config>(
     envelope: &MessageEnvelope,
     proof: &Proof,
 ) -> DispatchResult {
+    // The bridge proof path carries a hard size bound. The shared check runs
+    // before any other work, so an oversized proof costs one comparison.
+    cerulea_primitives::bounds::admit(
+        cerulea_primitives::bounds::MessagePath::BridgeProof,
+        proof.encoded_size(),
+    )
+    .map_err(|_| Error::<T>::ProofDeclined)?;
     let key = EndpointKey::new(envelope.deployment, envelope.endpoint.clone());
     let record = crate::Endpoints::<T>::get(&key).ok_or(Error::<T>::EndpointUnknown)?;
     ensure!(record.live, Error::<T>::EndpointRetired);

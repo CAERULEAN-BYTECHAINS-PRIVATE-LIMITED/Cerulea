@@ -81,15 +81,21 @@ items at the price of one and slow every node that reads it.
 | Path | Bound, bytes | Base price | Price per byte | Where the gate runs |
 |---|---|---|---|---|
 | block seal | 1,024 | 20,000 | 100 | `engines/authoring/seal.rs` |
-| commit vote | 256 | 10,000 | 100 | `engines/commit/collect.rs` |
+| commit vote | 256 | 10,000 | 100 | `dvf_gossip.rs`, `admit_vote_message` |
 | commit submission | 65,536 | 10,000 | 80 | `engines/commit/submission.rs` |
 | equivocation report | 768 | 40,000 | 120 | `engines/authoring/equivocation.rs` |
 | propagation message | 8,192 | 5,000 | 40 | `dvf_gossip.rs` and `service.rs` |
-| custody answer | 4,096 | 30,000 | 60 | `pallet-cerulea-custody/src/respond.rs` |
-| bridge proof | 262,144 | 50,000 | 60 | `pallet-cerulea-bridge/src/verify.rs` |
-| extrinsic body | 3,932,160 | 10,000 | 40 | the runtime block length |
+| custody answer | 4,096 | 30,000 | 60 | `pallet-cerulea-custody/src/lib.rs`, `answer_challenge` |
+| bridge proof | 262,144 | 50,000 | 60 | `pallet-cerulea-bridge/src/inbound.rs`, `deliver` |
+| extrinsic body | 3,932,160 | 10,000 | 40 | the runtime block length, tied to the table at compile time |
 | remote procedure call body | 10,485,760 | 5,000 | 10 | `service.rs` |
-| Blueprint artefact | 8,388,608 | 100,000 | 20 | the deployment path |
+| Blueprint artefact | 8,388,608 | 100,000 | 20 | `pallet-cerulea-logic/src/lib.rs`, `install_blueprint` |
+
+Every path runs the shared check from `cerulea-primitives/src/bounds.rs` in
+production code before any decoding. The block seal check sits in
+`extract_seal`, so a seal item past its bound reads as no seal. The
+equivocation report check sits in `read_report`. The adversarial suite at
+`cerulea-node/tests/adversarial_test.rs` carries one test per path.
 
 ### How each figure was reached
 

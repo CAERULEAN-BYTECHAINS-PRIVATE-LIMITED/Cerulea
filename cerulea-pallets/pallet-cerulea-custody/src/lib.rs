@@ -44,8 +44,9 @@ mod tests_reject;
 
 pub use pallet::*;
 pub use primitives::{
-    Challenge, ChallengeAnswer, ChallengeState, CollectionId, CustodyRecord, CustodyStanding,
-    CustodyValidators, ProofStep, RecordRef, CUSTODY_DIGEST_ID, DEFAULT_DEADLINE_BLOCKS,
+    custody_entry, Challenge, ChallengeAnswer, ChallengeState, CollectionId, CustodyRecord,
+    CustodyRecordHook, CustodyStanding, CustodyValidators, ProofStep, RecordRef, CUSTODY_DIGEST_ID,
+    DEFAULT_DEADLINE_BLOCKS,
 };
 
 #[frame_support::pallet]
@@ -53,7 +54,7 @@ pub mod pallet {
     use super::*;
     use crate::primitives::{
         Challenge, ChallengeAnswer, ChallengeState, CollectionId, CustodyRecord, CustodyStanding,
-        CustodyValidators, RecordRef, MAX_KEY_BYTES, MAX_RECORD_BYTES,
+        CustodyValidators, RecordRef, MAX_KEY_BYTES,
     };
     use crate::verify::{leaf_hash, record_root, verify_against_root};
     use frame_support::pallet_prelude::*;
@@ -235,6 +236,9 @@ pub mod pallet {
         BlockRecordsFull,
         /// The engine holds as many open challenges as the bound allows.
         OpenChallengesFull,
+        /// The answer runs longer than the custody answer path admits. Send
+        /// the record and the shortest proof that reaches the root.
+        AnswerAboveBound,
     }
 
     #[pallet::hooks]
@@ -274,6 +278,13 @@ pub mod pallet {
             answer: ChallengeAnswer,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            // The custody answer path carries a hard size bound. The shared
+            // check runs before any other work.
+            cerulea_primitives::bounds::admit(
+                cerulea_primitives::bounds::MessagePath::CustodyAnswer,
+                codec::Encode::encoded_size(&answer),
+            )
+            .map_err(|_| Error::<T>::AnswerAboveBound)?;
             let challenge = OpenChallenges::<T>::get(id).ok_or(Error::<T>::ChallengeNotFound)?;
             ensure!(challenge.target == who, Error::<T>::WrongValidator);
 
@@ -292,30 +303,37 @@ pub mod pallet {
             } else {
                 ChallengeState::Incorrect
             };
+            // The verdict closes the challenge either way. An incorrect proof
+            // lowers standing sharply and records a fault. The call succeeds
+            // so the verdict stays on chain. A failing call would roll the
+            // fault back and leave the challenge open for a second attempt.
             Self::settle_challenge(id, &challenge, state);
-
-            if verified {
-                Ok(())
-            } else {
-                Err(Error::<T>::ProofRejected.into())
-            }
+            Ok(())
         }
 
         /// Commit one record into the block under construction.
         ///
-        /// Every record the chain commits enters the record tree of its block.
-        /// The Custody Engine challenges validators to serve any of them.
+        /// The state module feeds every record it commits through the record
+        /// hook. This call adds a record outside the state module, for a
+        /// governance correction and for the engine tests. The call asks for
+        /// the root origin, so no account fills the record tree of a block and
+        /// crowds out the records the state module commits.
         #[pallet::call_index(1)]
         #[pallet::weight(Weight::from_parts(20_000, 0))]
         pub fn commit_record(
             origin: OriginFor<T>,
             collection: CollectionId,
             key: BoundedVec<u8, ConstU32<MAX_KEY_BYTES>>,
-            value: BoundedVec<u8, ConstU32<MAX_RECORD_BYTES>>,
+            value: BoundedVec<u8, ConstU32<{ crate::primitives::MAX_COMMITTED_VALUE_BYTES }>>,
         ) -> DispatchResult {
-            ensure_signed(origin)?;
-            let _ = (collection, key);
-            Self::note_record(&value)
+            ensure_root(origin)?;
+            // The entry joins the collection, the key and the digest of the
+            // full value, the same entry the state module commits.
+            Self::note_record(&crate::primitives::custody_entry(
+                &collection,
+                &key,
+                Some(&value),
+            ))
         }
     }
 
@@ -524,5 +542,15 @@ pub mod pallet {
         pub fn custody_faults(validator: &T::AccountId) -> u32 {
             CustodyRecords::<T>::get(validator).faults
         }
+    }
+}
+
+impl<T: Config> CustodyRecordHook for Pallet<T> {
+    fn note_committed(
+        collection: &[u8],
+        key: &[u8],
+        value: Option<&[u8]>,
+    ) -> frame_support::dispatch::DispatchResult {
+        Pallet::<T>::note_record(&custody_entry(collection, key, value))
     }
 }

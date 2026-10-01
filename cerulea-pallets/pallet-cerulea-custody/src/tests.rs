@@ -25,7 +25,10 @@ fn run_to_block(target: u64) {
     }
 }
 
-fn record(byte: u8) -> BoundedVec<u8, frame_support::traits::ConstU32<1024>> {
+fn record(
+    byte: u8,
+) -> BoundedVec<u8, frame_support::traits::ConstU32<{ crate::primitives::MAX_COMMITTED_VALUE_BYTES }>>
+{
     BoundedVec::try_from(sp_std::vec![byte; 16]).expect("sixteen bytes fit")
 }
 
@@ -37,7 +40,7 @@ fn key() -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
 fn commit_records(count: u8) {
     for byte in 0..count {
         assert_ok!(Custody::commit_record(
-            RuntimeOrigin::signed(1),
+            RuntimeOrigin::root(),
             [0u8; 16],
             key(),
             record(byte)
@@ -47,7 +50,11 @@ fn commit_records(count: u8) {
 
 /// The records one block committed, as the validator holds them locally.
 fn local_copy(count: u8) -> Vec<Vec<u8>> {
-    (0..count).map(|byte| sp_std::vec![byte; 16]).collect()
+    (0..count)
+        .map(|byte| {
+            crate::primitives::custody_entry(&[0u8; 16], &[7u8; 4], Some(&sp_std::vec![byte; 16]))
+        })
+        .collect()
 }
 
 #[test]
@@ -171,16 +178,28 @@ fn an_incorrect_proof_lowers_standing_sharply_and_records_a_fault() {
         let answer = assemble_answer(&wrong, challenge.record.index).expect("assembles");
 
         let before = Custody::custody_share(&challenge.target);
-        assert_noop!(
-            Custody::answer_challenge(RuntimeOrigin::signed(challenge.target), id, answer.clone()),
-            Error::<Test>::ProofRejected
-        );
+        assert_ok!(Custody::answer_challenge(
+            RuntimeOrigin::signed(challenge.target),
+            id,
+            answer.clone()
+        ));
 
-        // The call returns a failure, so the chain rolls the state back. The
-        // engine settles the fault through the deadline path instead.
-        run_to_block(9);
+        // The verdict stays on chain. The challenge closes as incorrect, the
+        // share falls by the fault loss and the fault count rises.
+        assert_eq!(
+            ChallengeStates::<Test>::get(id),
+            Some(ChallengeState::Incorrect)
+        );
+        assert!(OpenChallenges::<Test>::get(id).is_none());
         let after = Custody::custody_share(&challenge.target);
-        assert!(after < before);
+        assert_eq!(after, before.saturating_sub(crate::score::FAULT_LOSS));
+        assert_eq!(Custody::custody_faults(&challenge.target), 1);
+
+        // A second answer finds no open challenge.
+        assert_noop!(
+            Custody::answer_challenge(RuntimeOrigin::signed(challenge.target), id, answer),
+            Error::<Test>::ChallengeNotFound
+        );
     });
 }
 

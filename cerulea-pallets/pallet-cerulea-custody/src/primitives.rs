@@ -258,6 +258,53 @@ impl<ValidatorId> CustodyStanding<ValidatorId> for () {
     fn report_custody_fault(_validator: &ValidatorId, _faults: u32) {}
 }
 
+/// The largest value one direct record commit carries, in bytes.
+///
+/// The figure matches the largest record the state module stores, so a
+/// direct commit covers the full stored bytes of any record.
+pub const MAX_COMMITTED_VALUE_BYTES: u32 = 65_536;
+
+/// The interface a record store commits records through.
+///
+/// The state module calls the hook for every record an insert, an update or
+/// a removal commits. The Custody Engine adds the record to the record tree of
+/// the block under construction, so every committed record is challengeable.
+pub trait CustodyRecordHook {
+    /// Note one committed record.
+    ///
+    /// The collection and the key name the record. An absent value marks a
+    /// removal. A failure names the fix and stops the write.
+    fn note_committed(
+        collection: &[u8],
+        key: &[u8],
+        value: Option<&[u8]>,
+    ) -> frame_support::dispatch::DispatchResult;
+}
+
+impl CustodyRecordHook for () {
+    fn note_committed(
+        _collection: &[u8],
+        _key: &[u8],
+        _value: Option<&[u8]>,
+    ) -> frame_support::dispatch::DispatchResult {
+        Ok(())
+    }
+}
+
+/// The custody entry one committed record contributes to its block.
+///
+/// The entry joins the collection, the key and the digest of the value. A
+/// removal carries the zero digest. The entry stays inside the record bound
+/// of an answer whatever the size of the stored value, and the digest binds
+/// the entry to the exact bytes the store committed.
+pub fn custody_entry(collection: &[u8], key: &[u8], value: Option<&[u8]>) -> sp_std::vec::Vec<u8> {
+    let digest = match value {
+        Some(bytes) => sp_io::hashing::blake2_256(bytes),
+        None => [0u8; 32],
+    };
+    (collection, key, digest).encode()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

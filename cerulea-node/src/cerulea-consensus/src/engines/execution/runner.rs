@@ -372,6 +372,13 @@ where
             let mut guard = ManifestGuard::with_limits(transaction.manifest(), &mut store, limits);
             let result = runner.run(transaction, &mut guard);
             let tally = guard.tally();
+            // The guard holds the verdict on every access. A body that sets
+            // an abort aside and reports success still aborts, so the manifest
+            // and the resource bounds hold whatever the body returns.
+            let result = match (result, guard.abort_reason()) {
+                (Ok(()), Some(reason)) => Err(reason.clone()),
+                (held, _) => held,
+            };
             (result, tally)
         };
         match result {

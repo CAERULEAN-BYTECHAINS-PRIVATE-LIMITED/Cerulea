@@ -42,8 +42,8 @@ use crate::engines::authoring::fallback::{AuthoringPolicy, SlotSchedule};
 use crate::engines::authoring::seal::{
     extract_seal, is_cerulea_seal, strip_seal, BlockSeal, ValidatorKeys,
 };
-use crate::engines::authoring::verify::{verify_seal, KeyRegistry};
-use crate::engines::{CommitteeMember, Rank, Slot};
+use crate::engines::authoring::verify::{verify_seal_on_arrival, KeyRegistry};
+use crate::engines::{CommitteeMember, Rank, Slot, TrustScore};
 use crate::metrics::ConsensusMetrics;
 use crate::types::ValidatorMetrics;
 use cerulea_runtime::AccountId;
@@ -233,8 +233,27 @@ where
             crate::engines::authoring::verify::SlotContext::new(input, committee, schedule);
 
         // Checks two, three and four. Membership, signature and rank timing.
-        let verified = verify_seal(header, &seal, &context, &registry, seal.claim.moment_ms)
-            .map_err(|reason| reason.to_string())?;
+        // The rank window reads the moment the seal claims, and the local
+        // clock bounds that claim, so a later rank never takes the slot while
+        // an earlier rank still holds it.
+        let arrival_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_millis() as u64)
+            .unwrap_or(0);
+        let verified = match verify_seal_on_arrival(header, &seal, &context, &registry, arrival_ms)
+        {
+            Ok(verified) => verified,
+            Err(reason) => {
+                // A header claiming a rank its author lacks never imports.
+                // The author still signed it, so the sealed head joins the
+                // equivocation memory and a second header for the slot
+                // completes the evidence.
+                if matches!(reason, crate::engines::EngineError::RankMismatch { .. }) {
+                    self.observe_refused_for_equivocation(header, &seal, &registry);
+                }
+                return Err(reason.to_string());
+            }
+        };
 
         let author = author_account(&seal);
 
@@ -327,6 +346,34 @@ where
 
     /// Accept one equivocation report arriving from a peer.
     ///
+            self.raise_equivocation(proof);
+        }
+    }
+
+    /// Keep the sealed head of one header refused on its claimed rank.
+    ///
+    /// The tracker checks the recorded seal key and the seal signature first,
+    /// so only a header the author signed joins the memory.
+    pub fn observe_refused_for_equivocation(
+        &self,
+        header: &B::Header,
+        seal: &BlockSeal,
+        registry: &KeyRegistry,
+    ) {
+        let detected = {
+            let mut tracker = self.equivocation.write();
+            match tracker.observe_refused(header, seal, registry) {
+                Ok(found) => found,
+                Err(reason) => {
+                    debug!(
+                        "Authoring Engine equivocation: the refused head was set aside. {}",
+                        reason
+                    );
+                    None
+                }
+            }
+        };
+        if let Some(proof) = detected {
     /// The byte bound runs before any decoding. The evidence check then runs
     /// over the whole proof, so the node trusts no peer. The call reports the
     /// facts the proof states.

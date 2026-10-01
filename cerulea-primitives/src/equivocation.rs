@@ -3,8 +3,9 @@
 //! Equivocation means one validator signing two conflicting blocks for the same
 //! slot. A slot is one fixed span of time. Each slot draws its own committee of
 //! validators and names one author at each rank. Rank one authors first. An
-//! author that seals two different headers for one slot at one rank has signed
-//! two futures for the same moment. That breaks the single history every
+//! author that seals two different headers for one slot has signed two futures
+//! for the same moment. The rank each header claims plays no part, so a second
+//! header claiming another rank counts as equivocation too. That breaks the single history every
 //! participant relies on.
 //!
 //! This module carries the evidence a Cerulea node collects and the check the
@@ -25,8 +26,8 @@
 //!
 //! # What the check proves
 //!
-//! The check confirms that both claims name one slot, one rank, one seal key
-//! and one draw key. The check confirms that the two headers differ. The check
+//! The check confirms that both claims name one slot, one seal key and one draw
+//! key. The check confirms that the two headers differ. The check
 //! then verifies both signatures against that one seal key. A proof passing all
 //! three conditions is proof that the holder of that seal key signed two
 //! headers for one slot. Nobody other than the key holder produces either
@@ -216,7 +217,7 @@ pub struct EquivocationFacts {
     MaxEncodedLen,
 )]
 pub enum EquivocationFault {
-    /// The two claims name different slots, ranks or keys.
+    /// The two claims name different slots or keys.
     IdentityMismatch,
     /// The two heads carry one pre-seal hash, so they are one header.
     OneHeaderOnly,
@@ -231,8 +232,8 @@ impl EquivocationFault {
     pub const fn plain_language(&self) -> &'static str {
         match self {
             EquivocationFault::IdentityMismatch => {
-                "The two sealed headers name a different slot, rank or validator key. \
-                 Fix: report two headers sealed by one validator for one slot at one rank."
+                "The two sealed headers name a different slot or validator key. \
+                 Fix: report two headers sealed by one validator for one slot."
             }
             EquivocationFault::OneHeaderOnly => {
                 "The two sealed headers carry one pre-seal hash, so they are one header. \
@@ -252,14 +253,19 @@ impl EquivocationFault {
 
 /// Check one equivocation proof and read back what it states.
 ///
-/// The check runs three conditions in order. The two claims name one slot, one
-/// rank and one validator. The two headers differ. Both signatures verify
+/// The check runs three conditions in order. The two claims name one slot and
+/// one validator, whatever rank each claims. The two headers differ. Both signatures verify
 /// against the seal key the claims name. The call reports the first condition
 /// that fails.
 pub fn verify_equivocation(
     proof: &EquivocationProof,
 ) -> Result<EquivocationFacts, EquivocationFault> {
-    if proof.first.identity() != proof.second.identity() {
+    let first = &proof.first;
+    let second = &proof.second;
+    if first.slot() != second.slot()
+        || first.seal_key() != second.seal_key()
+        || first.draw_key() != second.draw_key()
+    {
         return Err(EquivocationFault::IdentityMismatch);
     }
     if proof.first.pre_seal_hash == proof.second.pre_seal_hash {
@@ -344,16 +350,16 @@ mod tests {
     }
 
     #[test]
-    fn two_headers_at_two_ranks_prove_nothing() {
+    fn two_headers_at_two_ranks_prove_equivocation() {
         let pair = author();
         let proof = EquivocationProof::new(
             signed_head(&pair, [1u8; 32], 9, 1),
             signed_head(&pair, [2u8; 32], 9, 2),
         );
-        assert_eq!(
-            verify_equivocation(&proof),
-            Err(EquivocationFault::IdentityMismatch)
-        );
+        let facts = verify_equivocation(&proof).expect("the proof stands");
+        assert_eq!(facts.slot, 9);
+        assert_eq!(facts.rank, 1);
+        assert_eq!(facts.seal_key, pair.public().0);
     }
 
     #[test]
@@ -471,6 +477,6 @@ mod tests {
         assert_eq!(SEAL_KEY_OFFSET, 9);
         assert_eq!(DRAW_KEY_OFFSET, 41);
         assert_eq!(SEAL_CLAIM_PREFIX_BYTES, DRAW_KEY_OFFSET + 32);
-        assert!(SEAL_CLAIM_BYTES > SEAL_CLAIM_PREFIX_BYTES);
+        const { assert!(SEAL_CLAIM_BYTES > SEAL_CLAIM_PREFIX_BYTES) };
     }
 }

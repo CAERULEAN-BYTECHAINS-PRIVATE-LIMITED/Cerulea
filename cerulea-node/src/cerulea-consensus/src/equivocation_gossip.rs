@@ -1,7 +1,7 @@
 //! Equivocation report propagation.
 //!
 //! Equivocation means one validator sealing two different headers for one slot
-//! at one rank. A slot is one fixed span of time. A node holding both headers
+//! at any rank. A slot is one fixed span of time. A node holding both headers
 //! builds the evidence and sends it to its peers on this path. A node that saw
 //! one header alone learns of the other here.
 //!

@@ -33,7 +33,10 @@ fn run_to_block(target: u64) {
     }
 }
 
-fn record(byte: u8) -> BoundedVec<u8, frame_support::traits::ConstU32<1024>> {
+fn record(
+    byte: u8,
+) -> BoundedVec<u8, frame_support::traits::ConstU32<{ crate::primitives::MAX_COMMITTED_VALUE_BYTES }>>
+{
     BoundedVec::try_from(sp_std::vec![byte; 16]).expect("sixteen bytes fit")
 }
 
@@ -44,7 +47,7 @@ fn key() -> BoundedVec<u8, frame_support::traits::ConstU32<128>> {
 fn commit_records(count: u8) {
     for byte in 0..count {
         assert_ok!(Custody::commit_record(
-            RuntimeOrigin::signed(1),
+            RuntimeOrigin::root(),
             [0u8; 16],
             key(),
             record(byte)
@@ -53,7 +56,11 @@ fn commit_records(count: u8) {
 }
 
 fn local_copy(count: u8) -> Vec<Vec<u8>> {
-    (0..count).map(|byte| sp_std::vec![byte; 16]).collect()
+    (0..count)
+        .map(|byte| {
+            crate::primitives::custody_entry(&[0u8; 16], &[7u8; 4], Some(&sp_std::vec![byte; 16]))
+        })
+        .collect()
 }
 
 /// Issue one challenge at block five over six committed records.
@@ -145,13 +152,54 @@ fn an_unsigned_record_commit_is_refused() {
 }
 
 #[test]
+fn a_signed_account_cannot_fill_the_record_tree() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Custody::commit_record(RuntimeOrigin::signed(1), [0u8; 16], key(), record(1)),
+            DispatchError::BadOrigin
+        );
+        assert!(PendingLeaves::<Test>::get().is_empty());
+    });
+}
+
+#[test]
+fn the_record_hook_adds_one_entry_per_committed_record() {
+    use crate::primitives::{custody_entry, CustodyRecordHook};
+    new_test_ext().execute_with(|| {
+        assert_ok!(<Custody as CustodyRecordHook>::note_committed(
+            b"parcel",
+            b"parcel-1",
+            Some(b"surveyed")
+        ));
+        assert_ok!(<Custody as CustodyRecordHook>::note_committed(
+            b"parcel",
+            b"parcel-2",
+            None
+        ));
+        let leaves = PendingLeaves::<Test>::get();
+        assert_eq!(leaves.len(), 2);
+        assert_eq!(
+            leaves[0],
+            leaf_hash(0, &custody_entry(b"parcel", b"parcel-1", Some(b"surveyed")))
+        );
+        assert_eq!(
+            leaves[1],
+            leaf_hash(1, &custody_entry(b"parcel", b"parcel-2", None))
+        );
+        assert_ok!(<() as CustodyRecordHook>::note_committed(
+            b"parcel", b"k", None
+        ));
+    });
+}
+
+#[test]
 fn a_block_holding_the_record_bound_refuses_one_more_record() {
     new_test_ext().execute_with(|| {
         // The mock bound is sixty four records per block.
         commit_records(64);
         assert_eq!(PendingLeaves::<Test>::get().len(), 64);
         assert_noop!(
-            Custody::commit_record(RuntimeOrigin::signed(1), [0u8; 16], key(), record(200)),
+            Custody::commit_record(RuntimeOrigin::root(), [0u8; 16], key(), record(200)),
             Error::<Test>::BlockRecordsFull
         );
         Custody::on_finalize(1);
@@ -399,17 +447,25 @@ fn an_open_settlement_moves_nothing_and_announces_nothing() {
 }
 
 #[test]
-fn a_rejected_proof_leaves_the_challenge_open_for_the_deadline_path() {
+fn a_rejected_proof_closes_the_challenge_with_a_fault() {
     new_test_ext().execute_with(|| {
         let (id, challenge) = issued();
         let wrong = assemble_answer(&local_copy(7), challenge.record.index).expect("assembles");
+        assert_ok!(Custody::answer_challenge(
+            RuntimeOrigin::signed(challenge.target),
+            id,
+            wrong.clone()
+        ));
+        assert_eq!(
+            ChallengeStates::<Test>::get(id),
+            Some(ChallengeState::Incorrect)
+        );
+        assert_eq!(Custody::custody_faults(&challenge.target), 1);
+        assert_eq!(reported_faults(challenge.target), 1);
         assert_noop!(
             Custody::answer_challenge(RuntimeOrigin::signed(challenge.target), id, wrong),
-            Error::<Test>::ProofRejected
+            Error::<Test>::ChallengeNotFound
         );
-        assert_eq!(ChallengeStates::<Test>::get(id), Some(ChallengeState::Open));
-        assert_eq!(Custody::custody_faults(&challenge.target), 0);
-        assert_eq!(reported_faults(challenge.target), 0);
     });
 }
 
@@ -429,9 +485,14 @@ fn a_proof_padded_with_foreign_steps_is_rejected() {
             value: honest.value,
             proof: BoundedVec::try_from(steps).expect("thirty two steps fit"),
         };
-        assert_noop!(
-            Custody::answer_challenge(RuntimeOrigin::signed(challenge.target), id, padded),
-            Error::<Test>::ProofRejected
+        assert_ok!(Custody::answer_challenge(
+            RuntimeOrigin::signed(challenge.target),
+            id,
+            padded
+        ));
+        assert_eq!(
+            ChallengeStates::<Test>::get(id),
+            Some(ChallengeState::Incorrect)
         );
     });
 }

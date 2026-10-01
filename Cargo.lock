@@ -6523,6 +6523,7 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
+ "cerulea-primitives",
  "frame-system",
  "log",
  "pallet-balances",
@@ -6643,6 +6644,7 @@ dependencies = [
  "cerulea-blueprint",
  "frame-benchmarking",
  "frame-support",
+ "cerulea-primitives",
  "frame-system",
  "pallet-cerulea-identity",
  "pallet-cerulea-permission",
