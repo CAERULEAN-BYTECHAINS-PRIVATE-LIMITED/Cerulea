@@ -174,6 +174,8 @@ pub trait RecordStore {
     ) -> Vec<RecordKey>;
 
     /// The inclusion tree root of one collection.
+    ///
+    /// A collection the schema lacks answers with nothing.
     fn root(deployment: &DeploymentId, collection: &CollectionId) -> Option<[u8; 32]>;
 
     /// The proof that one record sits in one collection.
@@ -1378,6 +1380,9 @@ impl<T: Config> RecordStore for Pallet<T> {
     }
 
     fn root(deployment: &DeploymentId, collection: &CollectionId) -> Option<[u8; 32]> {
+        // A collection the schema never registered carries no root, so a
+        // caller never anchors or proves against a collection that is absent.
+        T::Schema::collection(deployment, collection)?;
         Pallet::<T>::collection_root(deployment, collection)
     }
 

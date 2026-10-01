@@ -626,3 +626,18 @@ fn an_index_entry_past_its_bound_declines_the_write() {
         assert_eq!(holders("Anitha").len(), 128);
     });
 }
+
+#[test]
+fn a_collection_the_schema_lacks_carries_no_store_root() {
+    new_test_ext().execute_with(|| {
+        install();
+        assert_eq!(
+            <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &CollectionId::new("ledger")),
+            None
+        );
+        assert_eq!(
+            <Pallet<Test> as RecordStore>::root(&DEPLOYMENT, &id()),
+            Some(crate::proof::empty_root())
+        );
+    });
+}
