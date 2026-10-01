@@ -526,3 +526,6 @@ fn every_tier_record_appears_in_the_audit_log_with_its_actor() {
 
 /// The further tests of the tier module.
 mod licence_tests;
+
+/// The tests of the control plane key rotation.
+mod rotation_tests;

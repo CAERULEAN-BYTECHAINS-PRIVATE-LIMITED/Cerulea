@@ -34,3 +34,22 @@ impl<AccountId> DeploymentStewards<AccountId> for () {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DeploymentStewards;
+
+    #[test]
+    fn the_empty_interface_names_no_installer_and_no_steward() {
+        let deployment = [3u8; 32];
+        assert_eq!(
+            <() as DeploymentStewards<u64>>::installer(&deployment),
+            None
+        );
+        assert!(!<() as DeploymentStewards<u64>>::is_steward(
+            &deployment,
+            &1
+        ));
+        assert!(!<() as DeploymentStewards<u64>>::is_steward(&[0u8; 32], &0));
+    }
+}
