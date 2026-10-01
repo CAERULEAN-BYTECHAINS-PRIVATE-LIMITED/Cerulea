@@ -39,7 +39,7 @@ impl TestRateLimiter {
     pub fn check_rate_limit(&self, ip: &str) -> bool {
         let now = Instant::now();
         let mut requests = self.requests.lock().unwrap();
-        let history = requests.entry(ip.to_string()).or_insert_with(Vec::new);
+        let history = requests.entry(ip.to_string()).or_default();
         history.retain(|&time| now.duration_since(time) <= self.window);
         if history.len() as u32 >= self.max_requests {
             return false;
@@ -900,7 +900,7 @@ fn test_production_block_authoring_performance_scenarios() {
 #[test]
 fn test_production_block_tracking_statistics_aggregation() {
     // Test aggregating statistics from multiple validators
-    let validators = vec![
+    let validators = [
         TestValidatorBlockStats {
             authored_blocks: 95,
             missed_blocks: 5,
@@ -1045,7 +1045,7 @@ fn test_comprehensive_production_block_tracking_functionality() {
     println!("  ✓ Edge case handling verified");
 
     // Test 6: Multi-validator aggregation
-    let validators = vec![
+    let validators = [
         TestValidatorBlockStats {
             authored_blocks: 95,
             missed_blocks: 5,
@@ -1186,7 +1186,7 @@ fn test_final_comprehensive_production_rpc_suite() {
     println!("\nTesting Advanced Features...");
 
     // 7. Multi-Validator Statistics
-    let network_validators = vec![
+    let network_validators = [
         (95.0, "Excellent"),
         (88.0, "Good"),
         (92.0, "Excellent"),

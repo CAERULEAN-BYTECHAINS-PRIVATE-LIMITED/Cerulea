@@ -509,7 +509,7 @@ async fn test_comprehensive_dev_mode_functionality() {
     // Step 5: Final validation
     log::info!("Step 5: Final validation...");
     assert!(
-        final_block >= config.target_blocks + 1,
+        final_block > config.target_blocks,
         "Should produce required blocks"
     );
     assert!(rpc_success >= 6, "Should have working RPC endpoints");
@@ -576,7 +576,7 @@ async fn test_dev_mode_configuration_validation() {
 /// Check if the Cerulea node binary is available
 pub fn check_node_binary() -> bool {
     Command::new("cargo")
-        .args(&["check", "--bin", "cerulea-node"])
+        .args(["check", "--bin", "cerulea-node"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)

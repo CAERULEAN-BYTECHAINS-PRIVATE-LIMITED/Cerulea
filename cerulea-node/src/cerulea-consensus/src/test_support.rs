@@ -21,8 +21,8 @@ use futures::Stream;
 use parking_lot::Mutex;
 use sc_client_api::backend::{Backend as BackendT, BlockImportOperation as _, NewBlockState};
 use sc_client_api::{
-    BlockImportNotification, BlockchainEvents, ClientImportOperation, Finalizer,
-    FinalityNotifications, ImportNotifications, LockImportRun, StorageEventStream, StorageKey,
+    BlockImportNotification, BlockchainEvents, ClientImportOperation, FinalityNotifications,
+    Finalizer, ImportNotifications, LockImportRun, StorageEventStream, StorageKey,
     UnpinWorkerMessage,
 };
 use sc_network::config::MultiaddrWithPeerId;
@@ -124,13 +124,13 @@ impl RuntimeAnswers {
                 .cloned()
         };
         match found {
-            Some(raw) => T::decode(&mut &raw[..]).map_err(|error| {
-                ApiError::FailedToDecodeReturnValue {
+            Some(raw) => {
+                T::decode(&mut &raw[..]).map_err(|error| ApiError::FailedToDecodeReturnValue {
                     function: call,
                     error,
                     raw: raw.clone(),
-                }
-            }),
+                })
+            }
             None => Err(ApiError::Application(
                 format!(
                     "The test runtime holds no answer for {}. Fix: set the answer before the call.",
@@ -148,7 +148,12 @@ pub(crate) struct RuntimeView {
 }
 
 impl RuntimeView {
-    fn ask<T: Decode>(&self, call: &'static str, at: H256, args: impl Encode) -> Result<T, ApiError> {
+    fn ask<T: Decode>(
+        &self,
+        call: &'static str,
+        at: H256,
+        args: impl Encode,
+    ) -> Result<T, ApiError> {
         self.answers.answer(call, at, args.encode())
     }
 }
@@ -447,7 +452,6 @@ sp_api::mock_impl_runtime_apis! {
         }
     }
 }
-
 
 /// Build one header at one height on one parent.
 ///
@@ -922,7 +926,10 @@ impl NetworkPeers for PeerlessNetwork {
     fn deny_unreserved_peers(&self) {}
 
     fn add_reserved_peer(&self, _peer: MultiaddrWithPeerId) -> Result<(), String> {
-        Err("The test network holds no peers. Fix: run the test against a live network.".to_string())
+        Err(
+            "The test network holds no peers. Fix: run the test against a live network."
+                .to_string(),
+        )
     }
 
     fn remove_reserved_peer(&self, _peer_id: PeerId) {}
@@ -1053,8 +1060,11 @@ impl sc_network_gossip::ValidatorContext<Block> for RecordingContext {
     }
 
     fn send_message(&mut self, who: &PeerId, message: Vec<u8>) {
-        self.requests
-            .push(format!("send message to {} of {} bytes", who, message.len()));
+        self.requests.push(format!(
+            "send message to {} of {} bytes",
+            who,
+            message.len()
+        ));
     }
 
     fn send_topic(&mut self, who: &PeerId, topic: H256, force: bool) {
@@ -1103,9 +1113,7 @@ impl Voter {
             validator_public_key: self.pair.public(),
             signature: ed25519::Signature::from_raw([0u8; 64]),
         };
-        vote.signature = self
-            .pair
-            .sign(&crate::vote_creator::vote_payload(&vote));
+        vote.signature = self.pair.sign(&crate::vote_creator::vote_payload(&vote));
         vote
     }
 

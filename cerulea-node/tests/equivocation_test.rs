@@ -17,7 +17,6 @@ use cerulea_consensus::engines::authoring::seal::SealClaim;
 use cerulea_consensus::engines::{Rank, Slot};
 use cerulea_node::test_harness::{TestHeader, TestNetwork};
 use codec::Encode;
-use sp_runtime::traits::Header as HeaderT;
 
 /// The slot the tests drive.
 const SLOT: Slot = Slot(3);

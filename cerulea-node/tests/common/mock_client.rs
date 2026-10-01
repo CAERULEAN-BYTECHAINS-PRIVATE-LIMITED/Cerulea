@@ -400,7 +400,7 @@ impl Default for MockClientBuilder {
     }
 }
 
-/// Helper functions for creating common mock client configurations
+// Helper functions for creating common mock client setups.
 
 /// Create a mock client with healthy consensus (3+ validators)
 pub fn create_healthy_consensus_mock() -> Arc<MockClient> {
@@ -562,7 +562,7 @@ mod tests {
 
         let degraded = create_degraded_consensus_mock();
         let active_validators = degraded.runtime_api().get_active_validators().unwrap();
-        assert!(active_validators.len() >= 1 && active_validators.len() <= 2);
+        assert!(!active_validators.is_empty() && active_validators.len() <= 2);
 
         let critical = create_critical_consensus_mock();
         assert_eq!(

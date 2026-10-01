@@ -152,7 +152,7 @@ fn test_infrastructure_scenario_builder() {
     assert!(healthy.get_active_validators().len() >= 3);
 
     let degraded = TestScenarioBuilder::degraded_consensus();
-    assert!(degraded.get_active_validators().len() >= 1);
+    assert!(!degraded.get_active_validators().is_empty());
     assert!(degraded.get_active_validators().len() <= 2);
 
     let critical = TestScenarioBuilder::critical_consensus();
@@ -169,7 +169,7 @@ fn test_infrastructure_mock_helpers() {
 
     let degraded = create_degraded_consensus_mock();
     let active_validators = degraded.runtime_api().get_active_validators().unwrap();
-    assert!(active_validators.len() >= 1 && active_validators.len() <= 2);
+    assert!(!active_validators.is_empty() && active_validators.len() <= 2);
 
     let critical = create_critical_consensus_mock();
     assert_eq!(

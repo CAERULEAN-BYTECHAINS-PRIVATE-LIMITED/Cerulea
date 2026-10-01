@@ -71,7 +71,7 @@ fn test_cerulea_logging_initialization() {
     // Test that Cerulea logging can be initialized with different configurations
 
     // Test without log file
-    let result = cerulea_node::logging::init_cerulea_logging(false, false, None);
+    let _result = cerulea_node::logging::init_cerulea_logging(false, false, None);
     // Note: This might fail if logging is already initialized, which is expected in tests
     // We just verify the function exists and can be called
 
@@ -79,7 +79,7 @@ fn test_cerulea_logging_initialization() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let log_file_path = temp_dir.path().join("test_init.log");
 
-    let result = cerulea_node::logging::init_cerulea_logging(
+    let _result = cerulea_node::logging::init_cerulea_logging(
         true,
         false,
         Some(log_file_path.to_string_lossy().to_string()),

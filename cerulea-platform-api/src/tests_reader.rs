@@ -57,6 +57,9 @@ enum Mode {
 }
 
 /// One deployment held in memory, the way the platform modules hold it.
+/// One permission grant the local runtime answers with.
+type Grant = (u64, Vec<u8>, Vec<u8>, Vec<u8>);
+
 struct LocalRuntime {
     mode: Mode,
     calls: Mutex<Vec<&'static str>>,
@@ -64,7 +67,7 @@ struct LocalRuntime {
     types: Vec<(Vec<u8>, Vec<u8>)>,
     collections: Vec<CollectionSummary>,
     records: Vec<RecordReply>,
-    grants: Vec<(u64, Vec<u8>, Vec<u8>, Vec<u8>)>,
+    grants: Vec<Grant>,
     roles: Vec<RoleReply>,
     views: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
     workflows: Vec<WorkflowInstanceReply>,
@@ -296,7 +299,7 @@ impl LocalRuntime {
             }
             "CeruleaPlatformApi_blueprint_address" => {
                 let (deployment,): (DeploymentId,) = args(name, params)?;
-                Some(deployment).filter(|held| Self::held(held)).encode()
+                Some(deployment).filter(Self::held).encode()
             }
             "CeruleaPlatformApi_blueprint" => {
                 let (deployment,): (DeploymentId,) = args(name, params)?;

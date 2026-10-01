@@ -32,7 +32,6 @@ const HALTING_OUTAGE: usize = 4;
 #[test]
 fn the_share_a_routine_domain_needs_sits_above_half_the_weight() {
     // Two signer sets that each cross the share share at least one member.
-    assert!(HARNESS_ROUTINE_PERCENT > 50);
     // Six of nine cross the share. Five of nine fall below it.
     assert!(6 * 100 >= 9 * HARNESS_ROUTINE_PERCENT as u32);
     assert!(5 * 100 < 9 * HARNESS_ROUTINE_PERCENT as u32);

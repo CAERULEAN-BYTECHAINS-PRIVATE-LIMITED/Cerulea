@@ -29,7 +29,11 @@ fn control_plane() -> ed25519::Pair {
 }
 
 fn hex_of(key: [u8; 32]) -> String {
-    key.iter().map(|byte| format!("{:02x}", byte)).collect()
+    use std::fmt::Write as _;
+    key.iter().fold(String::new(), |mut text, byte| {
+        let _ = write!(text, "{:02x}", byte);
+        text
+    })
 }
 
 /// Build the externalities of one deployment preset.

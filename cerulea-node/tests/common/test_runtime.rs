@@ -385,7 +385,7 @@ mod tests {
         assert!(healthy.get_active_validators().len() >= 3);
 
         let degraded = TestScenarioBuilder::degraded_consensus();
-        assert!(degraded.get_active_validators().len() >= 1);
+        assert!(!degraded.get_active_validators().is_empty());
         assert!(degraded.get_active_validators().len() <= 2);
 
         let critical = TestScenarioBuilder::critical_consensus();

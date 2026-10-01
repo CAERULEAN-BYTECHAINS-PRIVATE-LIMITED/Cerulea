@@ -102,6 +102,9 @@ enum Message {
     },
 }
 
+/// The round timeout statement of each validator in one round.
+type TimeoutBook = BTreeMap<usize, Option<[u8; 32]>>;
+
 /// One validator of the harness network.
 struct Node {
     /// The ledger bytes on disk.
@@ -113,7 +116,7 @@ struct Node {
     committed: BTreeMap<u32, [u8; 32]>,
     /// The first vote seen from each validator in each round.
     votes: HashMap<(u32, usize), (u32, [u8; 32])>,
-    timeouts: HashMap<(u32, u32), BTreeMap<usize, Option<[u8; 32]>>>,
+    timeouts: HashMap<(u32, u32), TimeoutBook>,
     seen_round: BTreeMap<usize, u32>,
     down_until: u64,
     sent_timeouts: BTreeSet<(u32, u32)>,
