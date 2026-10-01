@@ -11461,12 +11461,9 @@ pub mod pallet {
                 );
             };
 
-            // Set up validator set
-            ValidatorSet::<T>::put(
-                BoundedVec::try_from(self.validators.clone()).unwrap_or_else(|_| {
-                    panic!("Initial validators exceed MaxValidators");
-                }),
-            );
+            // The validator set fills inside the loop below, one validator at a
+            // time once its stake is reserved, so a skipped validator stays out.
+            ValidatorSet::<T>::put(BoundedVec::default());
 
             // Initialize each validator with their stake, score, and name
             for (i, (((validator, score), stake), name)) in self
@@ -11586,6 +11583,9 @@ pub mod pallet {
                         trust_score: T::MaxTrustScore::get() / 2, // Start with 50% trust score
                     },
                 );
+                // The Trust Score map carries the same starting figure, so the
+                // invariants hold from the first block.
+                ValidatorTrustScores::<T>::insert(validator, T::MaxTrustScore::get() / 2);
 
                 log::info!("Genesis validator {:?} initialized with stake: {:?}, final_score: {}, name: {:?}",
                           validator, stake, final_score, name);
@@ -11602,12 +11602,17 @@ pub mod pallet {
             log::info!("  stake share: {}", T::DefaultPosWeight::get());
             log::info!("  inference share: {}", T::DefaultPoiWeight::get());
 
-            // Initialize active validators with all genesis validators
-            ActiveValidators::<T>::put(
-                BoundedVec::try_from(self.validators.clone()).unwrap_or_else(|_| {
-                    panic!("Initial validators exceed MaxValidators");
-                }),
-            );
+            // The active set holds the genesis validators whose stake was
+            // reserved. A validator the build skipped stays outside it.
+            let admitted: Vec<T::AccountId> = self
+                .validators
+                .iter()
+                .filter(|validator| ValidatorStates::<T>::contains_key(*validator))
+                .cloned()
+                .collect();
+            ActiveValidators::<T>::put(BoundedVec::try_from(admitted).unwrap_or_else(|_| {
+                panic!("Initial validators exceed MaxValidators");
+            }));
 
             CurrentEpoch::<T>::put(self.current_epoch);
             EpochConfigStorage::<T>::put(self.epoch_config.clone());
