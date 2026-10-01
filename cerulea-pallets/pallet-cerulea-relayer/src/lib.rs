@@ -21,6 +21,8 @@ pub mod weights;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod relay_tests;
+#[cfg(test)]
 mod tests;
 
 pub use pallet::*;
