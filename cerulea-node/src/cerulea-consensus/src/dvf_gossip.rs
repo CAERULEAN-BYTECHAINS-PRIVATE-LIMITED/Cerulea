@@ -472,6 +472,59 @@ pub fn epoch_is_current(vote_epoch: u32, committed_epoch: u32, current_epoch: u3
 /// The most evidence pairs the pool holds before the aggregator reports them.
 pub const MAX_HELD_EVIDENCE: usize = 1024;
 
+/// The refusal reasons that hold a message for a later try.
+///
+/// Each one says the node lacks something it needs to decide: the block a
+/// vote names, or an answer from the runtime. Neither says anything against
+/// the message itself, so the message waits for the next block import.
+pub const HOLD_REASONS: [&str; 2] = ["target_not_imported", "runtime_api_error"];
+
+/// The most messages the gossip validator holds for a later try.
+pub const MAX_HELD_MESSAGES: usize = 1024;
+
+/// Messages held until the node can decide on them, oldest first.
+#[derive(Debug, Default)]
+pub struct HeldMessages {
+    queue: std::collections::VecDeque<Vec<u8>>,
+}
+
+impl HeldMessages {
+    /// An empty hold.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Hold one message and report whether it was new to the hold.
+    ///
+    /// A message already held stays once. At capacity the oldest message
+    /// leaves first, so the hold stays inside a stated ceiling.
+    pub fn hold(&mut self, bytes: Vec<u8>) -> bool {
+        if self.queue.iter().any(|held| *held == bytes) {
+            return false;
+        }
+        if self.queue.len() >= MAX_HELD_MESSAGES {
+            self.queue.pop_front();
+        }
+        self.queue.push_back(bytes);
+        true
+    }
+
+    /// Take every held message, oldest first, and leave the hold empty.
+    pub fn take_all(&mut self) -> Vec<Vec<u8>> {
+        self.queue.drain(..).collect()
+    }
+
+    /// The number of messages held.
+    pub fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// Report whether the hold is empty.
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+}
+
 /// Validator for Commit Engine gossip messages.
 /// Filters, validates, and manages routing of commit protocol messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
@@ -481,6 +534,8 @@ pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     /// The set carries a capacity limit with least recently used eviction,
     /// so node memory stays inside a stated ceiling whatever the peers send.
     known_messages: RwLock<MessageSet<B::Hash>>,
+    /// Messages the node could not decide on yet, tried again on import.
+    held: RwLock<HeldMessages>,
     client: Arc<C>,
     metrics: Option<Arc<DvfMetrics>>,
 }
@@ -498,9 +553,50 @@ where
         Self {
             pool,
             known_messages: RwLock::new(MessageSet::new()),
+            held: RwLock::new(HeldMessages::new()),
             client,
             metrics: None,
         }
+    }
+
+    /// The number of messages held for a later try.
+    pub fn held_count(&self) -> usize {
+        self.held.read().len()
+    }
+
+    /// The epoch range a vote must fall in: the epoch of the committed head
+    /// and the epoch at the best block.
+    ///
+    /// A runtime API instance answers for one block only, so each block gets
+    /// its own instance. Where the committed head is the best block, as at
+    /// genesis, one answer serves both. Where the committed head cannot answer,
+    /// the range falls back to the epoch at the best block, the narrower rule.
+    fn epoch_window(&self, best_hash: B::Hash) -> Result<(u32, u32), String> {
+        let current =
+            <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
+                &self.client.runtime_api(),
+                best_hash,
+            )
+            .map_err(|reason| format!("the epoch at the best block: {:?}", reason))?;
+        let finalized_hash = self.client.info().finalized_hash;
+        if finalized_hash == best_hash {
+            return Ok((current, current));
+        }
+        let committed =
+            match <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
+                &self.client.runtime_api(),
+                finalized_hash,
+            ) {
+                Ok(epoch) => epoch,
+                Err(reason) => {
+                    debug!(
+                    "Commit Engine Gossip: the epoch at the committed head is unavailable ({:?}); the epoch at the best block decides",
+                    reason
+                );
+                    current
+                }
+            };
+        Ok((committed, current))
     }
 
     /// Sets the metrics for this validator
@@ -548,14 +644,8 @@ where
 
         // A vote stays current from the epoch of the committed head onward,
         // so a stall that crosses an epoch boundary keeps its votes.
-        let finalized_hash = self.client.info().finalized_hash;
-        let epoch_at = |at: B::Hash| {
-            <C::Api as RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>>::get_current_epoch(
-                &api, at,
-            )
-        };
-        match (epoch_at(best_hash), epoch_at(finalized_hash)) {
-            (Ok(current_epoch), Ok(committed_epoch)) => {
+        match self.epoch_window(best_hash) {
+            Ok((committed_epoch, current_epoch)) => {
                 if !epoch_is_current(epoch_id, committed_epoch, current_epoch) {
                     debug!(
                         "Commit Engine Gossip: epoch {} sits outside {} to {}",
@@ -566,7 +656,13 @@ where
                     return Err(self.reject("epoch_mismatch"));
                 }
             }
-            _ => return Err(self.reject("runtime_api_error")),
+            Err(reason) => {
+                warn!(
+                    "Commit Engine Gossip: the epoch check could not run: {}. The message is held for the next import.",
+                    reason
+                );
+                return Err(self.reject("runtime_api_error"));
+            }
         }
 
         match api.get_validator_set_id(best_hash) {
@@ -597,9 +693,42 @@ where
                     );
                 }
             }
-            Err(_) => return Err(self.reject("runtime_api_error")),
+            Err(reason) => {
+                warn!(
+                    "Commit Engine Gossip: the validator set check could not run: {:?}. The message is held for the next import.",
+                    reason
+                );
+                return Err(self.reject("runtime_api_error"));
+            }
         }
         Ok(())
+    }
+
+    /// Check that the node holds the block one vote names.
+    ///
+    /// A vote can arrive before its block. Such a vote is held and tried again
+    /// once the block imports. A vote for an unknown block at or below the
+    /// committed head names a fork the chain left behind, and is refused.
+    fn check_target(&self, height: u32, block: B::Hash) -> Result<(), &'static str> {
+        use sp_runtime::SaturatedConversion;
+        match self.client.header(block) {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                let committed: u32 = self.client.info().finalized_number.saturated_into();
+                if height <= committed {
+                    Err(self.reject("stale_target"))
+                } else {
+                    Err(self.reject("target_not_imported"))
+                }
+            }
+            Err(reason) => {
+                warn!(
+                    "Commit Engine Gossip: the block a vote names could not be read: {:?}. The vote is held for the next import.",
+                    reason
+                );
+                Err(self.reject("target_not_imported"))
+            }
+        }
     }
 
     /// Internal validation core.
@@ -647,6 +776,7 @@ where
                     vote.validator_set_id,
                     &vote.validator_account_id,
                 )?;
+                self.check_target(vote.block_number, vote.block_hash)?;
             }
             CommitMessage::RoundTimeout(statement) => {
                 if !signer_matches(
@@ -705,18 +835,92 @@ where
         _sender: &PeerId,
         data: &[u8],
     ) -> ValidationResult<B::Hash> {
-        // Hash the bytes natively for lookups (to prevent spam re-broadcasting)
-        let msg_hash = sp_core::hashing::blake2_256(data);
-        let msg_hash_b = B::Hash::decode(&mut &msg_hash[..]).unwrap_or_default();
-
+        let msg_hash_b = message_hash::<B>(data);
         {
             let mut known = self.known_messages.write();
-            if known.record(msg_hash_b) {
+            if known.holds(&msg_hash_b) {
+                known.record(msg_hash_b);
                 return ValidationResult::ProcessAndDiscard(msg_hash_b);
             }
         }
+        // A held message waits for the next import, and costs the peer nothing.
+        self.admit(data, msg_hash_b)
+            .unwrap_or(ValidationResult::Discard)
+    }
 
-        match self.validate_core(data) {
+    fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
+        Box::new(move |_hash, _data| false)
+    }
+
+    fn message_allowed<'a>(
+        &'a self,
+    ) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
+        Box::new(move |_who, _intent, _hash, _data| true)
+    }
+}
+
+/// The identifier the validator keeps for one message: the hash of its bytes.
+fn message_hash<B: BlockT>(data: &[u8]) -> B::Hash {
+    let hash = sp_core::hashing::blake2_256(data);
+    B::Hash::decode(&mut &hash[..]).unwrap_or_default()
+}
+
+impl<B, C, AccountId> DvfGossipValidator<B, C, AccountId>
+where
+    B: BlockT + sp_runtime::traits::Block,
+    AccountId: std::cmp::Eq
+        + std::hash::Hash
+        + Clone
+        + Encode
+        + Decode
+        + Send
+        + Sync
+        + std::fmt::Debug
+        + 'static,
+    C: ProvideRuntimeApi<B> + HeaderBackend<B> + Send + Sync + 'static,
+    C::Api: RuntimeDcfApi<B, AccountId, u128, NumberFor<B>>
+        + RuntimeDvfApi<B, NumberFor<B>, AccountId, B::Hash>,
+{
+    /// Try every held message again.
+    ///
+    /// The node calls this after each block import. A vote that arrived before
+    /// its block, or while the runtime could not answer, then counts once the
+    /// node can decide on it. A message that still waits stays held. The answer
+    /// is the number of messages decided.
+    pub fn retry_held(&self) -> usize {
+        let waiting = self.held.write().take_all();
+        let mut decided = 0;
+        for bytes in waiting {
+            let hash = message_hash::<B>(&bytes);
+            if self.known_messages.read().holds(&hash) {
+                continue;
+            }
+            if self.admit(&bytes, hash).is_some() {
+                decided += 1;
+            }
+        }
+        decided
+    }
+
+    /// Check one message and hand it to the pool.
+    ///
+    /// The answer is the gossip verdict, or nothing where the message is held
+    /// for a later try.
+    fn admit(&self, data: &[u8], msg_hash_b: B::Hash) -> Option<ValidationResult<B::Hash>> {
+        let checked = self.validate_core(data);
+        if let Err(reason) = checked {
+            if HOLD_REASONS.contains(&reason) {
+                if self.held.write().hold(data.to_vec()) {
+                    debug!(
+                        "Commit Engine Gossip Validator: message held for the next import, reason: {}",
+                        reason
+                    );
+                }
+                return None;
+            }
+        }
+        self.known_messages.write().record(msg_hash_b);
+        Some(match checked {
             Ok(CommitMessage::Vote(msg)) => {
                 if let Some(ref metrics) = self.metrics {
                     metrics.record_vote_received(msg.round_number);
@@ -766,17 +970,7 @@ where
                 );
                 vote_verdict(None, msg_hash_b)
             }
-        }
-    }
-
-    fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
-        Box::new(move |_hash, _data| false)
-    }
-
-    fn message_allowed<'a>(
-        &'a self,
-    ) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-        Box::new(move |_who, _intent, _hash, _data| true)
+        })
     }
 }
 
@@ -816,6 +1010,29 @@ mod tests {
             validator_public_key: ed25519::Public::from_raw([signer; 32]),
             signature: ed25519::Signature::from_raw([0u8; 64]),
         }
+    }
+
+    /// A message the node cannot decide on yet waits once, within a ceiling.
+    #[test]
+    fn held_messages_wait_once_within_a_ceiling() {
+        let mut held = HeldMessages::new();
+        assert!(held.hold(vec![1]));
+        assert!(!held.hold(vec![1]));
+        assert!(held.hold(vec![2]));
+        assert_eq!(held.len(), 2);
+        assert_eq!(held.take_all(), vec![vec![1], vec![2]]);
+        assert!(held.is_empty());
+        for index in 0..=MAX_HELD_MESSAGES {
+            held.hold((index as u32).to_le_bytes().to_vec());
+        }
+        assert_eq!(held.len(), MAX_HELD_MESSAGES);
+        // The oldest message left first.
+        assert_eq!(held.take_all()[0], 1u32.to_le_bytes().to_vec());
+        // Only a missing block or a missing runtime answer holds a message.
+        assert!(HOLD_REASONS.contains(&"target_not_imported"));
+        assert!(HOLD_REASONS.contains(&"runtime_api_error"));
+        assert!(!HOLD_REASONS.contains(&"epoch_mismatch"));
+        assert!(!HOLD_REASONS.contains(&"stale_target"));
     }
 
     /// A stale, repeated or conflicting vote is discarded and never kept.

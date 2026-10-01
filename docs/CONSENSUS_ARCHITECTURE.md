@@ -209,6 +209,17 @@ delay ended. The record showed three causes.
    height until it commits, so a vote now stays current from the epoch of the
    committed head up to one epoch ahead.
 
+The gossip check reads the epoch at the best block and at the committed head.
+A runtime answer belongs to one block, so each block gets its own runtime
+instance. Where the committed head cannot answer, the epoch at the best block
+decides. A vote can arrive before the block it names, or while the runtime
+cannot answer. Such a vote waits in the gossip validator, up to 1024 messages,
+and every block import tries it again. A vote naming an unknown block at or
+below the committed head belongs to an abandoned fork and is refused. A test
+runs five validator nodes from genesis on the loopback interface and requires
+every node to commit above height ten with no vote refused on a failed
+runtime answer.
+
 A refused vote costs the peer that relayed it nothing. Gossip discards a
 stale, repeated or out of range vote, and a discarded message changes no peer
 standing. The harness replays the delay: nine validators on three machines,

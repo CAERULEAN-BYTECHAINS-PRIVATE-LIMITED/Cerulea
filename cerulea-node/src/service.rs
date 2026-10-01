@@ -461,9 +461,34 @@ where
 
     // Initialize Registry Gossip Components
     let dvf_gossip_pool = DvfVotePool::<Hash, AccountId>::new();
-    let dvf_gossip_validator: Arc<dyn sc_network_gossip::Validator<Block>> = Arc::new(
-        DvfGossipValidator::new(dvf_gossip_pool.clone(), client.clone()),
-    );
+    let dvf_validator = Arc::new(DvfGossipValidator::new(
+        dvf_gossip_pool.clone(),
+        client.clone(),
+    ));
+    let dvf_gossip_validator: Arc<dyn sc_network_gossip::Validator<Block>> = dvf_validator.clone();
+
+    // A vote that arrived before its block, or while the runtime could not
+    // answer, waits in the validator. Every block import tries it again.
+    {
+        use futures::StreamExt;
+        use sc_client_api::BlockchainEvents;
+        let dvf_validator = dvf_validator.clone();
+        let mut imports = client.import_notification_stream();
+        task_manager
+            .spawn_handle()
+            .spawn("dvf-gossip-held-votes", None, async move {
+                while imports.next().await.is_some() {
+                    let decided = dvf_validator.retry_held();
+                    if decided > 0 {
+                        log::debug!(
+                            "Commit Engine Gossip Validator: {} held messages decided after an import, {} still held",
+                            decided,
+                            dvf_validator.held_count()
+                        );
+                    }
+                }
+            });
+    }
     let dvf_gossip_engine = sc_network_gossip::GossipEngine::new(
         network.clone(),
         sync_service.clone(),
