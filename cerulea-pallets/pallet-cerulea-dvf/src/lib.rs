@@ -17,6 +17,15 @@ pub use pallet::*;
 /// division leaves behind.
 pub const VOTE_WEIGHT_SCALE: u128 = 32_000;
 
+/// The round timeout a deployment starts from, in blocks.
+///
+/// A round that commits no block inside this many blocks closes, and the
+/// validators vote again in the next round. The figure spans two checkpoint
+/// intervals in the starting profile, so a healthy round commits long before
+/// the timeout runs out. The Amendment Engine governs a change through
+/// [`Pallet::set_round_timeout`].
+pub const DEFAULT_ROUND_TIMEOUT_BLOCKS: u32 = 20;
+
 /// The highest Trust Score one validator reaches.
 ///
 /// The Standing Engine composes the Trust Score as a share of one, counted in
@@ -50,7 +59,7 @@ pub mod pallet {
     use frame_support::BoundedVec;
     use frame_system::pallet_prelude::*;
     use scale_info::TypeInfo;
-    use sp_runtime::traits::{IdentifyAccount, SaturatedConversion, Verify};
+    use sp_runtime::traits::{IdentifyAccount, SaturatedConversion, Saturating, Verify};
     use sp_runtime::transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
     };
@@ -107,6 +116,40 @@ pub mod pallet {
         pub block_hash: Hash,
         pub validator_account: AccountId,
         pub signature: Signature, // Signature of the above fields
+    }
+
+    /// How one voting round closed.
+    ///
+    /// A round closes in one of two ways. A block reached the threshold and
+    /// committed. Or the round timeout ran out while every candidate sat below
+    /// the threshold. The chain keeps the record, so the rule that lets a
+    /// validator change its vote in a later round reads recorded weights.
+    #[derive(
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
+    pub enum RoundOutcome<Hash> {
+        /// A block reached the threshold and committed.
+        Committed {
+            /// The block that committed.
+            block_hash: Hash,
+            /// The Trust Score weight behind the commitment.
+            weight: u128,
+        },
+        /// The timeout ran out with every candidate below the threshold.
+        TimedOut {
+            /// The weight the leading candidate carried when the round closed.
+            highest_weight: u128,
+            /// The weight the threshold asked for.
+            threshold: u128,
+        },
     }
 
     /// Registry Justification structure containing threshold-reaching votes
@@ -283,7 +326,40 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The block at which the current round opened.
+    ///
+    /// The round timeout counts from this block. Genesis opens round zero at
+    /// block zero.
+    #[pallet::storage]
+    #[pallet::getter(fn round_opened_at)]
+    pub type RoundOpenedAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+
+    /// The round timeout policy value, in blocks.
+    ///
+    /// A round that commits no block inside this many blocks closes and the
+    /// next round opens.
+    #[pallet::storage]
+    #[pallet::getter(fn round_timeout)]
+    pub type RoundTimeoutBlocks<T: Config> = StorageValue<_, u32, ValueQuery, RoundTimeoutDefault>;
+
+    /// The starting value of the round timeout policy.
+    pub struct RoundTimeoutDefault;
+    impl Get<u32> for RoundTimeoutDefault {
+        fn get() -> u32 {
+            crate::DEFAULT_ROUND_TIMEOUT_BLOCKS
+        }
+    }
+
+    /// How each retained round closed.
+    #[pallet::storage]
+    #[pallet::getter(fn round_outcome)]
+    pub type RoundOutcomes<T: Config> =
+        StorageMap<_, Blake2_128Concat, u32, RoundOutcome<T::Hash>, OptionQuery>;
+
     /// Running sum of weights voting for a specific block hash.
+    ///
+    /// The tally covers the current round alone. The chain clears every tally
+    /// when a round closes, so a vote counts in the round it was cast in.
     #[pallet::storage]
     #[pallet::getter(fn vote_tallies)]
     pub type VoteTallies<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, u128, ValueQuery>;
@@ -504,6 +580,24 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// A round closed at its timeout with no block at the threshold.
+        ///
+        /// Every validator votes again in the next round.
+        RoundTimedOut {
+            /// The round that closed.
+            round: u32,
+            /// The round that opened.
+            next_round: u32,
+            /// The weight the leading candidate carried.
+            highest_weight: u128,
+            /// The weight the threshold asked for.
+            threshold: u128,
+        },
+        /// The round timeout policy value changed.
+        RoundTimeoutSet {
+            /// The new timeout, in blocks.
+            blocks: u32,
+        },
         /// A block was finalized by the Registry voting protocol.
         BlockFinalized {
             block_number: BlockNumberFor<T>,
@@ -594,6 +688,14 @@ pub mod pallet {
         InvalidSignature,
         /// Validator has already voted in this round.
         DoubleVote,
+        /// The validator voted for another block at this height in an earlier
+        /// round, and that round carries no record of closing below the
+        /// threshold. Vote for the block of the earlier round, or wait for the
+        /// round to time out.
+        ConflictingVote,
+        /// A round timeout of zero blocks would close every round at once.
+        /// Name a timeout of one block or more.
+        RoundTimeoutZero,
         /// Vote is for a non-checkpoint block.
         NonCheckpointBlock,
         /// Justification has no votes.
@@ -649,7 +751,10 @@ pub mod pallet {
                 Self::check_and_handle_underperforming_validators();
             }
             Self::rotate_validator_keys_at_epoch_boundary();
-            Weight::zero()
+            if Self::close_round_on_timeout(n) {
+                return T::DbWeight::get().reads_writes(4, 4);
+            }
+            T::DbWeight::get().reads(3)
         }
     }
 
@@ -699,6 +804,15 @@ pub mod pallet {
                 !VoteRecords::<T>::contains_key(current_round, &vote.validator_account),
                 Error::<T>::DoubleVote
             );
+            ensure!(
+                Self::vote_respects_earlier_rounds(
+                    current_round,
+                    &vote.validator_account,
+                    vote.block_number,
+                    &vote.block_hash,
+                ),
+                Error::<T>::ConflictingVote
+            );
 
             VoteRecords::<T>::insert(current_round, &vote.validator_account, vote.clone());
 
@@ -717,6 +831,21 @@ pub mod pallet {
                 );
             }
 
+            Ok(())
+        }
+
+        /// Set the round timeout policy value, in blocks.
+        ///
+        /// The Amendment Engine carries a change through root. A round that
+        /// commits no block inside this many blocks closes and the next round
+        /// opens.
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::DbWeight::get().writes(1))]
+        pub fn set_round_timeout(origin: OriginFor<T>, blocks: u32) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(blocks > 0, Error::<T>::RoundTimeoutZero);
+            RoundTimeoutBlocks::<T>::put(blocks);
+            Self::deposit_event(Event::RoundTimeoutSet { blocks });
             Ok(())
         }
 
@@ -1297,6 +1426,14 @@ pub mod pallet {
                 Error::<T>::EmptyJustification
             );
 
+            // A justification names the round its votes were cast in. That
+            // round is the current round or one the chain already closed. A
+            // round the chain has yet to open carries no vote.
+            ensure!(
+                justification.round_number <= CurrentRound::<T>::get(),
+                Error::<T>::RoundMismatch
+            );
+
             let block_number: BlockNumberFor<T> =
                 justification.votes[0].block_number.saturated_into();
 
@@ -1393,8 +1530,18 @@ pub mod pallet {
             FinalizedBlockNumber::<T>::put(block_number);
             FinalizedBlockHash::<T>::put(block_hash);
 
-            let next_round = round.saturating_add(1);
-            CurrentRound::<T>::put(next_round);
+            // A justification may name a round the chain already closed at its
+            // timeout. The round counter never moves backwards, so a validator
+            // never meets its own earlier vote in a round it reopens.
+            let closed_round = round.max(CurrentRound::<T>::get());
+            RoundOutcomes::<T>::insert(
+                round,
+                RoundOutcome::Committed {
+                    block_hash,
+                    weight: accumulated_weight,
+                },
+            );
+            Self::open_round(closed_round.saturating_add(1));
 
             Self::deposit_event(Event::BlockFinalized {
                 block_number,
@@ -1402,20 +1549,135 @@ pub mod pallet {
                 round,
                 weight: accumulated_weight,
             });
+        }
 
-            Self::prune_vote_records(round);
-            VoteTallies::<T>::remove(block_hash);
+        /// Open one round and clear the tallies of the round before it.
+        ///
+        /// Vote records stay for the retention window, so the lock rule reads
+        /// the vote each validator cast in an earlier round.
+        fn open_round(next_round: u32) {
+            CurrentRound::<T>::put(next_round);
+            RoundOpenedAt::<T>::put(frame_system::Pallet::<T>::block_number());
+            let _ = VoteTallies::<T>::clear(u32::MAX, None);
+            Self::prune_vote_records(next_round);
+        }
+
+        /// The weight one block must reach to commit.
+        pub fn threshold_weight() -> u128 {
+            T::FinalityThreshold::get() * TotalVotingWeight::<T>::get()
+        }
+
+        /// Close the current round when its timeout runs out.
+        ///
+        /// The round closes when two conditions hold. The timeout counted from
+        /// the block the round opened has run out. A checkpoint past the
+        /// finalized head has waited at least the timeout for its commitment.
+        /// A healthy round therefore never closes this way. A split round
+        /// closes, and every validator votes again in the next round on the
+        /// best candidate.
+        ///
+        /// A candidate at the threshold commits in the vote that carried it
+        /// there, so a closing round holds every candidate below the threshold.
+        /// The call checks that from the recorded tallies before it closes the
+        /// round, and commits the leading candidate instead where it holds the
+        /// threshold.
+        pub fn close_round_on_timeout(now: BlockNumberFor<T>) -> bool {
+            let timeout: BlockNumberFor<T> = RoundTimeoutBlocks::<T>::get().max(1).into();
+            let opened = RoundOpenedAt::<T>::get();
+            if now < opened.saturating_add(timeout) {
+                return false;
+            }
+            let interval = T::FinalityCheckpointInterval::get();
+            if interval == BlockNumberFor::<T>::from(0u32) {
+                return false;
+            }
+            let pending_checkpoint = FinalizedBlockNumber::<T>::get().saturating_add(interval);
+            if now < pending_checkpoint.saturating_add(timeout) {
+                return false;
+            }
+
+            let round = CurrentRound::<T>::get();
+            let threshold = Self::threshold_weight();
+            let highest_weight = VoteTallies::<T>::iter_values().max().unwrap_or(0);
+            if threshold > 0 && highest_weight >= threshold {
+                // The recorded weights show a committed candidate. Commit it
+                // rather than reopen the height.
+                if let Some((block_hash, weight)) =
+                    VoteTallies::<T>::iter().find(|(_, weight)| *weight >= threshold)
+                {
+                    let height = VoteRecords::<T>::iter_prefix_values(round)
+                        .find(|vote| vote.block_hash == block_hash)
+                        .map(|vote| vote.block_number.saturated_into::<BlockNumberFor<T>>());
+                    if let Some(height) = height {
+                        if height > FinalizedBlockNumber::<T>::get() {
+                            Self::finalize_block(block_hash, height, round, weight);
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            RoundOutcomes::<T>::insert(
+                round,
+                RoundOutcome::TimedOut {
+                    highest_weight,
+                    threshold,
+                },
+            );
+            let next_round = round.saturating_add(1);
+            Self::open_round(next_round);
+            Self::deposit_event(Event::RoundTimedOut {
+                round,
+                next_round,
+                highest_weight,
+                threshold,
+            });
+            true
+        }
+
+        /// Report whether a vote keeps faith with the earlier rounds.
+        ///
+        /// A validator votes once per round. A vote in a later round for a
+        /// different block at the same height passes only where every earlier
+        /// round holding the first vote closed below the threshold. The chain
+        /// reads that from the recorded round outcomes. A round with no
+        /// recorded outcome refuses the change.
+        pub fn vote_respects_earlier_rounds(
+            current_round: u32,
+            validator: &T::AccountId,
+            block_number: u32,
+            block_hash: &T::Hash,
+        ) -> bool {
+            let retention = T::VoteRetentionRounds::get();
+            let earliest = current_round.saturating_sub(retention);
+            for earlier in earliest..current_round {
+                let Some(held) = VoteRecords::<T>::get(earlier, validator) else {
+                    continue;
+                };
+                if held.block_number != block_number || held.block_hash == *block_hash {
+                    continue;
+                }
+                match RoundOutcomes::<T>::get(earlier) {
+                    Some(RoundOutcome::TimedOut {
+                        highest_weight,
+                        threshold,
+                    }) if highest_weight < threshold => {}
+                    _ => return false,
+                }
+            }
+            true
         }
 
         fn prune_vote_records(current_round: u32) {
             let retention_rounds = T::VoteRetentionRounds::get();
 
             if current_round > retention_rounds {
+                // Rounds below the cutoff already left the window one by one,
+                // so the round that just crossed it is the only one to clear.
                 let cutoff_round = current_round.saturating_sub(retention_rounds);
-
-                for old_round in 0..cutoff_round {
-                    let _ = VoteRecords::<T>::clear_prefix(old_round, u32::MAX, None);
-                }
+                let leaving = cutoff_round.saturating_sub(1);
+                let _ = VoteRecords::<T>::clear_prefix(leaving, u32::MAX, None);
+                RoundOutcomes::<T>::remove(leaving);
             }
         }
 

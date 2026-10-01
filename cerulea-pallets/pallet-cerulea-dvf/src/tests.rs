@@ -1735,3 +1735,389 @@ fn test_genesis_validator_set_id_starts_at_zero() {
         );
     });
 }
+
+// ============================================================================
+// Round timeout. A split vote closes its round and finality stays live.
+// ============================================================================
+
+mod round_timeout {
+    use super::*;
+    use frame_support::traits::Hooks;
+    use sp_core::H256;
+
+    /// The nine validator names the split vote tests use.
+    const NINE: [&str; 9] = [
+        "Round0", "Round1", "Round2", "Round3", "Round4", "Round5", "Round6", "Round7", "Round8",
+    ];
+
+    fn pair(name: &str) -> sr25519::Pair {
+        sr25519::Pair::from_string(&format!("//{}", name), None).unwrap()
+    }
+
+    /// Freeze nine validators of equal Trust Score and equal stake.
+    fn freeze_nine() -> Vec<AccountId> {
+        let validators: Vec<(AccountId, u128, u128)> = NINE
+            .iter()
+            .map(|name| (account_key(name), 1_000_000u128, 500_000_000u128))
+            .collect();
+        Registry::freeze_epoch_weights(1, &validators);
+        validators
+            .into_iter()
+            .map(|(account, _, _)| account)
+            .collect()
+    }
+
+    /// A candidate block hash at one height.
+    fn candidate(height: u32, choice: u8) -> H256 {
+        H256::from_low_u64_be(((height as u64) << 8) | choice as u64)
+    }
+
+    /// Build one signed vote in the round the chain runs now.
+    fn signed_vote(
+        index: usize,
+        round: u32,
+        height: u32,
+        hash: H256,
+    ) -> crate::DvfVote<H256, AccountId, sp_runtime::MultiSignature> {
+        use codec::Encode;
+        let signer = pair(NINE[index]);
+        let mut vote = crate::DvfVote {
+            epoch_id: 1,
+            validator_set_id: crate::ValidatorSetId::<Test>::get(),
+            round_id: round,
+            block_number: height,
+            block_hash: hash,
+            validator_account: account_key(NINE[index]),
+            signature: sp_runtime::MultiSignature::Sr25519(sr25519::Signature::from_raw([0u8; 64])),
+        };
+        let mut payload = Vec::new();
+        vote.epoch_id.encode_to(&mut payload);
+        vote.validator_set_id.encode_to(&mut payload);
+        vote.round_id.encode_to(&mut payload);
+        vote.block_number.encode_to(&mut payload);
+        vote.block_hash.encode_to(&mut payload);
+        vote.validator_account.encode_to(&mut payload);
+        vote.signature = sp_runtime::MultiSignature::Sr25519(signer.sign(&payload));
+        vote
+    }
+
+    fn cast(index: usize, height: u32, hash: H256) -> sp_runtime::DispatchResult {
+        let round = crate::CurrentRound::<Test>::get();
+        let vote = signed_vote(index, round, height, hash);
+        Registry::submit_dvf_vote(RuntimeOrigin::signed(account_key(NINE[index])), vote)
+    }
+
+    /// Move the chain forward one block and run the registry hook.
+    fn step(block: u64) {
+        System::set_block_number(block);
+        Registry::on_initialize(block);
+    }
+
+    /// Every block the registry finalized, as (height, hash) pairs.
+    fn finalized_events() -> Vec<(u64, H256)> {
+        System::events()
+            .into_iter()
+            .filter_map(|record| match record.event {
+                RuntimeEvent::Registry(crate::Event::BlockFinalized {
+                    block_number,
+                    block_hash,
+                    ..
+                }) => Some((block_number, block_hash)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A split vote at nine validators closes its round within the timeout.
+    ///
+    /// Five validators vote for one block and four for another. Neither side
+    /// reaches the sixty seven percent threshold. A second vote in the same
+    /// round is refused. The round closes once the timeout runs out. Every
+    /// validator then votes again in the next round and the block commits.
+    #[test]
+    fn a_split_vote_at_nine_validators_recovers_within_the_timeout() {
+        new_test_ext().execute_with(|| {
+            step(11);
+            freeze_nine();
+            let height = 10u32;
+            let first = candidate(height, 1);
+            let second = candidate(height, 2);
+
+            for index in 0..5 {
+                assert_ok!(cast(index, height, first));
+            }
+            for index in 5..9 {
+                assert_ok!(cast(index, height, second));
+            }
+            assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 0);
+            assert_eq!(crate::CurrentRound::<Test>::get(), 0);
+
+            // One vote per round. The validators wait for the next round.
+            assert_noop!(cast(5, height, first), Error::<Test>::DoubleVote);
+
+            // The round holds until the timeout runs out.
+            let timeout = crate::RoundTimeoutBlocks::<Test>::get() as u64;
+            let deadline = height as u64 + timeout;
+            for block in 12..deadline {
+                step(block);
+                assert_eq!(crate::CurrentRound::<Test>::get(), 0, "held at {}", block);
+            }
+            step(deadline);
+            assert_eq!(crate::CurrentRound::<Test>::get(), 1);
+            let threshold = Registry::threshold_weight();
+            match crate::RoundOutcomes::<Test>::get(0) {
+                Some(crate::RoundOutcome::TimedOut {
+                    highest_weight,
+                    threshold: recorded,
+                }) => {
+                    assert!(highest_weight < recorded);
+                    assert_eq!(recorded, threshold);
+                }
+                other => panic!("round zero closed as {:?}", other),
+            }
+            assert_eq!(crate::VoteTallies::<Test>::get(first), 0);
+            assert_eq!(crate::VoteTallies::<Test>::get(second), 0);
+
+            // Every validator votes again on the leading candidate.
+            for index in 0..9 {
+                let _ = cast(index, height, first);
+            }
+            assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 10);
+            assert_eq!(crate::FinalizedBlockHash::<Test>::get(), Some(first));
+            assert!(deadline <= height as u64 + timeout);
+        });
+    }
+
+    /// Repeated splits keep the round counter moving.
+    #[test]
+    fn repeated_splits_keep_advancing() {
+        new_test_ext().execute_with(|| {
+            step(11);
+            freeze_nine();
+            let height = 10u32;
+            let timeout = crate::RoundTimeoutBlocks::<Test>::get() as u64;
+            let mut block = 11u64;
+
+            for round in 0..4u32 {
+                assert_eq!(crate::CurrentRound::<Test>::get(), round);
+                // The split alternates, so each round leaves both candidates
+                // below the threshold.
+                for index in 0..9 {
+                    let choice = if (index + round as usize) % 2 == 0 {
+                        1
+                    } else {
+                        2
+                    };
+                    assert_ok!(cast(index, height, candidate(height, choice)));
+                }
+                assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 0);
+                let opened = crate::RoundOpenedAt::<Test>::get();
+                let closes_at = (opened + timeout).max(height as u64 + timeout);
+                while crate::CurrentRound::<Test>::get() == round {
+                    block += 1;
+                    step(block);
+                    assert!(block <= closes_at, "round {} held past its timeout", round);
+                }
+            }
+
+            // The fifth round agrees and commits.
+            for index in 0..9 {
+                let _ = cast(index, height, candidate(height, 2));
+            }
+            assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 10);
+            assert_eq!(crate::CurrentRound::<Test>::get(), 5);
+        });
+    }
+
+    /// A healthy round never closes on its timeout.
+    #[test]
+    fn a_round_that_commits_in_time_never_times_out() {
+        new_test_ext().execute_with(|| {
+            step(11);
+            freeze_nine();
+            for index in 0..9 {
+                let _ = cast(index, 10, candidate(10, 1));
+            }
+            assert_eq!(crate::FinalizedBlockNumber::<Test>::get(), 10);
+            assert_eq!(crate::CurrentRound::<Test>::get(), 1);
+            for block in 12..25 {
+                step(block);
+            }
+            assert_eq!(crate::CurrentRound::<Test>::get(), 1);
+        });
+    }
+
+    /// A changed vote needs a recorded close below the threshold.
+    #[test]
+    fn a_changed_vote_needs_a_round_closed_below_the_threshold() {
+        new_test_ext().execute_with(|| {
+            step(11);
+            freeze_nine();
+            let first = candidate(10, 1);
+            let second = candidate(10, 2);
+            let voter = account_key(NINE[0]);
+            crate::VoteRecords::<Test>::insert(0, &voter, signed_vote(0, 0, 10, first));
+            crate::CurrentRound::<Test>::put(1);
+
+            // No outcome recorded for round zero. The same block passes, a
+            // different block at the same height is refused.
+            assert!(Registry::vote_respects_earlier_rounds(
+                1, &voter, 10, &first
+            ));
+            assert!(!Registry::vote_respects_earlier_rounds(
+                1, &voter, 10, &second
+            ));
+            assert_noop!(cast(0, 10, second), Error::<Test>::ConflictingVote);
+
+            // A block at another height stays open.
+            assert!(Registry::vote_respects_earlier_rounds(
+                1,
+                &voter,
+                20,
+                &candidate(20, 1)
+            ));
+
+            // A recorded close below the threshold opens the change.
+            crate::RoundOutcomes::<Test>::insert(
+                0,
+                crate::RoundOutcome::TimedOut {
+                    highest_weight: 1,
+                    threshold: 2,
+                },
+            );
+            assert!(Registry::vote_respects_earlier_rounds(
+                1, &voter, 10, &second
+            ));
+        });
+    }
+
+    /// The round timeout is a policy value root sets.
+    #[test]
+    fn the_round_timeout_is_a_policy_value() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(
+                crate::RoundTimeoutBlocks::<Test>::get(),
+                crate::DEFAULT_ROUND_TIMEOUT_BLOCKS
+            );
+            assert_noop!(
+                Registry::set_round_timeout(RuntimeOrigin::root(), 0),
+                Error::<Test>::RoundTimeoutZero
+            );
+            assert!(
+                Registry::set_round_timeout(RuntimeOrigin::signed(account_key("Alice")), 5)
+                    .is_err()
+            );
+            assert_ok!(Registry::set_round_timeout(RuntimeOrigin::root(), 5));
+            assert_eq!(crate::RoundTimeoutBlocks::<Test>::get(), 5);
+        });
+    }
+
+    /// A justification naming a round the chain has yet to open is refused.
+    #[test]
+    fn a_justification_from_a_future_round_is_refused() {
+        new_test_ext().execute_with(|| {
+            step(11);
+            freeze_nine();
+            let hash = candidate(10, 1);
+            let votes: Vec<_> = (0..9)
+                .map(|index| signed_vote(index, 3, 10, hash))
+                .collect();
+            let justification = crate::DvfJustification {
+                round_number: 3,
+                block_hash: hash,
+                votes,
+            };
+            assert_noop!(
+                Registry::submit_justification(RuntimeOrigin::none(), justification),
+                Error::<Test>::RoundMismatch
+            );
+        });
+    }
+
+    /// No two conflicting blocks commit at one height under any ordering.
+    ///
+    /// Each seed drives one ordering of votes, block steps and justifications
+    /// built from recorded votes of any retained round. Every run checks four
+    /// properties. One hash per committed height. The finalized head only
+    /// rises. A round that timed out closed below the threshold. A committed
+    /// round carried the threshold.
+    #[test]
+    fn no_conflicting_commitment_under_any_ordering() {
+        for seed in 1..=160u64 {
+            new_test_ext().execute_with(|| {
+                let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+                let mut next = move |bound: u64| {
+                    state ^= state << 13;
+                    state ^= state >> 7;
+                    state ^= state << 17;
+                    state % bound
+                };
+
+                step(11);
+                freeze_nine();
+                let _ = Registry::set_round_timeout(RuntimeOrigin::root(), 1 + next(12) as u32);
+                let mut block = 11u64;
+                let mut last_head = 0u64;
+
+                for _ in 0..400 {
+                    let height = crate::FinalizedBlockNumber::<Test>::get() as u32 + 10;
+                    match next(10) {
+                        0..=5 => {
+                            let index = next(9) as usize;
+                            let choice = 1 + next(3) as u8;
+                            let _ = cast(index, height, candidate(height, choice));
+                        }
+                        6..=8 => {
+                            block += 1;
+                            step(block);
+                        }
+                        _ => {
+                            // Build a justification from the recorded votes of
+                            // one retained round for one candidate.
+                            let current = crate::CurrentRound::<Test>::get();
+                            let round = current.saturating_sub(next(3) as u32);
+                            let choice = 1 + next(3) as u8;
+                            let hash = candidate(height, choice);
+                            let votes: Vec<_> =
+                                crate::VoteRecords::<Test>::iter_prefix_values(round)
+                                    .filter(|vote| vote.block_hash == hash)
+                                    .collect();
+                            if !votes.is_empty() {
+                                let _ = Registry::submit_justification(
+                                    RuntimeOrigin::none(),
+                                    crate::DvfJustification {
+                                        round_number: round,
+                                        block_hash: hash,
+                                        votes,
+                                    },
+                                );
+                            }
+                        }
+                    }
+
+                    let head = crate::FinalizedBlockNumber::<Test>::get();
+                    assert!(head >= last_head, "seed {}: the head fell", seed);
+                    last_head = head;
+                }
+
+                let mut committed: std::collections::BTreeMap<u64, H256> = Default::default();
+                for (height, hash) in finalized_events() {
+                    if let Some(held) = committed.insert(height, hash) {
+                        assert_eq!(held, hash, "seed {}: two blocks at height {}", seed, height);
+                    }
+                }
+                for (_, outcome) in crate::RoundOutcomes::<Test>::iter() {
+                    match outcome {
+                        crate::RoundOutcome::TimedOut {
+                            highest_weight,
+                            threshold,
+                        } => assert!(highest_weight < threshold, "seed {}", seed),
+                        crate::RoundOutcome::Committed { weight, .. } => {
+                            assert!(weight >= Registry::threshold_weight(), "seed {}", seed)
+                        }
+                    }
+                }
+            });
+        }
+    }
+}

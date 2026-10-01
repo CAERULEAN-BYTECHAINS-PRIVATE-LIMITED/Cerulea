@@ -115,6 +115,26 @@ Two validators bonding the same stake separate on standing alone. The validator
 with the higher Trust Score carries the larger commit weight. Each class
 threshold below resolves against the epoch Trust Score total.
 
+### Round timeout
+
+A round is one pass of voting on a checkpoint. A validator votes once per
+round. Votes of one round can split across two candidate blocks with neither
+side at the threshold. The round then closes at its timeout, and every
+validator votes again in the next round on the checkpoint of its best chain.
+
+1. **Timeout.** The timeout is a policy value, 20 blocks in the starting
+   profile, which is two checkpoint intervals. The round closes once the
+   timeout has run from the block the round opened and the oldest pending
+   checkpoint has waited the same span. A healthy round commits long before.
+2. **Clearing.** Closing a round clears the tallies of every candidate. The
+   vote records of earlier rounds stay for the retention window.
+3. **Safety.** A validator changes its vote at one height only where every
+   earlier round holding its first vote closed below the threshold. The chain
+   records how each round closed, with the leading weight and the threshold,
+   and checks that record before it accepts the change. A justification names
+   the current round or an earlier one. The finalized head only rises, so no
+   two conflicting blocks commit at one height.
+
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded
