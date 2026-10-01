@@ -289,8 +289,6 @@ pub mod pallet {
         /// The largest number of records one retention sweep checks.
         #[pallet::constant]
         type MaxRetentionScan: Get<u32>;
-    }
-
 
         /// The Custody Engine hook every committed record passes through.
         ///
@@ -299,6 +297,8 @@ pub mod pallet {
         /// validators to serve every record the store commits. A mock takes
         /// the empty hook.
         type Custody: pallet_cerulea_custody::CustodyRecordHook;
+    }
+
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
@@ -873,13 +873,13 @@ impl<T: Config> Pallet<T> {
 
         let version = meta.version;
         Self::set_leaf(&slot, key, Some(value_hash))?;
-        Records::<T>::insert(&slot, key, bytes);
-        Meta::<T>::insert(&slot, key, &meta);
         <T::Custody as pallet_cerulea_custody::CustodyRecordHook>::note_committed(
             &slot.encode(),
             key.as_slice(),
             Some(bytes.as_slice()),
         )?;
+        Records::<T>::insert(&slot, key, bytes);
+        Meta::<T>::insert(&slot, key, &meta);
         WrittenAt::<T>::insert(&slot, key, Self::now_millis());
         RetentionSettled::<T>::remove(&slot, key);
         Self::note_version(&slot, key, &meta);
@@ -931,13 +931,13 @@ impl<T: Config> Pallet<T> {
             index::maintain::<T>(&slot, &definition, key, Some(held), None)?;
         }
         Self::set_leaf(&slot, key, None)?;
-        Records::<T>::remove(&slot, key);
-        Meta::<T>::remove(&slot, key);
         <T::Custody as pallet_cerulea_custody::CustodyRecordHook>::note_committed(
             &slot.encode(),
             key.as_slice(),
             None,
         )?;
+        Records::<T>::remove(&slot, key);
+        Meta::<T>::remove(&slot, key);
         KeyOrder::<T>::remove(&slot, key);
         History::<T>::remove(&slot, key);
         WrittenAt::<T>::remove(&slot, key);

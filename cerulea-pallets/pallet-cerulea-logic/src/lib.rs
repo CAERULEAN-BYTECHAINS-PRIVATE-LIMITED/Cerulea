@@ -360,11 +360,11 @@ pub mod pallet {
         /// A record the effect writes carries another shape. Match the
         /// record to the registered type.
         RecordInvalid,
-    }
-
         /// The Blueprint runs longer than the Blueprint artefact path admits.
         /// Split the Blueprint into smaller modules.
         BlueprintAboveBound,
+    }
+
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Install one Blueprint.
@@ -379,8 +379,6 @@ pub mod pallet {
             blueprint: BoundedVec<u8, T::MaxBlueprintBytes>,
         ) -> DispatchResult {
             let installer = ensure_signed(origin)?;
-            let parsed = Blueprint::decode(&mut blueprint.as_slice())
-                .map_err(|_| Error::<T>::PayloadUnreadable)?;
             // The Blueprint artefact path carries a hard size bound. The
             // shared check runs before the decoding.
             cerulea_primitives::bounds::admit(
@@ -388,6 +386,8 @@ pub mod pallet {
                 blueprint.len(),
             )
             .map_err(|_| Error::<T>::BlueprintAboveBound)?;
+            let parsed = Blueprint::decode(&mut blueprint.as_slice())
+                .map_err(|_| Error::<T>::PayloadUnreadable)?;
             parsed
                 .validate()
                 .map_err(|_| Error::<T>::BlueprintInvalid)?;

@@ -463,11 +463,11 @@ pub mod pallet {
         /// The deployment reached its last submission identifier. Start a
         /// new deployment.
         RegisterFull,
-    }
-
         /// The call differs from the call the authorisation names. Sign the
         /// content hash of the exact call the relayer submits.
         CallMismatch,
+    }
+
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Register one sponsor account.
@@ -654,6 +654,12 @@ pub mod pallet {
         ///
         /// The Blockchain records the authoriser as the actor. The relayer
         /// carries the cost. The user encounters no fee.
+        ///
+        /// The call carries the inner call the account authorised. The
+        /// authorisation names the content hash of that call. Once the
+        /// signature holds, the module dispatches the inner call with the
+        /// authoriser as the origin, so permission resolves against the
+        /// authoriser and the history names the authoriser.
         #[pallet::call_index(5)]
         #[pallet::weight(
             T::WeightInfo::submit_on_behalf()
@@ -662,20 +668,14 @@ pub mod pallet {
                         .total_weight()
                 )
         )]
-        ///
-        /// The call carries the inner call the account authorised. The
-        /// authorisation names the content hash of that call. Once the
-        /// signature holds, the module dispatches the inner call with the
-        /// authoriser as the origin, so permission resolves against the
-        /// authoriser and the history names the authoriser.
         pub fn submit_on_behalf(
             origin: OriginFor<T>,
             deployment: DeploymentId,
             authorisation: Authorisation<T::AccountId>,
             signature: [u8; 64],
+            call: alloc::boxed::Box<<T as frame_system::Config>::RuntimeCall>,
         ) -> DispatchResult {
             let relayer = ensure_signed(origin)?;
-            call: alloc::boxed::Box<<T as frame_system::Config>::RuntimeCall>,
             Self::relay(&deployment, &authorisation, &signature, &relayer)?;
             // The authorisation binds the exact inner call.
             ensure!(
