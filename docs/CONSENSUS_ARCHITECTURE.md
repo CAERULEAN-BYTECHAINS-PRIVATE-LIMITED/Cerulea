@@ -220,6 +220,16 @@ runs five validator nodes from genesis on the loopback interface and requires
 every node to commit above height ten with no vote refused on a failed
 runtime answer.
 
+The gossip store stays bounded. The propagation layer repeats its store to
+every peer three times every two seconds. A vote or a round timeout statement
+leaves the store once its height commits or once it falls 64 rounds behind,
+the statement window of the lock. The repeat covers the current and the
+previous round alone, and a peer lacking a message receives it once. Before
+this rule the store kept every message since genesis and repeated all of
+them, so the traffic of each node grew with the length of the chain until
+the links clogged and peers dropped. A test runs the store through 300
+commitments and requires at most 27 held messages and a flat send rate.
+
 A refused vote costs the peer that relayed it nothing. Gossip discards a
 stale, repeated or out of range vote, and a discarded message changes no peer
 standing. The harness replays the delay: nine validators on three machines,

@@ -467,17 +467,29 @@ where
     ));
     let dvf_gossip_validator: Arc<dyn sc_network_gossip::Validator<Block>> = dvf_validator.clone();
 
-    // A vote that arrived before its block, or while the runtime could not
-    // answer, waits in the validator. Every block import tries it again.
+    // After every block import the validator learns the committed head and
+    // the current round, which bound what the gossip store keeps and
+    // repeats, and tries the messages it held again.
     {
         use futures::StreamExt;
+        use pallet_cerulea_dvf::DvfApi as RuntimeDvfApi;
         use sc_client_api::BlockchainEvents;
+        use sp_runtime::traits::SaturatedConversion;
         let dvf_validator = dvf_validator.clone();
+        let window_client = client.clone();
         let mut imports = client.import_notification_stream();
         task_manager
             .spawn_handle()
             .spawn("dvf-gossip-held-votes", None, async move {
                 while imports.next().await.is_some() {
+                    let info = window_client.info();
+                    let committed: u32 = info.finalized_number.saturated_into();
+                    let round = window_client
+                        .runtime_api()
+                        .get_current_round(info.best_hash)
+                        .unwrap_or_else(|_| dvf_validator.window().1);
+                    dvf_validator.set_window(committed, round);
+
                     let decided = dvf_validator.retry_held();
                     if decided > 0 {
                         log::debug!(
@@ -486,6 +498,7 @@ where
                             dvf_validator.held_count()
                         );
                     }
+
                 }
             });
     }

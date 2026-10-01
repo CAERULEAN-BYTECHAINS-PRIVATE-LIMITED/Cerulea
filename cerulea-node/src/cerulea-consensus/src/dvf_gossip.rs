@@ -117,6 +117,95 @@ pub enum CommitMessage<Hash, AccountId> {
     RoundTimeout(RoundTimeoutMessage<Hash, AccountId>),
 }
 
+/// The rounds a vote or a round timeout statement stays in the gossip store.
+///
+/// The lock reads statements as far back as its statement window, so the
+/// store keeps messages that long. Older messages leave the store, and so do
+/// messages at or below the committed head.
+pub const GOSSIP_KEEP_ROUNDS: u32 = crate::engines::commit::lock::STATEMENT_WINDOW_ROUNDS;
+
+/// The rounds a message is sent again to peers that already hold it.
+///
+/// The gossip engine repeats its store to every peer three times every two
+/// seconds. Only the messages of the current and the previous round are
+/// repeated, so a message lost in transit arrives again while the rest of the
+/// store costs nothing.
+pub const GOSSIP_REPEAT_ROUNDS: u32 = 1;
+
+/// Report whether one message still belongs in the gossip store.
+///
+/// `committed` is the committed head and `round` the current round.
+pub fn message_live<Hash, AccountId>(
+    message: &CommitMessage<Hash, AccountId>,
+    committed: u32,
+    round: u32,
+) -> bool {
+    match message {
+        CommitMessage::Vote(vote) => {
+            vote.block_number > committed
+                && vote.round_number.saturating_add(GOSSIP_KEEP_ROUNDS) >= round
+        }
+        CommitMessage::RoundTimeout(statement) => {
+            statement.block_number > committed
+                && statement.round_number.saturating_add(GOSSIP_KEEP_ROUNDS) >= round
+        }
+    }
+}
+
+/// Report whether the gossip store drops one encoded message.
+///
+/// A message the node cannot read leaves the store at once.
+pub fn message_expired_bytes<Hash: Decode, AccountId: Decode>(
+    data: &[u8],
+    committed: u32,
+    round: u32,
+) -> bool {
+    match CommitMessage::<Hash, AccountId>::decode(&mut &data[..]) {
+        Ok(message) => !message_live(&message, committed, round),
+        Err(_) => true,
+    }
+}
+
+/// Report whether the gossip engine sends one encoded message to a peer.
+///
+/// A peer lacking the message always receives it. The periodic repeat to a
+/// peer that already holds it covers the current and the previous round
+/// alone.
+pub fn message_allowed_bytes<Hash: Decode, AccountId: Decode>(
+    intent: MessageIntent,
+    data: &[u8],
+    committed: u32,
+    round: u32,
+) -> bool {
+    match intent {
+        MessageIntent::Broadcast | MessageIntent::ForcedBroadcast => true,
+        MessageIntent::PeriodicRebroadcast => {
+            match CommitMessage::<Hash, AccountId>::decode(&mut &data[..]) {
+                Ok(message) => message_repeated(&message, committed, round),
+                Err(_) => false,
+            }
+        }
+    }
+}
+
+/// Report whether one message is sent again to a peer that already holds it.
+pub fn message_repeated<Hash, AccountId>(
+    message: &CommitMessage<Hash, AccountId>,
+    committed: u32,
+    round: u32,
+) -> bool {
+    match message {
+        CommitMessage::Vote(vote) => {
+            vote.block_number > committed
+                && vote.round_number.saturating_add(GOSSIP_REPEAT_ROUNDS) >= round
+        }
+        CommitMessage::RoundTimeout(statement) => {
+            statement.block_number > committed
+                && statement.round_number.saturating_add(GOSSIP_REPEAT_ROUNDS) >= round
+        }
+    }
+}
+
 /// The structure of a Commit Engine Justification containing a threshold of votes
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct DvfJustification<Hash, AccountId> {
@@ -536,6 +625,9 @@ pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     known_messages: RwLock<MessageSet<B::Hash>>,
     /// Messages the node could not decide on yet, tried again on import.
     held: RwLock<HeldMessages>,
+    /// The committed head and the current round, which decide what the
+    /// gossip store keeps and repeats.
+    window: RwLock<(u32, u32)>,
     client: Arc<C>,
     metrics: Option<Arc<DvfMetrics>>,
 }
@@ -554,9 +646,24 @@ where
             pool,
             known_messages: RwLock::new(MessageSet::new()),
             held: RwLock::new(HeldMessages::new()),
+            window: RwLock::new((0, 0)),
             client,
             metrics: None,
         }
+    }
+
+    /// Record the committed head and the current round.
+    ///
+    /// The node calls this after each import and each commitment. The gossip
+    /// store then drops what fell below the window and repeats only the
+    /// current round.
+    pub fn set_window(&self, committed: u32, round: u32) {
+        *self.window.write() = (committed, round);
+    }
+
+    /// The committed head and the current round the store reads.
+    pub fn window(&self) -> (u32, u32) {
+        *self.window.read()
     }
 
     /// The number of messages held for a later try.
@@ -848,14 +955,27 @@ where
             .unwrap_or(ValidationResult::Discard)
     }
 
+    /// A message leaves the gossip store once it falls below the committed
+    /// head or out of the round window, so the store stays small however long
+    /// the chain runs.
     fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
-        Box::new(move |_hash, _data| false)
+        let (committed, round) = self.window();
+        Box::new(move |_hash, data| {
+            message_expired_bytes::<B::Hash, AccountId>(data, committed, round)
+        })
     }
 
+    /// A peer receives every message it lacks. A message a peer already holds
+    /// goes out again only while it belongs to the current or the previous
+    /// round, so the periodic repeat of the gossip engine never resends the
+    /// whole store.
     fn message_allowed<'a>(
         &'a self,
     ) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-        Box::new(move |_who, _intent, _hash, _data| true)
+        let (committed, round) = self.window();
+        Box::new(move |_who, intent, _hash, data| {
+            message_allowed_bytes::<B::Hash, AccountId>(intent, data, committed, round)
+        })
     }
 }
 
@@ -1010,6 +1130,191 @@ mod tests {
             validator_public_key: ed25519::Public::from_raw([signer; 32]),
             signature: ed25519::Signature::from_raw([0u8; 64]),
         }
+    }
+
+    /// The gossip store keeps live messages and repeats only the current round.
+    ///
+    /// The engine repeats its store to every peer three times every two
+    /// seconds. A store that kept and repeated every message since genesis
+    /// grew the traffic of each node without end. The store now drops what
+    /// fell below the committed head or out of the round window, and repeats
+    /// the current and the previous round alone.
+    #[test]
+    fn the_gossip_store_keeps_live_messages_and_repeats_the_current_round() {
+        type Message = CommitMessage<H256, [u8; 32]>;
+        let committed = 930;
+        let round = 120;
+        let fresh: Message = CommitMessage::Vote(vote(1, 120, 940, 7));
+        let last_round: Message = CommitMessage::Vote(vote(1, 119, 940, 7));
+        let older: Message = CommitMessage::Vote(vote(1, 100, 940, 7));
+        let ancient: Message = CommitMessage::Vote(vote(1, 40, 940, 7));
+        let committed_height: Message = CommitMessage::Vote(vote(1, 120, 930, 7));
+        let statement: Message = CommitMessage::RoundTimeout(timeout(2, 119, 940, Some(7)));
+
+        assert!(message_live(&fresh, committed, round));
+        assert!(message_live(&older, committed, round));
+        assert!(!message_live(&ancient, committed, round));
+        assert!(!message_live(&committed_height, committed, round));
+        assert!(message_live(&statement, committed, round));
+
+        assert!(message_repeated(&fresh, committed, round));
+        assert!(message_repeated(&last_round, committed, round));
+        assert!(message_repeated(&statement, committed, round));
+        assert!(!message_repeated(&older, committed, round));
+        assert!(!message_repeated(&committed_height, committed, round));
+
+        // The byte forms the gossip engine hands the validator.
+        let bytes = fresh.encode();
+        assert!(!message_expired_bytes::<H256, [u8; 32]>(
+            &bytes, committed, round
+        ));
+        assert!(message_expired_bytes::<H256, [u8; 32]>(
+            &ancient.encode(),
+            committed,
+            round
+        ));
+        assert!(message_expired_bytes::<H256, [u8; 32]>(
+            &[9, 9, 9],
+            committed,
+            round
+        ));
+        assert!(message_allowed_bytes::<H256, [u8; 32]>(
+            MessageIntent::Broadcast,
+            &older.encode(),
+            committed,
+            round
+        ));
+        assert!(!message_allowed_bytes::<H256, [u8; 32]>(
+            MessageIntent::PeriodicRebroadcast,
+            &older.encode(),
+            committed,
+            round
+        ));
+        assert!(message_allowed_bytes::<H256, [u8; 32]>(
+            MessageIntent::PeriodicRebroadcast,
+            &bytes,
+            committed,
+            round
+        ));
+    }
+
+    /// The traffic one node sends, run through the gossip engine algorithm.
+    ///
+    /// The model follows the engine: a new message goes to every peer lacking
+    /// it, the store drops expired messages, and every 750 milliseconds the
+    /// store goes out again to every peer, each message passing the allowed
+    /// check first. One node with eight peers runs 300 commitments. Each
+    /// commitment takes one round, and every fifth takes two, with a round
+    /// timeout statement from every validator. The answer is the largest store
+    /// and the sends to one peer per second, for the first and the last fifty
+    /// commitments.
+    fn gossip_traffic(
+        expired: impl Fn(&[u8], u32, u32) -> bool,
+        allowed: impl Fn(MessageIntent, &[u8], u32, u32) -> bool,
+    ) -> (usize, f64, f64) {
+        const VALIDATORS: u8 = 9;
+        const PEERS: usize = 8;
+        const INTERVAL: u32 = 10;
+        const COMMITMENTS: u32 = 300;
+        const TICKS_PER_ROUND: u32 = 8;
+        let mut store: Vec<(H256, Vec<u8>)> = Vec::new();
+        let mut known: Vec<HashSet<H256>> = vec![HashSet::new(); PEERS];
+        let mut sends_per_commitment: Vec<u64> = Vec::new();
+        let mut largest = 0usize;
+        let mut round = 0u32;
+        for index in 0..COMMITMENTS {
+            let committed = index * INTERVAL;
+            let target = committed + INTERVAL;
+            let rounds = if index % 5 == 4 { 2 } else { 1 };
+            let mut sends = 0u64;
+            for step in 0..rounds {
+                round += 1;
+                let mut fresh: Vec<Vec<u8>> = (1..=VALIDATORS)
+                    .map(|signer| CommitMessage::Vote(vote(signer, round, target, 7)).encode())
+                    .collect();
+                if step > 0 {
+                    fresh.extend((1..=VALIDATORS).map(|signer| {
+                        CommitMessage::RoundTimeout(timeout(signer, round - 1, target, Some(7)))
+                            .encode()
+                    }));
+                }
+                for bytes in fresh {
+                    let hash = H256(sp_core::hashing::blake2_256(&bytes));
+                    for peer in known.iter_mut() {
+                        if allowed(MessageIntent::Broadcast, &bytes, committed, round) {
+                            peer.insert(hash);
+                            sends += 1;
+                        }
+                    }
+                    store.push((hash, bytes));
+                }
+                for _ in 0..TICKS_PER_ROUND {
+                    store.retain(|(_, bytes)| !expired(bytes, committed, round));
+                    let held: HashSet<H256> = store.iter().map(|(hash, _)| *hash).collect();
+                    for peer in known.iter_mut() {
+                        peer.retain(|hash| held.contains(hash));
+                        for (hash, bytes) in &store {
+                            let intent = if peer.contains(hash) {
+                                MessageIntent::PeriodicRebroadcast
+                            } else {
+                                MessageIntent::Broadcast
+                            };
+                            if allowed(intent, bytes, committed, round) {
+                                peer.insert(*hash);
+                                sends += 1;
+                            }
+                        }
+                    }
+                    largest = largest.max(store.len());
+                }
+            }
+            sends_per_commitment.push(sends);
+        }
+        // Sends to one peer per second: each tick is 750 milliseconds.
+        let rate = |slice: &[u64], rounds: f64| -> f64 {
+            let total: u64 = slice.iter().sum();
+            total as f64 / PEERS as f64 / (rounds * TICKS_PER_ROUND as f64 * 0.75)
+        };
+        let rounds_per_fifty = 60.0;
+        let first = rate(&sends_per_commitment[..50], rounds_per_fifty);
+        let last = rate(&sends_per_commitment[250..], rounds_per_fifty);
+        (largest, first, last)
+    }
+
+    /// The gossip store and the send rate stay bounded over 300 commitments.
+    ///
+    /// Run with the expiry and the repeat rule of the validator, the store
+    /// never holds more than two rounds of votes and statements, and the
+    /// sends to one peer per second stay the same from the first fifty
+    /// commitments to the last. Run with the earlier rule, which kept every
+    /// message and repeated all of them, both grow with the length of the
+    /// chain.
+    #[test]
+    fn the_gossip_store_and_the_send_rate_stay_bounded_over_three_hundred_commitments() {
+        let (largest, first, last) = gossip_traffic(
+            |bytes, committed, round| {
+                message_expired_bytes::<H256, [u8; 32]>(bytes, committed, round)
+            },
+            |intent, bytes, committed, round| {
+                message_allowed_bytes::<H256, [u8; 32]>(intent, bytes, committed, round)
+            },
+        );
+        // Two rounds of nine votes and nine statements at the open height.
+        assert!(largest <= 27, "the store held {largest} messages");
+        // About two votes a second per peer, and no growth.
+        assert!(
+            last <= first * 1.05 + 0.01,
+            "rate grew from {first:.2} to {last:.2}"
+        );
+        assert!(last < 25.0, "rate {last:.2} sends per peer per second");
+
+        let (largest_before, first_before, last_before) =
+            gossip_traffic(|_, _, _| false, |_, _, _, _| true);
+        assert!(largest_before > 3_000, "{largest_before}");
+        assert!(
+            last_before > first_before * 4.0,
+            "{first_before:.2} to {last_before:.2}"
+        );
     }
 
     /// A message the node cannot decide on yet waits once, within a ceiling.
