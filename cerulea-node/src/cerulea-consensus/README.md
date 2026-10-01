@@ -98,7 +98,8 @@ automatically.
 |---|---|---|
 | `CERULEA_ENGINE_ID` | `ceru` | The block seal and the state root digest item |
 | `CERULEA_COMMIT_ENGINE_ID` | `cerf` | The Commit Engine messages |
-| `CERULEA_KEY_TYPE` | `cerk` | The validator keys in the node keystore |
+| `CERULEA_KEY_TYPE` | `cerk` | The ed25519 seal key in the node keystore |
+| `CERULEA_DRAW_KEY_TYPE` | `cerd` | The sr25519 draw key in the node keystore |
 
 ## 7. Running the tests
 

@@ -726,7 +726,7 @@ pub enum EngineError {
     /// The node keystore holds no draw key for this validator.
     #[error(
         "The node keystore holds no slot draw key for this validator. \
-         Fix: insert the validator sr25519 key under the key type cerk."
+         Fix: insert the validator sr25519 draw key under the key type cerd."
     )]
     DrawKeyAbsent,
 
@@ -853,6 +853,17 @@ pub enum EngineError {
         "The commit vote failed the signature check.          Fix: sign the vote with the validator key recorded for that seat."
     )]
     VoteSignatureRejected,
+
+    /// A validator sent a second commit vote for one slot.
+    #[error(
+        "The collector already holds a commit vote from the validator at position {position} for slot {slot}. Fix: send one commit vote per validator per slot."
+    )]
+    VoteRepeated {
+        /// The slot the vote named.
+        slot: u64,
+        /// The position of the validator in the set.
+        position: usize,
+    },
 
     /// A commit vote came from a validator outside the set.
     #[error(

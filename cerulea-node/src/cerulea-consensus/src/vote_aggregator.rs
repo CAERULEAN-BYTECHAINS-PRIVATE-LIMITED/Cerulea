@@ -191,6 +191,9 @@ where
         // Check for finality stall (important to run even if pool is empty)
         self.check_finality_stall(current_round);
 
+        // Every conflicting pair of votes the pool caught goes to the chain.
+        self.report_evidence(best_hash).await;
+
         // Get all candidate blocks from the vote pool
         let mut candidate_blocks = self.vote_pool.get_candidate_blocks(current_round);
 
@@ -561,6 +564,81 @@ where
         }
 
         Ok(())
+    }
+
+    /// Report every conflicting pair of votes the pool caught.
+    ///
+    /// Two votes one validator signed in one round for two different blocks
+    /// prove an equivocation. The report travels as an unsigned transaction,
+    /// since the chain checks both signatures itself.
+    async fn report_evidence(&self, best_hash: Block::Hash) {
+        for (first, second) in self.vote_pool.take_evidence() {
+            let to_chain = |vote: &crate::dvf_gossip::DvfVoteMessage<Block::Hash, AccountId>| {
+                pallet_cerulea_dvf::DvfVote {
+                    epoch_id: vote.epoch_id,
+                    validator_set_id: vote.validator_set_id,
+                    round_id: vote.round_number,
+                    block_number: vote.block_number,
+                    block_hash: vote.block_hash,
+                    validator_account: vote.validator_account_id.clone(),
+                    signature: sp_runtime::MultiSignature::Ed25519(vote.signature),
+                }
+            };
+            let pair = (to_chain(&first), to_chain(&second));
+            let encoded = pair.encode();
+            let decoded: Result<
+                (
+                    pallet_cerulea_dvf::DvfVote<
+                        sp_core::H256,
+                        cerulea_runtime::AccountId,
+                        sp_runtime::MultiSignature,
+                    >,
+                    pallet_cerulea_dvf::DvfVote<
+                        sp_core::H256,
+                        cerulea_runtime::AccountId,
+                        sp_runtime::MultiSignature,
+                    >,
+                ),
+                _,
+            > = Decode::decode(&mut &encoded[..]);
+            let Ok((first_vote, second_vote)) = decoded else {
+                warn!("Commit Engine Vote Aggregator: an evidence pair failed to encode for the chain");
+                continue;
+            };
+            warn!(
+                "Commit Engine Vote Aggregator: validator {:?} signed two votes in round {}. Reporting the pair to the chain.",
+                first.validator_account_id, first.round_number
+            );
+            let call = cerulea_runtime::RuntimeCall::from(pallet_cerulea_dvf::Call::<
+                cerulea_runtime::Runtime,
+            >::report_vote_equivocation {
+                first: first_vote,
+                second: second_vote,
+            });
+            let encoded_tx = cerulea_runtime::UncheckedExtrinsic::new_bare(call).encode();
+            match <Block as BlockT>::Extrinsic::decode(&mut &encoded_tx[..]) {
+                Ok(ext) => {
+                    if let Err(e) = self
+                        .transaction_pool
+                        .submit_one(
+                            best_hash,
+                            sc_transaction_pool_api::TransactionSource::Local,
+                            ext,
+                        )
+                        .await
+                    {
+                        debug!(
+                            "Commit Engine Vote Aggregator: the evidence report was not taken: {:?}",
+                            e
+                        );
+                    }
+                }
+                Err(e) => warn!(
+                    "Commit Engine Vote Aggregator: the evidence report failed to decode: {:?}",
+                    e
+                ),
+            }
+        }
     }
 
     /// Calculates accumulated weight for a specific block hash

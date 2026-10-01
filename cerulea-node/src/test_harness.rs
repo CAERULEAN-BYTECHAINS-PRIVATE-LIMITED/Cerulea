@@ -48,7 +48,7 @@ use cerulea_consensus::engines::{
     CollectionId, CommitEngine, CommitteeMember, EngineError, KeyRange, Rank, Slot,
     TransactionClass, TrustScore,
 };
-use cerulea_consensus::CERULEA_KEY_TYPE;
+use cerulea_consensus::{CERULEA_DRAW_KEY_TYPE, CERULEA_KEY_TYPE};
 use cerulea_primitives::{rank_seats, SeatInput};
 use sp_core::{ed25519, sr25519};
 use sp_keystore::testing::MemoryKeystore;
@@ -102,7 +102,7 @@ impl ValidatorNode {
         let keystore = MemoryKeystore::new();
         let phrase = format!("//Cerulea//harness//{}", seed);
         let draw_key = keystore
-            .sr25519_generate_new(CERULEA_KEY_TYPE, Some(&phrase))
+            .sr25519_generate_new(CERULEA_DRAW_KEY_TYPE, Some(&phrase))
             .expect("the keystore generates a draw key");
         let seal_key = keystore
             .ed25519_generate_new(CERULEA_KEY_TYPE, Some(&phrase))

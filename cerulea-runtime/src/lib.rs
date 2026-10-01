@@ -403,8 +403,21 @@ parameter_types! {
     pub const VoteRetentionRounds: u32 = 20;
 }
 
+/// The penalty for two votes one validator signed in one round.
+///
+/// The Standing Engine returns the standing of the validator to zero, records
+/// the reset and removes the seat.
+pub struct StandingEnginePenalty;
+
+impl pallet_cerulea_dvf::VoteEquivocationPenalty<AccountId> for StandingEnginePenalty {
+    fn penalise(validator: &AccountId) -> u32 {
+        pallet_cerulea_dcf::Pallet::<Runtime>::penalise_vote_equivocation(validator)
+    }
+}
+
 impl pallet_cerulea_dvf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type VotePenalty = StandingEnginePenalty;
     type Signature = Signature;
     type Signer = <Signature as Verify>::Signer;
     type StakeWeightFactor = StakeWeightFactor;

@@ -84,8 +84,6 @@ pub fn check_vote(vote: &CommitVote) -> Result<(), EngineError> {
 pub enum VoteAdmission {
     /// The collector took the vote.
     Taken,
-    /// The collector already holds a vote from that validator.
-    AlreadyHeld,
 }
 
 /// The signature collector the author runs during the slot.
@@ -195,8 +193,13 @@ impl SignatureCollector {
         let position = self
             .position_of(&vote.validator)
             .ok_or(EngineError::VoterOutsideSet)?;
+        // A repeated vote is refused with a named reason rather than
+        // absorbed, so a peer repeating itself learns the rule it broke.
         if self.received.contains_key(&position) {
-            return Ok(VoteAdmission::AlreadyHeld);
+            return Err(EngineError::VoteRepeated {
+                slot: self.slot.0,
+                position,
+            });
         }
         check_vote(&vote)?;
         self.received.insert(position, vote);
@@ -325,10 +328,10 @@ mod tests {
                 .expect("the vote lands"),
             VoteAdmission::Taken
         );
-        assert_eq!(
-            collector.accept(vote, OPENS + 2).expect("the vote lands"),
-            VoteAdmission::AlreadyHeld
-        );
+        assert!(matches!(
+            collector.accept(vote, OPENS + 2),
+            Err(EngineError::VoteRepeated { slot, .. }) if slot == SLOT.0
+        ));
         assert_eq!(collector.signer_count(), 1);
     }
 

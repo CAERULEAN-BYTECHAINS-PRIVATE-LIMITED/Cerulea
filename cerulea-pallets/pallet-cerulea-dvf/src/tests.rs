@@ -2121,3 +2121,214 @@ mod round_timeout {
         }
     }
 }
+
+// ============================================================================
+// One vote per validator per round, and vote equivocation evidence.
+// ============================================================================
+
+mod vote_safety {
+    use super::*;
+    use sp_core::H256;
+
+    const NINE: [&str; 9] = [
+        "Safety0", "Safety1", "Safety2", "Safety3", "Safety4", "Safety5", "Safety6", "Safety7",
+        "Safety8",
+    ];
+
+    fn freeze_nine() {
+        let validators: Vec<(AccountId, u128, u128)> = NINE
+            .iter()
+            .map(|name| (account_key(name), 1_000_000u128, 500_000_000u128))
+            .collect();
+        Registry::freeze_epoch_weights(1, &validators);
+    }
+
+    fn signed(
+        index: usize,
+        round: u32,
+        height: u32,
+        hash: H256,
+    ) -> crate::DvfVote<H256, AccountId, sp_runtime::MultiSignature> {
+        use codec::Encode;
+        let pair = sr25519::Pair::from_string(&format!("//{}", NINE[index]), None).unwrap();
+        let mut vote = crate::DvfVote {
+            epoch_id: 1,
+            validator_set_id: crate::ValidatorSetId::<Test>::get(),
+            round_id: round,
+            block_number: height,
+            block_hash: hash,
+            validator_account: account_key(NINE[index]),
+            signature: sp_runtime::MultiSignature::Sr25519(sr25519::Signature::from_raw([0u8; 64])),
+        };
+        let mut payload = Vec::new();
+        vote.epoch_id.encode_to(&mut payload);
+        vote.validator_set_id.encode_to(&mut payload);
+        vote.round_id.encode_to(&mut payload);
+        vote.block_number.encode_to(&mut payload);
+        vote.block_hash.encode_to(&mut payload);
+        vote.validator_account.encode_to(&mut payload);
+        vote.signature = sp_runtime::MultiSignature::Sr25519(pair.sign(&payload));
+        vote
+    }
+
+    fn penalised() -> Vec<AccountId> {
+        crate::mock::PENALISED.with(|held| held.borrow().clone())
+    }
+
+    /// Two votes one validator signed in one round prove an equivocation.
+    #[test]
+    fn a_conflicting_pair_resets_standing_and_records_the_fault() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(12);
+            freeze_nine();
+            let first = signed(2, 142, 1440, H256::repeat_byte(0xe8));
+            let second = signed(2, 142, 1440, H256::repeat_byte(0xa3));
+            assert_ok!(Registry::report_vote_equivocation(
+                RuntimeOrigin::none(),
+                first.clone(),
+                second.clone()
+            ));
+            assert_eq!(penalised(), vec![account_key(NINE[2])]);
+            let record = crate::VoteEquivocations::<Test>::get(account_key(NINE[2]))
+                .expect("the fault is recorded");
+            assert_eq!(record.round, 142);
+            assert_eq!(record.first, (1440, H256::repeat_byte(0xe8)));
+            assert_eq!(record.second, (1440, H256::repeat_byte(0xa3)));
+            assert_eq!(record.epochs_destroyed, crate::mock::MOCK_EPOCHS_DESTROYED);
+            System::assert_last_event(
+                crate::Event::VoteEquivocationProven {
+                    validator: account_key(NINE[2]),
+                    round: 142,
+                    epochs_destroyed: crate::mock::MOCK_EPOCHS_DESTROYED,
+                }
+                .into(),
+            );
+
+            // The same fault carries one penalty.
+            assert_noop!(
+                Registry::report_vote_equivocation(RuntimeOrigin::none(), first, second),
+                Error::<Test>::VoteEquivocationAlreadyPenalised
+            );
+        });
+    }
+
+    /// A pair that proves nothing is refused.
+    #[test]
+    fn a_pair_that_proves_nothing_is_refused() {
+        new_test_ext().execute_with(|| {
+            freeze_nine();
+            let vote = signed(1, 7, 70, H256::repeat_byte(1));
+            // The same vote twice.
+            assert_noop!(
+                Registry::report_vote_equivocation(
+                    RuntimeOrigin::none(),
+                    vote.clone(),
+                    vote.clone()
+                ),
+                Error::<Test>::VoteEquivocationUnproven
+            );
+            // Two rounds.
+            assert_noop!(
+                Registry::report_vote_equivocation(
+                    RuntimeOrigin::none(),
+                    vote.clone(),
+                    signed(1, 8, 70, H256::repeat_byte(2))
+                ),
+                Error::<Test>::VoteEquivocationUnproven
+            );
+            // Two validators.
+            assert_noop!(
+                Registry::report_vote_equivocation(
+                    RuntimeOrigin::none(),
+                    vote.clone(),
+                    signed(3, 7, 70, H256::repeat_byte(2))
+                ),
+                Error::<Test>::VoteEquivocationUnproven
+            );
+            // A forged signature.
+            let mut forged = signed(1, 7, 70, H256::repeat_byte(2));
+            forged.signature = signed(1, 7, 70, H256::repeat_byte(3)).signature;
+            assert_noop!(
+                Registry::report_vote_equivocation(RuntimeOrigin::none(), vote, forged),
+                Error::<Test>::VoteEquivocationUnproven
+            );
+            assert!(penalised().is_empty());
+        });
+    }
+
+    /// A commitment record built from a vote that conflicts with a recorded
+    /// vote of the same round is refused.
+    #[test]
+    fn a_justification_with_a_conflicting_vote_is_refused() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(11);
+            freeze_nine();
+            let first = H256::repeat_byte(0xe8);
+            let second = H256::repeat_byte(0xa3);
+            // Validator zero voted for the first block in round zero.
+            assert_ok!(Registry::submit_dvf_vote(
+                RuntimeOrigin::signed(account_key(NINE[0])),
+                signed(0, 0, 10, first)
+            ));
+            // A record for the second block carries a vote of validator zero.
+            let votes: Vec<_> = (0..9).map(|index| signed(index, 0, 10, second)).collect();
+            assert_noop!(
+                Registry::submit_justification(
+                    RuntimeOrigin::none(),
+                    crate::DvfJustification {
+                        round_number: 0,
+                        block_hash: second,
+                        votes,
+                    }
+                ),
+                Error::<Test>::ConflictingVote
+            );
+            // Without the conflicting vote the record commits.
+            let votes: Vec<_> = (1..9).map(|index| signed(index, 0, 10, second)).collect();
+            assert_ok!(Registry::submit_justification(
+                RuntimeOrigin::none(),
+                crate::DvfJustification {
+                    round_number: 0,
+                    block_hash: second,
+                    votes,
+                }
+            ));
+            assert_eq!(crate::FinalizedBlockHash::<Test>::get(), Some(second));
+        });
+    }
+
+    /// The commitment record keeps its votes, so a second record in the same
+    /// round naming another block for the same validators is refused.
+    #[test]
+    fn a_second_record_in_one_round_is_refused() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(21);
+            freeze_nine();
+            let first = H256::repeat_byte(0x11);
+            let votes: Vec<_> = (0..9).map(|index| signed(index, 0, 10, first)).collect();
+            assert_ok!(Registry::submit_justification(
+                RuntimeOrigin::none(),
+                crate::DvfJustification {
+                    round_number: 0,
+                    block_hash: first,
+                    votes,
+                }
+            ));
+            // The round moved on. A record naming round zero again for a
+            // different block at a later height is refused.
+            let other = H256::repeat_byte(0x22);
+            let votes: Vec<_> = (0..9).map(|index| signed(index, 0, 20, other)).collect();
+            assert_noop!(
+                Registry::submit_justification(
+                    RuntimeOrigin::none(),
+                    crate::DvfJustification {
+                        round_number: 0,
+                        block_hash: other,
+                        votes,
+                    }
+                ),
+                Error::<Test>::ConflictingVote
+            );
+        });
+    }
+}

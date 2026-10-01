@@ -7750,6 +7750,34 @@ pub mod pallet {
             Self::trust_score(validator).weight()
         }
 
+        /// Apply the penalty for two votes one validator signed in one round.
+        ///
+        /// A vote is the signed result of a validator for one checkpoint, so
+        /// the Standing Engine treats the pair as two results at one height.
+        /// Standing returns to zero, the reset is recorded and the seat goes
+        /// at once. The answer is the number of served epochs destroyed.
+        pub fn penalise_vote_equivocation(validator: &T::AccountId) -> u32 {
+            let misconduct = crate::engines::standing::Misconduct::TwoResultsAtOneHeight;
+            let epoch = Self::current_epoch();
+            let mut record = ServiceRecords::<T>::get(validator);
+            let outcome = crate::engines::standing::reset(&mut record, misconduct, epoch);
+            ServiceRecords::<T>::insert(validator, record);
+            StandingShares::<T>::insert(validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(validator, outcome);
+            if misconduct.removes_the_seat_at_once() {
+                let _ = T::ValidatorRegistry::eject_validator(
+                    validator,
+                    crate::EjectionReason::RepeatedMisbehavior,
+                );
+            }
+            Self::deposit_event(Event::StandingReset {
+                validator: validator.clone(),
+                misconduct,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            outcome.epochs_destroyed
+        }
+
         /// Lower the standing of every validator that let an epoch pass.
         ///
         /// The block initialisation hook calls this at every epoch boundary, so

@@ -26,6 +26,16 @@ pub const VOTE_WEIGHT_SCALE: u128 = 32_000;
 /// [`Pallet::set_round_timeout`].
 pub const DEFAULT_ROUND_TIMEOUT_BLOCKS: u32 = 20;
 
+/// The penalty for two votes one validator signed in one round.
+///
+/// The runtime answers this through the Standing Engine, which returns the
+/// standing of the validator to zero and removes the seat. The answer is the
+/// number of served epochs the reset destroyed.
+pub trait VoteEquivocationPenalty<AccountId> {
+    /// Apply the penalty to one validator.
+    fn penalise(validator: &AccountId) -> u32;
+}
+
 /// The highest Trust Score one validator reaches.
 ///
 /// The Standing Engine composes the Trust Score as a share of one, counted in
@@ -116,6 +126,31 @@ pub mod pallet {
         pub block_hash: Hash,
         pub validator_account: AccountId,
         pub signature: Signature, // Signature of the above fields
+    }
+
+    /// The fault record of two votes one validator signed in one round.
+    #[derive(
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
+    pub struct VoteEquivocationRecord<Hash> {
+        /// The round both votes name.
+        pub round: u32,
+        /// The height and block of the first vote.
+        pub first: (u32, Hash),
+        /// The height and block of the second vote.
+        pub second: (u32, Hash),
+        /// The block at which the chain proved the fault.
+        pub proven_at: u32,
+        /// The served epochs the standing reset destroyed.
+        pub epochs_destroyed: u32,
     }
 
     /// How one voting round closed.
@@ -286,6 +321,9 @@ pub mod pallet {
 
         #[pallet::constant]
         type MaxValidatorNameSize: Get<u32>;
+
+        /// The penalty for two votes one validator signed in one round.
+        type VotePenalty: crate::VoteEquivocationPenalty<Self::AccountId>;
     }
 
     /// Frozen weights for active validators during the current epoch.
@@ -349,6 +387,21 @@ pub mod pallet {
             crate::DEFAULT_ROUND_TIMEOUT_BLOCKS
         }
     }
+
+    /// The vote equivocation faults the chain proved, by validator.
+    ///
+    /// The record holds the latest proven fault of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn vote_equivocation_of)]
+    pub type VoteEquivocations<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, VoteEquivocationRecord<T::Hash>, OptionQuery>;
+
+    /// The rounds in which each validator was already penalised.
+    ///
+    /// A second report of the same fault leaves the chain unchanged.
+    #[pallet::storage]
+    pub type PenalisedVoteEquivocations<T: Config> =
+        StorageDoubleMap<_, Blake2_128Concat, u32, Blake2_128Concat, T::AccountId, (), OptionQuery>;
 
     /// How each retained round closed.
     #[pallet::storage]
@@ -593,6 +646,17 @@ pub mod pallet {
             /// The weight the threshold asked for.
             threshold: u128,
         },
+        /// The chain proved that one validator signed two votes in one round.
+        ///
+        /// The standing of the validator returned to zero and the seat went.
+        VoteEquivocationProven {
+            /// The validator that signed both votes.
+            validator: T::AccountId,
+            /// The round both votes name.
+            round: u32,
+            /// The served epochs the standing reset destroyed.
+            epochs_destroyed: u32,
+        },
         /// The round timeout policy value changed.
         RoundTimeoutSet {
             /// The new timeout, in blocks.
@@ -693,6 +757,11 @@ pub mod pallet {
         /// threshold. Vote for the block of the earlier round, or wait for the
         /// round to time out.
         ConflictingVote,
+        /// The two votes fail to prove an equivocation. Submit two votes one
+        /// validator signed in one round for two different blocks.
+        VoteEquivocationUnproven,
+        /// The chain already penalised this validator for this round.
+        VoteEquivocationAlreadyPenalised,
         /// A round timeout of zero blocks would close every round at once.
         /// Name a timeout of one block or more.
         RoundTimeoutZero,
@@ -831,6 +900,53 @@ pub mod pallet {
                 );
             }
 
+            Ok(())
+        }
+
+        /// Prove that one validator signed two votes in one round.
+        ///
+        /// The evidence carries both votes with the signature the validator
+        /// placed on each. The chain checks both signatures itself, so the
+        /// report travels as an unsigned transaction from any node. A proof
+        /// that passes returns the standing of the validator to zero through
+        /// the Standing Engine, records the fault and removes the seat.
+        #[pallet::call_index(10)]
+        #[pallet::weight(Weight::from_parts(60_000, 0) + T::DbWeight::get().reads_writes(4, 4))]
+        pub fn report_vote_equivocation(
+            origin: OriginFor<T>,
+            first: DvfVote<T::Hash, T::AccountId, T::Signature>,
+            second: DvfVote<T::Hash, T::AccountId, T::Signature>,
+        ) -> DispatchResult {
+            ensure_none(origin)?;
+            ensure!(
+                Self::proves_vote_equivocation(&first, &second),
+                Error::<T>::VoteEquivocationUnproven
+            );
+            let validator = first.validator_account.clone();
+            let round = first.round_id;
+            ensure!(
+                !PenalisedVoteEquivocations::<T>::contains_key(round, &validator),
+                Error::<T>::VoteEquivocationAlreadyPenalised
+            );
+            let epochs_destroyed = <T::VotePenalty as crate::VoteEquivocationPenalty<
+                T::AccountId,
+            >>::penalise(&validator);
+            PenalisedVoteEquivocations::<T>::insert(round, &validator, ());
+            VoteEquivocations::<T>::insert(
+                &validator,
+                VoteEquivocationRecord {
+                    round,
+                    first: (first.block_number, first.block_hash),
+                    second: (second.block_number, second.block_hash),
+                    proven_at: frame_system::Pallet::<T>::block_number().saturated_into::<u32>(),
+                    epochs_destroyed,
+                },
+            );
+            Self::deposit_event(Event::VoteEquivocationProven {
+                validator,
+                round,
+                epochs_destroyed,
+            });
             Ok(())
         }
 
@@ -1494,6 +1610,28 @@ pub mod pallet {
                 let validator_weight = EpochVotingWeight::<T>::get(&vote.validator_account)
                     .ok_or(Error::<T>::InvalidValidator)?;
 
+                // One vote per validator per round. A commitment record built
+                // from a vote that conflicts with a vote the chain already holds
+                // for that validator in that round is refused.
+                if let Some(held) =
+                    VoteRecords::<T>::get(justification.round_number, &vote.validator_account)
+                {
+                    ensure!(
+                        held.block_number == vote.block_number
+                            && held.block_hash == vote.block_hash,
+                        Error::<T>::ConflictingVote
+                    );
+                }
+                ensure!(
+                    Self::vote_respects_earlier_rounds(
+                        justification.round_number,
+                        &vote.validator_account,
+                        vote.block_number,
+                        &vote.block_hash,
+                    ),
+                    Error::<T>::ConflictingVote
+                );
+
                 accumulated_weight = accumulated_weight.saturating_add(validator_weight);
             }
 
@@ -1504,6 +1642,22 @@ pub mod pallet {
                 accumulated_weight >= threshold,
                 Error::<T>::ThresholdNotReached
             );
+
+            // The chain keeps every vote of the commitment record, so a later
+            // record in the same round that names another block for one of
+            // these validators is refused.
+            for vote in &justification.votes {
+                if !VoteRecords::<T>::contains_key(
+                    justification.round_number,
+                    &vote.validator_account,
+                ) {
+                    VoteRecords::<T>::insert(
+                        justification.round_number,
+                        &vote.validator_account,
+                        vote.clone(),
+                    );
+                }
+            }
 
             Self::finalize_block(
                 justification.block_hash,
@@ -1633,6 +1787,33 @@ pub mod pallet {
                 threshold,
             });
             true
+        }
+
+        /// Report whether two votes prove an equivocation.
+        ///
+        /// Both votes name one validator and one round and two different
+        /// blocks, and both signatures verify against that validator.
+        pub fn proves_vote_equivocation(
+            first: &DvfVote<T::Hash, T::AccountId, T::Signature>,
+            second: &DvfVote<T::Hash, T::AccountId, T::Signature>,
+        ) -> bool {
+            if first.validator_account != second.validator_account
+                || first.round_id != second.round_id
+                || (first.block_number == second.block_number
+                    && first.block_hash == second.block_hash)
+            {
+                return false;
+            }
+            [first, second].iter().all(|vote| {
+                let mut payload = Vec::new();
+                vote.epoch_id.encode_to(&mut payload);
+                vote.validator_set_id.encode_to(&mut payload);
+                vote.round_id.encode_to(&mut payload);
+                vote.block_number.encode_to(&mut payload);
+                vote.block_hash.encode_to(&mut payload);
+                vote.validator_account.encode_to(&mut payload);
+                vote.signature.verify(&payload[..], &vote.validator_account)
+            })
         }
 
         /// Report whether a vote keeps faith with the earlier rounds.
@@ -1873,6 +2054,25 @@ pub mod pallet {
                     .priority(priority)
                     .and_provides(tag)
                     .longevity(5)
+                    .propagate(true)
+                    .build()
+            } else if let Call::report_vote_equivocation { first, second } = call {
+                if !Self::proves_vote_equivocation(first, second) {
+                    return InvalidTransaction::BadProof.into();
+                }
+                if PenalisedVoteEquivocations::<T>::contains_key(
+                    first.round_id,
+                    &first.validator_account,
+                ) {
+                    return InvalidTransaction::Stale.into();
+                }
+                let mut tag = b"vote_equivocation_".to_vec();
+                first.round_id.encode_to(&mut tag);
+                first.validator_account.encode_to(&mut tag);
+                ValidTransaction::with_tag_prefix("Registry")
+                    .priority(u64::MAX / 2)
+                    .and_provides(tag)
+                    .longevity(64)
                     .propagate(true)
                     .build()
             } else {

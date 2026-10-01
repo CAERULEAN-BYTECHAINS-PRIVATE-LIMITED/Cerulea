@@ -1301,6 +1301,7 @@ dependencies = [
  "sc-basic-authorship",
  "sc-client-api",
  "sc-consensus",
+ "sc-keystore",
  "sc-network",
  "sc-network-gossip",
  "sc-network-types",

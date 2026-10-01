@@ -28,7 +28,7 @@ use super::seal::{SealClaim, ValidatorKeys};
 use super::verify::{SlotContext, ValidatorRegistry};
 use crate::engines::peers::PeerSet;
 use crate::engines::{EngineError, Rank, Slot};
-use crate::CERULEA_KEY_TYPE;
+use crate::{CERULEA_DRAW_KEY_TYPE, CERULEA_KEY_TYPE};
 
 /// The permission to produce one block.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,7 +153,7 @@ impl AuthorGate {
 
     /// The draw keys the local keystore holds.
     pub fn local_draw_keys(&self) -> Vec<sr25519::Public> {
-        self.keystore.sr25519_public_keys(CERULEA_KEY_TYPE)
+        self.keystore.sr25519_public_keys(CERULEA_DRAW_KEY_TYPE)
     }
 
     /// The seal keys the local keystore holds.
@@ -269,7 +269,7 @@ mod tests {
             let memory = MemoryKeystore::new();
             let draw_key = memory
                 .sr25519_generate_new(
-                    CERULEA_KEY_TYPE,
+                    CERULEA_DRAW_KEY_TYPE,
                     Some(&format!("//Cerulea//draw//{}", index)),
                 )
                 .expect("the keystore generates a draw key");

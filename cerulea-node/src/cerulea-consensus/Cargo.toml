@@ -55,6 +55,7 @@ sc-network-gossip = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+sc-keystore = "35.0.0"
 sp-core = { default-features = true, workspace = true }
 sp-io = { default-features = true, workspace = true }
 sp-runtime = { default-features = true, workspace = true }

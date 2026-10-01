@@ -24,7 +24,7 @@ use sp_core::Pair as PairTrait;
 use sp_keystore::KeystorePtr;
 
 use crate::engines::{EngineError, Slot, SlotSeed};
-use crate::CERULEA_KEY_TYPE;
+use crate::CERULEA_DRAW_KEY_TYPE;
 
 /// The label of the Cerulea draw transcript.
 ///
@@ -67,7 +67,7 @@ pub fn epoch_draw_from_keystore(
 ) -> Result<VrfSignature, EngineError> {
     let data = cerulea_primitives::epoch_draw_sign_data(epoch);
     keystore
-        .sr25519_vrf_sign(CERULEA_KEY_TYPE, validator, &data)
+        .sr25519_vrf_sign(CERULEA_DRAW_KEY_TYPE, validator, &data)
         .map_err(|reason| EngineError::KeystoreRefused {
             detail: format!("{:?}", reason),
         })?
@@ -190,7 +190,7 @@ pub fn draw_from_keystore(
 ) -> Result<DrawResult, EngineError> {
     let data = input.sign_data();
     let signature = keystore
-        .sr25519_vrf_sign(CERULEA_KEY_TYPE, validator, &data)
+        .sr25519_vrf_sign(CERULEA_DRAW_KEY_TYPE, validator, &data)
         .map_err(|reason| EngineError::KeystoreRefused {
             detail: format!("{:?}", reason),
         })?
@@ -337,7 +337,7 @@ mod tests {
     fn a_draw_from_the_keystore_matches_a_draw_from_the_pair() {
         let keystore = MemoryKeystore::new();
         let public = keystore
-            .sr25519_generate_new(CERULEA_KEY_TYPE, Some("//Cerulea//one"))
+            .sr25519_generate_new(CERULEA_DRAW_KEY_TYPE, Some("//Cerulea//one"))
             .expect("the keystore generates a key");
         let keystore: KeystorePtr = Arc::new(keystore);
         let input = input(12);

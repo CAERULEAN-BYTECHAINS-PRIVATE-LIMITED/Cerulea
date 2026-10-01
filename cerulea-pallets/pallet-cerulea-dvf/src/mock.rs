@@ -149,6 +149,28 @@ impl pallet_cerulea_dvf::Config for Test {
     type UnderperformanceCheckInterval = frame_support::traits::ConstU64<50>;
     type MaxValidatorHistorySize = ConstU32<100>;
     type MaxValidatorNameSize = ConstU32<32>;
+    type VotePenalty = RecordedPenalty;
+}
+
+std::thread_local! {
+    /// Every validator the mock penalty was asked to penalise.
+    pub static PENALISED: std::cell::RefCell<Vec<AccountId>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The mock penalty. The runtime answers through the Standing Engine. The
+/// mock records each request and answers a fixed count of destroyed epochs, so
+/// a test reads what the pallet asked for.
+pub struct RecordedPenalty;
+
+/// The epochs the mock penalty reports as destroyed.
+pub const MOCK_EPOCHS_DESTROYED: u32 = 12;
+
+impl crate::VoteEquivocationPenalty<AccountId> for RecordedPenalty {
+    fn penalise(validator: &AccountId) -> u32 {
+        PENALISED.with(|held| held.borrow_mut().push(validator.clone()));
+        MOCK_EPOCHS_DESTROYED
+    }
 }
 
 // Build genesis storage according to the mock runtime.

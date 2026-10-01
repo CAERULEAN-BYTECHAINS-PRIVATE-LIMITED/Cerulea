@@ -527,6 +527,9 @@ where
     if config.role.is_authority() {
         // Get validator account from keystore
         let keystore = keystore_container.keystore();
+        if let sc_service::config::KeystoreConfig::Path { path, .. } = &config.keystore {
+            migrate_draw_keys(path, &keystore);
+        }
         let mut public_keys = keystore.ed25519_public_keys(cerulea_consensus::CERULEA_KEY_TYPE);
 
         // The node generates and inserts one ed25519 key where the keystore holds
@@ -584,7 +587,7 @@ where
                         .expect("Cerulea: the well known seed yields a draw key");
                     keystore
                         .insert(
-                            cerulea_consensus::CERULEA_KEY_TYPE,
+                            cerulea_consensus::CERULEA_DRAW_KEY_TYPE,
                             seed,
                             draw.public().as_ref(),
                         )
@@ -610,7 +613,7 @@ where
                         .expect("Cerulea: the generated phrase yields a draw key");
                     keystore
                         .insert(
-                            cerulea_consensus::CERULEA_KEY_TYPE,
+                            cerulea_consensus::CERULEA_DRAW_KEY_TYPE,
                             &seed_phrase,
                             draw.public().as_ref(),
                         )
@@ -631,19 +634,40 @@ where
         }
 
         if !public_keys.is_empty() {
-            // Convert ed25519 public key to AccountId
-            // In Substrate, AccountId32 is typically derived from the public key
-            let validator_account = AccountId::from(public_keys[0].0);
+            // The registry names the seal key of every active validator. The
+            // node votes as the account that owns the local key the registry
+            // names. A node the registry names no key for starts under its
+            // first seal key, and the vote creator reselects before every vote.
+            let named = {
+                use pallet_cerulea_dvf::CeruleaAuthoringApi;
+                let best = client.info().best_hash;
+                client
+                    .runtime_api()
+                    .active_validator_keys(best)
+                    .ok()
+                    .and_then(|registry| {
+                        cerulea_consensus::vote_creator::registry_seal_key(&public_keys, &registry)
+                    })
+            };
+            let validator_account = match named {
+                Some((account, _)) => account,
+                None => AccountId::from(public_keys[0].0),
+            };
 
             // Create Registry Finality Notifier
             let finality_notifier = Arc::new(cerulea_consensus::FinalityNotifier::new());
 
+            // Every vote reaches this file before the node signs it.
+            let ledger = cerulea_consensus::engines::commit::lock::LedgerStore::under(
+                &config.base_path.config_dir(config.chain_spec.id()),
+            );
             let vote_creator = cerulea_consensus::VoteCreatorService::new(
                 client.clone(),
                 keystore.clone(),
                 dvf_gossip_engine.clone(),
                 dvf_gossip_pool.clone(),
                 validator_account.clone(),
+                ledger,
             );
 
             task_manager
@@ -1041,7 +1065,10 @@ where
 
 					// Prune gossip pool
 					let finalized_head = finality_client.info().finalized_number.saturated_into::<u32>();
-					finality_gossip_pool.prune_older_rounds(finalized_head);
+					// The finalized head is a block number. Pruning by height
+					// keeps the one-vote-per-round record, so a second vote in a
+					// round stays refused.
+					finality_gossip_pool.prune_by_finalized_block(finalized_head);
 
                     // STEP 65: Finality check iteration started
                     crate::lifecycle_tracer::LifecycleTracer::global().trace_step(
@@ -1246,4 +1273,51 @@ where
     LifecycleTracer::global().flush();
 
     Ok(task_manager)
+}
+
+/// Move every draw key the keystore holds under the seal key type.
+///
+/// Earlier releases recorded the sr25519 draw key under the seal key type. A
+/// file keystore lists every key of one type whatever its scheme, so the draw
+/// key passed for a seal key. The call reads each key file of the seal type,
+/// derives the sr25519 key from the recorded phrase and records the key again
+/// under the draw key type where the two publics agree. The earlier file stays
+/// in place, so no key leaves the keystore.
+pub fn migrate_draw_keys(path: &std::path::Path, keystore: &sp_keystore::KeystorePtr) -> usize {
+    use sp_core::crypto::Pair;
+    let prefix = hex::encode(cerulea_consensus::CERULEA_KEY_TYPE.0);
+    let held = keystore.sr25519_public_keys(cerulea_consensus::CERULEA_DRAW_KEY_TYPE);
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    let mut moved = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(public_hex) = name.strip_prefix(&prefix) else {
+            continue;
+        };
+        let Ok(public) = hex::decode(public_hex) else {
+            continue;
+        };
+        let Ok(text) = std::fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        let Ok(phrase) = serde_json::from_str::<String>(&text) else {
+            continue;
+        };
+        let Ok(draw) = sp_core::sr25519::Pair::from_string(&phrase, None) else {
+            continue;
+        };
+        if draw.public().0[..] != public[..] || held.contains(&draw.public()) {
+            continue;
+        }
+        if keystore
+            .insert(cerulea_consensus::CERULEA_DRAW_KEY_TYPE, &phrase, &public)
+            .is_ok()
+        {
+            moved += 1;
+            log::info!("Cerulea: the draw key moved to its own key type");
+        }
+    }
+    moved
 }

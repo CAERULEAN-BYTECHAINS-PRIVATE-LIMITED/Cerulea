@@ -135,6 +135,51 @@ validator votes again in the next round on the checkpoint of its best chain.
    the current round or an earlier one. The finalized head only rises, so no
    two conflicting blocks commit at one height.
 
+### Vote lock
+
+The Commit Engine lock keeps two conflicting blocks from both gathering their
+threshold at one height, on any node, under any ordering of messages.
+
+1. **One vote per round.** A validator signs at most one vote in each round.
+   The node writes every vote to a ledger file under its base path before it
+   signs, and a second request in the same round repeats the vote on disk.
+   Gossip refuses a second vote from one validator in one round, the
+   aggregator counts each validator once per round, and the chain refuses a
+   commitment record that carries a vote conflicting with one it already holds
+   for that round.
+2. **The lock.** A validator that voted for a block at a height is locked on
+   that block. In a later round it votes only for that block or a block on the
+   same chain. It moves off that chain only with a round change certificate: a
+   set of signed round timeout statements for the round of its lock, from
+   validators holding more than one third of the Trust Score weight, each
+   naming a lock other than its block. Without the certificate it repeats its
+   locked vote. With it, the validator moves to the block the most declared
+   weight stands behind, so a split round gathers behind one block.
+3. **The statement.** A round timeout statement names the block the signer is
+   locked on at that height as of that round, whether or not it voted in that
+   round. A validator that states for a round in which it cast no vote records
+   that in its ledger first and never votes in that round afterwards.
+4. **Evidence.** Two votes one validator signed in one round are equivocation
+   evidence. The node that catches the pair reports it to the chain as an
+   unsigned transaction. The chain checks both signatures, returns the
+   standing of the validator to zero through the Standing Engine, records the
+   fault and removes the seat.
+
+The argument runs in three steps. A block X commits in round r only with at
+least sixty seven percent of the weight voting X in round r, and each of
+those validators is locked on X. A certificate against X for round r needs more
+than one third declaring another lock, and at most thirty three percent can.
+Each locked validator declares X in every later round, voted or silent, so no
+later round carries a certificate against X either, and the locked set never
+leaves the chain of X. A block off that chain gathers at most thirty three
+percent in any round and never commits.
+
+The harness at `cerulea-node/tests/vote_lock_test.rs` runs this path through
+five thousand adversarial schedules, with messages delayed by up to several
+slots, reordered, best chains reorganised at every height and validators
+restarted in the middle of a round. Every schedule commits one block per
+height, and every schedule makes progress once the delays end.
+
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded

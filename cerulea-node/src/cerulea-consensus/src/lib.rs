@@ -33,13 +33,22 @@ pub mod types;
 /// The engine identifier the Cerulea block seal carries.
 pub const CERULEA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"ceru";
 
-/// The key type identifier of the Cerulea validator signing key.
+/// The key type identifier of the Cerulea validator seal key.
 ///
-/// The node keystore holds the ed25519 validator key under this identifier.
-/// The Authoring Engine signs the block seal with that key. The Commit Engine
+/// The node keystore holds the ed25519 seal key under this identifier. The
+/// Authoring Engine signs the block seal with that key. The Commit Engine
 /// signs every vote with that key. Signing and keystore lookup both use this
 /// identifier.
 pub const CERULEA_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cerk");
+
+/// The key type identifier of the Cerulea validator draw key.
+///
+/// The node keystore holds the sr25519 draw key under this identifier. The
+/// Authoring Engine evaluates the slot draw with that key. The draw key sits
+/// apart from the seal key. A file keystore lists every key of one type
+/// whatever its scheme, so a shared type would let a draw key pass for a seal
+/// key.
+pub const CERULEA_DRAW_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"cerd");
 
 /// The engine identifier the Commit Engine carries on its messages.
 pub const CERULEA_COMMIT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"cerf";

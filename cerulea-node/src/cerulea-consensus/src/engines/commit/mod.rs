@@ -15,6 +15,7 @@ pub mod collect;
 #[allow(clippy::module_inception)]
 pub mod commit;
 pub mod gossip;
+pub mod lock;
 pub mod submission;
 
 pub use aggregate::{AggregateSignature, SignerBitmap, SCHEME_ENVELOPE_V1};
@@ -23,6 +24,10 @@ pub use commit::{
 };
 
 pub use gossip::{MessageSet, DEFAULT_MESSAGE_CAPACITY};
+pub use lock::{
+    blocking_locks, certificate_holds, certificate_release, choose_vote, CastVote, LedgerError,
+    LedgerStore, TimeoutStatement, VoteChoice, VoteLedger,
+};
 pub use submission::{
     Admission, CommitSubmission, DeclaredWeight, SubmissionGate, SubmissionPolicy,
     MAX_SUBMISSION_BYTES, MAX_VOTES_PER_SUBMISSION,
