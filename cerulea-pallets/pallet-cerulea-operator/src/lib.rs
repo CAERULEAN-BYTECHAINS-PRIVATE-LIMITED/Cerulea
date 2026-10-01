@@ -28,6 +28,8 @@ pub mod weights;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod scope_tests;
+#[cfg(test)]
 mod tests;
 
 pub use pallet::*;
@@ -446,8 +448,10 @@ pub mod pallet {
             operator: T::AccountId,
         ) -> DispatchResult {
             let who = Self::ensure_appointing(origin, &deployment, &operator)?;
+            // A retired operator keeps its record with the active flag
+            // cleared. The deployment appoints that account again.
             ensure!(
-                Operators::<T>::get(deployment, &operator).is_none(),
+                !<Self as OperatorRole>::is_operator(&deployment, &operator),
                 Error::<T>::OperatorPresent
             );
             Operators::<T>::insert(
