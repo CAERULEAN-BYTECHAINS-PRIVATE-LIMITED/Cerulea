@@ -18,6 +18,11 @@ pub mod bounds;
 pub mod checkpoint;
 pub mod equivocation;
 
+#[cfg(test)]
+mod encoding_tests;
+#[cfg(test)]
+mod fix_sentence_tests;
+
 pub use authoring::{
     derive_slot_seed, draw_value, epoch_draw_sign_data, epoch_draw_transcript, rank_seats,
     seat_value, verify_epoch_draw, weighted_draw, CommitteeSeat, SeatInput, COMMITTEE_SIZE,
