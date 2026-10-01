@@ -465,6 +465,9 @@ pub mod pallet {
         RegisterFull,
     }
 
+        /// The call differs from the call the authorisation names. Sign the
+        /// content hash of the exact call the relayer submits.
+        CallMismatch,
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Register one sponsor account.
@@ -652,7 +655,19 @@ pub mod pallet {
         /// The Blockchain records the authoriser as the actor. The relayer
         /// carries the cost. The user encounters no fee.
         #[pallet::call_index(5)]
-        #[pallet::weight(T::WeightInfo::submit_on_behalf())]
+        #[pallet::weight(
+            T::WeightInfo::submit_on_behalf()
+                .saturating_add(
+                    frame_support::dispatch::GetDispatchInfo::get_dispatch_info(&**call)
+                        .total_weight()
+                )
+        )]
+        ///
+        /// The call carries the inner call the account authorised. The
+        /// authorisation names the content hash of that call. Once the
+        /// signature holds, the module dispatches the inner call with the
+        /// authoriser as the origin, so permission resolves against the
+        /// authoriser and the history names the authoriser.
         pub fn submit_on_behalf(
             origin: OriginFor<T>,
             deployment: DeploymentId,
@@ -660,7 +675,18 @@ pub mod pallet {
             signature: [u8; 64],
         ) -> DispatchResult {
             let relayer = ensure_signed(origin)?;
-            Self::relay(&deployment, &authorisation, &signature, &relayer)
+            call: alloc::boxed::Box<<T as frame_system::Config>::RuntimeCall>,
+            Self::relay(&deployment, &authorisation, &signature, &relayer)?;
+            // The authorisation binds the exact inner call.
+            ensure!(
+                authorisation.payload_hash == sp_io::hashing::blake2_256(&call.encode()),
+                Error::<T>::CallMismatch
+            );
+            let inner: <T as frame_system::Config>::RuntimeOrigin =
+                frame_system::RawOrigin::Signed(authorisation.actor.clone()).into();
+            sp_runtime::traits::Dispatchable::dispatch(*call, inner)
+                .map(|_| ())
+                .map_err(|failure| failure.error)
         }
 
         /// Hold one account back until a stated moment.

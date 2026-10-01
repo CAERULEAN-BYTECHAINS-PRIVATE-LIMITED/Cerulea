@@ -287,12 +287,19 @@ fn relay_action(deployment: DeploymentId, action_name: &str, arguments: &[(Param
     .expect("the deployment takes a quota");
 
     let payload = arguments.to_vec().encode();
+    let bounded: BoundedVec<u8, <Runtime as pallet_cerulea_logic::Config>::MaxPayloadBytes> =
+        BoundedVec::try_from(payload).expect("the arguments fit the bound");
+    let call = cerulea_runtime::RuntimeCall::Logic(pallet_cerulea_logic::Call::execute_action {
+        deployment,
+        action: name(action_name),
+        arguments: bounded,
+    });
     let now = pallet_cerulea_relayer::Pallet::<Runtime>::now_millis();
     let authorisation = pallet_cerulea_relayer::Authorisation {
         deployment,
         actor: authoriser.clone(),
         action: name(action_name),
-        payload_hash: sp_core::blake2_256(&payload),
+        payload_hash: sp_core::blake2_256(&call.encode()),
         valid_until: now.saturating_add(600_000),
         nonce: 1,
     };
@@ -302,8 +309,9 @@ fn relay_action(deployment: DeploymentId, action_name: &str, arguments: &[(Param
         deployment,
         authorisation,
         signature,
+        Box::new(call),
     )
-    .expect("the relayer submits the authorised action");
+    .expect("the relayer submits the authorised action and the action runs");
 
     // The submission register names the authoriser as the actor and the
     // relayer as the payer.
@@ -317,17 +325,6 @@ fn relay_action(deployment: DeploymentId, action_name: &str, arguments: &[(Param
         record.relayer, relayer,
         "The relayer submitted and paid for the action."
     );
-
-    // The action the user authorised now runs inside the deployment.
-    let bounded: BoundedVec<u8, <Runtime as pallet_cerulea_logic::Config>::MaxPayloadBytes> =
-        BoundedVec::try_from(payload).expect("the arguments fit the bound");
-    pallet_cerulea_logic::Pallet::<Runtime>::execute_action(
-        RuntimeOrigin::signed(authoriser),
-        deployment,
-        name(action_name),
-        bounded,
-    )
-    .expect("the authorised action runs");
 }
 
 /// Drive one workflow transition over a record the run wrote.

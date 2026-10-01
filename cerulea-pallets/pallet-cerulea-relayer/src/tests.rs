@@ -99,12 +99,24 @@ fn install() {
     ));
 }
 
+/// The inner call every relayed submission in these tests carries.
+fn inner_call() -> RuntimeCall {
+    RuntimeCall::System(frame_system::Call::remark {
+        remark: b"relayed".to_vec(),
+    })
+}
+
+/// The content hash the authorisation names for the inner call.
+fn inner_hash() -> [u8; 32] {
+    sp_io::hashing::blake2_256(&codec::Encode::encode(&inner_call()))
+}
+
 fn authorisation(nonce: u64) -> Authorisation<u64> {
     Authorisation {
         deployment: DEPLOYMENT,
         actor: CITIZEN,
         action: action(),
-        payload_hash: [4u8; 32],
+        payload_hash: inner_hash(),
         valid_until: clock() + 60_000,
         nonce,
     }
@@ -117,6 +129,7 @@ fn relay(held: &Authorisation<u64>) -> frame_support::pallet_prelude::DispatchRe
         DEPLOYMENT,
         held.clone(),
         signature.0,
+        Box::new(inner_call()),
     )
 }
 
@@ -187,7 +200,8 @@ fn a_signature_from_another_key_declines() {
                 RuntimeOrigin::signed(RELAYER),
                 DEPLOYMENT,
                 held,
-                signature.0
+                signature.0,
+                Box::new(inner_call()),
             ),
             Error::<Test>::SignatureInvalid
         );
@@ -207,7 +221,8 @@ fn a_changed_authorisation_declines() {
                 RuntimeOrigin::signed(RELAYER),
                 DEPLOYMENT,
                 changed,
-                signature.0
+                signature.0,
+                Box::new(inner_call()),
             ),
             Error::<Test>::SignatureInvalid
         );
@@ -331,7 +346,8 @@ fn an_unknown_sponsor_declines() {
                 RuntimeOrigin::signed(STEWARD),
                 DEPLOYMENT,
                 held,
-                signature.0
+                signature.0,
+                Box::new(inner_call()),
             ),
             Error::<Test>::SponsorUnknown
         );
@@ -493,7 +509,8 @@ fn two_accounts_carry_two_windows() {
             RuntimeOrigin::signed(RELAYER),
             DEPLOYMENT,
             held,
-            signature.0
+            signature.0,
+            Box::new(inner_call()),
         ));
         assert_eq!(Submissions::<Test>::iter_prefix(DEPLOYMENT).count(), 2);
     });
