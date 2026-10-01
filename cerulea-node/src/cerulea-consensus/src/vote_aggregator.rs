@@ -22,6 +22,13 @@ use crate::{
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::DvfApi;
 
+/// One vote in the form the runtime call takes.
+type ChainVote = pallet_cerulea_dvf::DvfVote<
+    sp_core::H256,
+    cerulea_runtime::AccountId,
+    sp_runtime::MultiSignature,
+>;
+
 /// Vote Aggregator Service
 ///
 /// Monitors vote accumulation in the vote pool and triggers justification construction
@@ -586,21 +593,7 @@ where
             };
             let pair = (to_chain(&first), to_chain(&second));
             let encoded = pair.encode();
-            let decoded: Result<
-                (
-                    pallet_cerulea_dvf::DvfVote<
-                        sp_core::H256,
-                        cerulea_runtime::AccountId,
-                        sp_runtime::MultiSignature,
-                    >,
-                    pallet_cerulea_dvf::DvfVote<
-                        sp_core::H256,
-                        cerulea_runtime::AccountId,
-                        sp_runtime::MultiSignature,
-                    >,
-                ),
-                _,
-            > = Decode::decode(&mut &encoded[..]);
+            let decoded: Result<(ChainVote, ChainVote), _> = Decode::decode(&mut &encoded[..]);
             let Ok((first_vote, second_vote)) = decoded else {
                 warn!("Commit Engine Vote Aggregator: an evidence pair failed to encode for the chain");
                 continue;
