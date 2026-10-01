@@ -601,8 +601,11 @@ impl<T: Config> Pallet<T> {
                     "The action stopped at one of its steps. The compensating steps ran in reverse.",
                 ),
             },
+            // A message that already closes with a full stop keeps one full
+            // stop in the sentence.
             DispatchError::Other(message) => alloc::format!(
-                "The action stopped at the step reporting {message}. The compensating steps ran in reverse."
+                "The action stopped at the step reporting {}. The compensating steps ran in reverse.",
+                message.trim_end_matches('.')
             ),
             _ => String::from(
                 "The action stopped at one of its steps. The compensating steps ran in reverse.",
