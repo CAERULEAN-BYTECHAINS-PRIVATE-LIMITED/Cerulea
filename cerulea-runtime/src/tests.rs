@@ -143,6 +143,14 @@ mod runtime_integration_tests {
                 pallet_cerulea_dcf::ProposalStatus::Approved
             );
 
+            // The stake pallet pays a reward to a validator on its register
+            // alone, and the mock starts that register empty. The target
+            // registers first, so the reward really lands.
+            assert_ok!(PalletCeruleaPos::register_validator(RuntimeOrigin::signed(
+                target.clone()
+            )));
+            let balance_before = Balances::free_balance(&target);
+
             // Test proposal execution
             assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
 
@@ -152,6 +160,57 @@ mod runtime_integration_tests {
                 proposal.status,
                 pallet_cerulea_dcf::ProposalStatus::Executed
             );
+            assert_eq!(Balances::free_balance(&target), balance_before + 1000);
+        });
+    }
+
+    #[test]
+    fn test_governance_reward_to_an_unregistered_account_reads_failed() {
+        new_test_ext_for_governance().execute_with(|| {
+            let proposer = funded_account_id(1);
+            let target = funded_account_id(2);
+
+            // The target stays off the register of the stake pallet, so the
+            // approved reward cannot be paid.
+            assert!(PalletCeruleaPos::validators(&target).is_none());
+            assert_ok!(DcfPallet::propose_reward_validator(
+                RuntimeOrigin::root(),
+                proposer,
+                target.clone(),
+                1000u128
+            ));
+            let quorum = (DcfPallet::active_validators().len() as u32 + 1) / 2;
+            for voter in DcfPallet::active_validators() {
+                let held = pallet_cerulea_dcf::Proposals::<Runtime>::get(0).unwrap();
+                if held.votes_for + held.votes_against >= quorum {
+                    break;
+                }
+                let now = frame_system::Pallet::<Runtime>::block_number();
+                frame_system::Pallet::<Runtime>::set_block_number(now + 2);
+                assert_ok!(DcfPallet::vote_proposal(
+                    RuntimeOrigin::signed(voter),
+                    0,
+                    true
+                ));
+            }
+            assert_eq!(
+                pallet_cerulea_dcf::Proposals::<Runtime>::get(0)
+                    .unwrap()
+                    .status,
+                pallet_cerulea_dcf::ProposalStatus::Approved
+            );
+            let balance_before = Balances::free_balance(&target);
+
+            // The execution call itself succeeds and the record reads Failed,
+            // so the chain never claims a payment that did not happen.
+            assert_ok!(DcfPallet::execute_proposal(RuntimeOrigin::root(), 0));
+            assert_eq!(
+                pallet_cerulea_dcf::Proposals::<Runtime>::get(0)
+                    .unwrap()
+                    .status,
+                pallet_cerulea_dcf::ProposalStatus::Failed
+            );
+            assert_eq!(Balances::free_balance(&target), balance_before);
         });
     }
 
@@ -359,9 +418,18 @@ mod runtime_integration_tests {
                 pallet_cerulea_pos::Error::<Runtime>::ValidatorNotInSet
             );
 
-            // Test invalid governance operations
+            // Only an active validator votes. An account outside the active
+            // set is refused before the proposal is read.
             assert_noop!(
                 DcfPallet::vote_proposal(RuntimeOrigin::signed(non_validator.clone()), 999, true),
+                pallet_cerulea_dcf::Error::<Runtime>::NotValidator
+            );
+
+            // An active validator voting on a proposal that does not exist
+            // reaches the proposal check.
+            let voter = DcfPallet::active_validators()[0].clone();
+            assert_noop!(
+                DcfPallet::vote_proposal(RuntimeOrigin::signed(voter), 999, true),
                 pallet_cerulea_dcf::Error::<Runtime>::ProposalNotApproved
             );
 

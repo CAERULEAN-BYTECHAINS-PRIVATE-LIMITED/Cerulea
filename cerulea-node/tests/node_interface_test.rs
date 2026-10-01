@@ -316,11 +316,12 @@ fn the_reading_paths_answer_on_a_development_chain() {
         // rather than a problem.
         assert!(platform_api::record(deployment, b"absent".to_vec(), b"key".to_vec()).is_none());
         assert!(platform_api::records(deployment, b"absent".to_vec(), Vec::new(), 8).is_empty());
-        // A collection holding no record answers with the empty root, so
-        // a verifier folds a proof against a root either way.
+        // A collection the Blueprint never declared has no inclusion tree,
+        // so its root answers with nothing. A declared collection holding
+        // no record answers with the empty root.
         assert_eq!(
             platform_api::collection_root(deployment, b"absent".to_vec()),
-            Some(pallet_cerulea_state::proof::empty_root())
+            None
         );
         assert!(!platform_api::verify_record_proof(Vec::new(), [0u8; 32]));
 
