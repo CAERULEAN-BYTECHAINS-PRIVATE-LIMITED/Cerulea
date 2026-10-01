@@ -102,7 +102,7 @@
 
 use frame_support::{
     traits::Get,
-    weights::{Weight, constants::RocksDbWeight},
+    weights::{constants::RocksDbWeight, RuntimeDbWeight, Weight},
 };
 use sp_std::marker::PhantomData;
 
@@ -590,180 +590,448 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 }
 
-// For backwards compatibility and tests
+/// The database weight of a test runtime, which charges nothing for storage.
+pub struct NoDatabase;
+
+impl Get<RuntimeDbWeight> for NoDatabase {
+    fn get() -> RuntimeDbWeight {
+        RuntimeDbWeight { read: 0, write: 0 }
+    }
+}
+
+// For backwards compatibility and tests.
+//
+// The figures a test runtime charges mirror the measured figures line for
+// line. A test runtime carries no database weight, so the storage terms read
+// zero and each call charges the base the measured figure names.
 impl WeightInfo for () {
-    fn update_validator_stake_score() -> Weight { Weight::from_parts(15_000, 0) }
-    fn update_validator_inference_score() -> Weight { Weight::from_parts(15_000, 0) }
-    fn update_consensus_weights() -> Weight { Weight::from_parts(8_000, 0) }
-    fn set_governance_mode() -> Weight { Weight::from_parts(5_000, 0) }
-    fn sudo_advance_epoch() -> Weight { Weight::from_parts(50_000, 0) }
-    fn submit_proposal() -> Weight { Weight::from_parts(20_000, 0) }
-    fn vote_proposal() -> Weight { Weight::from_parts(18_000, 0) }
-    fn execute_proposal() -> Weight { Weight::from_parts(35_000, 0) }
-    fn join_validator_set() -> Weight { Weight::from_parts(25_000, 0) }
-    fn leave_validator_set() -> Weight { Weight::from_parts(20_000, 0) }
-    fn set_validator_name() -> Weight { Weight::from_parts(12_000, 0) }
-    fn apply_offchain_poi_scores() -> Weight { Weight::from_parts(40_000, 0) }
-    fn on_initialize_with_validators(v: u32) -> Weight { 
-        Weight::from_parts(25_000, 0).saturating_add(Weight::from_parts(8_000, 0).saturating_mul(v.into()))
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: PosWeight (r:1 w:0)
+    /// Storage: PoiWeight (r:1 w:0)
+    fn update_validator_stake_score() -> Weight {
+        Weight::from_parts(15_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(1))
     }
-    fn apply_score_decay_multiple(v: u32) -> Weight { 
-        Weight::from_parts(15_000, 0).saturating_add(Weight::from_parts(12_000, 0).saturating_mul(v.into()))
-    }
-    fn validator_set_operations(v: u32) -> Weight { 
-        Weight::from_parts(20_000, 0).saturating_add(Weight::from_parts(5_000, 0).saturating_mul(v.into()))
-    }
-    fn runtime_api_calls(v: u32) -> Weight { 
-        Weight::from_parts(35_000, 0).saturating_add(Weight::from_parts(8_000, 0).saturating_mul(v.into()))
-    }
-    fn epoch_transition_multiple(v: u32) -> Weight { 
-        Weight::from_parts(60_000, 0).saturating_add(Weight::from_parts(15_000, 0).saturating_mul(v.into()))
-    }
-    fn governance_with_multiple_voters(v: u32) -> Weight { 
-        Weight::from_parts(30_000, 0).saturating_add(Weight::from_parts(18_000, 0).saturating_mul(v.into()))
-    }
-    fn on_initialize() -> Weight { Weight::from_parts(50_000, 0) }
-    fn offchain_worker() -> Weight { Weight::from_parts(50_000, 0) }
-    
-    // New benchmark implementations for backwards compatibility
 
-    // Updated weight implementations for new benchmarked functions
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: PosWeight (r:1 w:0)
+    /// Storage: PoiWeight (r:1 w:0)
+    fn update_validator_inference_score() -> Weight {
+        Weight::from_parts(15_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(1))
+    }
+
+    /// Storage: PosWeight (r:0 w:1)
+    /// Storage: PoiWeight (r:0 w:1)
+    fn update_consensus_weights() -> Weight {
+        Weight::from_parts(8_000, 0)
+            .saturating_add(NoDatabase::get().writes(2))
+    }
+
+    /// Storage: GovernanceModeEnabled (r:0 w:1)
+    fn set_governance_mode() -> Weight {
+        Weight::from_parts(5_000, 0)
+            .saturating_add(NoDatabase::get().writes(1))
+    }
+
+    /// Storage: GovernanceModeEnabled (r:1 w:0)
+    /// Storage: CurrentEpoch (r:1 w:1)
+    /// Storage: ActiveValidators (r:1 w:1)
+    /// Storage: PendingValidatorActions (r:0 w:10)
+    fn sudo_advance_epoch() -> Weight {
+        Weight::from_parts(50_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(12))
+    }
+
+    /// Storage: GovernanceModeEnabled (r:1 w:0)
+    /// Storage: NextProposalId (r:1 w:1)
+    /// Storage: Proposals (r:0 w:1)
+    fn submit_proposal() -> Weight {
+        Weight::from_parts(20_000, 0)
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().writes(2))
+    }
+
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: ProposalVotes (r:1 w:1)
+    fn vote_proposal() -> Weight {
+        Weight::from_parts(18_000, 0)
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().writes(2))
+    }
+
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: ActiveValidators (r:1 w:1)
+    fn execute_proposal() -> Weight {
+        Weight::from_parts(35_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(3))
+    }
+
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: PendingValidatorActions (r:1 w:1)
+    /// Storage: ValidatorStates (r:1 w:0)
+    fn join_validator_set() -> Weight {
+        Weight::from_parts(25_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(1))
+    }
+
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: PendingValidatorActions (r:1 w:1)
+    fn leave_validator_set() -> Weight {
+        Weight::from_parts(20_000, 0)
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().writes(1))
+    }
+
+    /// Storage: ValidatorStates (r:1 w:0)
+    /// Storage: ValidatorNames (r:0 w:1)
+    fn set_validator_name() -> Weight {
+        Weight::from_parts(12_000, 0)
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(1))
+    }
+
+    /// Storage: ValidatorSet (r:1 w:0)
+    /// Storage: ValidatorStates (r:MaxValidators w:MaxValidators)
+    /// Storage: RateLimitConfigStorage (r:1 w:0)
+    /// Proof: Worst case processes all MaxValidators (100) with inference contribution updates
+    fn apply_offchain_poi_scores() -> Weight {
+        Weight::from_parts(50_000, 0)
+            .saturating_add(Weight::from_parts(15_000, 0).saturating_mul(100u64)) // 100 = MaxValidators
+            .saturating_add(NoDatabase::get().reads(2)) // ValidatorSet + RateLimitConfig
+            .saturating_add(NoDatabase::get().reads(100u64)) // Read all validator states
+            .saturating_add(NoDatabase::get().writes(100u64)) // Update all validator states
+    }
+
+    /// Storage: ValidatorSet (r:1 w:0)
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: CurrentEpoch (r:1 w:0)
+    /// Storage: EpochConfigStorage (r:1 w:0)
+    /// Storage: ValidatorStates (r:v w:v)
+    /// Proof: Worst case processes MaxValidators (100) for epoch initialization
+    fn on_initialize_with_validators(v: u32) -> Weight {
+        Weight::from_parts(25_000, 0)
+            .saturating_add(Weight::from_parts(8_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads(4))
+            .saturating_add(NoDatabase::get().reads((1_u64).saturating_mul(v.into())))
+            .saturating_add(NoDatabase::get().writes((1_u64).saturating_mul(v.into())))
+    }
+
+    /// Storage: ValidatorStates (r:v w:v)
+    /// Proof: Worst case applies decay to MaxValidators (100) inactive validators
+    fn apply_score_decay_multiple(v: u32) -> Weight {
+        Weight::from_parts(15_000, 0)
+            .saturating_add(Weight::from_parts(12_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads((1_u64).saturating_mul(v.into())))
+            .saturating_add(NoDatabase::get().writes((1_u64).saturating_mul(v.into())))
+    }
+
+    /// Storage: ValidatorSet (r:1 w:0)
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: ValidatorStates (r:v w:0)
+    fn validator_set_operations(v: u32) -> Weight {
+        Weight::from_parts(15_000, 0)
+            .saturating_add(Weight::from_parts(3_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().reads((1_u64).saturating_mul(v.into())))
+    }
+
+    /// Storage: ValidatorSet (r:1 w:0)
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: CurrentEpoch (r:1 w:0)
+    /// Storage: PosWeight (r:1 w:0)
+    /// Storage: PoiWeight (r:1 w:0)
+    /// Storage: ValidatorStates (r:v w:0)
+    /// Storage: ValidatorStake (r:v w:0)
+    /// Storage: ValidatorNames (r:v w:0)
+    /// Proof: Worst case API calls query all validator data for MaxValidators (100)
+    fn runtime_api_calls(v: u32) -> Weight {
+        Weight::from_parts(35_000, 0)
+            .saturating_add(Weight::from_parts(8_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads(5)) // Fixed storage items
+            .saturating_add(NoDatabase::get().reads((3_u64).saturating_mul(v.into()))) // Per-validator reads
+    }
+
+    /// Storage: CurrentEpoch (r:1 w:1)
+    /// Storage: ActiveValidators (r:1 w:1)
+    /// Storage: PendingValidatorActions (r:v w:v)
+    /// Storage: EpochHistories (r:1 w:1)
+    /// Storage: ValidatorStates (r:v w:v) - for score updates and history
+    /// Proof: Worst case transitions epoch with MaxValidators (100) pending actions
+    fn epoch_transition_multiple(v: u32) -> Weight {
+        Weight::from_parts(60_000, 0)
+            .saturating_add(Weight::from_parts(15_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().reads((2_u64).saturating_mul(v.into()))) // PendingActions + ValidatorStates
+            .saturating_add(NoDatabase::get().writes(3))
+            .saturating_add(NoDatabase::get().writes((2_u64).saturating_mul(v.into()))) // PendingActions + ValidatorStates
+    }
+
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: ProposalVotes (r:v w:v)
+    /// Storage: ValidatorSet (r:1 w:0) - for voter validation
+    /// Proof: Worst case processes votes from MaxValidators (100) voters
+    fn governance_with_multiple_voters(v: u32) -> Weight {
+        Weight::from_parts(30_000, 0)
+            .saturating_add(Weight::from_parts(18_000, 0).saturating_mul(v.into()))
+            .saturating_add(NoDatabase::get().reads(2)) // Proposals + ValidatorSet
+            .saturating_add(NoDatabase::get().reads((1_u64).saturating_mul(v.into()))) // ProposalVotes
+            .saturating_add(NoDatabase::get().writes(1)) // Proposals
+            .saturating_add(NoDatabase::get().writes((1_u64).saturating_mul(v.into()))) // ProposalVotes
+    }
+
+    fn on_initialize() -> Weight {
+        Self::on_initialize_with_validators(10)
+    }
+
+    fn offchain_worker() -> Weight {
+        Weight::from_parts(50_000, 0)
+            .saturating_add(NoDatabase::get().reads(5))
+            .saturating_add(NoDatabase::get().writes(3))
+    }
+
+    /// Storage: ValidatorSet (r:1 w:1) - Check and update validator set
+    /// Storage: ActiveValidators (r:0 w:0) - Not accessed in join_validators
+    /// Storage: ValidatorStates (r:1 w:1) - Initialize or update validator state
+    /// Storage: ValidatorStake (r:0 w:1) - Store validator stake amount
+    /// Storage: ValidatorJoinTime (r:0 w:1) - Record join timestamp
+    /// Storage: RecentlyRemovedValidators (r:1 w:1) - Check and clear cooldown
+    /// Storage: RateLimitConfigStorage (r:1 w:0) - Rate limiting check
+    /// Storage: BlockOperationCounts (r:1 w:1) - Rate limiting tracking
+    /// Storage: AccountOperationHistory (r:1 w:1) - Rate limiting history
+    /// Storage: LastOperationBlock (r:1 w:1) - Rate limiting intervals
+    /// Storage: PosWeight (r:1 w:1) - Initialize if not exists
+    /// Storage: PoiWeight (r:1 w:1) - Initialize if not exists
+    /// Storage: Currency operations (r:2 w:2) - Balance check and stake reservation
+    /// Proof: Worst case validator joins with full rate limiting checks and state initialization
     fn join_validators() -> Weight {
-        Weight::from_parts(80_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(7))
-            .saturating_add(RocksDbWeight::get().writes(6))
+        Weight::from_parts(120_000, 0) // Increased base weight for complex logic
+            .saturating_add(NoDatabase::get().reads(10)) // All storage reads including rate limiting
+            .saturating_add(NoDatabase::get().writes(10)) // All storage writes including initialization
     }
 
+    /// Storage: ValidatorSet (r:1 w:0)
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: ValidatorLeaveRequests (r:1 w:1)
+    /// Storage: RateLimitConfigStorage (r:1 w:0) - for rate limiting check
+    /// Proof: Validator initiates leave request with cooldown period
     fn leave_validators() -> Weight {
         Weight::from_parts(60_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(5))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(5))
+            .saturating_add(NoDatabase::get().writes(2))
+    }
+
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: Currency operations (r:2 w:2)
+    fn slash_validator() -> Weight {
+        Weight::from_parts(45_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(3))
+    }
+
+
+
+
+
+
+
+    // Storage: MisbehaviorReports (r:1 w:1)
+    // Storage: ValidatorStates (r:1 w:1)
+    // Storage: Currency operations (r:2 w:2)
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: Currency operations (r:2 w:2)
+    fn increase_validator_stake() -> Weight {
+        Weight::from_parts(35_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(3))
+    }
+
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: Currency operations (r:2 w:2)
+    fn decrease_validator_stake() -> Weight {
+        Weight::from_parts(35_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(3))
+    }
+
+    /// Storage: ValidatorSet (r:1 w:0) - Validate all target validators exist
+    /// Storage: ValidatorStates (r:v w:v) - Update validator states after slashing
+    /// Storage: ValidatorStake (r:v w:v) - Read and update stake amounts
+    /// Storage: SlashingHistory (r:v w:v) - Record slashing events
+    /// Storage: Currency operations (r:2*v w:2*v) - Read balance and execute slash
+    /// Storage: RateLimitConfigStorage (r:1 w:0) - Rate limiting check
+    /// Storage: BlockOperationCounts (r:1 w:1) - Rate limiting tracking
+    /// Proof: Worst case slashes multiple validators (up to MaxValidators/2 = 50)
+    /// with full validation and history tracking
+    fn slash_multiple_validators() -> Weight {
+        Weight::from_parts(150_000, 0) // Increased base weight for validation logic
+            .saturating_add(Weight::from_parts(45_000, 0).saturating_mul(50u64)) // 50 validators max
+            .saturating_add(NoDatabase::get().reads(4)) // Fixed reads (ValidatorSet, RateLimit, etc.)
+            .saturating_add(NoDatabase::get().reads(250u64)) // 5 * 50 validators (States, Stake, History, Currency)
+            .saturating_add(NoDatabase::get().writes(2)) // Fixed writes (BlockOperationCounts)
+            .saturating_add(NoDatabase::get().writes(200u64)) // 4 * 50 validators (States, Stake, History, Currency)
     }
 
     fn cancel_leave_request() -> Weight {
         Weight::from_parts(25_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(1))
-    }
-
-    fn slash_validator() -> Weight {
-        Weight::from_parts(45_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
-    }
-
-    fn slash_validator_percentage() -> Weight {
-        Weight::from_parts(40_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
-    }
-
-    fn increase_validator_stake() -> Weight {
-        Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
-    }
-
-    fn decrease_validator_stake() -> Weight {
-        Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(1))
     }
 
     fn report_validator_misbehavior() -> Weight {
         Weight::from_parts(55_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(3))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
     fn simulate_inference() -> Weight {
         Weight::from_parts(30_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(1))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(1))
     }
 
     fn propose_slash_validator() -> Weight {
         Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
     fn propose_reward_validator() -> Weight {
         Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
     fn propose_eject_validator() -> Weight {
         Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
-    fn slash_multiple_validators() -> Weight {
-        Weight::from_parts(80_000, 0)
-            .saturating_add(Weight::from_parts(35_000, 0).saturating_mul(50u64))
-            .saturating_add(RocksDbWeight::get().reads(202))
-            .saturating_add(RocksDbWeight::get().writes(202))
+    /// Storage: ValidatorStates (r:1 w:1)
+    /// Storage: Currency operations (r:2 w:2)
+    fn slash_validator_percentage() -> Weight {
+        Weight::from_parts(40_000, 0)
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(3))
     }
 
+    /// Storage: Proposals (r:MaxProposalQueue w:MaxProposalQueue) - Read and update proposal status
+    /// Storage: ProposalVotes (r:MaxProposalQueue w:MaxProposalQueue) - Read votes for execution
+    /// Storage: ValidatorSet (r:1 w:0) - Validate proposal targets
+    /// Storage: ValidatorStates (r:MaxProposalQueue w:MaxProposalQueue) - Update affected validators
+    /// Storage: ValidatorStake (r:MaxProposalQueue w:MaxProposalQueue) - Handle stake changes
+    /// Storage: SlashingHistory (r:MaxProposalQueue w:MaxProposalQueue) - Record slashing proposals
+    /// Storage: RewardHistory (r:MaxProposalQueue w:MaxProposalQueue) - Record reward proposals
+    /// Storage: Currency operations (r:2*MaxProposalQueue w:2*MaxProposalQueue) - Execute financial changes
+    /// Storage: ActiveValidators (r:1 w:1) - Update active set for ejection proposals
+    /// Proof: Worst case executes MaxProposalQueue (50) proposals with mixed types
     fn execute_proposals() -> Weight {
-        Weight::from_parts(120_000, 0)
-            .saturating_add(Weight::from_parts(45_000, 0).saturating_mul(50u64))
-            .saturating_add(RocksDbWeight::get().reads(350))
-            .saturating_add(RocksDbWeight::get().writes(250))
+        Weight::from_parts(200_000, 0) // Increased base weight for complex proposal logic
+            .saturating_add(Weight::from_parts(55_000, 0).saturating_mul(50u64)) // MaxProposalQueue processing
+            .saturating_add(NoDatabase::get().reads(2)) // Fixed reads (ValidatorSet, ActiveValidators)
+            .saturating_add(NoDatabase::get().reads(450u64)) // 9 * MaxProposalQueue (all per-proposal reads)
+            .saturating_add(NoDatabase::get().writes(1)) // Fixed writes (ActiveValidators)
+            .saturating_add(NoDatabase::get().writes(400u64)) // 8 * MaxProposalQueue (all per-proposal writes)
     }
 
+    /// Storage: CurrentEpoch (r:1 w:1) - Read and increment epoch
+    /// Storage: ActiveValidators (r:1 w:1) - Update active validator set
+    /// Storage: ValidatorSet (r:1 w:0) - Read all validators for processing
+    /// Storage: ValidatorStates (r:MaxValidators w:MaxValidators) - Update all validator states
+    /// Storage: ValidatorLeaveRequests (r:MaxValidators w:MaxValidators) - Process leave requests
+    /// Storage: RecentlyRemovedValidators (r:MaxValidators w:MaxValidators) - Cleanup cooldowns
+    /// Storage: EpochHistories (r:1 w:1) - Store epoch history
+    /// Storage: PosWeight (r:1 w:0) - Read for score calculations
+    /// Storage: PoiWeight (r:1 w:0) - Read for score calculations
+    /// Storage: Proposals (r:MaxProposalQueue w:MaxProposalQueue) - Process epoch proposals
+    /// Storage: ProposalVotes (r:MaxProposalQueue w:MaxProposalQueue) - Process proposal votes
+    /// Storage: Currency operations (r:2*MaxValidators w:MaxValidators) - Handle stake changes
+    /// Proof: Worst case epoch transition with MaxValidators (100) and MaxProposalQueue (50)
     fn epoch_transition() -> Weight {
-        Weight::from_parts(200_000, 0)
-            .saturating_add(Weight::from_parts(25_000, 0).saturating_mul(100u64))
-            .saturating_add(RocksDbWeight::get().reads(304))
-            .saturating_add(RocksDbWeight::get().writes(304))
+        Weight::from_parts(500_000, 0) // Increased base weight for comprehensive epoch processing
+            .saturating_add(Weight::from_parts(35_000, 0).saturating_mul(100u64)) // MaxValidators processing
+            .saturating_add(Weight::from_parts(25_000, 0).saturating_mul(50u64)) // MaxProposalQueue processing
+            .saturating_add(NoDatabase::get().reads(8)) // Fixed reads (epoch, validators, weights, etc.)
+            .saturating_add(NoDatabase::get().reads(500u64)) // 5 * MaxValidators (states, requests, etc.)
+            .saturating_add(NoDatabase::get().reads(100u64)) // 2 * MaxProposalQueue (proposals, votes)
+            .saturating_add(NoDatabase::get().writes(4)) // Fixed writes (epoch, active validators, etc.)
+            .saturating_add(NoDatabase::get().writes(400u64)) // 4 * MaxValidators (states, requests, etc.)
+            .saturating_add(NoDatabase::get().writes(100u64)) // 2 * MaxProposalQueue (proposals, votes)
     }
 
+    /// Storage: ValidatorMetadata (r:1 w:1)
+    /// Storage: ValidatorNames (r:0 w:1)
     fn set_validator_metadata() -> Weight {
         Weight::from_parts(25_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
+    /// Storage: ValidatorStates (r:1 w:1)
     fn update_validator_activity() -> Weight {
         Weight::from_parts(20_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(1))
-            .saturating_add(RocksDbWeight::get().writes(1))
+            .saturating_add(NoDatabase::get().reads(1))
+            .saturating_add(NoDatabase::get().writes(1))
     }
 
+    /// Storage: ActiveValidators (r:1 w:0)
+    /// Storage: ValidatorStates (r:MaxValidators w:MaxValidators)
+    /// Storage: ValidatorStake (r:MaxValidators w:0)
+    /// Storage: Currency operations (r:2*MaxValidators w:MaxValidators)
+    /// Storage: RewardHistory (r:1 w:1)
+    /// Proof: Worst case distributes rewards to all MaxValidators (100) active validators
     fn distribute_epoch_rewards() -> Weight {
         Weight::from_parts(150_000, 0)
-            .saturating_add(Weight::from_parts(20_000, 0).saturating_mul(100u64))
-            .saturating_add(RocksDbWeight::get().reads(402))
-            .saturating_add(RocksDbWeight::get().writes(201))
+            .saturating_add(Weight::from_parts(20_000, 0).saturating_mul(100u64)) // MaxValidators processing
+            .saturating_add(NoDatabase::get().reads(2)) // ActiveValidators + RewardHistory
+            .saturating_add(NoDatabase::get().reads(400u64)) // 4 * MaxValidators (States, Stake, Currency ops)
+            .saturating_add(NoDatabase::get().writes(1)) // RewardHistory
+            .saturating_add(NoDatabase::get().writes(200u64)) // 2 * MaxValidators (States, Currency ops)
     }
 
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: NextProposalId (r:1 w:1)
     fn propose_default_reward_validator() -> Weight {
         Weight::from_parts(30_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: NextProposalId (r:1 w:1)
     fn propose_default_reward_multiple_validators() -> Weight {
         Weight::from_parts(35_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(2))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(2))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: NextProposalId (r:1 w:1)
+    /// Storage: ActiveValidators (r:1 w:0)
     fn propose_reward_all_active_validators() -> Weight {
         Weight::from_parts(40_000, 0)
-            .saturating_add(RocksDbWeight::get().reads(3))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(3))
+            .saturating_add(NoDatabase::get().writes(2))
     }
 
+    /// Storage: Proposals (r:1 w:1)
+    /// Storage: NextProposalId (r:1 w:1)
+    /// Storage: ValidatorSet (r:1 w:0) - for validator validation
+    /// Storage: ValidatorStates (r:v w:0) - for validator existence check
+    /// Proof: Worst case proposes rewards for multiple validators (up to MaxValidators)
     fn propose_reward_multiple_validators(v: u32) -> Weight {
         Weight::from_parts(40_000, 0)
             .saturating_add(Weight::from_parts(5_000, 0).saturating_mul(v.into()))
-            .saturating_add(RocksDbWeight::get().reads(3))
-            .saturating_add(RocksDbWeight::get().reads((1_u64).saturating_mul(v.into())))
-            .saturating_add(RocksDbWeight::get().writes(2))
+            .saturating_add(NoDatabase::get().reads(3)) // Proposals, NextProposalId, ValidatorSet
+            .saturating_add(NoDatabase::get().reads((1_u64).saturating_mul(v.into()))) // ValidatorStates per validator
+            .saturating_add(NoDatabase::get().writes(2)) // Proposals, NextProposalId
     }
-
 }
