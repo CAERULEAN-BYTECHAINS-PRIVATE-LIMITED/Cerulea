@@ -6565,7 +6565,8 @@ pub mod pallet {
                         // stands as the outcome, and the rest still run.
                         let mut first_failure: DispatchResult = Ok(());
                         for validator in validators.iter() {
-                            let paid = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                            let paid =
+                                pos::Pallet::<T>::execute_reward_validator(validator, *amount);
                             if first_failure.is_ok() {
                                 first_failure = paid;
                             }
@@ -7182,7 +7183,6 @@ pub mod pallet {
             let now = Self::get_current_timestamp();
 
             if let Some(state) = ValidatorStates::<T>::get(&validator) {
-
                 let performance_record = PerformanceRecord {
                     epoch: current_epoch,
                     blocks_authored,
@@ -11685,9 +11685,14 @@ pub mod pallet {
                     max: 5000, // Maximum threshold of 5000
                     current: T::MinPerformanceScore::get(),
                 },
+                // The high mark sits on the validator score scale. Its floor is
+                // one point above the starting minimum score and its ceiling is
+                // the top of the scale, so every mark in the range is reachable.
                 high_performance_score: ParameterRange {
-                    min: 1000,                        // Minimum high threshold of 1000
-                    max: T::MaxValidatorScore::get(), // Maximum is the max validator score
+                    min: T::MinPerformanceScore::get()
+                        .saturating_add(1)
+                        .min(T::MaxValidatorScore::get()),
+                    max: T::MaxValidatorScore::get(),
                     current: T::HighPerformanceScore::get(),
                 },
                 min_participation_rate: ParameterRange {
@@ -13029,7 +13034,9 @@ pub mod pallet {
             for (who, action) in actions {
                 match action {
                     ValidatorAction::Join => {
-                        if !active.contains(&who) && !ValidatorLeaveRequests::<T>::contains_key(&who) {
+                        if !active.contains(&who)
+                            && !ValidatorLeaveRequests::<T>::contains_key(&who)
+                        {
                             join_requests.push(who.clone());
                         }
                     }
