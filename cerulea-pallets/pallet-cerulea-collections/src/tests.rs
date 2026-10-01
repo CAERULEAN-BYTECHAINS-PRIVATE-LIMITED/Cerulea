@@ -17,14 +17,14 @@ use pallet_cerulea_schema::primitives::{
 };
 use pallet_cerulea_state::RecordStore;
 
-const DEPLOYMENT: DeploymentId = [5u8; 32];
-const STEWARD: u64 = 1;
-const CONTENT_KEY: [u8; 32] = [11u8; 32];
-const NEXT_KEY: [u8; 32] = [22u8; 32];
-const REGISTRAR_KEY: [u8; 32] = [33u8; 32];
-const CLERK_KEY: [u8; 32] = [44u8; 32];
+pub(crate) const DEPLOYMENT: DeploymentId = [5u8; 32];
+pub(crate) const STEWARD: u64 = 1;
+pub(crate) const CONTENT_KEY: [u8; 32] = [11u8; 32];
+pub(crate) const NEXT_KEY: [u8; 32] = [22u8; 32];
+pub(crate) const REGISTRAR_KEY: [u8; 32] = [33u8; 32];
+pub(crate) const CLERK_KEY: [u8; 32] = [44u8; 32];
 
-fn parcel_type() -> TypeDef {
+pub(crate) fn parcel_type() -> TypeDef {
     TypeDef::Record(RecordDef {
         id: TypeId::new("parcel"),
         fields: vec![
@@ -39,7 +39,7 @@ fn parcel_type() -> TypeDef {
     })
 }
 
-fn parcel_collection() -> Collection {
+pub(crate) fn parcel_collection() -> Collection {
     let mut collection = Collection::new(
         "parcel",
         "parcel",
@@ -53,7 +53,7 @@ fn parcel_collection() -> Collection {
     collection
 }
 
-fn parcel(survey: &str, holder: &str) -> Value {
+pub(crate) fn parcel(survey: &str, holder: &str) -> Value {
     let mut value = Value::record(
         TypeId::new("parcel"),
         vec![
@@ -68,23 +68,23 @@ fn parcel(survey: &str, holder: &str) -> Value {
     value
 }
 
-fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
+pub(crate) fn bounded<M: frame_support::traits::Get<u32>>(bytes: Vec<u8>) -> BoundedVec<u8, M> {
     BoundedVec::try_from(bytes).expect("the payload sits inside the bound")
 }
 
-fn name(text: &str) -> BoundedName {
+pub(crate) fn name(text: &str) -> BoundedName {
     name_of(text).expect("the name fits")
 }
 
-fn id() -> CollectionId {
+pub(crate) fn id() -> CollectionId {
     CollectionId::new("parcel")
 }
 
-fn slot() -> CollectionKey {
+pub(crate) fn slot() -> CollectionKey {
     CollectionKey::new(DEPLOYMENT, name("parcel"))
 }
 
-fn install() {
+pub(crate) fn install() {
     assert_ok!(Schema::register_type(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -97,16 +97,18 @@ fn install() {
     ));
 }
 
-fn insert(record: &Value) -> RecordKey {
+pub(crate) fn insert(record: &Value) -> RecordKey {
     <State as RecordStore>::insert(&DEPLOYMENT, &id(), &STEWARD, record).expect("the record lands")
 }
 
-fn holders(names: &[&str]) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<8>> {
+pub(crate) fn holders(
+    names: &[&str],
+) -> BoundedVec<BoundedName, frame_support::traits::ConstU32<8>> {
     BoundedVec::try_from(names.iter().map(|held| name(held)).collect::<Vec<_>>())
         .expect("the holder list fits")
 }
 
-fn seal_collection() {
+pub(crate) fn seal_collection() {
     assert_ok!(Collections::set_class(
         RuntimeOrigin::signed(STEWARD),
         DEPLOYMENT,
@@ -795,7 +797,7 @@ fn every_class_carries_a_label_and_a_shape() {
     );
 }
 
-fn holder_keys(
+pub(crate) fn holder_keys(
     pairs: &[(&str, [u8; 32])],
 ) -> BoundedVec<(BoundedName, [u8; 32]), frame_support::traits::ConstU32<8>> {
     BoundedVec::try_from(

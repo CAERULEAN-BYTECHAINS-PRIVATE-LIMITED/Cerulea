@@ -32,6 +32,8 @@ mod benchmarking;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
+mod privacy_tests;
+#[cfg(test)]
 mod tests;
 
 pub use pallet::*;
