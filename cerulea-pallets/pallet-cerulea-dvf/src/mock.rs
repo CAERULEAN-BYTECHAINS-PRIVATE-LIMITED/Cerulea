@@ -153,12 +153,14 @@ impl pallet_cerulea_dvf::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    // Create test validator weights synchronized with production pattern
-    // Using realistic stakes matching the bug condition exploration test
+    // Each entry names the validator, the stake it bonded and the Trust Score
+    // the Standing Engine composed for it. The Trust Score reads as a share of
+    // one in parts per billion. The commit weight reads the Trust Score. Stake
+    // stays the admission input the design names resource cost.
     let test_validator_weights = vec![
-        (account_key("Alice"), 10_000_000, 80), // Alice: 10M stake, 80 score
-        (account_key("Bob"), 8_000_000, 80),    // Bob: 8M stake, 80 score
-        (account_key("Charlie"), 6_000_000, 80), // Charlie: 6M stake, 80 score
+        (account_key("Alice"), 10_000_000, 800_000_000),
+        (account_key("Bob"), 8_000_000, 640_000_000),
+        (account_key("Charlie"), 6_000_000, 480_000_000),
     ];
 
     let mut t = frame_system::GenesisConfig::<Test>::default()

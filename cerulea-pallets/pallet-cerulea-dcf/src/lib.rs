@@ -9132,22 +9132,17 @@ pub mod pallet {
                 output_hash,
             };
 
-            // Invoke Registry weight freezing.
-            // Use the live PoS stake (raw u128 token amount) so that freeze_epoch_weights
-            // can normalize it correctly via VOTE_WEIGHT_SCALE. Using the stale
-            // stake_score field (a u64 truncation of the raw amount) caused validators
-            // like Charlie to receive a weight of 0 whenever stake_score was reset to 0
-            // by run_comprehensive_score_aggregation at the epoch boundary.
+            // Freeze the commit weight of the new epoch in the validator
+            // registry. The commit weight is the Trust Score the Standing
+            // Engine composes, read as a share of one in parts per billion.
+            // Stake travels beside it as the admission input the design names
+            // resource cost, and enters no weight.
             let dvf_input: Vec<(T::AccountId, u128, u128)> = new_active_validators
                 .iter()
                 .map(|validator| {
-                    // Read the real PoS stake directly — this is the same source used by
-                    // freeze_epoch_weights and always reflects the validator's actual bond.
                     let stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
-                    let score = ValidatorStates::<T>::get(validator)
-                        .map(|s| s.current.final_score as u128)
-                        .unwrap_or(1); // Default to 1 so weight is never 0 for active validators
-                    (validator.clone(), stake, score)
+                    let trust = Self::trust_weight(validator).max(1);
+                    (validator.clone(), stake, trust)
                 })
                 .collect();
             T::WeightFreezer::freeze_epoch_weights(next_epoch, &dvf_input);

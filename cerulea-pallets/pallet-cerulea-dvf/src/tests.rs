@@ -5,19 +5,27 @@ use sp_runtime::BuildStorage;
 
 /// The epoch commit weight the Commit Engine gives one validator.
 ///
-/// The Commit Engine compares aggregated weight against a share of the total.
-/// Each validator therefore carries the share of the epoch stake it holds,
-/// scaled to [`crate::VOTE_WEIGHT_SCALE`]. This helper repeats the engine rule
-/// so each assertion below names the rule it protects.
-fn engine_share(stake: u128, total_stake: u128) -> u128 {
-    stake * crate::VOTE_WEIGHT_SCALE / total_stake
+/// The commit weight is the Trust Score. The Commit Engine compares aggregated
+/// weight against a share of the total, so each validator carries the share of
+/// the epoch Trust Score total it holds, scaled to
+/// [`crate::VOTE_WEIGHT_SCALE`]. This helper repeats the engine rule so each
+/// assertion below names the rule it protects.
+fn engine_share(trust: u128, total_trust: u128) -> u128 {
+    trust * crate::VOTE_WEIGHT_SCALE / total_trust
 }
 
 /// The sum of every share across one validator set.
-fn engine_total(stakes: &[u128]) -> u128 {
-    let total: u128 = stakes.iter().sum();
-    stakes.iter().map(|stake| engine_share(*stake, total)).sum()
+fn engine_total(trust: &[u128]) -> u128 {
+    let total: u128 = trust.iter().sum();
+    trust.iter().map(|held| engine_share(*held, total)).sum()
 }
+
+/// The Trust Score of each validator the mock names at genesis.
+///
+/// Every figure reads as a share of one in parts per billion. Alice carries
+/// eight tenths. Bob carries sixty four hundredths. Charlie carries forty
+/// eight hundredths.
+const MOCK_TRUST: [u128; 3] = [800_000_000, 640_000_000, 480_000_000];
 
 #[test]
 fn test_is_checkpoint_block() {
@@ -297,15 +305,15 @@ fn test_submit_justification_success() {
         assert_eq!(crate::CurrentRound::<Test>::get(), 1);
 
         // The commitment record carries the aggregated share of the three
-        // signers. Each holds a third of the epoch stake, so each carries a
-        // third of the commit scale.
-        let stakes = [1000u128, 1000u128, 1000u128];
+        // signers. Each holds a third of the epoch Trust Score total, so each
+        // carries a third of the commit scale.
+        let trust = [100u128, 100u128, 100u128];
         System::assert_has_event(
             crate::Event::BlockFinalized {
                 block_number: 10,
                 block_hash,
                 round: 0,
-                weight: engine_total(&stakes),
+                weight: engine_total(&trust),
             }
             .into(),
         );
@@ -707,15 +715,18 @@ fn test_genesis_weight_initialization_bug_condition() {
         let bob = account_key("Bob");
         let charlie = account_key("Charlie");
 
+        // Each entry names the stake the validator bonded and the Trust Score
+        // the Standing Engine composed for it, as a share of one in parts per
+        // billion. The mock genesis names the same three validators.
         let genesis_validators = vec![
-            (alice.clone(), 10_000_000u128, 80u128),  // 10M stake, 80 score
-            (bob.clone(), 8_000_000u128, 80u128),     // 8M stake, 80 score
-            (charlie.clone(), 6_000_000u128, 80u128), // 6M stake, 80 score
+            (alice.clone(), 10_000_000u128, MOCK_TRUST[0]),
+            (bob.clone(), 8_000_000u128, MOCK_TRUST[1]),
+            (charlie.clone(), 6_000_000u128, MOCK_TRUST[2]),
         ];
 
         // **EXPECTED BEHAVIOR 2.1**: EpochVotingWeight SHOULD be populated at genesis
         // On unfixed code, this will be empty because there's no GenesisConfig
-        for (validator, stake, score) in &genesis_validators {
+        for (validator, stake, trust) in &genesis_validators {
             let weight = crate::EpochVotingWeight::<Test>::get(validator);
             assert!(
                 weight.is_some(),
@@ -732,15 +743,15 @@ fn test_genesis_weight_initialization_bug_condition() {
             );
 
             // The Commit Engine gives each validator its share of the epoch
-            // stake, scaled to the fixed commit scale.
-            let total_stake: u128 = genesis_validators.iter().map(|(_, stake, _)| *stake).sum();
-            let expected_total = engine_share(*stake, total_stake);
+            // Trust Score total, scaled to the fixed commit scale.
+            let total_trust: u128 = genesis_validators.iter().map(|(_, _, held)| *held).sum();
+            let expected_total = engine_share(*trust, total_trust);
             assert_eq!(
                 weight_value, expected_total,
                 "Validator {:?} carries a share the Commit Engine did not set. Expected {}, found {}",
                 validator, expected_total, weight_value
             );
-            let _ = score;
+            let _ = stake;
         }
 
         // **EXPECTED BEHAVIOR 2.3**: TotalVotingWeight SHOULD be > 0 at genesis
@@ -751,8 +762,8 @@ fn test_genesis_weight_initialization_bug_condition() {
         );
 
         // The total is the sum of every share across the set.
-        let stakes: Vec<u128> = genesis_validators.iter().map(|(_, stake, _)| *stake).collect();
-        let expected_total = engine_total(&stakes);
+        let trust: Vec<u128> = genesis_validators.iter().map(|(_, _, held)| *held).collect();
+        let expected_total = engine_total(&trust);
         assert_eq!(
             total_weight, expected_total,
             "The epoch total reads {} where the Commit Engine sets {}",
@@ -870,16 +881,16 @@ fn test_preservation_epoch_transition_updates_weights() {
             let charlie = account_key("Charlie");
 
             let validators = vec![
-                (alice.clone(), 10_000_000u128, 80u128),
-                (bob.clone(), 8_000_000u128, 80u128),
-                (charlie.clone(), 6_000_000u128, 80u128),
+                (alice.clone(), 10_000_000u128, MOCK_TRUST[0]),
+                (bob.clone(), 8_000_000u128, MOCK_TRUST[1]),
+                (charlie.clone(), 6_000_000u128, MOCK_TRUST[2]),
             ];
 
             // Call freeze_epoch_weights (simulating epoch transition)
             Registry::freeze_epoch_weights(epoch, &validators);
 
             // Verify weights are updated correctly
-            for (validator, stake, score) in &validators {
+            for (validator, stake, trust) in &validators {
                 let weight = crate::EpochVotingWeight::<Test>::get(validator);
                 assert!(
                     weight.is_some(),
@@ -888,8 +899,8 @@ fn test_preservation_epoch_transition_updates_weights() {
                 );
 
                 // The Commit Engine share rule holds at every epoch boundary.
-                let total_stake: u128 = validators.iter().map(|(_, held, _)| *held).sum();
-                let expected_total = engine_share(*stake, total_stake);
+                let total_trust: u128 = validators.iter().map(|(_, _, held)| *held).sum();
+                let expected_total = engine_share(*trust, total_trust);
 
                 assert_eq!(
                     weight.unwrap(),
@@ -897,13 +908,13 @@ fn test_preservation_epoch_transition_updates_weights() {
                     "The Commit Engine share rule moved at epoch {}",
                     epoch
                 );
-                let _ = score;
+                let _ = stake;
             }
 
             // The epoch total is the sum of every share.
             let total_weight = crate::TotalVotingWeight::<Test>::get();
-            let stakes: Vec<u128> = validators.iter().map(|(_, stake, _)| *stake).collect();
-            let expected_total = engine_total(&stakes);
+            let trust: Vec<u128> = validators.iter().map(|(_, _, held)| *held).collect();
+            let expected_total = engine_total(&trust);
 
             assert_eq!(
                 total_weight,
@@ -915,49 +926,52 @@ fn test_preservation_epoch_transition_updates_weights() {
     });
 }
 
-/// The Commit Engine share rule holds across every stake pattern.
+/// The Commit Engine share rule holds across every Trust Score pattern.
 ///
-/// The engine gives a validator the share of the epoch stake it holds. A
-/// validator holding half the stake carries half the scale. A validator
-/// holding nothing carries nothing. Equal stakes carry equal shares.
+/// The engine gives a validator the share of the epoch Trust Score total it
+/// holds. A validator holding half the total carries half the scale. A
+/// validator holding nothing carries nothing. Equal Trust Scores carry equal
+/// shares. Stake holds still across the whole run, so the rule answers to the
+/// Trust Score alone.
 #[test]
-fn the_commit_engine_share_follows_the_stake_pattern() {
+fn the_commit_engine_share_follows_the_trust_score_pattern() {
     new_test_ext().execute_with(|| {
         let alice = account_key("Alice");
         let bob = account_key("Bob");
 
-        // Each pair reads as the stake of Alice beside the stake of Bob.
+        // Each pair reads as the Trust Score of Alice beside the Trust Score
+        // of Bob, in parts per billion.
         let patterns = vec![
-            (1_000_000u128, 1_000_000u128),
-            (5_000_000u128, 1_000_000u128),
-            (10_000_000u128, 1_000_000u128),
-            (100_000u128, 1_000_000u128),
-            (0u128, 1_000_000u128),
+            (100_000_000u128, 100_000_000u128),
+            (500_000_000u128, 100_000_000u128),
+            (1_000_000_000u128, 100_000_000u128),
+            (10_000_000u128, 100_000_000u128),
+            (0u128, 100_000_000u128),
         ];
 
-        for (index, (alice_stake, bob_stake)) in patterns.iter().enumerate() {
+        for (index, (alice_trust, bob_trust)) in patterns.iter().enumerate() {
             let validators = vec![
-                (alice.clone(), *alice_stake, 80u128),
-                (bob.clone(), *bob_stake, 80u128),
+                (alice.clone(), 5_000_000u128, *alice_trust),
+                (bob.clone(), 5_000_000u128, *bob_trust),
             ];
 
             Registry::freeze_epoch_weights(index as u32 + 1, &validators);
 
-            let total_stake = alice_stake + bob_stake;
+            let total_trust = alice_trust + bob_trust;
             let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
             let bob_weight = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
 
             assert_eq!(
                 alice_weight,
-                engine_share(*alice_stake, total_stake),
-                "The share of Alice left the Commit Engine rule at stake {}",
-                alice_stake
+                engine_share(*alice_trust, total_trust),
+                "The share of Alice left the Commit Engine rule at Trust Score {}",
+                alice_trust
             );
             assert_eq!(
                 bob_weight,
-                engine_share(*bob_stake, total_stake),
-                "The share of Bob left the Commit Engine rule at stake {}",
-                bob_stake
+                engine_share(*bob_trust, total_trust),
+                "The share of Bob left the Commit Engine rule at Trust Score {}",
+                bob_trust
             );
             assert_eq!(
                 crate::TotalVotingWeight::<Test>::get(),
@@ -966,10 +980,11 @@ fn the_commit_engine_share_follows_the_stake_pattern() {
             );
         }
 
-        // Equal stakes carry equal shares, and the pair reaches the scale.
+        // Equal Trust Scores carry equal shares, and the pair reaches the
+        // scale. The two stakes differ, and the shares hold even.
         let even = vec![
-            (alice.clone(), 4_000u128, 80u128),
-            (bob.clone(), 4_000u128, 80u128),
+            (alice.clone(), 9_000u128, 400_000_000u128),
+            (bob.clone(), 4_000u128, 400_000_000u128),
         ];
         Registry::freeze_epoch_weights(99, &even);
         let alice_even = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
@@ -1156,9 +1171,9 @@ fn test_preservation_multiple_epoch_transitions() {
         // Simulate multiple epoch transitions
         for epoch in 1..=5 {
             let validators = vec![
-                (alice.clone(), 10_000_000u128, 80u128),
-                (bob.clone(), 8_000_000u128, 80u128),
-                (charlie.clone(), 6_000_000u128, 80u128),
+                (alice.clone(), 10_000_000u128, MOCK_TRUST[0]),
+                (bob.clone(), 8_000_000u128, MOCK_TRUST[1]),
+                (charlie.clone(), 6_000_000u128, MOCK_TRUST[2]),
             ];
 
             Registry::freeze_epoch_weights(epoch, &validators);
@@ -1171,11 +1186,10 @@ fn test_preservation_multiple_epoch_transitions() {
                 epoch
             );
 
-            let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
-            let total_stake: u128 = stakes.iter().sum();
+            let total_trust: u128 = MOCK_TRUST.iter().sum();
             assert_eq!(
                 alice_weight.unwrap(),
-                engine_share(10_000_000, total_stake),
+                engine_share(MOCK_TRUST[0], total_trust),
                 "Preservation check: Weight should be consistent across epoch {}",
                 epoch
             );
@@ -1184,7 +1198,7 @@ fn test_preservation_multiple_epoch_transitions() {
             let total_weight = crate::TotalVotingWeight::<Test>::get();
             assert_eq!(
                 total_weight,
-                engine_total(&stakes),
+                engine_total(&MOCK_TRUST),
                 "Preservation check: Total weight should be consistent at epoch {}",
                 epoch
             );
@@ -1192,20 +1206,21 @@ fn test_preservation_multiple_epoch_transitions() {
     });
 }
 
-/// **Property 2.6: Weight Recalculation on Stake/Score Changes**
+/// **Property 2.6: Weight Recalculation on Trust Score Changes**
 ///
-/// This test verifies that when validator stakes or scores change at epoch boundaries,
-/// weights are recalculated correctly using the same formula.
+/// The commit weight follows the Trust Score. A Trust Score that moves at an
+/// epoch boundary moves the weight with it. A stake that moves alone leaves
+/// the weight where it stands.
 #[test]
 fn test_preservation_weight_recalculation_on_changes() {
     new_test_ext().execute_with(|| {
         let alice = account_key("Alice");
         let bob = account_key("Bob");
 
-        // Epoch 1: Initial stakes and scores
+        // Epoch 1: the two validators enter with their first Trust Scores.
         let validators_epoch1 = vec![
-            (alice.clone(), 5_000_000u128, 70u128),
-            (bob.clone(), 3_000_000u128, 60u128),
+            (alice.clone(), 5_000_000u128, 700_000_000u128),
+            (bob.clone(), 3_000_000u128, 300_000_000u128),
         ];
 
         Registry::freeze_epoch_weights(1, &validators_epoch1);
@@ -1213,14 +1228,14 @@ fn test_preservation_weight_recalculation_on_changes() {
         let alice_weight_epoch1 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
         assert_eq!(
             alice_weight_epoch1,
-            engine_share(5_000_000, 5_000_000 + 3_000_000),
-            "Preservation check: Alice's weight should match formula at epoch 1"
+            engine_share(700_000_000, 700_000_000 + 300_000_000),
+            "The share of Alice left the Commit Engine rule at epoch 1"
         );
 
-        // Epoch 2: Stakes and scores change
+        // Epoch 2: the Standing Engine composes new Trust Scores.
         let validators_epoch2 = vec![
-            (alice.clone(), 8_000_000u128, 90u128), // Alice's stake and score increased
-            (bob.clone(), 2_000_000u128, 50u128),   // Bob's stake and score decreased
+            (alice.clone(), 8_000_000u128, 900_000_000u128),
+            (bob.clone(), 2_000_000u128, 100_000_000u128),
         ];
 
         Registry::freeze_epoch_weights(2, &validators_epoch2);
@@ -1228,22 +1243,139 @@ fn test_preservation_weight_recalculation_on_changes() {
         let alice_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
         assert_eq!(
             alice_weight_epoch2,
-            engine_share(8_000_000, 8_000_000 + 2_000_000),
-            "Preservation check: Alice's weight should be recalculated correctly at epoch 2"
+            engine_share(900_000_000, 900_000_000 + 100_000_000),
+            "The share of Alice left the Commit Engine rule at epoch 2"
         );
 
         let bob_weight_epoch2 = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
         assert_eq!(
             bob_weight_epoch2,
-            engine_share(2_000_000, 8_000_000 + 2_000_000),
-            "Preservation check: Bob's weight should be recalculated correctly at epoch 2"
+            engine_share(100_000_000, 900_000_000 + 100_000_000),
+            "The share of Bob left the Commit Engine rule at epoch 2"
         );
 
-        // Verify weights changed from epoch 1 to epoch 2
+        // The weight moved with the Trust Score.
         assert_ne!(
             alice_weight_epoch1, alice_weight_epoch2,
-            "Preservation check: Alice's weight should change when stake/score changes"
+            "The share of Alice follows the Trust Score across epochs"
         );
+
+        // Epoch 3: stake alone moves. The Trust Scores hold, so the shares
+        // hold with them.
+        let validators_epoch3 = vec![
+            (alice.clone(), 1_000u128, 900_000_000u128),
+            (bob.clone(), 90_000_000u128, 100_000_000u128),
+        ];
+
+        Registry::freeze_epoch_weights(3, &validators_epoch3);
+
+        assert_eq!(
+            crate::EpochVotingWeight::<Test>::get(&alice).unwrap(),
+            alice_weight_epoch2,
+            "Stake moved alone, so the share of Alice holds"
+        );
+        assert_eq!(
+            crate::EpochVotingWeight::<Test>::get(&bob).unwrap(),
+            bob_weight_epoch2,
+            "Stake moved alone, so the share of Bob holds"
+        );
+    });
+}
+
+/// Higher standing carries more commit weight at equal stake.
+///
+/// The Standing Engine composes the Trust Score. The Commit Engine reads that
+/// score as the commit weight. Two validators bonding the same stake therefore
+/// separate on standing alone, and the validator with the higher score carries
+/// the larger share.
+#[test]
+fn higher_standing_carries_more_commit_weight_at_equal_stake() {
+    new_test_ext().execute_with(|| {
+        let alice = account_key("Alice");
+        let bob = account_key("Bob");
+
+        let equal_stake = 7_000_000u128;
+        let validators = vec![
+            (alice.clone(), equal_stake, 750_000_000u128),
+            (bob.clone(), equal_stake, 250_000_000u128),
+        ];
+
+        Registry::freeze_epoch_weights(1, &validators);
+
+        let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
+        let bob_weight = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
+
+        assert!(
+            alice_weight > bob_weight,
+            "The higher standing carries the larger share at equal stake"
+        );
+        assert_eq!(
+            alice_weight,
+            engine_share(750_000_000, 1_000_000_000),
+            "Alice carries three quarters of the commit scale"
+        );
+        assert_eq!(
+            bob_weight,
+            engine_share(250_000_000, 1_000_000_000),
+            "Bob carries one quarter of the commit scale"
+        );
+        assert_eq!(alice_weight, bob_weight * 3);
+    });
+}
+
+/// The class thresholds resolve against the epoch Trust Score total.
+///
+/// The Assurance Engine names four shares. Routine holds fifty one percent.
+/// Financial holds sixty seven. Structural holds eighty. Constitutional holds
+/// ninety. Each share resolves against the total the Commit Engine froze, and
+/// that total is the sum of every Trust Score share.
+#[test]
+fn the_class_thresholds_resolve_against_the_trust_score_total() {
+    use pallet_cerulea_dcf::engines::assurance::{
+        required_weight, CONSTITUTIONAL_THRESHOLD_PERCENT, FINANCIAL_THRESHOLD_PERCENT,
+        ROUTINE_THRESHOLD_PERCENT, STRUCTURAL_THRESHOLD_PERCENT,
+    };
+
+    assert_eq!(ROUTINE_THRESHOLD_PERCENT, 51);
+    assert_eq!(FINANCIAL_THRESHOLD_PERCENT, 67);
+    assert_eq!(STRUCTURAL_THRESHOLD_PERCENT, 80);
+    assert_eq!(CONSTITUTIONAL_THRESHOLD_PERCENT, 90);
+
+    new_test_ext().execute_with(|| {
+        let alice = account_key("Alice");
+        let bob = account_key("Bob");
+        let charlie = account_key("Charlie");
+
+        // Every stake reads the same, so the shares separate on standing.
+        let validators = vec![
+            (alice.clone(), 4_000_000u128, 600_000_000u128),
+            (bob.clone(), 4_000_000u128, 300_000_000u128),
+            (charlie.clone(), 4_000_000u128, 100_000_000u128),
+        ];
+        Registry::freeze_epoch_weights(1, &validators);
+
+        let total = crate::TotalVotingWeight::<Test>::get();
+        let alice_weight = crate::EpochVotingWeight::<Test>::get(&alice).unwrap();
+        let bob_weight = crate::EpochVotingWeight::<Test>::get(&bob).unwrap();
+        let charlie_weight = crate::EpochVotingWeight::<Test>::get(&charlie).unwrap();
+
+        // The epoch total is the sum of the three Trust Score shares.
+        assert_eq!(total, alice_weight + bob_weight + charlie_weight);
+
+        // Alice alone carries six tenths. Routine passes. Financial waits.
+        assert!(alice_weight >= required_weight(total, ROUTINE_THRESHOLD_PERCENT));
+        assert!(alice_weight < required_weight(total, FINANCIAL_THRESHOLD_PERCENT));
+
+        // Alice beside Bob carries nine tenths, so every class through
+        // constitutional passes.
+        let pair = alice_weight + bob_weight;
+        assert!(pair >= required_weight(total, FINANCIAL_THRESHOLD_PERCENT));
+        assert!(pair >= required_weight(total, STRUCTURAL_THRESHOLD_PERCENT));
+        assert!(pair >= required_weight(total, CONSTITUTIONAL_THRESHOLD_PERCENT));
+
+        // Bob beside Charlie carries four tenths, so routine waits.
+        let lower = bob_weight + charlie_weight;
+        assert!(lower < required_weight(total, ROUTINE_THRESHOLD_PERCENT));
     });
 }
 
@@ -1303,25 +1435,30 @@ fn genesis_seeds_a_share_for_every_named_validator() {
             "Charlie carries a share at genesis"
         );
 
-        // The mock genesis names three stakes. Each validator carries the
-        // share of the epoch stake it holds.
-        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
-        let total_stake: u128 = stakes.iter().sum();
+        // The mock genesis names three Trust Scores. Each validator carries
+        // the share of the epoch Trust Score total it holds.
+        let total_trust: u128 = MOCK_TRUST.iter().sum();
 
-        assert_eq!(alice_weight.unwrap(), engine_share(stakes[0], total_stake));
-        assert_eq!(bob_weight.unwrap(), engine_share(stakes[1], total_stake));
+        assert_eq!(
+            alice_weight.unwrap(),
+            engine_share(MOCK_TRUST[0], total_trust)
+        );
+        assert_eq!(
+            bob_weight.unwrap(),
+            engine_share(MOCK_TRUST[1], total_trust)
+        );
         assert_eq!(
             charlie_weight.unwrap(),
-            engine_share(stakes[2], total_stake)
+            engine_share(MOCK_TRUST[2], total_trust)
         );
 
         // The share of Alice exceeds the share of Bob, which exceeds the
-        // share of Charlie, in the order their stakes run.
+        // share of Charlie, in the order their Trust Scores run.
         assert!(alice_weight.unwrap() > bob_weight.unwrap());
         assert!(bob_weight.unwrap() > charlie_weight.unwrap());
 
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        assert_eq!(total_weight, engine_total(&stakes));
+        assert_eq!(total_weight, engine_total(&MOCK_TRUST));
     });
 }
 
@@ -1329,11 +1466,11 @@ fn genesis_seeds_a_share_for_every_named_validator() {
 #[test]
 fn genesis_seeds_five_validators() {
     let validators = vec![
-        (account_key("Alice"), 1000u128, 80u128),
-        (account_key("Bob"), 2000u128, 80u128),
-        (account_key("Charlie"), 3000u128, 80u128),
-        (account_key("Dave"), 4000u128, 80u128),
-        (account_key("Eve"), 5000u128, 80u128),
+        (account_key("Alice"), 1000u128, 100_000_000u128),
+        (account_key("Bob"), 2000u128, 200_000_000u128),
+        (account_key("Charlie"), 3000u128, 300_000_000u128),
+        (account_key("Dave"), 4000u128, 400_000_000u128),
+        (account_key("Eve"), 5000u128, 500_000_000u128),
     ];
 
     let mut t = frame_system::GenesisConfig::<Test>::default()
@@ -1351,17 +1488,17 @@ fn genesis_seeds_five_validators() {
     let mut ext: sp_io::TestExternalities = t.into();
 
     ext.execute_with(|| {
-        let stakes: Vec<u128> = validators.iter().map(|(_, stake, _)| *stake).collect();
-        let total_stake: u128 = stakes.iter().sum();
+        let trust: Vec<u128> = validators.iter().map(|(_, _, held)| *held).collect();
+        let total_trust: u128 = trust.iter().sum();
 
-        for (validator, stake, _score) in &validators {
+        for (validator, _stake, held) in &validators {
             let weight = crate::EpochVotingWeight::<Test>::get(validator);
             assert!(weight.is_some(), "Each validator carries a share");
-            assert_eq!(weight.unwrap(), engine_share(*stake, total_stake));
+            assert_eq!(weight.unwrap(), engine_share(*held, total_trust));
         }
 
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        assert_eq!(total_weight, engine_total(&stakes));
+        assert_eq!(total_weight, engine_total(&trust));
         assert!(total_weight <= crate::VOTE_WEIGHT_SCALE);
     });
 }
@@ -1373,7 +1510,8 @@ fn genesis_seeds_ten_validators() {
         .map(|i| {
             let name = format!("Validator{}", i);
             let stake = (i as u128 + 1) * 1000;
-            (account_key(&name), stake, 80u128)
+            let trust = (i as u128 + 1) * 90_000_000;
+            (account_key(&name), stake, trust)
         })
         .collect();
 
@@ -1392,12 +1530,12 @@ fn genesis_seeds_ten_validators() {
     let mut ext: sp_io::TestExternalities = t.into();
 
     ext.execute_with(|| {
-        let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
+        let total_trust: u128 = validators.iter().map(|(_, _, held)| *held).sum();
 
-        for (validator, stake, _score) in &validators {
+        for (validator, _stake, held) in &validators {
             let weight = crate::EpochVotingWeight::<Test>::get(validator);
             assert!(weight.is_some(), "Each validator carries a share");
-            assert_eq!(weight.unwrap(), engine_share(*stake, total_stake));
+            assert_eq!(weight.unwrap(), engine_share(*held, total_trust));
         }
 
         let validator_set_id = crate::ValidatorSetId::<Test>::get();
@@ -1452,7 +1590,7 @@ fn genesis_accepts_an_open_spec_naming_no_validator() {
         // The Admission Engine admits a validator, and the Commit Engine
         // weight table follows at the next epoch boundary.
         let alice = account_key("Alice");
-        Registry::freeze_epoch_weights(1, &[(alice.clone(), 1_000u128, 80u128)]);
+        Registry::freeze_epoch_weights(1, &[(alice.clone(), 1_000u128, 800_000_000u128)]);
         assert_eq!(
             crate::EpochVotingWeight::<Test>::get(&alice),
             Some(crate::VOTE_WEIGHT_SCALE)
@@ -1479,7 +1617,7 @@ fn test_genesis_rejects_zero_stake() {
     .unwrap();
 }
 
-/// Test that genesis validation rejects invalid scores (> 100)
+/// Genesis refuses a Trust Score above the ceiling of one.
 #[test]
 #[should_panic(expected = "has invalid score")]
 fn test_genesis_rejects_invalid_score() {
@@ -1489,13 +1627,39 @@ fn test_genesis_rejects_invalid_score() {
 
     crate::GenesisConfig::<Test> {
         initial_validator_keys: Vec::new(),
-        initial_validator_weights: vec![
-            (account_key("Alice"), 1000, 101), // Score > 100
-        ],
+        initial_validator_weights: vec![(
+            account_key("Alice"),
+            1000,
+            crate::TRUST_SCORE_CEILING + 1,
+        )],
         strict_validation: true,
     }
     .assimilate_storage(&mut t)
     .unwrap();
+}
+
+/// Genesis accepts a Trust Score that reaches the ceiling of one.
+#[test]
+fn genesis_accepts_a_trust_score_at_the_ceiling() {
+    let mut t = frame_system::GenesisConfig::<Test>::default()
+        .build_storage()
+        .unwrap();
+
+    crate::GenesisConfig::<Test> {
+        initial_validator_keys: Vec::new(),
+        initial_validator_weights: vec![(account_key("Alice"), 1000, crate::TRUST_SCORE_CEILING)],
+        strict_validation: true,
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    let mut ext: sp_io::TestExternalities = t.into();
+    ext.execute_with(|| {
+        assert_eq!(
+            crate::EpochVotingWeight::<Test>::get(&account_key("Alice")),
+            Some(crate::VOTE_WEIGHT_SCALE)
+        );
+    });
 }
 
 /// Genesis runs the epoch weight freeze for epoch zero.
@@ -1510,9 +1674,11 @@ fn genesis_freezes_the_weights_of_epoch_zero() {
             "Genesis runs the epoch weight freeze, so Alice carries a share"
         );
 
-        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
-        let total_stake: u128 = stakes.iter().sum();
-        assert_eq!(alice_weight.unwrap(), engine_share(stakes[0], total_stake));
+        let total_trust: u128 = MOCK_TRUST.iter().sum();
+        assert_eq!(
+            alice_weight.unwrap(),
+            engine_share(MOCK_TRUST[0], total_trust)
+        );
     });
 }
 
@@ -1545,9 +1711,8 @@ fn test_genesis_populates_epoch_voting_weight() {
 fn genesis_records_the_epoch_total() {
     new_test_ext().execute_with(|| {
         let total_weight = crate::TotalVotingWeight::<Test>::get();
-        let stakes = [10_000_000u128, 8_000_000u128, 6_000_000u128];
 
-        assert_eq!(total_weight, engine_total(&stakes));
+        assert_eq!(total_weight, engine_total(&MOCK_TRUST));
         assert!(
             total_weight > 0,
             "The epoch total carries weight at genesis"

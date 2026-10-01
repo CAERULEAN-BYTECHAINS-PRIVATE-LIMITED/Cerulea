@@ -58,6 +58,7 @@ use sp_blockchain::HeaderBackend;
 use sp_consensus::Error;
 use sp_core::{ed25519, sr25519};
 use sp_runtime::traits::{Block as BlockTrait, Header as HeaderT, NumberFor, SaturatedConversion};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// Build the committee of one slot from the seats the chain published.
@@ -82,14 +83,26 @@ pub fn committee_from_seats(
 }
 
 /// Build the key registry from the key sets the chain published.
+///
+/// The registry records the commit weight beside each key pair. That weight is
+/// the Trust Score the Standing Engine composes, which the chain answers in
+/// parts per million. A validator the chain names no weight for records a
+/// score of zero, so the tally never invents weight the chain did not give.
 pub fn registry_from_keys(
     keys: &[(AccountId, pallet_cerulea_dvf::keys::ValidatorKeySet)],
+    commit_weights: &[(AccountId, u32)],
 ) -> KeyRegistry {
-    KeyRegistry::from_pairs(keys.iter().map(|(_, set)| {
-        ValidatorKeys::new(
+    let held: BTreeMap<&AccountId, u32> = commit_weights
+        .iter()
+        .map(|(validator, parts)| (validator, *parts))
+        .collect();
+    KeyRegistry::from_weighted_pairs(keys.iter().map(|(validator, set)| {
+        let keys = ValidatorKeys::new(
             sr25519::Public::from_raw(set.draw),
             ed25519::Public::from_raw(set.seal),
-        )
+        );
+        let parts = held.get(validator).copied().unwrap_or(0);
+        (keys, TrustScore::from_parts_per_million(parts))
     }))
 }
 
@@ -223,11 +236,20 @@ where
                 reason
             )
         })?;
+        // The commit weight of a validator is its Trust Score. Import records
+        // that weight beside the key pair.
+        let commit_weights = api.validator_commit_weights(best_hash).map_err(|reason| {
+            format!(
+                "The validator commit weights failed to load: {:?}. Fix: check that the node \
+                 runtime matches the chain specification.",
+                reason
+            )
+        })?;
 
         let seed = derive_slot_seed(reference, seal.claim.slot);
         let input = DrawInput::new(seal.claim.slot, seed);
         let committee = committee_from_seats(seal.claim.slot, &seats);
-        let registry = registry_from_keys(&key_sets);
+        let registry = registry_from_keys(&key_sets, &commit_weights);
         let schedule = SlotSchedule::for_slot(seal.claim.slot, AuthoringPolicy::standard());
         let context =
             crate::engines::authoring::verify::SlotContext::new(input, committee, schedule);
@@ -328,28 +350,6 @@ where
         }
     }
 
-    /// Place one proof in the queue and raise the alert.
-    fn raise_equivocation(&self, proof: EquivocationProof) {
-        let placed = self.reports.write().place(proof);
-        if placed {
-            warn!(
-                "Authoring Engine equivocation: validator {:?} sealed two headers for slot {} at                  rank {}. The evidence goes to the framework pallet and standing returns to zero.",
-                proof.first.seal_key(),
-                proof.first.slot(),
-                proof.first.rank()
-            );
-            if let Some(metrics) = &self.consensus_metrics {
-                metrics.record_author_mismatch();
-            }
-        }
-    }
-
-    /// Accept one equivocation report arriving from a peer.
-    ///
-            self.raise_equivocation(proof);
-        }
-    }
-
     /// Keep the sealed head of one header refused on its claimed rank.
     ///
     /// The tracker checks the recorded seal key and the seal signature first,
@@ -374,6 +374,28 @@ where
             }
         };
         if let Some(proof) = detected {
+            self.raise_equivocation(proof);
+        }
+    }
+
+    /// Place one proof in the queue and raise the alert.
+    fn raise_equivocation(&self, proof: EquivocationProof) {
+        let placed = self.reports.write().place(proof);
+        if placed {
+            warn!(
+                "Authoring Engine equivocation: validator {:?} sealed two headers for slot {} at                  rank {}. The evidence goes to the framework pallet and standing returns to zero.",
+                proof.first.seal_key(),
+                proof.first.slot(),
+                proof.first.rank()
+            );
+            if let Some(metrics) = &self.consensus_metrics {
+                metrics.record_author_mismatch();
+            }
+        }
+    }
+
+    /// Accept one equivocation report arriving from a peer.
+    ///
     /// The byte bound runs before any decoding. The evidence check then runs
     /// over the whole proof, so the node trusts no peer. The call reports the
     /// facts the proof states.

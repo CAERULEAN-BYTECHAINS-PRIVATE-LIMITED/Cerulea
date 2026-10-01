@@ -163,6 +163,13 @@ fn testnet_genesis_with_stakes(
     )
 }
 
+/// The Trust Score share every validator starts under at genesis.
+///
+/// The figure reads in parts per billion, the way every Standing Engine
+/// component reads. Eight tenths of one places each genesis validator on the
+/// same footing until the engines record real service.
+const GENESIS_TRUST_SHARE: u128 = 800_000_000;
+
 /// Returns a genesis settings with custom validator stakes and names
 fn testnet_genesis_with_stakes_and_names(
     initial_validators: Vec<AccountId>,  // Validator accounts
@@ -223,13 +230,15 @@ fn testnet_genesis_with_stakes_and_names(
             })
             .collect();
 
-    // Create Registry initial weights synchronized with DCF validators
-    // This ensures Registry voting weights match DCF validator data at genesis
+    // The commit weight of an epoch reads the Trust Score. The Standing
+    // Engine has recorded no service at block zero, so every genesis validator
+    // starts under the same Trust Score share and therefore the same commit
+    // weight. Service, performance, custody and sampling move the share from
+    // the first epoch boundary onward.
     let dvf_initial_weights: Vec<(AccountId, u128, u128)> = initial_validators
         .iter()
         .zip(stakes.iter())
-        .zip(validator_scores.iter())
-        .map(|((validator, stake), score)| (validator.clone(), *stake, *score as u128))
+        .map(|(validator, stake)| (validator.clone(), *stake, GENESIS_TRUST_SHARE))
         .collect();
 
     let (deployment, attestation, signature, control_plane_key) = starting_licence();

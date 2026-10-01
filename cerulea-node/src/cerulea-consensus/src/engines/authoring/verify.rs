@@ -23,7 +23,7 @@ use super::committee::SlotCommittee;
 use super::draw::{verify_result, DrawInput};
 use super::fallback::SlotSchedule;
 use super::seal::{check_seal_signature, extract_seal, BlockSeal, ValidatorKeys};
-use crate::engines::{EngineError, Rank, Slot};
+use crate::engines::{EngineError, Rank, Slot, TrustScore};
 
 /// The registry of validator key pairs.
 ///
@@ -36,9 +36,15 @@ pub trait ValidatorRegistry {
 }
 
 /// A registry of validator key pairs held in memory.
+///
+/// The registry also records the commit weight of each validator. That weight
+/// is the Trust Score the Standing Engine composes. Stake enters no part of it.
+/// The Commit Engine opens its tally over the weights recorded here, so the
+/// node and the chain read one figure.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct KeyRegistry {
     pairs: BTreeMap<sr25519::Public, ed25519::Public>,
+    weights: BTreeMap<sr25519::Public, TrustScore>,
 }
 
 impl KeyRegistry {
@@ -46,12 +52,19 @@ impl KeyRegistry {
     pub fn new() -> Self {
         KeyRegistry {
             pairs: BTreeMap::new(),
+            weights: BTreeMap::new(),
         }
     }
 
     /// Record one validator key pair.
     pub fn record(&mut self, keys: ValidatorKeys) {
         self.pairs.insert(keys.draw, keys.seal);
+    }
+
+    /// Record one validator key pair beside the Trust Score it carries.
+    pub fn record_weighted(&mut self, keys: ValidatorKeys, weight: TrustScore) {
+        self.pairs.insert(keys.draw, keys.seal);
+        self.weights.insert(keys.draw, weight);
     }
 
     /// Build a registry from a list of key pairs.
@@ -61,6 +74,38 @@ impl KeyRegistry {
             registry.record(keys);
         }
         registry
+    }
+
+    /// Build a registry from key pairs that each carry a Trust Score.
+    pub fn from_weighted_pairs(
+        pairs: impl IntoIterator<Item = (ValidatorKeys, TrustScore)>,
+    ) -> Self {
+        let mut registry = KeyRegistry::new();
+        for (keys, weight) in pairs {
+            registry.record_weighted(keys, weight);
+        }
+        registry
+    }
+
+    /// The Trust Score recorded against one draw key.
+    ///
+    /// A validator the registry holds no score for reads as absent. The node
+    /// records a score as soon as the chain answers with one.
+    pub fn weight_of(&self, draw: &sr25519::Public) -> Option<TrustScore> {
+        self.weights.get(draw).copied()
+    }
+
+    /// Every Trust Score the registry records, in draw key order.
+    pub fn weights(&self) -> Vec<TrustScore> {
+        self.weights.values().copied().collect()
+    }
+
+    /// The Trust Score weight of the whole recorded set.
+    ///
+    /// The Commit Engine compares aggregated signer weight against a share of
+    /// this total.
+    pub fn total_weight(&self) -> u128 {
+        self.weights.values().map(|weight| weight.weight()).sum()
     }
 
     /// The number of validators recorded.
@@ -194,6 +239,44 @@ where
     })
 }
 
+/// The lead a claimed moment may hold over the local clock, in milliseconds.
+///
+/// Two honest clocks drift apart by a small margin. The allowance covers that
+/// margin and stays well below one rank timeout, so a later rank never gains
+/// the window of an earlier rank.
+pub const ARRIVAL_ALLOWANCE_MS: u64 = 500;
+
+/// Check one seal on arrival against the local clock.
+///
+/// The seal claims the moment the author took the slot, and the rank window
+/// check reads that moment. A claimed moment is only a claim. A committee
+/// member at a later rank could name a moment inside its own window and
+/// publish the block while an earlier rank still holds the slot. The call
+/// therefore also refuses a claimed moment the local clock has yet to reach,
+/// beyond the drift allowance. A block fetched long after its slot passes this
+/// check, since its claimed moment sits in the past.
+pub fn verify_seal_on_arrival<H, R>(
+    header: &H,
+    seal: &BlockSeal,
+    context: &SlotContext,
+    registry: &R,
+    arrival_ms: u64,
+) -> Result<VerifiedSeal, EngineError>
+where
+    H: HeaderT,
+    R: ValidatorRegistry,
+{
+    let claimed_ms = seal.claim.moment_ms;
+    if claimed_ms > arrival_ms.saturating_add(ARRIVAL_ALLOWANCE_MS) {
+        return Err(EngineError::SealMomentAhead {
+            rank: seal.claim.rank.0,
+            claimed_ms,
+            arrival_ms,
+        });
+    }
+    verify_seal(header, seal, context, registry, claimed_ms)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,44 +322,6 @@ mod tests {
                 .ed25519_generate_new(CERULEA_KEY_TYPE, Some(&format!("//Cerulea//{}", seed)))
                 .expect("the keystore generates a key");
             registry.record(ValidatorKeys::new(pair.public(), seal));
-/// The lead a claimed moment may hold over the local clock, in milliseconds.
-///
-/// Two honest clocks drift apart by a small margin. The allowance covers that
-/// margin and stays well below one rank timeout, so a later rank never gains
-/// the window of an earlier rank.
-pub const ARRIVAL_ALLOWANCE_MS: u64 = 500;
-
-/// Check one seal on arrival against the local clock.
-///
-/// The seal claims the moment the author took the slot, and the rank window
-/// check reads that moment. A claimed moment is only a claim. A committee
-/// member at a later rank could name a moment inside its own window and
-/// publish the block while an earlier rank still holds the slot. The call
-/// therefore also refuses a claimed moment the local clock has yet to reach,
-/// beyond the drift allowance. A block fetched long after its slot passes this
-/// check, since its claimed moment sits in the past.
-pub fn verify_seal_on_arrival<H, R>(
-    header: &H,
-    seal: &BlockSeal,
-    context: &SlotContext,
-    registry: &R,
-    arrival_ms: u64,
-) -> Result<VerifiedSeal, EngineError>
-where
-    H: HeaderT,
-    R: ValidatorRegistry,
-{
-    let claimed_ms = seal.claim.moment_ms;
-    if claimed_ms > arrival_ms.saturating_add(ARRIVAL_ALLOWANCE_MS) {
-        return Err(EngineError::SealMomentAhead {
-            rank: seal.claim.rank.0,
-            claimed_ms,
-            arrival_ms,
-        });
-    }
-    verify_seal(header, seal, context, registry, claimed_ms)
-}
-
             seal_keys.insert(pair.public(), seal);
             entries.push((draw(&pair, &input), TrustScore::from_percent(50)));
         }
@@ -553,5 +598,48 @@ where
         assert_eq!(registry.seal_key_of(&draw_pair(2).public()), None);
         let built = KeyRegistry::from_pairs([ValidatorKeys::new(draw_key, seal_key)]);
         assert_eq!(built, registry);
+    }
+
+    #[test]
+    fn a_registry_records_the_trust_score_beside_the_key_pair() {
+        let first = ValidatorKeys::new(
+            draw_pair(1).public(),
+            ed25519::Pair::from_seed(&[1u8; 32]).public(),
+        );
+        let second = ValidatorKeys::new(
+            draw_pair(2).public(),
+            ed25519::Pair::from_seed(&[2u8; 32]).public(),
+        );
+
+        let registry = KeyRegistry::from_weighted_pairs([
+            (first, TrustScore::from_percent(75)),
+            (second, TrustScore::from_percent(25)),
+        ]);
+
+        assert_eq!(registry.len(), 2);
+        assert_eq!(
+            registry.weight_of(&first.draw),
+            Some(TrustScore::from_percent(75))
+        );
+        assert_eq!(
+            registry.weight_of(&second.draw),
+            Some(TrustScore::from_percent(25))
+        );
+        assert_eq!(
+            registry.total_weight(),
+            TrustScore::from_percent(75).weight() + TrustScore::from_percent(25).weight()
+        );
+        assert_eq!(registry.weights().len(), 2);
+    }
+
+    #[test]
+    fn a_registry_built_from_keys_alone_records_no_trust_score() {
+        let keys = ValidatorKeys::new(
+            draw_pair(3).public(),
+            ed25519::Pair::from_seed(&[3u8; 32]).public(),
+        );
+        let registry = KeyRegistry::from_pairs([keys]);
+        assert_eq!(registry.weight_of(&keys.draw), None);
+        assert_eq!(registry.total_weight(), 0);
     }
 }

@@ -156,6 +156,9 @@ pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExterna
         .assimilate_storage(&mut storage)
         .unwrap();
 
+        // The commit weight reads the Trust Score, as a share of one in parts
+        // per billion. The mock scores read as percentages, so each one scales
+        // to the share it names.
         pallet_cerulea_dvf::GenesisConfig::<Runtime> {
             initial_validator_weights: config
                 .validators
@@ -163,7 +166,7 @@ pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExterna
                 .cloned()
                 .zip(config.validator_stakes.iter().cloned())
                 .zip(config.validator_scores.iter().cloned())
-                .map(|((validator, stake), score)| (validator, stake, score as u128))
+                .map(|((validator, stake), score)| (validator, stake, score as u128 * 10_000_000))
                 .collect(),
             initial_validator_keys: alloc::vec![],
             strict_validation: false,

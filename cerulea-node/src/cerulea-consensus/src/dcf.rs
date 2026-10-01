@@ -296,11 +296,16 @@ where
         let key_sets = api
             .active_validator_keys(best_hash)
             .map_err(|e| ConsensusError::AuthorSelection(format!("The validator key records failed to load: {:?}. Fix: check that the node runtime matches the chain specification.", e)))?;
+        // The commit weight of a validator is its Trust Score. The registry
+        // records that weight beside the key pair.
+        let commit_weights = api
+            .validator_commit_weights(best_hash)
+            .map_err(|e| ConsensusError::AuthorSelection(format!("The validator commit weights failed to load: {:?}. Fix: check that the node runtime matches the chain specification.", e)))?;
 
         let seed = derive_slot_seed(reference, slot);
         let input = DrawInput::new(slot, seed);
         let committee = committee_from_seats(slot, &seats);
-        let registry = registry_from_keys(&key_sets);
+        let registry = registry_from_keys(&key_sets, &commit_weights);
         let schedule = SlotSchedule::for_slot(slot, self.authoring_policy);
         Ok((SlotContext::new(input, committee, schedule), registry))
     }

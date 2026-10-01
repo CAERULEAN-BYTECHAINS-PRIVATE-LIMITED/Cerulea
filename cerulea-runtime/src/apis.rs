@@ -456,6 +456,9 @@ impl_runtime_apis! {
             pallet_cerulea_dcf::Pallet::<Runtime>::active_validators().to_vec()
         }
 
+        // The commit weight of an epoch is the Trust Score. The validator
+        // registry froze the share of the epoch Trust Score total each
+        // validator holds, and this call reads that table back.
         fn get_validator_weights() -> Vec<(AccountId, u128)> {
             pallet_cerulea_dvf::EpochVotingWeight::<Runtime>::iter().collect()
         }
@@ -507,6 +510,17 @@ impl_runtime_apis! {
     impl pallet_cerulea_dvf::CeruleaAuthoringApi<Block, AccountId> for Runtime {
         fn active_validator_keys() -> Vec<(AccountId, pallet_cerulea_dvf::keys::ValidatorKeySet)> {
             pallet_cerulea_dvf::Pallet::<Runtime>::active_validator_keys()
+        }
+
+        fn validator_commit_weights() -> Vec<(AccountId, u32)> {
+            pallet_cerulea_dcf::Pallet::<Runtime>::active_validators()
+                .into_iter()
+                .map(|validator| {
+                    let trust = pallet_cerulea_dcf::Pallet::<Runtime>::trust_score(&validator)
+                        .parts_per_million();
+                    (validator, trust)
+                })
+                .collect()
         }
 
         fn slot_committee(slot: u64, parent_hash: [u8; 32]) -> Vec<pallet_cerulea_dvf::keys::SlotCommitteeSeat<AccountId>> {

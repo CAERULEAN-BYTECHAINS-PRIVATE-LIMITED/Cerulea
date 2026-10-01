@@ -11,11 +11,19 @@ pub use pallet::*;
 /// The scale the epoch commit weight of one validator reads on.
 ///
 /// The Commit Engine compares aggregated weight against a share of the total.
-/// Every validator therefore carries a share of this fixed scale rather than a
-/// raw stake figure. A validator holding half the stake of an epoch carries
-/// half of this number. The sum across an epoch reaches this number, less the
-/// remainder integer division leaves behind.
+/// Every validator therefore carries a share of this fixed scale. A validator
+/// holding half the Trust Score of an epoch carries half of this number. The
+/// sum across an epoch reaches this number, less the remainder integer
+/// division leaves behind.
 pub const VOTE_WEIGHT_SCALE: u128 = 32_000;
+
+/// The highest Trust Score one validator reaches.
+///
+/// The Standing Engine composes the Trust Score as a share of one, counted in
+/// parts per billion. A validator meeting every component reaches this number.
+/// The epoch weight freeze reads that share. Genesis refuses a figure above
+/// the ceiling.
+pub const TRUST_SCORE_CEILING: u128 = 1_000_000_000;
 
 use alloc::vec::Vec;
 use frame_support::traits::Get;
@@ -132,6 +140,10 @@ pub mod pallet {
             fn get_dvf_finalized_block() -> BlockNumber;
             fn get_current_epoch() -> u32;
             fn get_validator_set() -> sp_std::vec::Vec<AccountId>;
+            /// The frozen commit weight of each validator in this epoch.
+            ///
+            /// Each figure is the share of the epoch Trust Score total the
+            /// validator holds, scaled to [`crate::VOTE_WEIGHT_SCALE`].
             fn get_validator_weights() -> sp_std::vec::Vec<(AccountId, u128)>;
             fn get_finality_threshold_perbill() -> sp_runtime::Perbill;
             fn get_finality_info(block_number: BlockNumber) -> FinalityInfo<BlockNumber, Hash>;
@@ -156,6 +168,14 @@ pub mod pallet {
         {
             /// The draw key and the seal key of every active validator.
             fn active_validator_keys() -> sp_std::vec::Vec<(AccountId, crate::keys::ValidatorKeySet)>;
+
+            /// The commit weight of every active validator.
+            ///
+            /// The commit weight is the Trust Score the Standing Engine
+            /// composes, read in parts per million. The node records the
+            /// figure beside the key pair, so the Commit Engine tally opens
+            /// over the live set. Stake enters no part of this answer.
+            fn validator_commit_weights() -> sp_std::vec::Vec<(AccountId, u32)>;
 
             /// The five drawn validators for one slot, in rank order.
             ///
@@ -417,6 +437,11 @@ pub mod pallet {
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
+        /// The validators present at genesis.
+        ///
+        /// Each entry names the validator, the stake it bonded and the Trust
+        /// Score it starts under, as a share of one in parts per billion. The
+        /// commit weight reads the Trust Score. Stake stays an admission input.
         pub initial_validator_weights: Vec<(T::AccountId, u128, u128)>,
         /// The draw key and the seal key of each validator present at genesis.
         pub initial_validator_keys: Vec<(T::AccountId, crate::keys::ValidatorKeySet)>,
@@ -439,17 +464,18 @@ pub mod pallet {
                 );
             }
 
-            for (validator, stake, score) in &self.initial_validator_weights {
+            for (validator, stake, trust) in &self.initial_validator_weights {
                 assert!(
                     *stake > 0,
                     "Registry genesis validator {:?} has invalid stake (must be > 0)",
                     validator
                 );
                 assert!(
-                    *score <= 100,
-                    "Registry genesis validator {:?} has invalid score {} (must be 0-100)",
+                    *trust <= crate::TRUST_SCORE_CEILING,
+                    "Registry genesis validator {:?} has invalid score {} (must be 0 to {})",
                     validator,
-                    score
+                    trust,
+                    crate::TRUST_SCORE_CEILING
                 );
             }
 
@@ -1178,6 +1204,17 @@ pub mod pallet {
             }
         }
 
+        /// Freeze the commit weight of every validator for one epoch.
+        ///
+        /// Each entry names a validator, the stake it bonded and the Trust
+        /// Score the Standing Engine composed for it. The commit weight is the
+        /// Trust Score. A validator carries the share of the epoch Trust Score
+        /// total it holds, scaled to [`crate::VOTE_WEIGHT_SCALE`]. Stake stays
+        /// an admission input, where the design names resource cost, and enters
+        /// no weight here.
+        ///
+        /// A set whose Trust Score total reads zero carries an even split, so a
+        /// chain that has yet to record any standing still reaches agreement.
         pub fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
             let new_validator_accounts: Vec<T::AccountId> =
                 validators.iter().map(|(v, _, _)| v.clone()).collect();
@@ -1218,12 +1255,16 @@ pub mod pallet {
             let _ = EpochVotingWeight::<T>::clear(u32::MAX, None);
 
             let validator_count = validators.len() as u128;
-            let total_stake: u128 = validators.iter().map(|(_, stake, _)| *stake).sum();
+            let total_trust: u128 = validators
+                .iter()
+                .map(|(_, _, trust)| (*trust).min(crate::TRUST_SCORE_CEILING))
+                .sum();
             let mut total_epoch_weight = 0u128;
 
-            for (validator, stake, _score) in validators {
-                let normalized_weight = if total_stake > 0 {
-                    stake.saturating_mul(crate::VOTE_WEIGHT_SCALE) / total_stake
+            for (validator, _stake, trust) in validators {
+                let held = (*trust).min(crate::TRUST_SCORE_CEILING);
+                let normalized_weight = if total_trust > 0 {
+                    held.saturating_mul(crate::VOTE_WEIGHT_SCALE) / total_trust
                 } else if validator_count > 0 {
                     crate::VOTE_WEIGHT_SCALE / validator_count
                 } else {

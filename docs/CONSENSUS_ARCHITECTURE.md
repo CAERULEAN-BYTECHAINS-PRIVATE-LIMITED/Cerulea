@@ -87,6 +87,34 @@ size, and includes the aggregate and the signer bitmap in the block.
 A domain commits when the aggregated Trust Score weight crosses the threshold
 for the highest class present in that domain. One round settles a domain.
 
+### Commit weight
+
+The commit weight of a validator is its Trust Score. The Standing Engine
+composes that score from its components. Stake enters no part of the weight.
+Stake stays an admission input, where the design names resource cost.
+
+1. **Epoch freeze.** At every epoch boundary the framework module hands each
+   active validator to the validator registry with its Trust Score. The Trust
+   Score reads as a share of one, counted in parts per billion. The registry
+   gives each validator the share of the epoch Trust Score total it holds,
+   scaled to a fixed commit scale of 32,000. A set whose Trust Score total reads
+   zero carries an even split, so a chain with no recorded standing still
+   reaches agreement.
+2. **Genesis.** Every genesis validator starts under the same Trust Score
+   share of eight tenths. The commit weights therefore start even. Service,
+   performance, custody and sampling move them from the first epoch boundary.
+3. **Node registry.** The node records the Trust Score of each active validator
+   beside its key pair. The Commit Engine tally opens over those weights, so the
+   node and the chain read one figure.
+4. **Slot committee.** The seat value of each validator scales by the same Trust
+   Score, so authoring and commitment answer to one measure.
+5. **Readers.** The epoch weight interface answers the frozen Trust Score share
+   of each validator. Cerulea Explorer reads that answer on its validator pages.
+
+Two validators bonding the same stake separate on standing alone. The validator
+with the higher Trust Score carries the larger commit weight. Each class
+threshold below resolves against the epoch Trust Score total.
+
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded

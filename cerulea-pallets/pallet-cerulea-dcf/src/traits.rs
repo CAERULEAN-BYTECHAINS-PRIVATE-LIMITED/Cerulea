@@ -2,7 +2,11 @@ extern crate alloc;
 
 /// A trait defining the interface needed by DCF to notify Registry of epoch transitions.
 pub trait WeightFreezer<AccountId> {
-    /// Freezes the validator stakes and weights for a new epoch in the Registry gadget.
+    /// Freezes the commit weight of every validator for a new epoch.
+    ///
+    /// Each entry names a validator, the stake it bonded and the Trust Score
+    /// the Standing Engine composed for it. The commit weight is the Trust
+    /// Score. Stake stays an admission input.
     fn freeze_epoch_weights(epoch: u32, validators: &[(AccountId, u128, u128)]);
 }
 
