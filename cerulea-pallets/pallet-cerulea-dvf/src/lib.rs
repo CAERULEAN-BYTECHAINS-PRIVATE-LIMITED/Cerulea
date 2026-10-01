@@ -563,9 +563,44 @@ pub mod pallet {
     pub type KeyRotationEpoch<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     /// Genesis settings for the Registry pallet.
+    /// The public key the control plane signs validator licences with.
+    ///
+    /// While the key is present, a validator joins the set only under a
+    /// licence attestation that key signed and that still holds.
+    #[pallet::storage]
+    pub type ValidatorLicenceKey<T: Config> = StorageValue<_, [u8; 32], OptionQuery>;
+
+    /// The lowest licence class a validator of this chain carries.
+    #[pallet::storage]
+    pub type RequiredLicenceClass<T: Config> =
+        StorageValue<_, crate::engines::admission::licence::LicenceClass, ValueQuery>;
+
+    /// The licence attestation each validator holds.
+    #[pallet::storage]
+    pub type ValidatorLicences<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::admission::licence::LicenceAttestation<T::AccountId, BlockNumberFor<T>>,
+        OptionQuery,
+    >;
+
+    /// The newest attestation nonce each validator presented.
+    ///
+    /// A replayed attestation carries an older nonce, so a licence the
+    /// control plane withdrew never returns.
+    #[pallet::storage]
+    pub type LicenceNonces<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u64, ValueQuery>;
+
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
+        /// The public key the control plane signs validator licences with.
+        ///
+        /// A chain specification that names a key makes every later
+        /// validator join under a licence that key signed.
+        pub validator_licence_key: Option<[u8; 32]>,
         /// The validators present at genesis.
         ///
         /// Each entry names the validator, the stake it bonded and the Trust
@@ -621,6 +656,10 @@ pub mod pallet {
             for (validator, keys) in &self.initial_validator_keys {
                 ValidatorKeyRecords::<T>::insert(validator, keys);
                 DrawKeyOwner::<T>::insert(keys.draw, validator.clone());
+            }
+
+            if let Some(key) = self.validator_licence_key {
+                ValidatorLicenceKey::<T>::put(key);
             }
 
             log::info!(
@@ -807,6 +846,30 @@ pub mod pallet {
         EpochDrawTooLate,
         /// The validator already published a draw for the stated epoch.
         EpochDrawAlreadyHeld,
+        /// The chain holds no key for validator licences. Install the key of
+        /// the control plane through the root origin first.
+        LicenceKeyMissing,
+        /// The validator holds no licence that still holds. Submit the newest
+        /// licence attestation the control plane issued, then join.
+        LicenceRequired,
+        /// The attestation names another account. Submit the attestation
+        /// issued for this validator.
+        LicenceHolderMismatch,
+        /// The licence signature failed against the control plane key.
+        /// Request a fresh attestation.
+        LicenceSignatureRejected,
+        /// The licence lapsed. Renew the licence, then submit the fresh
+        /// attestation.
+        LicenceLapsed,
+        /// The licence begins at a later block. Submit the attestation once
+        /// that block passes.
+        LicenceNotYetActive,
+        /// The attestation repeats an earlier count. Submit the newest
+        /// attestation the control plane issued.
+        LicenceReplayed,
+        /// The licence class sits below the class this chain asks for.
+        /// Request a licence of the higher class.
+        LicenceClassTooLow,
     }
 
     #[pallet::hooks]
@@ -903,6 +966,58 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Install the key the control plane signs validator licences with.
+        ///
+        /// The root origin carries the call, which is the path the chain
+        /// specification and the Amendment Engine take. The class names the
+        /// lowest licence class a validator of this chain carries.
+        #[pallet::call_index(11)]
+        #[pallet::weight(Weight::from_parts(20_000, 0))]
+        pub fn set_validator_licence_key(
+            origin: OriginFor<T>,
+            key: [u8; 32],
+            class: crate::engines::admission::licence::LicenceClass,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ValidatorLicenceKey::<T>::put(key);
+            RequiredLicenceClass::<T>::put(class);
+            Ok(())
+        }
+
+        /// Present one validator licence attestation.
+        ///
+        /// The Admission Engine checks the signature against the control
+        /// plane key, then the window, the nonce and the class. A licence that
+        /// passes stays on chain, and the validator joins under it.
+        #[pallet::call_index(12)]
+        #[pallet::weight(Weight::from_parts(60_000, 0))]
+        pub fn submit_validator_licence(
+            origin: OriginFor<T>,
+            attestation: crate::engines::admission::licence::LicenceAttestation<
+                T::AccountId,
+                BlockNumberFor<T>,
+            >,
+            signature: [u8; 64],
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(attestation.holder == who, Error::<T>::LicenceHolderMismatch);
+            let key = ValidatorLicenceKey::<T>::get().ok_or(Error::<T>::LicenceKeyMissing)?;
+            let public = sp_core::ed25519::Public::from_raw(key);
+            let held = sp_core::ed25519::Signature::from_raw(signature);
+            let now = frame_system::Pallet::<T>::block_number();
+            crate::engines::admission::licence::verify_attestation(
+                &attestation,
+                now,
+                LicenceNonces::<T>::get(&who),
+                RequiredLicenceClass::<T>::get(),
+                |payload| sp_io::crypto::ed25519_verify(&held, payload, &public),
+            )
+            .map_err(Self::licence_error)?;
+            LicenceNonces::<T>::insert(&who, attestation.nonce);
+            ValidatorLicences::<T>::insert(&who, attestation);
+            Ok(())
+        }
+
         /// Prove that one validator signed two votes in one round.
         ///
         /// The evidence carries both votes with the signature the validator
@@ -982,6 +1097,7 @@ pub mod pallet {
         #[pallet::weight(Weight::from_parts(50_000, 0))]
         pub fn join_validator_set(origin: OriginFor<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_licensed(&who)?;
 
             // Already pending join or already active
             ensure!(
@@ -1040,6 +1156,7 @@ pub mod pallet {
             _name: Option<BoundedVec<u8, ConstU32<32>>>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+            Self::ensure_licensed(&who)?;
 
             let min_stake = T::MinStake::get();
             let free_balance = <T::Currency as Currency<T::AccountId>>::free_balance(&who);
@@ -2537,5 +2654,46 @@ impl<T: Config>
 impl<T: Config> pallet_cerulea_dcf::traits::WeightFreezer<T::AccountId> for Pallet<T> {
     fn freeze_epoch_weights(epoch: u32, validators: &[(T::AccountId, u128, u128)]) {
         Self::freeze_epoch_weights(epoch, validators);
+    }
+}
+
+impl<T: Config> Pallet<T> {
+    /// Check that one account holds a validator licence that still holds.
+    ///
+    /// The check runs while the chain holds a key for validator licences. A
+    /// chain that names no key admits through governance alone.
+    pub fn ensure_licensed(who: &T::AccountId) -> frame_support::dispatch::DispatchResult {
+        if ValidatorLicenceKey::<T>::get().is_none() {
+            return Ok(());
+        }
+        let held = ValidatorLicences::<T>::get(who).ok_or(Error::<T>::LicenceRequired)?;
+        let now = frame_system::Pallet::<T>::block_number();
+        ensure!(
+            crate::engines::admission::licence::licence_holds(&held, now),
+            Error::<T>::LicenceRequired
+        );
+        Ok(())
+    }
+
+    /// The module error for one Admission Engine licence fault.
+    fn licence_error(
+        fault: crate::engines::admission::licence::LicenceError,
+    ) -> sp_runtime::DispatchError {
+        match fault {
+            crate::engines::admission::licence::LicenceError::SignatureRejected => {
+                Error::<T>::LicenceSignatureRejected
+            }
+            crate::engines::admission::licence::LicenceError::Lapsed => Error::<T>::LicenceLapsed,
+            crate::engines::admission::licence::LicenceError::NotYetActive => {
+                Error::<T>::LicenceNotYetActive
+            }
+            crate::engines::admission::licence::LicenceError::NonceReplayed => {
+                Error::<T>::LicenceReplayed
+            }
+            crate::engines::admission::licence::LicenceError::ClassTooLow => {
+                Error::<T>::LicenceClassTooLow
+            }
+        }
+        .into()
     }
 }

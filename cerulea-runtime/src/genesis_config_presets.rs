@@ -291,6 +291,9 @@ fn testnet_genesis_with_stakes_and_names(
             // A production chain spec names its genesis validators, so
             // genesis stops on a spec that names none.
             strict_validation: true,
+            // A chain specification for the public-access chain names the
+            // key the control plane signs validator licences with.
+            validator_licence_key: None,
         },
         // Install the starting Blueprint. The logic module validates it,
         // registers every type and every collection it declares and stores

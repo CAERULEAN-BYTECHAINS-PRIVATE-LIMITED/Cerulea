@@ -1481,6 +1481,7 @@ fn genesis_seeds_five_validators() {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1523,6 +1524,7 @@ fn genesis_seeds_ten_validators() {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: validators.clone(),
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1558,6 +1560,7 @@ fn genesis_rejects_a_strict_spec_naming_no_validator() {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![],
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1578,6 +1581,7 @@ fn genesis_accepts_an_open_spec_naming_no_validator() {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![],
         strict_validation: false,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1612,6 +1616,7 @@ fn test_genesis_rejects_zero_stake() {
             (account_key("Alice"), 0, 80), // Zero stake
         ],
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1633,6 +1638,7 @@ fn test_genesis_rejects_invalid_score() {
             crate::TRUST_SCORE_CEILING + 1,
         )],
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -1649,6 +1655,7 @@ fn genesis_accepts_a_trust_score_at_the_ceiling() {
         initial_validator_keys: Vec::new(),
         initial_validator_weights: vec![(account_key("Alice"), 1000, crate::TRUST_SCORE_CEILING)],
         strict_validation: true,
+        validator_licence_key: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

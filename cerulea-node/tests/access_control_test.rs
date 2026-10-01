@@ -212,3 +212,93 @@ fn the_operator_role_comes_from_root_or_an_operator() {
         ));
     });
 }
+
+/// One validator licence attestation the tests present.
+fn licence(holder: AccountId, expires_at: u32, nonce: u64) -> LicenceAttestation<AccountId, u32> {
+    LicenceAttestation {
+        holder,
+        class: LicenceClass::PublicAccess,
+        issued_at: 0,
+        expires_at,
+        nonce,
+    }
+}
+
+/// Finding four. A validator joins under a licence the control plane signed.
+///
+/// While the chain holds a licence key, the join refuses a validator with no
+/// licence. A licence signed by a foreign key fails, an expired licence
+/// fails and a stranger cannot install the key. The genuine licence lands
+/// and the validator joins.
+#[test]
+fn a_validator_joins_under_a_licence_the_control_plane_signed() {
+    development_ext().execute_with(|| {
+        let validator = outsider();
+        let issuer = control_plane();
+        assert_noop!(
+            Validators::set_validator_licence_key(
+                RuntimeOrigin::signed(stranger()),
+                issuer.public().0,
+                LicenceClass::PublicAccess
+            ),
+            sp_runtime::DispatchError::BadOrigin
+        );
+        assert_ok!(Validators::set_validator_licence_key(
+            RuntimeOrigin::root(),
+            issuer.public().0,
+            LicenceClass::PublicAccess
+        ));
+
+        assert_noop!(
+            Validators::join_validators(RuntimeOrigin::signed(validator.clone()), None),
+            pallet_cerulea_dvf::Error::<Runtime>::LicenceRequired
+        );
+
+        let held = licence(validator.clone(), 1_000, 1);
+        let payload = attestation_payload(&held);
+        assert_noop!(
+            Validators::submit_validator_licence(
+                RuntimeOrigin::signed(validator.clone()),
+                held.clone(),
+                foreign().sign(&payload).0
+            ),
+            pallet_cerulea_dvf::Error::<Runtime>::LicenceSignatureRejected
+        );
+        let expired = licence(validator.clone(), 1, 1);
+        assert_noop!(
+            Validators::submit_validator_licence(
+                RuntimeOrigin::signed(validator.clone()),
+                expired.clone(),
+                issuer.sign(&attestation_payload(&expired)).0
+            ),
+            pallet_cerulea_dvf::Error::<Runtime>::LicenceLapsed
+        );
+        assert_noop!(
+            Validators::submit_validator_licence(
+                RuntimeOrigin::signed(stranger()),
+                held.clone(),
+                issuer.sign(&payload).0
+            ),
+            pallet_cerulea_dvf::Error::<Runtime>::LicenceHolderMismatch
+        );
+
+        assert_ok!(Validators::submit_validator_licence(
+            RuntimeOrigin::signed(validator.clone()),
+            held.clone(),
+            issuer.sign(&payload).0
+        ));
+        assert_noop!(
+            Validators::submit_validator_licence(
+                RuntimeOrigin::signed(validator.clone()),
+                held.clone(),
+                issuer.sign(&payload).0
+            ),
+            pallet_cerulea_dvf::Error::<Runtime>::LicenceReplayed
+        );
+        assert_ok!(Validators::join_validators(
+            RuntimeOrigin::signed(validator.clone()),
+            None
+        ));
+        assert!(pallet_cerulea_dvf::ValidatorSet::<Runtime>::get().contains(&validator));
+    });
+}

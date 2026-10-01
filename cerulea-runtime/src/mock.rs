@@ -170,6 +170,7 @@ pub fn new_test_ext_with_config(config: MockRuntimeConfig) -> sp_io::TestExterna
                 .collect(),
             initial_validator_keys: alloc::vec![],
             strict_validation: false,
+            validator_licence_key: None,
         }
         .assimilate_storage(&mut storage)
         .unwrap();
