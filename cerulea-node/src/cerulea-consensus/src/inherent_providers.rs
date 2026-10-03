@@ -7,7 +7,6 @@ use crate::error::{ConsensusError, ConsensusResult};
 use log::{debug, trace};
 use sp_inherents::{InherentData, InherentDataProvider};
 use sp_timestamp::InherentDataProvider as TimestampInherentDataProvider;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Central manager for all inherent data providers used in Cerulea consensus
 pub struct CeruleaInherentDataProviders {
@@ -36,8 +35,11 @@ impl CeruleaInherentDataProviders {
 
         trace!("Creating inherent data for block production");
 
-        // Create timestamp provider with current system time
-        let timestamp_provider = TimestampInherentDataProvider::from_system_time();
+        // The timestamp comes from the Cerulea clock, the one the Authoring
+        // Engine names the slot from.
+        let timestamp_provider = TimestampInherentDataProvider::new(sp_timestamp::Timestamp::new(
+            crate::clock::now_ms(),
+        ));
 
         // Add timestamp inherent
         timestamp_provider
@@ -60,10 +62,12 @@ impl CeruleaInherentDataProviders {
 
     /// Get the current system timestamp in milliseconds
     pub fn current_timestamp_ms() -> ConsensusResult<u64> {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_millis() as u64)
-            .map_err(|e| ConsensusError::Proposer(format!("Failed to get system time: {:?}", e)))
+        match crate::clock::now_ms() {
+            0 => Err(ConsensusError::Proposer(
+                "The clock reads zero. Fix: set the system clock forward.".to_string(),
+            )),
+            moment => Ok(moment),
+        }
     }
 
     /// Create inherent data with a specific timestamp (useful for testing)
@@ -167,8 +171,8 @@ mod tests {
         assert!(timestamp > 0);
 
         // Should be roughly current time (within last few seconds)
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
 

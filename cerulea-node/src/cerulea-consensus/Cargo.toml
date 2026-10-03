@@ -66,6 +66,9 @@ pallet-timestamp = { workspace = true }
 
 [features]
 default = ["std"]
+# The clock offset setting of fault exercises. Test builds and the
+# multi-host exercise image carry it; a release build leaves it out.
+clock-offset = []
 std = [
 	"codec/std",
 	"cerulea-primitives/std",

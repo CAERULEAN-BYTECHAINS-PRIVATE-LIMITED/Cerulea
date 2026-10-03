@@ -254,18 +254,9 @@ where
         }
     }
 
-    /// The moment now, in milliseconds since the operating system epoch.
+    /// The moment now on the Cerulea clock, in milliseconds since the epoch.
     fn now_ms() -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_else(|e| {
-                error!(
-                    "Authoring Engine: the system clock sits before its epoch ({:?}). Fix: set the system clock forward.",
-                    e
-                );
-                Duration::ZERO
-            })
-            .as_millis() as u64
+        crate::clock::now_ms()
     }
 
     /// Build the slot context this node reads from the chain.
@@ -355,14 +346,7 @@ where
 
     /// Check if it's time to produce a new block
     fn should_produce_block(&self) -> bool {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            // FB-13: Zero here means time_since_last will be large, triggering immediate production.
-            // Log loudly if the system clock is anomalous.
-            .unwrap_or_else(|e| {
-                error!("DCF: System clock before UNIX epoch ({:?}). Block production timer may fire immediately.", e);
-                Duration::ZERO
-            });
+        let now = Duration::from_millis(Self::now_ms());
 
         let block_interval = Duration::from_secs(self.params.block_time);
         let time_since_last = now.saturating_sub(self.last_block_time);
@@ -794,16 +778,7 @@ where
         author: &AccountId,
     ) -> ConsensusResult<()> {
         // Update timing and slot
-        self.last_block_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            // FB-13: Log clock anomalies; Duration::ZERO would cause immediate next-slot production.
-            .unwrap_or_else(|e| {
-                error!(
-                    "DCF: System clock before UNIX epoch ({:?}). Block timing may be incorrect.",
-                    e
-                );
-                Duration::ZERO
-            });
+        self.last_block_time = Duration::from_millis(Self::now_ms());
 
         // Update metrics
         self.metrics.total_blocks = self.metrics.total_blocks.saturating_add(1);
@@ -1034,13 +1009,7 @@ where
             .saturating_add(1);
 
         // Update timing to prevent immediate retry
-        self.last_block_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            // FB-13: Log clock anomalies; Duration::ZERO would cause immediate retry.
-            .unwrap_or_else(|e| {
-                error!("DCF: System clock before UNIX epoch ({:?}). Block timing on failure may be incorrect.", e);
-                Duration::ZERO
-            });
+        self.last_block_time = Duration::from_millis(Self::now_ms());
 
         // Update metrics to track the failure
         self.metrics.failed_blocks = self.metrics.failed_blocks.saturating_add(1);

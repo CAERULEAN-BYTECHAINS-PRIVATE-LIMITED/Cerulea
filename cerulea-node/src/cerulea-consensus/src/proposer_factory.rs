@@ -195,10 +195,7 @@ where
         // STEP 46: Inherent data generated
         let mut metadata = TraceMetadata::new();
         metadata.block_number = Some(block_number);
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let timestamp = crate::clock::now_ms() / 1_000;
         metadata
             .custom
             .insert("timestamp".to_string(), timestamp.to_string());

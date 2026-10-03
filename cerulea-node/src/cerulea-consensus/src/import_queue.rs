@@ -296,10 +296,7 @@ where
         // The rank window reads the moment the seal claims, and the local
         // clock bounds that claim, so a later rank never takes the slot while
         // an earlier rank still holds it.
-        let arrival_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_millis() as u64)
-            .unwrap_or(0);
+        let arrival_ms = crate::clock::now_ms();
         let verified = match verify_seal_on_arrival(header, &seal, &context, &registry, arrival_ms)
         {
             Ok(verified) => verified,

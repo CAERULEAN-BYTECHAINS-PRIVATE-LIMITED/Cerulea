@@ -149,7 +149,7 @@ substrate-frame-rpc-system.default-features = true # FRAME RPC system
 substrate-frame-rpc-system.workspace = true       # Use workspace version
 
 [dev-dependencies]
-cerulea-node = { path = ".", features = ["test-harness"] }
+cerulea-node = { path = ".", features = ["test-harness", "clock-offset"] }
 cerulea-blueprint = { workspace = true, features = ["std"] }
 pallet-cerulea-schema = { workspace = true, default-features = true }
 pallet-cerulea-state = { workspace = true, default-features = true }
@@ -186,6 +186,11 @@ default = ["std"]
 # === Engine test harness ===
 # The in-process network of validator nodes the engine tests build on.
 test-harness = []
+
+# === Clock offset for fault exercises ===
+# The node honours CERULEA_CLOCK_OFFSET_MS. Test builds and the multi-host
+# exercise image carry this feature; a release build leaves it out.
+clock-offset = ["cerulea-consensus/clock-offset"]
 std = ["cerulea-runtime/std"]              # Enable standard library support for the runtime
 
 # === Runtime Benchmarking ===

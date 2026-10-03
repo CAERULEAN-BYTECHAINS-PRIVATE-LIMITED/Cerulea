@@ -78,6 +78,22 @@ key. The rank claimed matches the timing.
 Production begins only where the local validator key matches the scheduled
 author at the claimed rank.
 
+### One clock
+
+The node reads wall time through one function, `cerulea_consensus::clock`.
+The slot the Authoring Engine names, the moment import bounds a seal claim
+by, and the timestamp of each authored block all come from it. Fault
+exercises move the clock of one validator through `CERULEA_CLOCK_OFFSET_MS`,
+a signed count of milliseconds. Only the test builds and the multi-host
+exercise image honour the setting, through the `clock-offset` feature. A
+release build ignores it and says so in its log.
+
+A validator whose clock runs thirty seconds ahead seals blocks that claim
+moments the others have yet to reach, and import refuses them. The other
+validators keep committing while they hold the threshold. A loopback test runs
+five validators with one clock thirty seconds ahead. The four true clocks keep
+committing, and once the fifth restarts with a true clock all five converge.
+
 ## 5 The Commit Engine
 
 Validators sign the block with an aggregate signature scheme. The author

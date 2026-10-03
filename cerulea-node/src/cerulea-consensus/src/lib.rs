@@ -12,6 +12,9 @@
 /// The engines of the Dynamic Consensus Framework.
 pub mod engines;
 
+/// The wall clock every engine reads.
+pub mod clock;
+
 /// Core consensus engine implementation
 pub mod dcf;
 
