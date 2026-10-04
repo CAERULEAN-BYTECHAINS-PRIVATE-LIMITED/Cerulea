@@ -839,6 +839,37 @@ fn the_cleanup_keeps_the_recent_window_and_removes_older_blocks() {
 }
 
 #[test]
+fn the_event_samples_hold_one_event_of_every_variant() {
+    new_test_ext().execute_with(|| {
+        let samples = DcfPallet::sample_events().expect("the samples build");
+        let variants = match <crate::Event<Test> as scale_info::TypeInfo>::type_info().type_def {
+            scale_info::TypeDef::Variant(def) => {
+                def.variants
+                    .iter()
+                    .map(|variant| variant.index)
+                    .collect::<sp_std::collections::btree_set::BTreeSet<u8>>()
+            }
+            other => panic!(
+                "The event type reads {:?}. A variant type was expected.",
+                other
+            ),
+        };
+        let sampled: sp_std::collections::btree_set::BTreeSet<u8> =
+            samples.iter().map(|event| event.encode()[0]).collect();
+        // One sample per variant: no repeat and no gap.
+        assert_eq!(samples.len(), 83);
+        assert_eq!(sampled.len(), samples.len());
+        assert_eq!(sampled, variants);
+        // Every sample passes the conversion the check runs.
+        for event in &samples {
+            let record =
+                EvmEventValidator::convert_to_evm_format(event).expect("every sample converts");
+            assert_eq!(record.raw_data.to_vec(), event.encode());
+        }
+    });
+}
+
+#[test]
 fn the_full_event_check_passes_and_stores_nothing() {
     new_test_ext().execute_with(|| {
         frame_system::Pallet::<Test>::set_block_number(12);
