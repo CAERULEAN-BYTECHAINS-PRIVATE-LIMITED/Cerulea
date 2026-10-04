@@ -211,7 +211,19 @@ pub fn run_with(entry: NodeCommand) -> sc_cli::Result<()> {
             ensure_network_key_from_cli(&entry);
 
             let runner = entry.create_runner(&entry.run)?;
-            runner.run_node_until_exit(|config| async move {
+            let state_cache_passed = state_cache_flag_passed(std::env::args());
+            runner.run_node_until_exit(|mut config| async move {
+                config.trie_cache_maximum_size =
+                    state_cache_bytes(state_cache_passed, config.trie_cache_maximum_size);
+                log::info!(
+                    "Cerulea: the state cache holds up to {} bytes{}",
+                    config.trie_cache_maximum_size.unwrap_or(0),
+                    if state_cache_passed {
+                        " (the figure the operator passed)"
+                    } else {
+                        " (the Cerulea bound; --trie-cache-size sets another)"
+                    }
+                );
                 let node_config = crate::service::NodeConfig {
                     rpc_config: crate::rpc::RpcSecurityConfig {
                         enable_cerulea_extensions: entry.enable_cerulea_extensions,
@@ -755,6 +767,78 @@ pub fn parse_author(text: &str) -> Result<AccountId32, String> {
         format!("The author `{text}` carries a length other than 32 bytes. Point the query at a Cerulea node serving the Cerulea interface.")
     })?;
     Ok(AccountId32::from(fixed))
+}
+
+/// The state cache a node keeps where the operator passes no figure, in bytes.
+///
+/// The state cache holds the parts of the chain state the node read lately,
+/// so a repeated read skips the database. The client library gives every node
+/// a one gibibyte cache. The cache fills at the pace the state is read, and on
+/// the nine validator network the resident memory of a validator grew about
+/// 140 MB in the first hour and 22 MB an hour after that, towards that
+/// ceiling, past a 700 MB container cap. A validator of a Cerulea network
+/// reads a modest state, so 128 MiB serves it.
+pub const STATE_CACHE_BYTES: usize = 128 * 1024 * 1024;
+
+/// Report whether the arguments carry the `--trie-cache-size` flag.
+pub fn state_cache_flag_passed(arguments: impl IntoIterator<Item = String>) -> bool {
+    arguments.into_iter().any(|argument| {
+        argument == "--trie-cache-size" || argument.starts_with("--trie-cache-size=")
+    })
+}
+
+/// The state cache size the node runs with.
+///
+/// A figure the operator passed stands as given, zero included, which turns
+/// the cache off. With no figure passed, the Cerulea bound applies in place
+/// of the library default.
+pub fn state_cache_bytes(operator_passed: bool, requested: Option<usize>) -> Option<usize> {
+    if operator_passed {
+        requested
+    } else {
+        Some(STATE_CACHE_BYTES)
+    }
+}
+
+#[cfg(test)]
+mod state_cache_tests {
+    use super::{state_cache_bytes, state_cache_flag_passed, STATE_CACHE_BYTES};
+
+    #[test]
+    fn the_cerulea_bound_applies_where_the_operator_passes_no_figure() {
+        assert_eq!(
+            state_cache_bytes(false, Some(1024 * 1024 * 1024)),
+            Some(STATE_CACHE_BYTES)
+        );
+        assert_eq!(state_cache_bytes(false, None), Some(STATE_CACHE_BYTES));
+        assert_eq!(STATE_CACHE_BYTES, 134_217_728);
+    }
+
+    #[test]
+    fn a_figure_the_operator_passed_stands() {
+        assert_eq!(state_cache_bytes(true, Some(64 << 20)), Some(64 << 20));
+        assert_eq!(state_cache_bytes(true, Some(0)), Some(0));
+        assert_eq!(state_cache_bytes(true, None), None);
+    }
+
+    #[test]
+    fn the_flag_is_read_in_both_spellings() {
+        let args = |list: &[&str]| list.iter().map(|part| part.to_string()).collect::<Vec<_>>();
+        assert!(state_cache_flag_passed(args(&[
+            "cerulea-node",
+            "--trie-cache-size",
+            "67108864"
+        ])));
+        assert!(state_cache_flag_passed(args(&[
+            "cerulea-node",
+            "--trie-cache-size=67108864"
+        ])));
+        assert!(!state_cache_flag_passed(args(&[
+            "cerulea-node",
+            "--validator"
+        ])));
+        assert!(!state_cache_flag_passed(args(&[])));
+    }
 }
 
 #[cfg(test)]

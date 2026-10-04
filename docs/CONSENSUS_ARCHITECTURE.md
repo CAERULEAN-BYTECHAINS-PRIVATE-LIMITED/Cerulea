@@ -298,6 +298,14 @@ declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded
 under load.
 
+The state cache holds the parts of the chain state the node read lately. The
+client library gives every node a one gibibyte state cache, and the cache fills
+at the pace the state is read: on the nine validator network the resident
+memory of a validator grew about 140 MB in the first hour and 22 MB an hour
+after that, towards that ceiling and past a 700 MB container cap. The node
+bounds the cache at 128 MiB where the operator passes no figure. The
+`--trie-cache-size` flag, in bytes, sets another; zero turns the cache off.
+
 ## 6 The Assurance Engine
 
 The threshold required varies with what the transaction does. Cerulea settles a
