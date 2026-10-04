@@ -366,6 +366,19 @@ pub mod pallet {
                 leaves
                     .try_push(leaf_hash(index, value))
                     .map_err(|_| Error::<T>::BlockRecordsFull)?;
+                // The full entry also reaches the local store of the node,
+                // outside the chain state. A challenged validator reads it
+                // there to build its answer.
+                let block = frame_system::Pallet::<T>::block_number().saturated_into::<u64>();
+                let mut parent = [0u8; 32];
+                let parent_hash = frame_system::Pallet::<T>::parent_hash();
+                let bytes = parent_hash.as_ref();
+                let width = bytes.len().min(32);
+                parent[..width].copy_from_slice(&bytes[..width]);
+                sp_io::offchain_index::set(
+                    &crate::primitives::local_entry_key(block, &parent, index),
+                    value,
+                );
                 Ok(())
             })
         }

@@ -378,6 +378,39 @@ fn a_sealed_root_is_announced() {
     });
 }
 
+/// Every committed record reaches the local store of the node, keyed by the
+/// block, the parent hash and the position, so the challenged validator
+/// answers from its own copy.
+#[test]
+fn every_committed_record_reaches_the_local_store() {
+    let mut ext = new_test_ext();
+    let parent = ext.execute_with(|| {
+        commit_records(3);
+        let parent = frame_system::Pallet::<Test>::parent_hash();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(parent.as_ref());
+        bytes
+    });
+    ext.persist_offchain_overlay();
+    let store = ext.offchain_db();
+    for (index, entry) in local_copy(3).iter().enumerate() {
+        let key = crate::primitives::local_entry_key(1, &parent, index as u32);
+        assert_eq!(store.get(&key).as_ref(), Some(entry), "entry {index}");
+    }
+    let past = crate::primitives::local_entry_key(1, &parent, 3);
+    assert_eq!(store.get(&past), None);
+}
+
+/// Two blocks at one height on two forks keep apart in the local store.
+#[test]
+fn the_local_store_key_separates_blocks_and_forks() {
+    let first = crate::primitives::local_entry_key(5, &[1u8; 32], 0);
+    assert!(first.starts_with(crate::primitives::CUSTODY_LOCAL_PREFIX));
+    assert_ne!(first, crate::primitives::local_entry_key(5, &[2u8; 32], 0));
+    assert_ne!(first, crate::primitives::local_entry_key(6, &[1u8; 32], 0));
+    assert_ne!(first, crate::primitives::local_entry_key(5, &[1u8; 32], 1));
+}
+
 #[test]
 fn an_answered_challenge_enters_the_settled_log_of_its_validator() {
     new_test_ext().execute_with(|| {

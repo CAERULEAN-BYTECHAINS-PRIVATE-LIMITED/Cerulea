@@ -291,6 +291,24 @@ impl CustodyRecordHook for () {
     }
 }
 
+/// The prefix of every custody entry the runtime writes to the local store
+/// of the node.
+pub const CUSTODY_LOCAL_PREFIX: &[u8] = b"cerulea/custody/entry/";
+
+/// The local store key of one custody entry.
+///
+/// The key joins the block number, the hash of the parent block and the
+/// position of the entry. The parent hash keeps two blocks at one height on
+/// two forks apart. A validator answering a challenge reads the entries of
+/// the challenged block under these keys, with no network fetch.
+pub fn local_entry_key(block: u64, parent: &[u8; 32], index: u32) -> sp_std::vec::Vec<u8> {
+    let mut key = CUSTODY_LOCAL_PREFIX.to_vec();
+    key.extend_from_slice(&block.to_be_bytes());
+    key.extend_from_slice(parent);
+    key.extend_from_slice(&index.to_be_bytes());
+    key
+}
+
 /// The custody entry one committed record contributes to its block.
 ///
 /// The entry joins the collection, the key and the digest of the value. A
