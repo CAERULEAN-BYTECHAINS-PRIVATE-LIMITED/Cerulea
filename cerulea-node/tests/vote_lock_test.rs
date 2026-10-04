@@ -186,7 +186,21 @@ struct Shape {
     /// One machine of validators, by index range, that every message to or
     /// from runs late by the stated ticks while the fault holds.
     slow_machine: Option<(usize, usize, u64)>,
+    /// One validator whose clock runs ahead by the stated ticks.
+    ///
+    /// Its rounds time out early, and the blocks it seals claim moments the
+    /// others have yet to reach, so it votes for blocks only it holds. The
+    /// round the others run comes from the chain, which its refused blocks
+    /// never move, so its rounds never drag theirs.
+    clock_ahead: Option<(usize, u64)>,
+    /// One validator absent from the first tick to the second, then back from
+    /// its own ledger.
+    absent: Option<(usize, u64, u64)>,
 }
+
+/// The fork the blocks of a validator with a fast clock sit on, which no
+/// other validator imports.
+const FAST_FORK: u8 = 2;
 
 struct Network {
     nodes: Vec<Node>,
@@ -231,6 +245,19 @@ impl Network {
 
     fn crosses(&self, signed: u128) -> bool {
         signed.saturating_mul(100) >= self.total.saturating_mul(THRESHOLD_PERCENT)
+    }
+
+    /// The ticks the clock of one validator runs ahead.
+    fn ahead(&self, node: usize) -> u64 {
+        match self.shape.clock_ahead {
+            Some((fast, ticks)) if fast == node => ticks,
+            _ => 0,
+        }
+    }
+
+    /// Report whether one validator runs the fast clock.
+    fn is_fast(&self, node: usize) -> bool {
+        matches!(self.shape.clock_ahead, Some((fast, _)) if fast == node)
     }
 
     fn epoch_now(&self) -> u64 {
@@ -318,9 +345,12 @@ impl Network {
                 height,
                 hash,
             } => {
+                let fast = self.is_fast(from);
                 let state = &mut self.nodes[to];
-                let seen = state.seen_round.entry(from).or_insert(0);
-                *seen = (*seen).max(round);
+                if !fast {
+                    let seen = state.seen_round.entry(from).or_insert(0);
+                    *seen = (*seen).max(round);
+                }
                 if let Some(held) = state.votes.get(&(round, from)) {
                     assert_eq!(
                         *held,
@@ -340,9 +370,12 @@ impl Network {
                 height,
                 voted,
             } => {
+                let fast = self.is_fast(from);
                 let state = &mut self.nodes[to];
-                let seen = state.seen_round.entry(from).or_insert(0);
-                *seen = (*seen).max(round.saturating_add(1));
+                if !fast {
+                    let seen = state.seen_round.entry(from).or_insert(0);
+                    *seen = (*seen).max(round.saturating_add(1));
+                }
                 state
                     .timeouts
                     .entry((round, height))
@@ -490,8 +523,9 @@ impl Network {
             self.nodes[node].round_started = self.now;
         }
 
-        // The round timeout.
-        if self.now.saturating_sub(self.nodes[node].round_started) >= self.shape.round_timeout {
+        // The round timeout, read on the clock of this validator.
+        let clock = self.now + self.ahead(node);
+        if clock.saturating_sub(self.nodes[node].round_started) >= self.shape.round_timeout {
             self.nodes[node].round += 1;
             self.nodes[node].round_started = self.now;
         }
@@ -518,7 +552,11 @@ impl Network {
             }
             return;
         }
-        let fork = self.nodes[node].fork;
+        let fork = if self.is_fast(node) {
+            FAST_FORK
+        } else {
+            self.nodes[node].fork
+        };
         let candidate = block(target, fork);
         let related = |lock: &CastVote| lock.hash == block(lock.height, fork);
         let certificate = |lock: &CastVote| {
@@ -541,7 +579,7 @@ impl Network {
             // while they leave the answer of the certificate open, up to the
             // end of the round, the way the node waits.
             let statements = self.statements(node, lock.round, lock.height);
-            let elapsed = self.now.saturating_sub(self.nodes[node].round_started);
+            let elapsed = clock.saturating_sub(self.nodes[node].round_started);
             if certificate_undecided(lock.hash, &statements, self.total)
                 && elapsed + 1 < self.shape.round_timeout
             {
@@ -576,6 +614,14 @@ impl Network {
     }
 
     fn tick(&mut self, rng: &mut Rng) {
+        // The absent validator leaves at its first tick and keeps only its
+        // ledger, the way a stopped node keeps its ledger file.
+        if let Some((gone, from, back)) = self.shape.absent {
+            if self.now == from {
+                self.nodes[gone].down_until = back;
+                self.nodes[gone].restart(back);
+            }
+        }
         if let Some(arrivals) = self.queue.remove(&self.now) {
             let mut arrivals = arrivals;
             // Arrivals in one tick land in a scrambled order.
@@ -616,12 +662,24 @@ impl Network {
     fn heal(&mut self) {
         self.healed = true;
         let now = self.now;
-        for node in &mut self.nodes {
-            if node.down_until > now {
+        let absent = self.shape.absent;
+        for (index, node) in self.nodes.iter_mut().enumerate() {
+            // The absent validator stays away until its own return.
+            let stays_away = matches!(absent, Some((gone, _, back)) if gone == index && back > now);
+            if node.down_until > now && !stays_away {
                 node.down_until = now;
             }
             node.fork = 0;
         }
+    }
+
+    /// Report whether every validator other than the named one committed
+    /// every height.
+    fn others_committed(&self, except: Option<usize>) -> bool {
+        self.nodes.iter().enumerate().all(|(index, node)| {
+            Some(index) == except
+                || (1..=self.shape.heights).all(|height| node.committed.contains_key(&height))
+        })
     }
 
     fn all_committed(&self) -> bool {
@@ -644,6 +702,22 @@ struct Outcome {
     rounds_after_heal: u32,
     /// The epochs the stall crossed before the delays ended.
     epochs_crossed: u64,
+    /// The tick at which every validator other than the absent one had
+    /// committed every height.
+    others_done_at: Option<u64>,
+}
+
+/// The highest round the validators reached, the fast clock left out: its
+/// rounds race on its own clock and the chain never follows them.
+fn highest_round(network: &Network) -> u32 {
+    network
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !network.is_fast(*index))
+        .map(|(_, node)| node.round)
+        .max()
+        .unwrap_or(0)
 }
 
 fn run_schedule(seed: u64, shape: Shape) -> Outcome {
@@ -654,13 +728,10 @@ fn run_schedule(seed: u64, shape: Shape) -> Outcome {
         network.tick(&mut rng);
     }
     let epochs_crossed = network.epoch_now();
-    let round_at_heal = network
-        .nodes
-        .iter()
-        .map(|node| node.round)
-        .max()
-        .unwrap_or(0);
+    let round_at_heal = highest_round(&network);
     network.heal();
+    let absent = shape.absent.map(|(gone, _, _)| gone);
+    let mut others_done_at = None;
     let limit = network.now + 60 * shape.round_timeout * shape.heights as u64 + 200;
     while !network.all_committed() {
         if network.now + 1 >= limit {
@@ -692,14 +763,15 @@ fn run_schedule(seed: u64, shape: Shape) -> Outcome {
                 .map(|node| (node.target(), node.round, node.ledger.locks()))
                 .collect::<Vec<_>>()
         );
+        if others_done_at.is_none() && network.others_committed(absent) {
+            others_done_at = Some(network.now);
+        }
         network.tick(&mut rng);
     }
-    let round_done = network
-        .nodes
-        .iter()
-        .map(|node| node.round)
-        .max()
-        .unwrap_or(0);
+    if others_done_at.is_none() {
+        others_done_at = Some(network.now);
+    }
+    let round_done = highest_round(&network);
     let rounds_after_heal = round_done.saturating_sub(round_at_heal);
     assert!(
         rounds_after_heal <= ROUNDS_TO_RECOVER_PER_HEIGHT * shape.heights + ROUNDS_TO_GATHER,
@@ -710,6 +782,7 @@ fn run_schedule(seed: u64, shape: Shape) -> Outcome {
     Outcome {
         rounds_after_heal,
         epochs_crossed,
+        others_done_at,
     }
 }
 
@@ -733,6 +806,8 @@ fn no_conflicting_commitment_and_progress_after_delays_end() {
             unequal_weights: pick.chance(500),
             epoch_ticks: 10 + pick.below(50),
             slow_machine: None,
+            clock_ahead: None,
+            absent: None,
         };
         let outcome = run_schedule(seed, shape);
         crossed += u64::from(outcome.epochs_crossed > 0);
@@ -919,6 +994,8 @@ fn recorded_delay_shape() -> Shape {
         unequal_weights: false,
         epoch_ticks: 400,
         slow_machine: Some((3, 6, 2)),
+        clock_ahead: None,
+        absent: None,
     }
 }
 
@@ -930,6 +1007,66 @@ fn the_recorded_one_second_delay_recovers_after_an_epoch_boundary() {
         assert!(
             outcome.rounds_after_heal <= ROUNDS_TO_RECOVER_PER_HEIGHT * 6 + ROUNDS_TO_GATHER,
             "seed {seed}"
+        );
+    }
+}
+
+/// The shape the clock and absence cases share: nine validators of equal
+/// weight, a short fault with delays and reorganisations, then calm.
+fn calm_nine(seed: u64) -> Shape {
+    let mut pick = Rng::new(seed ^ 0xC10C);
+    Shape {
+        validators: 9,
+        heights: 1 + pick.below(4) as u32,
+        fault_ticks: 20 + pick.below(80),
+        max_delay: 1 + pick.below(6),
+        round_timeout: 6 + pick.below(4),
+        reorg_per_thousand: pick.below(150),
+        restart_per_thousand: 0,
+        unequal_weights: false,
+        epoch_ticks: 10 + pick.below(50),
+        slow_machine: None,
+        clock_ahead: None,
+        absent: None,
+    }
+}
+
+/// One validator with a clock far ahead leaves the other eight committing.
+///
+/// Its rounds race on its own clock and it votes for blocks only it holds.
+/// The other eight hold eighty nine percent of the weight. Over hundreds of
+/// schedules they commit every height inside the round bound, no two blocks
+/// commit at one height, and the fast validator learns every commitment
+/// from its peers.
+#[test]
+fn a_validator_whose_clock_runs_ahead_leaves_the_others_committing() {
+    for seed in 1..=500u64 {
+        let mut shape = calm_nine(seed);
+        let fast = (seed % 9) as usize;
+        shape.clock_ahead = Some((fast, 4 * shape.round_timeout));
+        let outcome = run_schedule(seed, shape);
+        assert!(outcome.others_done_at.is_some(), "seed {seed}");
+    }
+}
+
+/// One validator absent through commitments catches up on return.
+///
+/// It stops during the fault and returns well after the delays end. The
+/// other eight commit every height while it is away. It comes back with its
+/// ledger alone, learns the commitments it missed from its peers and commits
+/// every height, with no two blocks committed at one height.
+#[test]
+fn a_validator_absent_then_returning_catches_up() {
+    for seed in 1..=500u64 {
+        let mut shape = calm_nine(seed);
+        let gone = (seed % 9) as usize;
+        let back = shape.fault_ticks + 40 * shape.round_timeout * shape.heights as u64;
+        shape.absent = Some((gone, shape.fault_ticks / 2, back));
+        let outcome = run_schedule(seed, shape);
+        let done = outcome.others_done_at.expect("the others finish");
+        assert!(
+            done < back,
+            "seed {seed}: the others finished at {done}, after the absent validator returned at {back}"
         );
     }
 }

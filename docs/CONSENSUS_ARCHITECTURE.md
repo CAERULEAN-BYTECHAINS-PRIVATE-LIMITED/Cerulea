@@ -210,6 +210,14 @@ before the delays end. Every schedule commits one block per height. Once the
 delays end, every height commits within two rounds, plus two rounds for the
 network to gather.
 
+Two further cases run five hundred schedules each. In the first, one validator
+of nine has a clock that runs ahead of the others: its rounds race and it votes
+for blocks only it holds, while the other eight commit every height inside the
+round bound and the fast validator learns every commitment from its peers. In
+the second, one validator leaves during the fault and returns long after it
+ends: the other eight commit every height while it is away, and it catches up
+from the commitments its peers hold.
+
 ### Recovery after a delay
 
 In a delay exercise on the nine validator network, one machine of three ran a
