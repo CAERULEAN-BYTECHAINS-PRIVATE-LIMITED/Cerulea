@@ -94,6 +94,13 @@ validators keep committing while they hold the threshold. A loopback test runs
 five validators with one clock thirty seconds ahead. The four true clocks keep
 committing, and once the fifth restarts with a true clock all five converge.
 
+A block that claims a moment ahead of the local clock by more than the 500
+millisecond arrival allowance, and by no more than the rank timeout, waits
+until the moment arrives before import checks it. Two honest clocks and a
+short network path explain that much, so the peer that relayed the block keeps
+its connection. A block further ahead comes from a clock that runs fast, and
+import refuses it at once.
+
 ## 5 The Commit Engine
 
 Validators sign the block with an aggregate signature scheme. The author

@@ -106,6 +106,24 @@ pub fn registry_from_keys(
     }))
 }
 
+/// The wait before import checks a block that claims a moment ahead of the
+/// local clock.
+///
+/// A block inside the arrival allowance needs no wait. A block ahead by more,
+/// up to the rank timeout, waits until it falls inside the allowance: two
+/// honest clocks and a short network path explain that much, and the peer
+/// that relayed the block keeps its connection. A block further ahead comes
+/// from a clock that runs fast, gets no wait, and the arrival check refuses
+/// it.
+pub fn early_wait_ms(claimed_ms: u64, now_ms: u64, rank_timeout_ms: u64) -> Option<u64> {
+    use crate::engines::authoring::verify::ARRIVAL_ALLOWANCE_MS;
+    let ahead = claimed_ms.checked_sub(now_ms)?;
+    if ahead <= ARRIVAL_ALLOWANCE_MS || ahead > rank_timeout_ms {
+        return None;
+    }
+    Some(ahead - ARRIVAL_ALLOWANCE_MS)
+}
+
 /// The state a block is checked against: the state of its parent.
 ///
 /// The slot committee, the key records and the active set that decide whether
@@ -542,6 +560,21 @@ where
         mut block: BlockImportParams<B>,
     ) -> Result<BlockImportParams<B>, String> {
         let block_number = (*block.header.number()).saturated_into::<u32>();
+        // A block a little ahead of the claimed moment waits until the moment
+        // arrives, so a small difference between two clocks costs a short
+        // wait rather than the peer that relayed the block.
+        if let Some(seal) = extract_seal(&block.header) {
+            let rank_timeout = AuthoringPolicy::standard().rank_timeout_ms;
+            if let Some(wait) =
+                early_wait_ms(seal.claim.moment_ms, crate::clock::now_ms(), rank_timeout)
+            {
+                debug!(
+                    "Commit Engine import: block #{} claims a moment {} milliseconds ahead; waiting",
+                    block_number, wait
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+            }
+        }
         let authorship = self.verify_authorship(&block.header)?;
         debug!(
             "Commit Engine import: block #{} passed the seal checks at slot {} rank {}",
@@ -676,6 +709,25 @@ mod tests {
         assert_ne!(one, two);
         assert_ne!(one, three);
         assert_eq!(one, derive_slot_seed(&[1u8; 32], Slot(4)));
+    }
+
+    /// A block a little ahead of the local clock waits; a block far ahead
+    /// does not.
+    #[test]
+    fn a_block_slightly_ahead_waits_and_a_block_far_ahead_does_not() {
+        let rank = crate::engines::authoring::fallback::DEFAULT_RANK_TIMEOUT_MS;
+        // Inside the allowance: no wait.
+        assert_eq!(super::early_wait_ms(10_400, 10_000, rank), None);
+        // A block 800 milliseconds ahead, as the delay exercise recorded,
+        // waits 300 milliseconds and then passes the arrival check.
+        assert_eq!(super::early_wait_ms(10_800, 10_000, rank), Some(300));
+        // The bound is the rank timeout.
+        assert_eq!(super::early_wait_ms(11_500, 10_000, rank), Some(1_000));
+        assert_eq!(super::early_wait_ms(11_501, 10_000, rank), None);
+        // A clock thirty seconds fast: no wait, the arrival check refuses.
+        assert_eq!(super::early_wait_ms(40_000, 10_000, rank), None);
+        // A block from the past: no wait.
+        assert_eq!(super::early_wait_ms(9_000, 10_000, rank), None);
     }
 
     /// A block is checked against the state its parent left behind.
