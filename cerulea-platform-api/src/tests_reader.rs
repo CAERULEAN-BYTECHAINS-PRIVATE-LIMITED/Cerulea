@@ -269,6 +269,7 @@ impl LocalRuntime {
                     deadline_block: round * 5 + 3,
                     answered: round != 2,
                     verified: round != 2,
+                    settled: true,
                 })
                 .collect(),
             manifests: vec![ActionManifestReply {
@@ -631,6 +632,25 @@ impl LocalRuntime {
                     .cloned()
                     .collect::<Vec<_>>()
                     .encode()
+            }
+            "CeruleaPlatformApi_custody_counts" => {
+                let (validator,): (u64,) = args(name, params)?;
+                let mut counts = CustodyCountsReply::default();
+                for held in self
+                    .custody
+                    .iter()
+                    .filter(|held| held.validator == validator)
+                {
+                    if held.verified {
+                        counts.answered += 1;
+                    } else if held.answered {
+                        counts.faults += 1;
+                    } else if held.settled {
+                        counts.missed += 1;
+                    }
+                }
+                counts.share = 1_000_000 - 100_000 * counts.missed;
+                counts.encode()
             }
             "CeruleaPlatformApi_action_manifest" => {
                 let (deployment, action): (DeploymentId, Vec<u8>) = args(name, params)?;
@@ -1005,6 +1025,26 @@ fn the_consensus_custody_and_manifest_reads_answer() {
     assert!(history.iter().all(|held| held.validator == REGISTRAR));
     assert!(history.iter().any(|held| !held.answered));
     assert_eq!(api.custody_history(at(), CLERK, 1).expect("reads").len(), 1);
+    // Rounds 0 and 2 reach the registrar: one answered, one missed.
+    assert_eq!(
+        api.custody_counts(at(), REGISTRAR).expect("reads"),
+        CustodyCountsReply {
+            answered: 1,
+            missed: 1,
+            faults: 0,
+            share: 900_000,
+        }
+    );
+    // Rounds 1 and 3 reach the clerk, both answered.
+    assert_eq!(
+        api.custody_counts(at(), CLERK).expect("reads"),
+        CustodyCountsReply {
+            answered: 2,
+            missed: 0,
+            faults: 0,
+            share: 1_000_000,
+        }
+    );
     let manifest = api
         .action_manifest(at(), DEPLOYMENT, text("record_transfer"))
         .expect("reads")

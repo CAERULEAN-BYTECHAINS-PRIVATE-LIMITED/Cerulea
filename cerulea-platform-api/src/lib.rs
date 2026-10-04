@@ -416,6 +416,26 @@ pub struct CustodyReply<AccountId> {
     pub answered: bool,
     /// The answer passed the check.
     pub verified: bool,
+    /// The challenge settled: answered, missed or failed.
+    ///
+    /// An open challenge reads false. A settled challenge with no answer is a
+    /// missed challenge.
+    pub settled: bool,
+}
+
+/// The custody counters of one validator, read from its custody record.
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Serialize, Deserialize,
+)]
+pub struct CustodyCountsReply {
+    /// Challenges answered correctly inside the deadline.
+    pub answered: u32,
+    /// Challenges the validator let pass.
+    pub missed: u32,
+    /// Proofs that failed verification.
+    pub faults: u32,
+    /// The custody share of the Trust Score, in parts per million.
+    pub share: u32,
 }
 
 sp_api::decl_runtime_apis! {
@@ -562,8 +582,12 @@ sp_api::decl_runtime_apis! {
         /// under.
         fn consensus_profile() -> ConsensusProfileReply;
 
-        /// The custody challenge history of one validator.
+        /// The custody challenge history of one validator, open and settled,
+        /// oldest first. The newest `limit` challenges come back.
         fn custody_history(validator: AccountId, limit: u32) -> Vec<CustodyReply<AccountId>>;
+
+        /// The custody counters of one validator over every settled challenge.
+        fn custody_counts(validator: AccountId) -> CustodyCountsReply;
 
         /// What one action reads, writes and needs.
         fn action_manifest(

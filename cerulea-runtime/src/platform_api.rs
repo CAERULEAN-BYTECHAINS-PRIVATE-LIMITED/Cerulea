@@ -15,9 +15,10 @@ use alloc::{
 };
 use cerulea_blueprint::types::{CollectionId, Value};
 use cerulea_platform_api::{
-    AuditReply, CollectionSummary, ConsensusProfileReply, CustodyReply, DeploymentId, LicenceReply,
-    OracleReply, PermissionReply, PrivacyLabel, ProposalReply, RecordReply, RecordVersionEntry,
-    RoleReply, RollbackWindowReply, VersionReply, ViewReply, VoteReply, WorkflowInstanceReply,
+    AuditReply, CollectionSummary, ConsensusProfileReply, CustodyCountsReply, CustodyReply,
+    DeploymentId, LicenceReply, OracleReply, PermissionReply, PrivacyLabel, ProposalReply,
+    RecordReply, RecordVersionEntry, RoleReply, RollbackWindowReply, VersionReply, ViewReply,
+    VoteReply, WorkflowInstanceReply,
 };
 use codec::{Decode, Encode};
 use frame_support::traits::Get;
@@ -889,26 +890,49 @@ pub fn action_names(deployment: DeploymentId) -> Vec<Vec<u8>> {
 }
 
 /// The custody challenge history of one validator.
+///
+/// The history joins the open challenges with the settled log of the custody
+/// module, so a challenge stays readable after it settles. The reply holds
+/// the newest `limit` challenges, oldest first.
 pub fn custody_history(validator: AccountId, limit: u32) -> Vec<CustodyReply<AccountId>> {
     use pallet_cerulea_custody::primitives::ChallengeState;
     let ceiling = bounded_limit(limit) as usize;
-    let mut found: Vec<CustodyReply<AccountId>> =
-        pallet_cerulea_custody::OpenChallenges::<Runtime>::iter()
-            .take(READ_CEILING as usize)
-            .filter(|(_, challenge)| challenge.target == validator)
-            .map(|(id, challenge)| {
-                let state = pallet_cerulea_custody::ChallengeStates::<Runtime>::get(id)
-                    .unwrap_or(ChallengeState::Open);
-                CustodyReply {
-                    validator: challenge.target.clone(),
-                    issued_block: challenge.issued.saturated_into::<u32>(),
-                    deadline_block: challenge.deadline.saturated_into::<u32>(),
-                    answered: state != ChallengeState::Open && state != ChallengeState::Missed,
-                    verified: state == ChallengeState::AnsweredInTime,
-                }
-            })
+    let reply = |challenge: &pallet_cerulea_custody::ChallengeOf<Runtime>,
+                 state: ChallengeState| {
+        CustodyReply {
+            validator: challenge.target.clone(),
+            issued_block: challenge.issued.saturated_into::<u32>(),
+            deadline_block: challenge.deadline.saturated_into::<u32>(),
+            answered: state == ChallengeState::AnsweredInTime || state == ChallengeState::Incorrect,
+            verified: state == ChallengeState::AnsweredInTime,
+            settled: state != ChallengeState::Open,
+        }
+    };
+    let mut found: Vec<(u64, CustodyReply<AccountId>)> =
+        pallet_cerulea_custody::SettledChallenges::<Runtime>::get(&validator)
+            .iter()
+            .map(|(id, challenge, state)| (*id, reply(challenge, *state)))
             .collect();
-    found.sort_by_key(|held| held.issued_block);
-    found.truncate(ceiling);
-    found
+    for id in pallet_cerulea_custody::OpenChallengeIds::<Runtime>::get().iter() {
+        if let Some(challenge) = pallet_cerulea_custody::OpenChallenges::<Runtime>::get(id) {
+            if challenge.target == validator {
+                found.push((*id, reply(&challenge, ChallengeState::Open)));
+            }
+        }
+    }
+    // Challenge identifiers rise with issue order, so they order the history.
+    found.sort_by_key(|(id, _)| *id);
+    let skip = found.len().saturating_sub(ceiling);
+    found.into_iter().skip(skip).map(|(_, held)| held).collect()
+}
+
+/// The custody counters of one validator, read from its custody record.
+pub fn custody_counts(validator: AccountId) -> CustodyCountsReply {
+    let record = pallet_cerulea_custody::CustodyRecords::<Runtime>::get(&validator);
+    CustodyCountsReply {
+        answered: record.answered,
+        missed: record.missed,
+        faults: record.faults,
+        share: pallet_cerulea_custody::Pallet::<Runtime>::custody_share(&validator),
+    }
 }

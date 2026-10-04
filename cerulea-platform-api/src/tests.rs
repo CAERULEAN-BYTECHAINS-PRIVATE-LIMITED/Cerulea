@@ -424,15 +424,21 @@ fn a_custody_reply_reads_back_answered_and_missed() {
         deadline_block: 23,
         answered: true,
         verified: true,
+        settled: true,
     };
     let bytes = round_trip(&answered);
-    assert_eq!(bytes.len(), 8 + 4 + 4 + 1 + 1);
+    assert_eq!(bytes.len(), 8 + 4 + 4 + 1 + 1 + 1);
     let missed = CustodyReply::<u64> {
         answered: false,
         verified: false,
         ..answered
     };
     round_trip(&missed);
+    let open = CustodyReply::<u64> {
+        settled: false,
+        ..missed
+    };
+    round_trip(&open);
     every_truncation_fails::<CustodyReply<u64>>(&bytes);
 }
 
@@ -444,9 +450,10 @@ fn a_boolean_flag_outside_zero_and_one_fails_to_decode() {
         deadline_block: 5,
         answered: true,
         verified: false,
+        settled: true,
     }
     .encode();
-    let flag = bytes.len() - 2;
+    let flag = bytes.len() - 3;
     bytes[flag] = 7;
     assert!(CustodyReply::<u64>::decode(&mut &bytes[..]).is_err());
 }
@@ -474,7 +481,8 @@ fn the_type_registry_names_every_reply_field() {
             "issued_block",
             "deadline_block",
             "answered",
-            "verified"
+            "verified",
+            "settled"
         ]
     );
     assert_eq!(

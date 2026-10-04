@@ -8,7 +8,7 @@ use crate::primitives::{ChallengeState, CUSTODY_DIGEST_ID};
 use crate::respond::assemble_answer;
 use crate::{
     ChallengeStates, CustodyRecords, Error, Event, HistoryHead, OpenChallengeIds, OpenChallenges,
-    PublishedChallenge, RecordCounts, RecordRoots,
+    PublishedChallenge, RecordCounts, RecordRoots, SettledChallenges, SETTLED_HISTORY,
 };
 use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_support::{assert_noop, assert_ok, BoundedVec};
@@ -374,6 +374,67 @@ fn a_sealed_root_is_announced() {
                 root,
             }
             .into(),
+        );
+    });
+}
+
+#[test]
+fn an_answered_challenge_enters_the_settled_log_of_its_validator() {
+    new_test_ext().execute_with(|| {
+        commit_records(6);
+        run_to_block(5);
+        let (id, challenge) = PublishedChallenge::<Test>::get().expect("issued");
+        assert!(SettledChallenges::<Test>::get(challenge.target).is_empty());
+
+        let answer = assemble_answer(&local_copy(6), challenge.record.index).expect("assembles");
+        assert_ok!(Custody::answer_challenge(
+            RuntimeOrigin::signed(challenge.target),
+            id,
+            answer
+        ));
+
+        let log = SettledChallenges::<Test>::get(challenge.target);
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0], (id, challenge, ChallengeState::AnsweredInTime));
+    });
+}
+
+#[test]
+fn a_missed_challenge_enters_the_settled_log_of_its_validator() {
+    new_test_ext().execute_with(|| {
+        commit_records(6);
+        run_to_block(5);
+        let (id, challenge) = PublishedChallenge::<Test>::get().expect("issued");
+
+        run_to_block(9);
+
+        let log = SettledChallenges::<Test>::get(challenge.target);
+        assert_eq!(
+            log.to_vec(),
+            sp_std::vec![(id, challenge, ChallengeState::Missed)]
+        );
+    });
+}
+
+#[test]
+fn the_settled_log_keeps_the_newest_entries_and_drops_the_oldest() {
+    new_test_ext().execute_with(|| {
+        commit_records(6);
+        run_to_block(5);
+        let (_, challenge) = PublishedChallenge::<Test>::get().expect("issued");
+        let total = u64::from(SETTLED_HISTORY) + 3;
+        for id in 1_000..1_000 + total {
+            Custody::settle_challenge(id, &challenge, ChallengeState::Missed);
+        }
+        let log = SettledChallenges::<Test>::get(challenge.target);
+        assert_eq!(log.len(), SETTLED_HISTORY as usize);
+        // The three oldest left; the newest sits last.
+        assert_eq!(log.first().map(|held| held.0), Some(1_003));
+        assert_eq!(log.last().map(|held| held.0), Some(1_000 + total - 1));
+        // The custody record counts every settled challenge, past the log bound.
+        assert_eq!(
+            CustodyRecords::<Test>::get(challenge.target).missed,
+            total as u32
         );
     });
 }

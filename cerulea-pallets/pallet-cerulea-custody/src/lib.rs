@@ -43,6 +43,9 @@ mod tests;
 mod tests_reject;
 
 pub use pallet::*;
+
+/// The settled challenges the log keeps for each validator.
+pub const SETTLED_HISTORY: u32 = 64;
 pub use primitives::{
     custody_entry, Challenge, ChallengeAnswer, ChallengeState, CollectionId, CustodyRecord,
     CustodyRecordHook, CustodyStanding, CustodyValidators, ProofStep, RecordRef, CUSTODY_DIGEST_ID,
@@ -154,6 +157,22 @@ pub mod pallet {
     #[pallet::getter(fn challenge_state)]
     pub type ChallengeStates<T: Config> =
         StorageMap<_, Blake2_128Concat, u64, ChallengeState, OptionQuery>;
+
+    /// The settled challenges of each validator, newest last.
+    ///
+    /// Settling removes a challenge from the open set. This log keeps the
+    /// challenge and the state it reached, so the history reads every
+    /// challenge after it settles. The log holds the newest
+    /// `SETTLED_HISTORY` entries per validator and drops the oldest first.
+    #[pallet::storage]
+    #[pallet::getter(fn settled_challenges)]
+    pub type SettledChallenges<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        BoundedVec<(u64, ChallengeOf<T>, ChallengeState), ConstU32<SETTLED_HISTORY>>,
+        ValueQuery,
+    >;
 
     /// The custody record of each validator.
     #[pallet::storage]
@@ -497,6 +516,13 @@ pub mod pallet {
                 ids.retain(|held| held != &id);
             });
             ChallengeStates::<T>::insert(id, state);
+            SettledChallenges::<T>::mutate(&challenge.target, |log| {
+                if log.is_full() {
+                    log.remove(0);
+                }
+                // The log has room after the removal, so the push holds.
+                let _ = log.try_push((id, challenge.clone(), state));
+            });
 
             T::Standing::report_custody_share(&challenge.target, movement.current_share);
 

@@ -720,6 +720,10 @@ impl_runtime_apis! {
             crate::platform_api::custody_history(validator, limit)
         }
 
+        fn custody_counts(validator: AccountId) -> cerulea_platform_api::CustodyCountsReply {
+            crate::platform_api::custody_counts(validator)
+        }
+
         fn action_manifest(
             deployment: cerulea_platform_api::DeploymentId,
             action: Vec<u8>,

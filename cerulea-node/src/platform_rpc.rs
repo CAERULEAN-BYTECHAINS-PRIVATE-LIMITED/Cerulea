@@ -750,18 +750,16 @@ where
         let (authored_blocks, missed_slots) = api
             .get_validator_participation(best, account.clone())
             .unwrap_or((0, 0));
-        let custody = api
-            .custody_history(best, account.clone(), 512)
+        // The counters come from the custody record, which counts every
+        // settled challenge. The history log keeps the newest challenges
+        // alone, so it serves the list and leaves the counting here.
+        let counts = api
+            .custody_counts(best, account.clone())
             .unwrap_or_default();
-        let answered = custody.iter().filter(|held| held.verified).count() as u32;
-        let missed = custody
-            .iter()
-            .filter(|held| !held.answered && !held.verified)
-            .count() as u32;
-        let faults = custody
-            .iter()
-            .filter(|held| held.answered && !held.verified)
-            .count() as u32;
+        let answered = counts.answered;
+        let missed = counts.missed;
+        let faults = counts.faults;
+        let custody_share = counts.share;
         let penalties = api
             .get_slashing_history(best, account.clone())
             .map(|held| u32::try_from(held.len()).unwrap_or(u32::MAX))
@@ -772,7 +770,7 @@ where
             trust_score: breakdown.as_ref().map(|held| held.final_score).unwrap_or(0),
             standing: breakdown.as_ref().map(|held| held.trust_score).unwrap_or(0),
             performance: breakdown.as_ref().map(|held| held.pos_score).unwrap_or(0),
-            custody: answered,
+            custody: custody_share,
             stake: api.get_validator_stake(best, account.clone()).unwrap_or(0),
             authored_blocks,
             missed_slots,

@@ -900,9 +900,118 @@ fn a_custody_challenge_answers_in_the_history_of_its_validator() {
         let issued = issued.expect("the interval issues a challenge within twenty blocks");
         assert_eq!(issued % 10, 0);
         // The deadline passed with no answer. The chain closed the challenge
-        // as missed and the open history holds it no longer.
-        let history = api::custody_history(alice, 10);
-        assert!(history.iter().all(|held| held.issued_block != issued));
+        // as missed, and the history still reads it, settled and unanswered.
+        let history = api::custody_history(alice.clone(), 10);
+        let missed = history
+            .iter()
+            .find(|held| held.issued_block == issued)
+            .expect("the settled challenge stays in the history");
+        assert!(missed.settled);
+        assert!(!missed.answered);
+        assert!(!missed.verified);
+        // The counters read the custody record.
+        let counts = api::custody_counts(alice);
+        assert!(counts.missed >= 1);
+        assert_eq!(counts.answered, 0);
+        assert_eq!(counts.faults, 0);
+        assert!(counts.share < pallet_cerulea_custody::score::STARTING_SHARE);
         assert!(api::custody_history(stranger(), 10).is_empty());
+        // A validator with no settled challenge carries the starting share.
+        assert_eq!(
+            api::custody_counts(stranger()),
+            cerulea_platform_api::CustodyCountsReply {
+                answered: 0,
+                missed: 0,
+                faults: 0,
+                share: pallet_cerulea_custody::score::STARTING_SHARE,
+            }
+        );
+    });
+}
+
+/// Issue one custody challenge on the development chain and return it.
+fn issue_one_challenge() -> (u64, pallet_cerulea_custody::ChallengeOf<Runtime>) {
+    use frame_support::traits::Hooks;
+    assert_ok!(Custody::commit_record(
+        RuntimeOrigin::root(),
+        parcel_tag(),
+        bounded(b"12/3".to_vec()),
+        bounded(b"Anitha holds 400 square metres".to_vec())
+    ));
+    <Custody as Hooks<u32>>::on_finalize(1);
+    for block in 2u32..=20 {
+        frame_system::Pallet::<Runtime>::set_block_number(block);
+        <Custody as Hooks<u32>>::on_initialize(block);
+        if let Some(id) = pallet_cerulea_custody::OpenChallengeIds::<Runtime>::get().first() {
+            let challenge = pallet_cerulea_custody::OpenChallenges::<Runtime>::get(id)
+                .expect("an open identifier names an open challenge");
+            return (*id, challenge);
+        }
+    }
+    panic!("The interval issues a challenge within twenty blocks.");
+}
+
+#[test]
+fn an_answered_challenge_stays_in_the_history_after_it_settles() {
+    use pallet_cerulea_custody::primitives::ChallengeState;
+    development_ext().execute_with(|| {
+        let (id, challenge) = issue_one_challenge();
+        let target = challenge.target.clone();
+        let open = api::custody_history(target.clone(), 10);
+        assert_eq!(open.len(), 1);
+        assert!(!open[0].settled);
+
+        Custody::settle_challenge(id, &challenge, ChallengeState::AnsweredInTime);
+
+        let history = api::custody_history(target.clone(), 10);
+        assert_eq!(history.len(), 1);
+        assert!(history[0].settled && history[0].answered && history[0].verified);
+        assert_eq!(history[0].issued_block, open[0].issued_block);
+        let counts = api::custody_counts(target);
+        assert_eq!((counts.answered, counts.missed, counts.faults), (1, 0, 0));
+    });
+}
+
+#[test]
+fn a_failed_proof_stays_in_the_history_and_counts_as_a_fault() {
+    use pallet_cerulea_custody::primitives::ChallengeState;
+    development_ext().execute_with(|| {
+        let (id, challenge) = issue_one_challenge();
+        let target = challenge.target.clone();
+
+        Custody::settle_challenge(id, &challenge, ChallengeState::Incorrect);
+
+        let history = api::custody_history(target.clone(), 10);
+        assert_eq!(history.len(), 1);
+        assert!(history[0].settled && history[0].answered && !history[0].verified);
+        let counts = api::custody_counts(target);
+        assert_eq!((counts.answered, counts.missed, counts.faults), (0, 0, 1));
+    });
+}
+
+#[test]
+fn the_history_returns_the_newest_challenges_oldest_first() {
+    use pallet_cerulea_custody::primitives::ChallengeState;
+    development_ext().execute_with(|| {
+        let (_, challenge) = issue_one_challenge();
+        let target = challenge.target.clone();
+        // Three settled entries for one validator, issued at rising blocks.
+        for (id, issued) in [(100u64, 30u32), (101, 40), (102, 50)] {
+            let mut held = challenge.clone();
+            held.issued = issued;
+            held.deadline = issued + 3;
+            Custody::settle_challenge(id, &held, ChallengeState::Missed);
+        }
+        let all = api::custody_history(target.clone(), 10);
+        let issued: Vec<u32> = all.iter().map(|held| held.issued_block).collect();
+        assert_eq!(&issued[issued.len() - 3..], &[30, 40, 50]);
+        let newest = api::custody_history(target, 2);
+        assert_eq!(
+            newest
+                .iter()
+                .map(|held| held.issued_block)
+                .collect::<Vec<_>>(),
+            vec![40, 50]
+        );
     });
 }
