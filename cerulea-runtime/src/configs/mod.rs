@@ -21,7 +21,7 @@ use sp_version::RuntimeVersion;
 use super::{
     AccountId, Balance, Balances, Block, BlockNumber, Hash, Nonce, PalletInfo, Runtime,
     RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask,
-    System, EXISTENTIAL_DEPOSIT, SLOT_DURATION, VERSION,
+    System, EXISTENTIAL_DEPOSIT, VERSION,
 };
 
 use crate::{
@@ -153,7 +153,9 @@ impl frame_system::Config for Runtime {
 impl pallet_timestamp::Config for Runtime {
     type Moment = u64;
     type OnTimestampSet = ();
-    type MinimumPeriod = ConstU64<{ SLOT_DURATION / 2 }>;
+    // The timestamp follows the clocks of the authors. The period sits under
+    // the real block cadence, so chain time stays at wall time.
+    type MinimumPeriod = ConstU64<{ crate::MINIMUM_TIMESTAMP_PERIOD }>;
     type WeightInfo = ();
 }
 
@@ -294,6 +296,7 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type ValidatorProposalInterval = ConstU32<200>; // every 200 blocks
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
     type EpochLength = ConstU32<100>; // 100 blocks per epoch
+
     // The governance range of the epoch length: 50 blocks to one day at six
     // second blocks.
     type MinEpochLength = ConstU32<50>;

@@ -94,6 +94,14 @@ validators keep committing while they hold the threshold. A loopback test runs
 five validators with one clock thirty seconds ahead. The four true clocks keep
 committing, and once the fifth restarts with a true clock all five converge.
 
+The block timestamp comes from the clock of its author. The runtime lifts it
+to the parent timestamp plus the minimum timestamp period, 500 milliseconds,
+where the author clock reads less. The networks produce about one block per
+1,500 millisecond rank window, so the period stays under the real cadence and
+chain time stays at wall time. A runtime test drives 600 blocks at that cadence
+and the five validator loopback test checks the best block of every node: chain
+time never runs more than one slot ahead of the wall clock.
+
 A block that claims a moment ahead of the local clock by more than the 500
 millisecond arrival allowance, and by no more than the rank timeout, waits
 until the moment arrives before import checks it. Two honest clocks and a

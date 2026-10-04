@@ -123,6 +123,18 @@ mod block_times {
 
     // The slot duration is the minimum time between blocks
     pub const SLOT_DURATION: u64 = MILLI_SECS_PER_BLOCK;
+
+    /// The least the block timestamp rises from one block to the next, in
+    /// milliseconds.
+    ///
+    /// The author of each block sets its timestamp from its own clock and the
+    /// chain lifts it to the parent timestamp plus this period where the
+    /// clock reads less. The Authoring Engine gives each rank a window of
+    /// 1,500 milliseconds and the network produces about one block a window,
+    /// so the period stays well under the real cadence. Chain time then
+    /// follows the clocks of the authors. A period above the cadence pushed
+    /// every block ahead and chain time ran away from the wall clock.
+    pub const MINIMUM_TIMESTAMP_PERIOD: u64 = 500;
 }
 pub use block_times::*;
 
