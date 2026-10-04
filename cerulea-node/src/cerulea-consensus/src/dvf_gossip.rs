@@ -115,6 +115,50 @@ pub enum CommitMessage<Hash, AccountId> {
     Vote(DvfVoteMessage<Hash, AccountId>),
     /// One round timeout statement.
     RoundTimeout(RoundTimeoutMessage<Hash, AccountId>),
+    /// One commitment: the votes that committed a block.
+    Commitment(CommitmentMessage<Hash, AccountId>),
+}
+
+/// One commitment, the justification that committed one block.
+///
+/// A node that commits a block sends the commitment to every peer. The gossip
+/// store keeps the newest commitment, so a peer that connects or reconnects
+/// receives it at once. A validator that missed the votes of a round, or was
+/// cut off while the others committed, then commits the block from any one
+/// peer that holds the commitment.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct CommitmentMessage<Hash, AccountId> {
+    /// The height of the committed block.
+    pub block_number: u32,
+    /// The votes that committed the block.
+    pub justification: DvfJustification<Hash, AccountId>,
+}
+
+/// The first byte of an encoded commitment message.
+pub const COMMITMENT_MESSAGE_INDEX: u8 = 2;
+
+/// The commitment message one committed block goes out as.
+///
+/// Nothing goes out for a block at or below the last one sent. Nothing goes
+/// out for a block committed without a Commit Engine justification either, as
+/// a block committed from the chain record is.
+pub fn commitment_bytes<Hash: Encode + Decode, AccountId: Encode + Decode>(
+    number: u32,
+    last_sent: u32,
+    justification: Option<&Vec<u8>>,
+) -> Option<Vec<u8>> {
+    if number <= last_sent {
+        return None;
+    }
+    let encoded = justification?;
+    let justification = DvfJustification::<Hash, AccountId>::decode(&mut &encoded[..]).ok()?;
+    Some(
+        CommitMessage::Commitment(CommitmentMessage {
+            block_number: number,
+            justification,
+        })
+        .encode(),
+    )
 }
 
 /// The rounds a vote or a round timeout statement stays in the gossip store.
@@ -149,6 +193,8 @@ pub fn message_live<Hash, AccountId>(
             statement.block_number > committed
                 && statement.round_number.saturating_add(GOSSIP_KEEP_ROUNDS) >= round
         }
+        // The newest commitment stays for peers that connect later.
+        CommitMessage::Commitment(commitment) => commitment.block_number >= committed,
     }
 }
 
@@ -203,6 +249,9 @@ pub fn message_repeated<Hash, AccountId>(
             statement.block_number > committed
                 && statement.round_number.saturating_add(GOSSIP_REPEAT_ROUNDS) >= round
         }
+        // A commitment goes out once to each peer, and to each peer that
+        // connects, never on the periodic repeat.
+        CommitMessage::Commitment(_) => false,
     }
 }
 
@@ -538,6 +587,15 @@ impl<
 /// timeout statement the message carries. A message longer than either bound
 /// is refused on the length alone.
 pub fn admit_vote_message(bytes: &[u8]) -> Result<(), crate::engines::EngineError> {
+    // A commitment carries the votes of a whole round, so it crosses the
+    // bound of a submission rather than the bound of one vote.
+    if bytes.first() == Some(&COMMITMENT_MESSAGE_INDEX) {
+        crate::engines::bounds::admit(
+            crate::engines::bounds::MessagePath::CommitSubmission,
+            bytes.len(),
+        )?;
+        return Ok(());
+    }
     crate::engines::bounds::admit(
         crate::engines::bounds::MessagePath::GossipMessage,
         bytes.len(),
@@ -614,6 +672,30 @@ impl HeldMessages {
     }
 }
 
+/// One commitment a peer sent that checked out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeardCommitment<Hash> {
+    /// The height of the committed block.
+    pub block_number: u32,
+    /// The hash of the committed block.
+    pub block_hash: Hash,
+    /// The encoded justification, as the node stores it with the block.
+    pub justification: Vec<u8>,
+}
+
+/// Keep the newer of two commitments.
+///
+/// A commitment at a height the held one already reaches changes nothing.
+pub fn newer_commitment<Hash>(
+    held: Option<HeardCommitment<Hash>>,
+    heard: HeardCommitment<Hash>,
+) -> (Option<HeardCommitment<Hash>>, bool) {
+    match held {
+        Some(known) if known.block_number >= heard.block_number => (Some(known), false),
+        _ => (Some(heard), true),
+    }
+}
+
 /// Validator for Commit Engine gossip messages.
 /// Filters, validates, and manages routing of commit protocol messages across peers.
 pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
@@ -628,6 +710,9 @@ pub struct DvfGossipValidator<B: BlockT, C, AccountId> {
     /// The committed head and the current round, which decide what the
     /// gossip store keeps and repeats.
     window: RwLock<(u32, u32)>,
+    /// The newest commitment a peer sent that checked out, waiting for the
+    /// node to commit the block it names.
+    heard_commitment: RwLock<Option<HeardCommitment<B::Hash>>>,
     client: Arc<C>,
     metrics: Option<Arc<DvfMetrics>>,
 }
@@ -647,6 +732,7 @@ where
             known_messages: RwLock::new(MessageSet::new()),
             held: RwLock::new(HeldMessages::new()),
             window: RwLock::new((0, 0)),
+            heard_commitment: RwLock::new(None),
             client,
             metrics: None,
         }
@@ -664,6 +750,16 @@ where
     /// The committed head and the current round the store reads.
     pub fn window(&self) -> (u32, u32) {
         *self.window.read()
+    }
+
+    /// Take the newest commitment a peer sent, where it names a block above
+    /// the committed head.
+    pub fn take_commitment(&self) -> Option<HeardCommitment<B::Hash>> {
+        let committed = self.window().0;
+        self.heard_commitment
+            .write()
+            .take()
+            .filter(|heard| heard.block_number > committed)
     }
 
     /// The number of messages held for a later try.
@@ -885,6 +981,25 @@ where
                 )?;
                 self.check_target(vote.block_number, vote.block_hash)?;
             }
+            CommitMessage::Commitment(commitment) => {
+                use sp_runtime::traits::Header as _;
+                use sp_runtime::SaturatedConversion;
+                let committed: u32 = self.client.info().finalized_number.saturated_into();
+                if commitment.block_number <= committed {
+                    return Err(self.reject("stale_commitment"));
+                }
+                // The signatures and the weight are checked once the block is
+                // known, against the state of the node.
+                match self.client.header(commitment.justification.block_hash) {
+                    Ok(Some(header)) => {
+                        let height: u32 = (*header.number()).saturated_into();
+                        if height != commitment.block_number {
+                            return Err(self.reject("commitment_mismatch"));
+                        }
+                    }
+                    Ok(None) | Err(_) => return Err(self.reject("target_not_imported")),
+                }
+            }
             CommitMessage::RoundTimeout(statement) => {
                 if !signer_matches(
                     &statement.validator_account_id,
@@ -1081,6 +1196,43 @@ where
                     ValidationResult::Discard
                 }
             }
+            Ok(CommitMessage::Commitment(commitment)) => {
+                // The same check the node runs on any justification: every
+                // signature, every signer in the active set, and the weight
+                // above the threshold.
+                let checker = crate::justification_builder::JustificationBuilder::new(
+                    self.client.clone(),
+                    self.pool.clone(),
+                );
+                match checker.verify_justification(&commitment.justification) {
+                    Ok(()) => {
+                        let heard = HeardCommitment {
+                            block_number: commitment.block_number,
+                            block_hash: commitment.justification.block_hash,
+                            justification: commitment.justification.encode(),
+                        };
+                        let number = heard.block_number;
+                        let mut held = self.heard_commitment.write();
+                        let (kept, newer) = newer_commitment(held.take(), heard);
+                        *held = kept;
+                        if newer {
+                            info!(
+                                "Commit Engine Gossip Validator: a peer sent the commitment of block #{}",
+                                number
+                            );
+                        }
+                        ValidationResult::ProcessAndKeep(msg_hash_b)
+                    }
+                    Err(reason) => {
+                        warn!(
+                            "Commit Engine Gossip Validator: a commitment for block #{} failed its check: {}",
+                            commitment.block_number, reason
+                        );
+                        self.reject("invalid_commitment");
+                        ValidationResult::Discard
+                    }
+                }
+            }
             Err(reason) => {
                 // A stale or out of range vote is ordinary during a stall, so
                 // the refusal stays at debug level and costs the peer nothing.
@@ -1196,6 +1348,92 @@ mod tests {
             committed,
             round
         ));
+    }
+
+    fn commitment(height: u32, round: u32) -> CommitMessage<H256, [u8; 32]> {
+        CommitMessage::Commitment(CommitmentMessage {
+            block_number: height,
+            justification: DvfJustification {
+                round_number: round,
+                block_hash: H256::repeat_byte(7),
+                votes: (1..=5)
+                    .map(|signer| vote(signer, round, height, 7))
+                    .collect(),
+            },
+        })
+    }
+
+    /// The newest commitment stays in the store and goes out once.
+    ///
+    /// A validator cut off while the others committed reconnects and receives
+    /// the newest commitment from any peer, since every peer holds it in its
+    /// store and sends what the newcomer lacks.
+    #[test]
+    fn the_newest_commitment_stays_for_peers_that_reconnect() {
+        let message = commitment(940, 116);
+        assert!(message_live(&message, 930, 120));
+        assert!(message_live(&message, 940, 120));
+        assert!(!message_live(&message, 950, 120));
+        // Sent once to each peer and to each peer that connects.
+        assert!(!message_repeated(&message, 930, 120));
+        let bytes = message.encode();
+        assert!(message_allowed_bytes::<H256, [u8; 32]>(
+            MessageIntent::Broadcast,
+            &bytes,
+            930,
+            120
+        ));
+        assert!(!message_allowed_bytes::<H256, [u8; 32]>(
+            MessageIntent::PeriodicRebroadcast,
+            &bytes,
+            930,
+            120
+        ));
+        // A commitment carries a whole round of votes and crosses the
+        // submission bound, larger than the bound of one vote.
+        assert_eq!(bytes[0], COMMITMENT_MESSAGE_INDEX);
+        assert!(bytes.len() > 256);
+        assert!(admit_vote_message(&bytes).is_ok());
+        assert_eq!(
+            CommitMessage::<H256, [u8; 32]>::decode(&mut &bytes[..]).unwrap(),
+            message
+        );
+    }
+
+    /// A committed block goes out as one commitment, once.
+    #[test]
+    fn a_committed_block_goes_out_once_as_a_commitment() {
+        let CommitMessage::Commitment(inner) = commitment(940, 116) else {
+            unreachable!("the helper builds a commitment");
+        };
+        let encoded = inner.justification.encode();
+        let bytes = commitment_bytes::<H256, [u8; 32]>(940, 930, Some(&encoded))
+            .expect("a new commitment goes out");
+        assert_eq!(bytes, commitment(940, 116).encode());
+        // Already sent.
+        assert!(commitment_bytes::<H256, [u8; 32]>(940, 940, Some(&encoded)).is_none());
+        // Committed from the chain record, with no justification.
+        assert!(commitment_bytes::<H256, [u8; 32]>(950, 940, None).is_none());
+        // A justification that fails to decode.
+        assert!(commitment_bytes::<H256, [u8; 32]>(950, 940, Some(&vec![1, 2])).is_none());
+    }
+
+    /// The node keeps the newest commitment a peer sent.
+    #[test]
+    fn the_node_keeps_the_newest_commitment_a_peer_sent() {
+        let heard = |height: u32| HeardCommitment {
+            block_number: height,
+            block_hash: H256::repeat_byte(height as u8),
+            justification: vec![height as u8],
+        };
+        let (held, newer) = newer_commitment(None, heard(940));
+        assert!(newer);
+        let (held, newer) = newer_commitment(held, heard(930));
+        assert!(!newer);
+        assert_eq!(held.as_ref().map(|h| h.block_number), Some(940));
+        let (held, newer) = newer_commitment(held, heard(950));
+        assert!(newer);
+        assert_eq!(held.map(|h| h.block_number), Some(950));
     }
 
     /// The traffic one node sends, run through the gossip engine algorithm.

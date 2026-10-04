@@ -499,6 +499,25 @@ where
                         );
                     }
 
+                    // A peer sent the commitment of a block this node has yet
+                    // to commit: the node commits it with that justification.
+                    if let Some(heard) = dvf_validator.take_commitment() {
+                        let justification = Some((
+                            cerulea_consensus::CERULEA_COMMIT_ENGINE_ID,
+                            heard.justification.clone(),
+                        ));
+                        match window_client.finalize_block(heard.block_hash, justification, true) {
+                            Ok(()) => log::info!(
+                                "Commit Engine: committed block #{} from the commitment a peer sent",
+                                heard.block_number
+                            ),
+                            Err(reason) => log::warn!(
+                                "Commit Engine: the commitment of block #{} a peer sent could not be applied: {:?}",
+                                heard.block_number,
+                                reason
+                            ),
+                        }
+                    }
                 }
             });
     }
@@ -511,6 +530,56 @@ where
         None,
     );
     let dvf_gossip_engine = Arc::new(Mutex::new(dvf_gossip_engine));
+
+    // Every block the node commits with a justification goes out as one
+    // commitment message. The gossip store keeps the newest one, so a peer
+    // that connects or reconnects receives it at once and commits the block.
+    {
+        use codec::Decode;
+        use futures::StreamExt;
+        use sc_client_api::{BlockBackend, BlockchainEvents};
+        use sp_runtime::traits::{Header as _, SaturatedConversion};
+        let commitment_client = client.clone();
+        let commitment_engine = dvf_gossip_engine.clone();
+        let commitment_validator = dvf_validator.clone();
+        let mut finality = client.finality_notification_stream();
+        task_manager
+            .spawn_handle()
+            .spawn("dvf-commitment-relay", None, async move {
+                let mut last_sent: u32 = 0;
+                while let Some(notification) = finality.next().await {
+                    let number: u32 = (*notification.header.number()).saturated_into();
+                    let window = commitment_validator.window();
+                    commitment_validator.set_window(number.max(window.0), window.1);
+                    let Some(bytes) = cerulea_consensus::dvf_gossip::commitment_bytes::<
+                        Hash,
+                        AccountId,
+                    >(
+                        number,
+                        last_sent,
+                        commitment_client
+                            .justifications(notification.hash)
+                            .ok()
+                            .flatten()
+                            .as_ref()
+                            .and_then(|held| held.get(cerulea_consensus::CERULEA_COMMIT_ENGINE_ID)),
+                    ) else {
+                        continue;
+                    };
+                    let topic =
+                        <Hash as Decode>::decode(&mut &sp_core::hashing::blake2_256(&bytes)[..])
+                            .unwrap_or_default();
+                    if let Ok(mut engine) = commitment_engine.lock() {
+                        engine.gossip_message(topic, bytes, false);
+                        last_sent = number;
+                        log::info!(
+                            "Commit Engine: sent the commitment of block #{} to every peer",
+                            number
+                        );
+                    }
+                }
+            });
+    }
 
     // The equivocation report engine. The validator checks every arriving report
     // itself, so the node trusts the evidence rather than the peer.

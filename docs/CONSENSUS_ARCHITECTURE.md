@@ -253,6 +253,16 @@ the second machine a second behind for three minutes, an epoch boundary inside
 the stall. Every replay recovers within the round bound with one block per
 height.
 
+A validator cut off while the others commit catches up from any peer. A node
+that commits a block sends its justification as one commitment message on the
+commit protocol. The gossip store keeps the newest commitment, so a peer that
+connects or reconnects receives it at once. The receiver checks every
+signature, every signer and the weight against the threshold, and commits the
+block. A commitment for a block the node has yet to import waits for the
+import. A loopback test stops one of five validators, lets the others commit
+two checkpoints, starts it again and requires it to catch up from the
+commitment a peer sent.
+
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded

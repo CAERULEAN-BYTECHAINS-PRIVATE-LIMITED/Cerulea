@@ -71,6 +71,53 @@ pub fn committed_height(port: u16) -> Option<u32> {
     )?)
 }
 
+/// One plain storage value of the best block one node holds, encoded.
+pub fn storage_value(port: u16, pallet: &[u8], item: &[u8]) -> Option<Vec<u8>> {
+    let mut key = sp_core::hashing::twox_128(pallet).to_vec();
+    key.extend_from_slice(&sp_core::hashing::twox_128(item));
+    let reply = request(
+        port,
+        "state_getStorage",
+        &format!(r#"["0x{}"]"#, hex::encode(key)),
+    )?;
+    hex::decode(reply["result"].as_str()?.trim_start_matches("0x")).ok()
+}
+
+/// The timestamp of the best block one node holds, in milliseconds.
+pub fn chain_time_ms(port: u16) -> Option<u64> {
+    let bytes = storage_value(port, b"Timestamp", b"Now")?;
+    let mut raw = [0u8; 8];
+    raw.copy_from_slice(bytes.get(..8)?);
+    Some(u64::from_le_bytes(raw))
+}
+
+/// The log lines of every node that carry the given text, for a failure
+/// message.
+pub fn lines_with(nodes: &[Validator], text: &str) -> String {
+    nodes
+        .iter()
+        .map(|node| {
+            let log = node.log_text();
+            let matched: Vec<&str> = log.lines().filter(|line| line.contains(text)).collect();
+            format!(
+                "--- {} ({} lines) ---\n{}",
+                node.name,
+                matched.len(),
+                matched.join("\n")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The wall clock in milliseconds since the epoch.
+pub fn wall_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 /// The height of the best block one node reports.
 pub fn best_height(port: u16) -> Option<u32> {
     header_number(&request(port, "chain_getHeader", "[]")?)
