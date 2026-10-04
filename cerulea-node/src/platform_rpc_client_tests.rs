@@ -502,7 +502,13 @@ async fn the_validator_surface_reads_the_standing_the_keys_and_the_committee() {
     assert_eq!(detail.authored_blocks, 2);
     assert_eq!(detail.missed_slots, MISSED_BLOCKS);
     assert!(detail.stake > 0);
-    assert_eq!(detail.custody, detail.custody_answered);
+    // A validator with no settled challenge carries the starting custody
+    // share, parts per million, and no answered count.
+    assert_eq!(
+        detail.custody,
+        pallet_cerulea_custody::score::STARTING_SHARE
+    );
+    assert_eq!(detail.custody_answered, 0);
 
     let outsider: ValidatorDetail = call(&module, "cerulea_getValidatorDetail", rpc_params![bob()])
         .await

@@ -114,7 +114,7 @@ without reading its content.
 | `trustScore` | number | The Trust Score the validator carries |
 | `standing` | number | The standing share of the Trust Score |
 | `performance` | number | The measured performance share |
-| `custody` | number | The custody challenges answered |
+| `custody` | number | The custody share of the Trust Score, in parts per million |
 | `stake` | number | The stake the validator holds |
 | `authoredBlocks` | number | The blocks the validator authored |
 | `missedSlots` | number | The slots the validator missed |
