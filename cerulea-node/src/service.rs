@@ -459,6 +459,10 @@ where
             );
         })?;
 
+    // Reserved validator peers banned by the sync layer are restored after
+    // a backoff, so the links the Commit Engine relies on come back.
+    crate::reserved_peers::spawn(&task_manager.spawn_handle(), network.clone());
+
     // Initialize Registry Gossip Components
     let dvf_gossip_pool = DvfVotePool::<Hash, AccountId>::new();
     let dvf_validator = Arc::new(DvfGossipValidator::new(

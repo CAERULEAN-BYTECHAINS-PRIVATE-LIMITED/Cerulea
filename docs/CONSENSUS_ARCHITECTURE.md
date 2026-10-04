@@ -270,6 +270,13 @@ import. A loopback test stops one of five validators, lets the others commit
 two checkpoints, starts it again and requires it to catch up from the
 commitment a peer sent.
 
+A reserved validator peer stays connected. The block sync layer bans a peer
+that disconnects three times with a request in flight, and a ban lasts about a
+minute. A keeper reads the standing of every reserved peer once a second and
+restores a banned one after a wait of one second, doubling with each repeated
+ban up to one minute, so a failing peer is retried with backoff. Ten quiet
+minutes start the wait again at one second.
+
 Vote submission carries a maximum count enforced before pool admission. The
 declared weight scales with the vote count. The propagation message set carries
 a capacity limit with least-recently-used eviction, so memory stays bounded

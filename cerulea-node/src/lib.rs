@@ -14,6 +14,7 @@ pub mod node_command;
 pub use cerulea_consensus::lifecycle_tracer;
 pub mod logging;
 pub mod platform_rpc;
+pub mod reserved_peers;
 pub mod rpc;
 pub mod service;
 
