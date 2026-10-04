@@ -431,7 +431,7 @@ fn epoch_length_update_stores_and_announces_old_and_new() {
 fn epoch_length_update_refuses_values_outside_the_range() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            set_parameter(ParameterType::EpochLength, bounded_value(49u32)),
+            set_parameter(ParameterType::EpochLength, bounded_value(9u32)),
             Error::<Test>::ParameterOutOfRange
         );
         assert_noop!(
@@ -2434,7 +2434,7 @@ fn dry_run_genesis_warns_on_a_long_epoch() {
             RuntimeOrigin::root(),
             vec![10, 11, 12],
             vec![1_000, 1_000, 1_000],
-            epoch(20_000)
+            epoch(12_000)
         ));
 
         assert!(dcf_events().contains(&Event::GenesisDryRunCompleted {

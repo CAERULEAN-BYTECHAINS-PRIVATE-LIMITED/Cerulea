@@ -684,6 +684,9 @@ impl Config for Test {
     type ValidatorProposalInterval = ConstU32<200>;
     type HealthMetricsInterval = ConstU32<1000>;
     type EpochLength = ConstU32<100>;
+    // The mock chain runs ten block epochs, so its range starts at ten.
+    type MinEpochLength = ConstU32<10>;
+    type MaxEpochLength = ConstU32<14_400>;
 
     // Block authorship reward and penalty
     type BlockAuthorshipBoost = ConstU64<10>;

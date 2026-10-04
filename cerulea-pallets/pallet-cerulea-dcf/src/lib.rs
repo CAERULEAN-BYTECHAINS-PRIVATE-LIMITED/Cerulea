@@ -2046,6 +2046,20 @@ pub mod pallet {
         #[pallet::constant]
         type EpochLength: Get<u32>; // blocks per epoch
 
+        /// The shortest epoch the Amendment Engine admits, in blocks.
+        ///
+        /// Genesis refuses a shorter epoch, and the governance record carries
+        /// this figure as the floor of the epoch length range.
+        #[pallet::constant]
+        type MinEpochLength: Get<u32>;
+
+        /// The longest epoch the Amendment Engine admits, in blocks.
+        ///
+        /// Genesis refuses a longer epoch, and the governance record carries
+        /// this figure as the ceiling of the epoch length range.
+        #[pallet::constant]
+        type MaxEpochLength: Get<u32>;
+
         // Block authorship rewards and penalties
         /// Score boost awarded to validators for successfully authoring blocks.
         ///
@@ -9478,11 +9492,18 @@ pub mod pallet {
                 // Validate that all required storage items are accessible
                 weight = weight.saturating_add(Self::validate_storage_integrity()?);
 
-                // Initialize default governance settings if not present
+                // A chain without a governance record receives the starting
+                // record, built from the runtime ranges and the stored epoch
+                // settings. The record then passes the same governance check.
                 if !GovernanceConfigStorage::<T>::exists() {
-                    let default_config = GovernanceConfig::<T>::default();
-                    GovernanceConfigStorage::<T>::put(default_config);
-                    log::info!("DCF: Initialized default governance settings");
+                    let epoch = EpochConfigStorage::<T>::get();
+                    let record = Self::starting_governance_record(
+                        epoch.blocks_per_epoch,
+                        epoch.max_validators,
+                    );
+                    weight = weight.saturating_add(Self::validate_governance_config(&record)?);
+                    GovernanceConfigStorage::<T>::put(record);
+                    log::info!("DCF: Installed the starting governance record");
                 }
 
                 // Initialize storage version manager
@@ -9513,6 +9534,162 @@ pub mod pallet {
             Ok(weight)
         }
 
+        /// The governance record a new chain starts from.
+        ///
+        /// Every range comes from the runtime constants, and every current
+        /// value sits inside its range. Genesis installs this record, and the
+        /// first storage migration installs it when the chain holds none.
+        pub fn starting_governance_record(
+            epoch_length: u32,
+            max_validators: u32,
+        ) -> GovernanceConfig<T> {
+            GovernanceConfig {
+                // Epoch settings parameters with safe ranges
+                epoch_length: ParameterRange {
+                    min: T::MinEpochLength::get(),
+                    max: T::MaxEpochLength::get(),
+                    current: epoch_length,
+                },
+                min_stake: ParameterRange {
+                    min: <T as pallet::Config>::Balance::from(100_000u32), // Minimum 100k units
+                    max: <T as pallet::Config>::Balance::from(1_000_000_000u32), // Maximum 1B units
+                    current: MinStakeOf::<T>::get(),
+                },
+                max_validators: ParameterRange {
+                    min: 1,    // At least 1 validator
+                    max: 1000, // Maximum 1000 validators
+                    current: max_validators,
+                },
+
+                // Consensus weight parameters (must sum to precision factor)
+                pos_weight: ParameterRange {
+                    min: 1000, // Minimum 10% (1000/10000)
+                    max: 9000, // Maximum 90% (9000/10000)
+                    current: T::DefaultPosWeight::get(),
+                },
+                poi_weight: ParameterRange {
+                    min: 1000, // Minimum 10% (1000/10000)
+                    max: 9000, // Maximum 90% (9000/10000)
+                    current: T::DefaultPoiWeight::get(),
+                },
+
+                // Performance threshold parameters
+                min_performance_score: ParameterRange {
+                    min: 10,   // Minimum threshold of 10
+                    max: 5000, // Maximum threshold of 5000
+                    current: T::MinPerformanceScore::get(),
+                },
+                // The high mark sits on the validator score scale. Its floor is
+                // one point above the starting minimum score and its ceiling is
+                // the top of the scale, so every mark in the range is reachable.
+                high_performance_score: ParameterRange {
+                    min: T::MinPerformanceScore::get()
+                        .saturating_add(1)
+                        .min(T::MaxValidatorScore::get()),
+                    max: T::MaxValidatorScore::get(),
+                    current: T::HighPerformanceScore::get(),
+                },
+                min_participation_rate: ParameterRange {
+                    min: 10, // Minimum 10% participation
+                    max: 90, // Maximum 90% (to allow room for high threshold)
+                    current: T::MinParticipationRate::get(),
+                },
+                high_participation_rate: ParameterRange {
+                    min: 50,  // Minimum 50% for high threshold
+                    max: 100, // Maximum 100% participation
+                    current: T::HighParticipationRate::get(),
+                },
+
+                // Economic parameters
+                validator_reward: ParameterRange {
+                    min: <T as pallet::Config>::Balance::from(1000u32), // Minimum 1000 units reward
+                    max: <T as pallet::Config>::Balance::from(10_000_000u32), // Maximum 10M units reward
+                    current: ValidatorRewardOf::<T>::get(),
+                },
+                slash_percent: ParameterRange {
+                    min: 1,  // Minimum 1% slash
+                    max: 50, // Maximum 50% slash
+                    current: SlashPercentOf::<T>::get(),
+                },
+                leave_cooldown: ParameterRange {
+                    min: BlockNumberFor::<T>::from(100u32), // Minimum 100 blocks cooldown
+                    max: BlockNumberFor::<T>::from(100_000u32), // Maximum 100k blocks cooldown
+                    current: LeaveCooldownOf::<T>::get().into(),
+                },
+
+                // Trust score settings
+                trust_score_uptime_weight: ParameterRange {
+                    min: 10, // Minimum 10% weight
+                    max: 80, // Maximum 80% weight
+                    current: <T as pallet::Config>::TrustScoreUptimeWeight::get() as u32,
+                },
+                trust_score_inference_weight: ParameterRange {
+                    min: 10, // Minimum 10% weight
+                    max: 80, // Maximum 80% weight
+                    current: <T as pallet::Config>::TrustScoreInferenceWeight::get() as u32,
+                },
+                trust_score_slashing_weight: ParameterRange {
+                    min: 5,  // Minimum 5% weight
+                    max: 50, // Maximum 50% weight
+                    current: <T as pallet::Config>::TrustScoreSlashingWeight::get() as u32,
+                },
+                trust_score_max_growth_rate: ParameterRange {
+                    min: 100,  // Minimum 1% growth rate
+                    max: 2000, // Maximum 20% growth rate
+                    current: <T as pallet::Config>::MaxTrustScoreGrowthRate::get(),
+                },
+                trust_score_max_decay_rate: ParameterRange {
+                    min: 50,   // Minimum 0.5% decay rate
+                    max: 1000, // Maximum 10% decay rate
+                    current: <T as pallet::Config>::MaxTrustScoreDecayRate::get(),
+                },
+                trust_score_min_value: ParameterRange {
+                    min: 500,  // Minimum 5% of max score
+                    max: 3000, // Maximum 30% of max score
+                    current: <T as pallet::Config>::MinTrustScore::get(),
+                },
+                trust_score_max_value: ParameterRange {
+                    min: 8000,  // Minimum 80% of theoretical max
+                    max: 15000, // Maximum 150% of theoretical max
+                    current: <T as pallet::Config>::MaxTrustScore::get(),
+                },
+                trust_score_stability_factor: ParameterRange {
+                    min: 5000, // Minimum 50% stability
+                    max: 9500, // Maximum 95% stability
+                    current: <T as pallet::Config>::TrustScoreStabilityFactor::get(),
+                },
+
+                // Block production parameters
+                block_authorship_boost: ParameterRange {
+                    min: 1,   // Minimum 1 point boost
+                    max: 100, // Maximum 100 points boost
+                    current: T::BlockAuthorshipBoost::get(),
+                },
+                missed_block_penalty: ParameterRange {
+                    min: 1,  // Minimum 1 point penalty
+                    max: 50, // Maximum 50 points penalty
+                    current: T::MissedBlockPenalty::get(),
+                },
+
+                // Inference scoring parameters
+                inference_boost_low: ParameterRange {
+                    min: 1,  // Minimum 1 point boost
+                    max: 20, // Maximum 20 points boost
+                    current: T::InferenceBoostLow::get(),
+                },
+                inference_boost_medium: ParameterRange {
+                    min: 2,  // Minimum 2 points boost
+                    max: 50, // Maximum 50 points boost
+                    current: T::InferenceBoostMedium::get(),
+                },
+                inference_boost_high: ParameterRange {
+                    min: 5,   // Minimum 5 points boost
+                    max: 100, // Maximum 100 points boost
+                    current: T::InferenceBoostHigh::get(),
+                },
+            }
+        }
+
         /// Validate storage integrity and accessibility.
         ///
         /// This function performs comprehensive validation of the storage state
@@ -9533,22 +9710,14 @@ pub mod pallet {
 
             // Validate governance settings if it exists
             if GovernanceConfigStorage::<T>::exists() {
-                let _governance_config = GovernanceConfigStorage::<T>::get();
-                // Governance config validation (available in test/benchmark builds only)
-                #[cfg(any(feature = "runtime-benchmarks", test))]
-                {
-                    weight = weight
-                        .saturating_add(Self::validate_governance_config(&_governance_config)?);
-                }
+                let governance_config = GovernanceConfigStorage::<T>::get();
+                weight =
+                    weight.saturating_add(Self::validate_governance_config(&governance_config)?);
             }
 
             // Validate epoch settings
-            let _epoch_config = EpochConfigStorage::<T>::get();
-            // Epoch config validation (available in test/benchmark builds only)
-            #[cfg(any(feature = "runtime-benchmarks", test))]
-            {
-                weight = weight.saturating_add(Self::validate_epoch_config(&_epoch_config)?);
-            }
+            let epoch_config = EpochConfigStorage::<T>::get();
+            weight = weight.saturating_add(Self::validate_epoch_config(&epoch_config)?);
 
             // Validate active validators don't exceed maximum
             let active_validators = ActiveValidators::<T>::get();
@@ -9616,7 +9785,6 @@ pub mod pallet {
         /// # Returns
         /// - `Ok(Weight)`: Settings is valid
         /// - `Err(MigrationError)`: Settings validation failed
-        #[cfg(any(feature = "runtime-benchmarks", test))]
         pub fn validate_governance_config(
             config: &GovernanceConfig<T>,
         ) -> Result<Weight, MigrationError> {
@@ -9687,7 +9855,6 @@ pub mod pallet {
         /// # Returns
         /// - `Ok(Weight)`: Settings is valid
         /// - `Err(MigrationError)`: Settings validation failed
-        #[cfg(any(feature = "runtime-benchmarks", test))]
         pub fn validate_epoch_config(config: &EpochConfig) -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
 
@@ -11400,6 +11567,19 @@ pub mod pallet {
                 panic!("Epoch length cannot be zero. Set blocks_per_epoch above zero.");
             }
 
+            // The governance record admits epoch lengths inside the runtime
+            // range alone, so genesis refuses a length outside it in both modes.
+            let shortest = T::MinEpochLength::get();
+            let longest = T::MaxEpochLength::get();
+            if self.epoch_config.blocks_per_epoch < shortest
+                || self.epoch_config.blocks_per_epoch > longest
+            {
+                panic!(
+                    "Epoch length {} sits outside the governance range of {} to {} blocks. Set blocks_per_epoch inside that range.",
+                    self.epoch_config.blocks_per_epoch, shortest, longest
+                );
+            }
+
             // STEP 10.2: Genesis settings loaded
             log::info!("============== [Cerulea-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis settings loaded ==============");
             log::info!("  Validator count: {}", self.validators.len());
@@ -11623,6 +11803,9 @@ pub mod pallet {
 
             CurrentEpoch::<T>::put(self.current_epoch);
             EpochConfigStorage::<T>::put(self.epoch_config.clone());
+            // A new chain starts at the current storage layout, so the first
+            // runtime upgrade runs no migration over it.
+            StorageVersion::<T>::put(CURRENT_STORAGE_VERSION);
             PosWeight::<T>::put(T::DefaultPosWeight::get());
             PoiWeight::<T>::put(T::DefaultPoiWeight::get());
 
@@ -11651,152 +11834,13 @@ pub mod pallet {
             // Initialize trust score stability metrics
             TrustScoreStabilityMetrics::<T>::put(TrustScoreStabilityMetricsData::default());
 
-            // Initialize governance settings with default parameter ranges and safety rails
-            GovernanceConfigStorage::<T>::put(GovernanceConfig {
-                // Epoch settings parameters with safe ranges
-                epoch_length: ParameterRange {
-                    min: 50,    // Minimum 50 blocks per epoch
-                    max: 14400, // Maximum 14400 blocks per epoch (24 hours at 6s)
-                    current: self.epoch_config.blocks_per_epoch,
-                },
-                min_stake: ParameterRange {
-                    min: <T as pallet::Config>::Balance::from(100_000u32), // Minimum 100k units
-                    max: <T as pallet::Config>::Balance::from(1_000_000_000u32), // Maximum 1B units
-                    current: MinStakeOf::<T>::get(),
-                },
-                max_validators: ParameterRange {
-                    min: 1,    // At least 1 validator
-                    max: 1000, // Maximum 1000 validators
-                    current: self.epoch_config.max_validators,
-                },
-
-                // Consensus weight parameters (must sum to precision factor)
-                pos_weight: ParameterRange {
-                    min: 1000, // Minimum 10% (1000/10000)
-                    max: 9000, // Maximum 90% (9000/10000)
-                    current: T::DefaultPosWeight::get(),
-                },
-                poi_weight: ParameterRange {
-                    min: 1000, // Minimum 10% (1000/10000)
-                    max: 9000, // Maximum 90% (9000/10000)
-                    current: T::DefaultPoiWeight::get(),
-                },
-
-                // Performance threshold parameters
-                min_performance_score: ParameterRange {
-                    min: 10,   // Minimum threshold of 10
-                    max: 5000, // Maximum threshold of 5000
-                    current: T::MinPerformanceScore::get(),
-                },
-                // The high mark sits on the validator score scale. Its floor is
-                // one point above the starting minimum score and its ceiling is
-                // the top of the scale, so every mark in the range is reachable.
-                high_performance_score: ParameterRange {
-                    min: T::MinPerformanceScore::get()
-                        .saturating_add(1)
-                        .min(T::MaxValidatorScore::get()),
-                    max: T::MaxValidatorScore::get(),
-                    current: T::HighPerformanceScore::get(),
-                },
-                min_participation_rate: ParameterRange {
-                    min: 10, // Minimum 10% participation
-                    max: 90, // Maximum 90% (to allow room for high threshold)
-                    current: T::MinParticipationRate::get(),
-                },
-                high_participation_rate: ParameterRange {
-                    min: 50,  // Minimum 50% for high threshold
-                    max: 100, // Maximum 100% participation
-                    current: T::HighParticipationRate::get(),
-                },
-
-                // Economic parameters
-                validator_reward: ParameterRange {
-                    min: <T as pallet::Config>::Balance::from(1000u32), // Minimum 1000 units reward
-                    max: <T as pallet::Config>::Balance::from(10_000_000u32), // Maximum 10M units reward
-                    current: ValidatorRewardOf::<T>::get(),
-                },
-                slash_percent: ParameterRange {
-                    min: 1,  // Minimum 1% slash
-                    max: 50, // Maximum 50% slash
-                    current: SlashPercentOf::<T>::get(),
-                },
-                leave_cooldown: ParameterRange {
-                    min: BlockNumberFor::<T>::from(100u32), // Minimum 100 blocks cooldown
-                    max: BlockNumberFor::<T>::from(100_000u32), // Maximum 100k blocks cooldown
-                    current: LeaveCooldownOf::<T>::get().into(),
-                },
-
-                // Trust score settings
-                trust_score_uptime_weight: ParameterRange {
-                    min: 10, // Minimum 10% weight
-                    max: 80, // Maximum 80% weight
-                    current: <T as pallet::Config>::TrustScoreUptimeWeight::get() as u32,
-                },
-                trust_score_inference_weight: ParameterRange {
-                    min: 10, // Minimum 10% weight
-                    max: 80, // Maximum 80% weight
-                    current: <T as pallet::Config>::TrustScoreInferenceWeight::get() as u32,
-                },
-                trust_score_slashing_weight: ParameterRange {
-                    min: 5,  // Minimum 5% weight
-                    max: 50, // Maximum 50% weight
-                    current: <T as pallet::Config>::TrustScoreSlashingWeight::get() as u32,
-                },
-                trust_score_max_growth_rate: ParameterRange {
-                    min: 100,  // Minimum 1% growth rate
-                    max: 2000, // Maximum 20% growth rate
-                    current: <T as pallet::Config>::MaxTrustScoreGrowthRate::get(),
-                },
-                trust_score_max_decay_rate: ParameterRange {
-                    min: 50,   // Minimum 0.5% decay rate
-                    max: 1000, // Maximum 10% decay rate
-                    current: <T as pallet::Config>::MaxTrustScoreDecayRate::get(),
-                },
-                trust_score_min_value: ParameterRange {
-                    min: 500,  // Minimum 5% of max score
-                    max: 3000, // Maximum 30% of max score
-                    current: <T as pallet::Config>::MinTrustScore::get(),
-                },
-                trust_score_max_value: ParameterRange {
-                    min: 8000,  // Minimum 80% of theoretical max
-                    max: 15000, // Maximum 150% of theoretical max
-                    current: <T as pallet::Config>::MaxTrustScore::get(),
-                },
-                trust_score_stability_factor: ParameterRange {
-                    min: 5000, // Minimum 50% stability
-                    max: 9500, // Maximum 95% stability
-                    current: <T as pallet::Config>::TrustScoreStabilityFactor::get(),
-                },
-
-                // Block production parameters
-                block_authorship_boost: ParameterRange {
-                    min: 1,   // Minimum 1 point boost
-                    max: 100, // Maximum 100 points boost
-                    current: T::BlockAuthorshipBoost::get(),
-                },
-                missed_block_penalty: ParameterRange {
-                    min: 1,  // Minimum 1 point penalty
-                    max: 50, // Maximum 50 points penalty
-                    current: T::MissedBlockPenalty::get(),
-                },
-
-                // Inference scoring parameters
-                inference_boost_low: ParameterRange {
-                    min: 1,  // Minimum 1 point boost
-                    max: 20, // Maximum 20 points boost
-                    current: T::InferenceBoostLow::get(),
-                },
-                inference_boost_medium: ParameterRange {
-                    min: 2,  // Minimum 2 points boost
-                    max: 50, // Maximum 50 points boost
-                    current: T::InferenceBoostMedium::get(),
-                },
-                inference_boost_high: ParameterRange {
-                    min: 5,   // Minimum 5 points boost
-                    max: 100, // Maximum 100 points boost
-                    current: T::InferenceBoostHigh::get(),
-                },
-            });
+            // The governance record starts from the ranges the runtime states and
+            // the values genesis installs. The first migration builds the same
+            // record, so both paths pass the governance check.
+            GovernanceConfigStorage::<T>::put(Pallet::<T>::starting_governance_record(
+                self.epoch_config.blocks_per_epoch,
+                self.epoch_config.max_validators,
+            ));
 
             // Initialize rate limiting settings with default values
             RateLimitConfigStorage::<T>::put(RateLimitConfig::default());
@@ -12052,10 +12096,14 @@ pub mod pallet {
                 return Err("Epoch length cannot be zero".into());
             }
 
-            if self.epoch_config.blocks_per_epoch > 100_000 {
+            let shortest = T::MinEpochLength::get();
+            let longest = T::MaxEpochLength::get();
+            if self.epoch_config.blocks_per_epoch < shortest
+                || self.epoch_config.blocks_per_epoch > longest
+            {
                 return Err(format!(
-                    "Epoch length ({}) exceeds reasonable maximum (100,000 blocks)",
-                    self.epoch_config.blocks_per_epoch
+                    "Epoch length {} sits outside the governance range of {} to {} blocks. Set blocks_per_epoch inside that range.",
+                    self.epoch_config.blocks_per_epoch, shortest, longest
                 ));
             }
 

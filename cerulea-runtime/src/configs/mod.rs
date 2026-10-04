@@ -294,6 +294,10 @@ impl pallet_cerulea_dcf::Config for Runtime {
     type ValidatorProposalInterval = ConstU32<200>; // every 200 blocks
     type HealthMetricsInterval = ConstU32<1000>; // every 1000 blocks
     type EpochLength = ConstU32<100>; // 100 blocks per epoch
+    // The governance range of the epoch length: 50 blocks to one day at six
+    // second blocks.
+    type MinEpochLength = ConstU32<50>;
+    type MaxEpochLength = ConstU32<14_400>;
 
     // Block authorship rewards and penalties
     type BlockAuthorshipBoost = ConstU64<10>;

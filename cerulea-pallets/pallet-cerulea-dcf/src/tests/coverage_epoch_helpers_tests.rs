@@ -173,10 +173,10 @@ fn rule_of(result: Result<Weight, crate::MigrationError>) -> Vec<u8> {
     }
 }
 
-/// Bring the stored governance epoch length inside its own range.
+/// Hold the stored governance epoch length at a fixed value inside its range.
 ///
-/// The test genesis seeds ten blocks per epoch. The governance range starts at
-/// fifty, so the stored value sits outside the range until this helper runs.
+/// The test genesis seeds ten blocks per epoch, the floor of the mock range.
+/// The helper moves the value to one hundred so the tests read one figure.
 fn hold_valid_governance() {
     let mut settings = crate::GovernanceConfigStorage::<Test>::get();
     settings.epoch_length.current = 100;
@@ -1984,12 +1984,16 @@ fn initial_migration_installs_a_governance_record_when_none_exists() {
     new_test_ext().execute_with(|| {
         crate::GovernanceConfigStorage::<Test>::kill();
 
-        assert_eq!(
-            DcfPallet::perform_storage_migration(0, 1),
-            Ok(Weight::from_parts(30_000, 0))
-        );
+        assert_ok!(DcfPallet::perform_storage_migration(0, 1));
         assert!(crate::GovernanceConfigStorage::<Test>::exists());
+        // The installed record is the starting record genesis writes, built
+        // from the stored epoch settings.
+        let epoch = crate::EpochConfigStorage::<Test>::get();
         assert_eq!(
+            crate::GovernanceConfigStorage::<Test>::get(),
+            DcfPallet::starting_governance_record(epoch.blocks_per_epoch, epoch.max_validators)
+        );
+        assert_ne!(
             crate::GovernanceConfigStorage::<Test>::get(),
             crate::GovernanceConfig::<Test>::default()
         );
@@ -1997,7 +2001,6 @@ fn initial_migration_installs_a_governance_record_when_none_exists() {
 }
 
 #[test]
-#[ignore = "OPEN dcf (h) chain/cerulea-pallets/pallet-cerulea-dcf/src/lib.rs:9483 initial_migration_leaves_storage_that_passes_the_integrity_check"]
 fn initial_migration_leaves_storage_that_passes_the_integrity_check() {
     new_test_ext().execute_with(|| {
         crate::GovernanceConfigStorage::<Test>::kill();
@@ -2013,6 +2016,11 @@ fn initial_migration_leaves_storage_that_passes_the_integrity_check() {
 #[test]
 fn initial_migration_stops_on_a_failed_integrity_check() {
     new_test_ext().execute_with(|| {
+        // A stored record whose epoch length sits outside its own range fails
+        // the check before the migration changes anything.
+        crate::GovernanceConfigStorage::<Test>::mutate(|held| {
+            held.epoch_length.current = held.epoch_length.max + 1
+        });
         assert_eq!(
             rule_of(DcfPallet::perform_storage_migration(0, 1)),
             b"epoch_length_range".to_vec()
@@ -2042,9 +2050,13 @@ fn same_version_migration_runs_the_integrity_check() {
 }
 
 #[test]
-fn storage_integrity_rejects_the_genesis_epoch_length_outside_its_range() {
+fn storage_integrity_rejects_an_epoch_length_outside_its_range() {
     new_test_ext().execute_with(|| {
-        // The test genesis holds ten blocks per epoch against a floor of fifty.
+        // The genesis record passes; a held value under its floor fails.
+        assert!(DcfPallet::validate_storage_integrity().is_ok());
+        crate::GovernanceConfigStorage::<Test>::mutate(|held| {
+            held.epoch_length.current = held.epoch_length.min - 1
+        });
         assert_eq!(
             rule_of(DcfPallet::validate_storage_integrity()),
             b"epoch_length_range".to_vec()

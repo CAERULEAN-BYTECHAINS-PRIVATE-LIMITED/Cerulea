@@ -303,7 +303,7 @@ fn epoch_length_outside_its_range_is_refused() {
     new_test_ext().execute_with(|| {
         assert_refused(
             Param::EpochLength,
-            value(49u32),
+            value(9u32),
             crate::Error::<Test>::ParameterOutOfRange,
         );
         assert_refused(

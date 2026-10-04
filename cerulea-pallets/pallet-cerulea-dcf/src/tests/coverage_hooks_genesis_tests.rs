@@ -84,11 +84,10 @@ fn sound_genesis() -> crate::GenesisConfig<Test> {
     genesis_of(vec![10, 11, 12], vec![], vec![], vec![], 100, false)
 }
 
-/// Bring the governance epoch range around the epoch length the mock holds.
+/// Hold the governance epoch length at one hundred blocks.
 ///
-/// The mock genesis runs ten blocks per epoch. The governance range starts at
-/// fifty blocks. The storage integrity check reads both, so a test that wants
-/// the check to pass lifts the held epoch length into the range.
+/// The mock genesis runs ten blocks per epoch, the floor of the mock range.
+/// Tests that compare figures read one fixed epoch length through this helper.
 fn lift_governance_epoch_length() {
     crate::GovernanceConfigStorage::<Test>::mutate(|held| held.epoch_length.current = 100);
 }
@@ -155,8 +154,11 @@ fn upgrade_at_the_current_version_runs_the_integrity_check_only() {
 fn upgrade_at_the_current_version_tolerates_a_failed_integrity_check() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
-        // The mock genesis holds an epoch length below the governance range.
-        // The integrity check fails, and the hook records a warning only.
+        // A held epoch length above its own range fails the integrity check,
+        // and the hook at the current version records a warning only.
+        crate::GovernanceConfigStorage::<Test>::mutate(|held| {
+            held.epoch_length.current = held.epoch_length.max + 1
+        });
         assert!(DcfPallet::validate_storage_integrity().is_err());
         crate::pallet::StorageVersion::<Test>::put(crate::CURRENT_STORAGE_VERSION);
 
@@ -189,7 +191,10 @@ fn upgrade_from_an_unknown_version_aborts() {
 fn upgrade_from_version_zero_aborts_when_the_governance_range_fails() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
-        // The held epoch length of ten sits below the governance minimum of fifty.
+        // A held epoch length above its own range fails the governance check.
+        crate::GovernanceConfigStorage::<Test>::mutate(|held| {
+            held.epoch_length.current = held.epoch_length.max + 1
+        });
         crate::pallet::StorageVersion::<Test>::put(0);
         let _ = <DcfPallet as Hooks<u64>>::on_runtime_upgrade();
     });
@@ -1477,6 +1482,100 @@ fn genesis_refuses_a_zero_epoch_length_outside_strict_mode() {
 }
 
 #[test]
+#[should_panic(
+    expected = "Epoch length 9 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
+)]
+fn genesis_refuses_an_epoch_below_the_governance_range() {
+    let record = genesis_of(vec![10, 11, 12], vec![], vec![], vec![], 9, false);
+    let _ = new_test_ext_with_genesis(record);
+}
+
+#[test]
+#[should_panic(
+    expected = "Epoch length 9 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
+)]
+fn strict_genesis_refuses_an_epoch_below_the_governance_range() {
+    let record = genesis_of(vec![10, 11, 12], vec![], vec![], vec![], 9, true);
+    let _ = new_test_ext_with_genesis(record);
+}
+
+#[test]
+#[should_panic(
+    expected = "Epoch length 14401 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
+)]
+fn genesis_refuses_an_epoch_above_the_governance_range() {
+    let record = genesis_of(vec![10, 11, 12], vec![], vec![], vec![], 14_401, false);
+    let _ = new_test_ext_with_genesis(record);
+}
+
+#[test]
+#[should_panic(
+    expected = "Epoch length 14401 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
+)]
+fn strict_genesis_refuses_an_epoch_above_the_governance_range() {
+    let record = genesis_of(vec![10, 11, 12], vec![], vec![], vec![], 14_401, true);
+    let _ = new_test_ext_with_genesis(record);
+}
+
+#[test]
+fn genesis_admits_both_ends_of_the_governance_range() {
+    for length in [10u32, 14_400] {
+        let record = genesis_of(vec![10, 11, 12], vec![], vec![], vec![], length, false);
+        new_test_ext_with_genesis(record).execute_with(|| {
+            assert_eq!(
+                crate::EpochConfigStorage::<Test>::get().blocks_per_epoch,
+                length
+            );
+            assert_eq!(
+                crate::GovernanceConfigStorage::<Test>::get()
+                    .epoch_length
+                    .current,
+                length
+            );
+        });
+    }
+}
+
+#[test]
+fn genesis_writes_the_current_storage_version() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(
+            crate::pallet::StorageVersion::<Test>::get(),
+            crate::CURRENT_STORAGE_VERSION
+        );
+    });
+}
+
+#[test]
+fn a_new_chain_runs_no_migration_on_its_first_upgrade() {
+    new_test_ext().execute_with(|| {
+        System::set_block_number(1);
+        let _ = <DcfPallet as Hooks<u64>>::on_runtime_upgrade();
+        assert_eq!(
+            crate::pallet::StorageVersion::<Test>::get(),
+            crate::CURRENT_STORAGE_VERSION
+        );
+        assert!(!dcf_events().iter().any(|event| matches!(
+            event,
+            Event::StorageMigrationCompleted { .. } | Event::StorageMigrationFailed { .. }
+        )));
+    });
+}
+
+#[test]
+fn the_genesis_governance_record_passes_its_own_check() {
+    new_test_ext().execute_with(|| {
+        let held = crate::GovernanceConfigStorage::<Test>::get();
+        assert!(DcfPallet::validate_governance_config(&held).is_ok());
+        assert!(DcfPallet::validate_storage_integrity().is_ok());
+        // The range comes from the runtime constants of the mock chain.
+        assert_eq!(held.epoch_length.min, 10);
+        assert_eq!(held.epoch_length.max, 14_400);
+        assert_eq!(held.epoch_length.current, 10);
+    });
+}
+
+#[test]
 #[should_panic(expected = "Genesis validators (101) exceed MaxValidators (100)")]
 fn genesis_refuses_more_validators_than_the_ceiling() {
     let record = genesis_of((100u64..=200).collect(), vec![], vec![], vec![], 20, false);
@@ -1765,14 +1864,24 @@ fn comprehensive_validation_refuses_a_zero_epoch_length() {
 }
 
 #[test]
-fn comprehensive_validation_refuses_an_epoch_above_one_hundred_thousand_blocks() {
+fn comprehensive_validation_refuses_an_epoch_outside_the_governance_range() {
     new_test_ext().execute_with(|| {
         let mut record = sound_genesis();
-        record.epoch_config.blocks_per_epoch = 100_001;
+        record.epoch_config.blocks_per_epoch = 14_401;
         assert_eq!(
             record.validate_genesis_comprehensive().unwrap_err(),
-            "Epoch length (100001) exceeds reasonable maximum (100,000 blocks)"
+            "Epoch length 14401 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
         );
+        record.epoch_config.blocks_per_epoch = 9;
+        assert_eq!(
+            record.validate_genesis_comprehensive().unwrap_err(),
+            "Epoch length 9 sits outside the governance range of 10 to 14400 blocks. Set blocks_per_epoch inside that range."
+        );
+        // Both ends of the range pass this check.
+        record.epoch_config.blocks_per_epoch = 10;
+        assert!(record.validate_genesis_comprehensive().is_ok());
+        record.epoch_config.blocks_per_epoch = 14_400;
+        assert!(record.validate_genesis_comprehensive().is_ok());
     });
 }
 
@@ -1862,7 +1971,7 @@ fn a_dry_run_finds_the_extreme_stakes_and_warns_on_inequality_and_short_epochs()
 fn a_dry_run_fills_empty_stakes_and_warns_on_long_epochs() {
     new_test_ext().execute_with(|| {
         let mut record = sound_genesis();
-        record.epoch_config.blocks_per_epoch = 20_000;
+        record.epoch_config.blocks_per_epoch = 12_000;
 
         let report = record.dry_run_genesis_build().expect("the dry run passes");
 
@@ -1872,7 +1981,7 @@ fn a_dry_run_fills_empty_stakes_and_warns_on_long_epochs() {
         assert_eq!(report.max_stake_validator, Some((10, 1000)));
         assert_eq!(
             report.warnings,
-            vec!["Long epoch length: 20000 blocks may delay validator set updates".to_string()]
+            vec!["Long epoch length: 12000 blocks may delay validator set updates".to_string()]
         );
     });
 }
