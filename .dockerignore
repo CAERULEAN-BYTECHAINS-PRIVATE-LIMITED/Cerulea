@@ -9,7 +9,6 @@ target/
 # Git & IDE
 .git/
 .gitignore
-.kiro/
 .DS_Store
 
 # Logs & local runtime data

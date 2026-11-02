@@ -138,7 +138,7 @@ const ALERTS: SecurityAlert[] = [
   {
     id: 'sa-003',
     title: 'AI Quota Near Limit',
-    message: 'Anthropic API usage at 87% of monthly quota. Risk of service degradation if not addressed.',
+    message: 'Model provider usage at 87% of monthly quota. Risk of service degradation if not addressed.',
     severity: 'high',
     timestamp: '2026-04-16T06:00:00Z',
     acknowledged: true,

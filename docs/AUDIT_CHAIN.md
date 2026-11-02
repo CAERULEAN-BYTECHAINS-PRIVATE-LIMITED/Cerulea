@@ -132,7 +132,7 @@ from the PoI pallet.
 Configured weighting is not what the documentation states. `configs/mod.rs:76-77`
 sets `PosWeight = 6000` and `PoiWeight = 4000` and wires them as the pallet defaults
 (`configs/mod.rs:246-247`); `PercentagePrecision = 10000`
-(`configs/mod.rs:204`). That is a 60/40 split, not the 65/35 named in `CLAUDE.md` and
+(`configs/mod.rs:204`). That is a 60/40 split, not the 65/35 named in
 `CONSENSUS_ARCHITECTURE.md`. A second, conflicting pair of constants exists at
 `lib.rs:261-262` (`DefaultPosWeight = 10000`, `DefaultPoiWeight = 0`, commented
 "100% PoS until PoI integration complete"); these appear unused by the active Config
