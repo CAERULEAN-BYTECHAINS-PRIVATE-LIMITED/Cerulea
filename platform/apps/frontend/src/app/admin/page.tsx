@@ -161,7 +161,7 @@ const SERVICES: ServiceStatus[] = [
   { name: 'Auth Service', status: 'operational', latency: '48ms', uptime: '99.98%' },
   { name: 'Studio Frontend', status: 'operational', latency: '120ms', uptime: '99.95%' },
   { name: 'Project API', status: 'operational', latency: '85ms', uptime: '99.97%' },
-  { name: 'CeruleAI (Claude)', status: 'operational', latency: '1.2s', uptime: '99.90%' },
+  { name: 'CeruleAI', status: 'operational', latency: '1.2s', uptime: '99.90%' },
   { name: 'Deployment Engine', status: 'degraded', latency: '4.1s', uptime: '98.40%' },
   { name: 'RPC Gateway', status: 'operational', latency: '31ms', uptime: '99.99%' },
   { name: 'Stripe Webhooks', status: 'operational', latency: '210ms', uptime: '100%' },
@@ -186,7 +186,7 @@ const ALERTS: Alert[] = [
   { id: 'a1', severity: 'critical', message: 'Deployment Engine P95 latency above 4s threshold (currently 4.1s)', time: '12 min ago' },
   { id: 'a2', severity: 'critical', message: '14 failed deployments in the last 24h - up from 3 yesterday', time: '1 hr ago' },
   { id: 'a3', severity: 'critical', message: 'Suspicious login spike from IP 45.152.66.x - 38 attempts', time: '3 hr ago' },
-  { id: 'a4', severity: 'warning', message: 'AI request quota at 87% for the month on Anthropic account', time: '6 hr ago' },
+  { id: 'a4', severity: 'warning', message: 'AI request quota at 87% for the month on the model provider account', time: '6 hr ago' },
   { id: 'a5', severity: 'warning', message: 'User plan downgrade rate increased by 18% this week', time: '1 day ago' },
 ];
 
