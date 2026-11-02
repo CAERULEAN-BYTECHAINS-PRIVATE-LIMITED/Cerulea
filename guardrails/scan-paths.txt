@@ -25,10 +25,7 @@
 **/.git/**
 **/dist/**
 **/build/**
-04-guardrails/forbidden-terms.txt
-02-tasks/QUESTIONS.md
-# The build package itself documents the rules and therefore names the terms.
-cerulea-build/**
+guardrails/forbidden-terms.txt
 
 [context-exempt]
 # These words are permitted in the stated sense only.

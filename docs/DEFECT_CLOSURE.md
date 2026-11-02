@@ -37,10 +37,9 @@ still in flight.
 
 ## How to verify a closure
 
-1. **Read the commit.** The pallet task record sits in
-   `cerulea-build/02-tasks/status/pallets.md`. The consensus task record sits in
-   `cerulea-build/02-tasks/status/consensus.md`. Each line carries the commit
-   hash.
+1. **Read the commit.** The tables above name the task that closes each
+   defect. Every commit message opens with its task id, so the commit log
+   carries the hash of each closure.
 2. **Run the tests.** Each task ships tests beside the code it changes. The
    design assertions are listed at the end of `CONSENSUS_ARCHITECTURE.md`.
 3. **Read the baseline.** `TEST_BASELINE.md` carries the per-package counts and

@@ -7,7 +7,7 @@
 #  - Fail fast. Cheapest check first. Never grind an hour to report a fmt error.
 #  - Release profile only. Debug and release share no cache.
 #  - Never --all-targets. It drags in binaryen and compiles C++ for an hour.
-#  - Guardrails judge only what this task changed.
+#  - Guardrails judge only what the branch changed.
 #  - Pre-existing conditions warn. Newly introduced problems block.
 
 set -uo pipefail
@@ -23,15 +23,11 @@ say()  { echo "$*" | tee -a "$LOG"; }
 die()  { say "FAIL: $*"; say "VERIFY: FAILED"; exit 1; }
 pass() { say "PASS: $*"; }
 
-if [ -f "$WORKTREE/BLOCKED.md" ]; then
-  say "AGENT BLOCKED:"; cat "$WORKTREE/BLOCKED.md" | tee -a "$LOG"; exit 3
-fi
-
 CHANGED=$(git diff --name-only develop...HEAD 2>/dev/null || true)
 say "=== changed files: $(echo "$CHANGED" | grep -c . || echo 0) ==="
 
 if [ "$SCOPE" != "docs" ] && [ -z "$CHANGED" ]; then
-  die "agent modified no files. The task was not attempted. Check the environment."
+  die "The branch modified no files. Check the environment."
 fi
 
 changed_matching() { echo "$CHANGED" | grep -E "$1" 2>/dev/null || true; }
@@ -55,7 +51,7 @@ check() {
   fi
 }
 
-# Secrets are always a blocker. Nothing else is worth blocking a whole task for.
+# Secrets are always a blocker. Nothing else is worth blocking a whole run for.
 SECRETS='-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY|sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{20}|sk_live_[A-Za-z0-9]{20}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|[0-9]{8,10}:AA[A-Za-z0-9_-]{33}'
 check "no secrets" "$SECRETS" '.' block
 
@@ -81,9 +77,9 @@ NODE_CHANGED=$(changed_matching '^platform/.*\.(ts|tsx|json)$')
 
 case "$SCOPE" in
   docs)
-    # Planning and audit tasks may write markdown and plan files, never code.
+    # A documentation change writes markdown and plan files and leaves code alone.
     CODE=$(changed_matching '\.(rs|ts|tsx|toml)$')
-    [ -n "$CODE" ] && { say "$CODE"; die "documentation task modified code"; }
+    [ -n "$CODE" ] && { say "$CODE"; die "documentation change modified code"; }
     pass "no code touched"
     ;;
 

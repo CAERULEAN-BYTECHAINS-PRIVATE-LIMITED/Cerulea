@@ -18,9 +18,9 @@ Windows 11 with a Linux subsystem, Ubuntu 24.04. The subsystem holds 11 GB of
 that memory. Cargo runs inside the subsystem alone. PostgreSQL 16 answers on
 port 5544 and Redis runs inside the subsystem.
 
-Other streams worked on the machine during this pass. A coverage stream and a
-pallet defect stream held the cargo queue in turns. A multi-host stream ran
-nine validator containers from 15:58 to 16:42. Times in this document read
+Other work ran on the machine during this pass. The coverage measurement and
+the pallet defect work held the cargo queue in turns. The multi-host exercise
+ran nine validator containers from 15:58 to 16:42. Times in this document read
 India Standard Time unless a line names the coordinated time scale. Every
 figure here reads the machine under that load.
 
@@ -68,25 +68,25 @@ on a clean export of the frozen commit:
     cargo test --release -p cerulea-node --test acceptance_suite
     cargo audit --no-fetch
 
-The second clippy line is the form `cerulea-build/05-scripts/verify.sh chain`
-runs. The first adds every test target.
+The second clippy line is the form the commit gate runs. The first adds every
+test target.
 
 Each cargo call waited for the shared queue through `flock -o
 /root/cargo-queue.lock` and ran with three jobs. The source was
-`/root/cerulea-frozen-8274288`, the export the orchestrator built the release
-node from, with `/root/cerulea-clean-target` as its target. A second archive of
+`/root/cerulea-frozen-8274288`, the export the release node was built from,
+with `/root/cerulea-clean-target` as its target. A second archive of
 `8274288` taken by this pass matches that export file for file.
 
 The service criteria run through the runners under `scripts/acceptance`. Each
 runner ran from a git archive export of every repository it exercises, under
-`/root/acc` inside the subsystem, so no uncommitted file of another stream
-reached a result. Four details of the arrangement differ from 19 September.
+`/root/acc` inside the subsystem, so no uncommitted working file reached a
+result. Four details of the arrangement differ from 19 September.
 
 1. The apis node_modules tree was copied onto the Linux volume beside the
    export. Read from the Windows volume, collection took 418 seconds for six
    files; from the Linux volume it takes eight.
 2. Every vitest call on the default apis project carries
-   `--testTimeout=60000`, as the pass instructions ask. The security project
+   `--testTimeout=60000`. The security project
    keeps its own limit of 120 seconds and the intelligence project its own
    600 seconds.
 3. The route gate of criterion 10 runs its three test projects one at a time
@@ -391,10 +391,10 @@ attribution on every checkpoint.
 The local model server ran on port 8099 from `/root/start-llama.sh`: Qwen3 8B
 at 4-bit, weights `/root/models/Qwen3-8B-Q4_K_M.gguf`, inside the subsystem.
 It started after the multi-host completion line at 16:45. The run held the
-cargo queue for its whole length, so no Rust build ran beside the model, as
-`CLAUDE.md` asks. The teardown of the project stops every serving process, so
-the run started the server again afterwards and left it running, as the pass
-instructions ask.
+cargo queue for its whole length, so no Rust build ran beside the model.
+Cerulea AI and Rust builds never run at the same time on this machine. The
+teardown of the project stops every serving process, so the run started the
+server again afterwards and left it running.
 
 - Evidence: `test-results/acceptance/11-intelligence/patch-and-revert.log`,
   `whole-project.log`, `COMMITS.txt`
@@ -502,11 +502,11 @@ of `scripts/write-sbom.sh` carries the bill.
 
 **The chain controls.** Four controls belong to the chain: equivocation
 detection, checkpoint anchoring, peer diversity and bounded message paths. In
-the register their proving command prints that the chain agent owns the
-control, so the collector marks them collected on a printed line alone. Their
-real evidence is the chain test suites, and the evidence files under
-`chain/security/evidence` were last written on 19 September. These four are
-the controls that lacked fresh evidence. This pass gathered it from the
+the register their proving command prints that the control belongs to the
+chain repository, so the collector marks them collected on a printed line
+alone. Their real evidence is the chain test suites, and the evidence files
+under `chain/security/evidence` were last written on 19 September. These four
+are the controls that lacked fresh evidence. This pass gathered it from the
 chain gate on `8274288`. The tests the September evidence names all passed:
 `proven_equivocation_returns_standing_to_zero_inside_one_epoch`,
 `a_fresh_node_refuses_a_chain_that_stops_below_the_highest_anchor`,
@@ -566,7 +566,7 @@ per cent.
 | Cerulea Explorer | 93.62 per cent statements, 3,703 of 3,955 | this pass, explorer `9f4fec3` | above, by 3.62 points |
 | Cerulea Dashboard | 91.70 per cent statements, 5,363 of 5,848 | this pass, dashboard `5cf0946` | above, by 1.70 points |
 | Cerulea APIs | 90.31 per cent statements, 57,310 of 63,455 | 1 October 08:30, apis `b168dd2`, read from the record | above, by 0.31 points, on `b168dd2` |
-| The chain, 27 crates | 91.97 per cent lines, 74,330 of 80,817 | 1 October, chain `5fbf0a0`, read from the coverage stream record | above, by 1.97 points |
+| The chain, 27 crates | 91.97 per cent lines, 74,330 of 80,817 | 1 October, chain `5fbf0a0`, read from the coverage record | above, by 1.97 points |
 | The chain, consensus crate | 79.52 per cent lines, 14,736 of 18,532 | the same record | **below, by 10.48 points** |
 | The chain, node library | not measured | the same record | **no figure** |
 
@@ -595,7 +595,7 @@ figure exists for apis `48e3b8a` or `22c978e`. A fresh measurement takes about
 100 minutes of four shards on this machine and did not fit the window, so the
 figure stands for `b168dd2` alone.
 
-**The chain.** The final record of the coverage stream,
+**The chain.** The final coverage record,
 `test-results/coverage/chain.md` with `chain-llvm-cov.txt` (test-results
 `e902941`), reads **91.97 per cent of lines, 74,330 of 80,817, over 27
 crates**, at chain `5fbf0a0`. Regions read 86.29 and functions 81.95. That
@@ -608,8 +608,8 @@ sits outside the figure. Its instrumented build stops at compiler error E0275,
 an overflow while the compiler proves the runtime call type can move between
 threads, so it has no coverage figure. The record names that as an open item.
 The earlier record at `6fda0ee` read 89.86 per cent. This pass did not repeat
-the measurement; the figure comes from the record, which the coverage stream
-gathered on this machine the same afternoon.
+the measurement; the figure comes from the record, which was gathered on this
+machine the same afternoon.
 
 - Evidence: `test-results/acceptance/16-testing/studio-coverage.log`,
   `studio-coverage-summary.json`, `studio-coverage-gate.log`,
@@ -650,7 +650,7 @@ The first sweep also read chain `e1f3c2c` and passed.
 - Evidence: `test-results/acceptance/17-term-check/term-check.log`,
   `test-results/acceptance/01-to-17-chain/term-check.log`,
   `acceptance-suite.log`
-- Command: `bash cerulea-build/04-guardrails/term-check.sh <repository>`, and
+- Command: `bash scripts/term-check.sh <repository>`, and
   `criterion_seventeen_the_term_check_passes` in the acceptance suite
 
 ### 18. Recovery works
@@ -804,7 +804,7 @@ ran. Liveness held in all six. The clock exercise was blocked by tooling, so
 it carries no verdict.**
 
 The node binary hashes `031397ac9a9a0296...`, built from a clean export of
-`8274288`, and the multi-host stream confirmed that hash inside the image
+`8274288`, and the multi-host exercise confirmed that hash inside the image
 before the run. The run went from 10:28 to 11:12 UTC. Every validator carries
 the same commit weight, 3,555 of 31,995, against a commit threshold of 21,437.
 
@@ -824,8 +824,8 @@ Three measured observations stand beside the verdicts.
 1. **A machine carrying three of nine validators halts commitment while it is
    away.** Six equal validators hold 21,330 of weight, under the threshold of
    21,437. The partition of three stopped commitment for its whole duration.
-   Liveness returned inside the bound, and the multi-host stream filed a
-   request for a decision on placement or weight.
+   Liveness returned inside the bound. The placement or weight of validators
+   on one machine stands as an open decision.
 2. **The clock exercise has never run.** Its time shim starts in a separate
    container and aborts there. No run on any node has measured a clock
    offset.
@@ -891,7 +891,7 @@ resent every vote since genesis every 750 ms. Records:
    migration from storage version 0 to 1 installs a governance record whose
    ranges and shares read zero, carried by one ignored test. Group (m), the
    event compatibility check reads an empty sample list and checks nothing.
-   Both sit as `OPEN dcf` lines in `cerulea-build/02-tasks/status/launch.md`.
+   Both remain open items.
 4. **The chain security evidence files are dated 19 September.** Fresh test
    evidence for the four chain controls sits in this record (criterion 15),
    and `chain/security/evidence` waits for its next collection.
@@ -921,4 +921,4 @@ evidence at `test-results/acceptance/15-security/CONTROLS.md`.
     bash scripts/acceptance/<criterion>.sh
 
     # term check of one repository
-    bash cerulea-build/04-guardrails/term-check.sh <repository>
+    bash scripts/term-check.sh <repository>

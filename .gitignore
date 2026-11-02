@@ -4,7 +4,6 @@ target/
 .code-review-graph/
 
 # AI Coding Tool Configs
-.claude/
 .gemini/
 .qoder/
 .opencode.json
@@ -15,8 +14,6 @@ target/
 .vscode/
 .cursorrules
 .windsurfrules
-AGENTS.md
-CLAUDE.md
 GEMINI.md
 QODER.md
 

@@ -5,8 +5,8 @@
 # chain framework holds each dependency at a version the advisory covers, and
 # raising the dependency on its own breaks the framework build.
 #
-# The reasoning for each group and the review schedule sit in
-# cerulea-build/02-tasks/DECISIONS.md under P10-001.
+# Each group below states its reasoning. The decision of task P10-001 holds
+# every entry on this list until the pinned framework release moves.
 #
 # Review: each entry leaves this file as soon as the pinned framework release
 # carries a dependency above the patched range.

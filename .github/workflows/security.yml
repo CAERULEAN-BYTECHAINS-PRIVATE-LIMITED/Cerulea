@@ -54,13 +54,13 @@ jobs:
             echo "SECURITY_GATE_EOF"
           } >> "$GITHUB_ENV"
 
-      - name: orchestrator/security-gate.sh (repo root)
-        run: bash orchestrator/security-gate.sh "$GITHUB_WORKSPACE"
+      - name: scripts/security-gate.sh (repo root)
+        run: bash scripts/security-gate.sh "$GITHUB_WORKSPACE"
 
-      - name: orchestrator/security-gate.sh (platform)
+      - name: scripts/security-gate.sh (platform)
         run: |
           export CHANGED_FILES="$(printf '%s\n' "$CHANGED_FILES" | sed -n 's#^platform/##p')"
-          bash orchestrator/security-gate.sh "$GITHUB_WORKSPACE/platform"
+          bash scripts/security-gate.sh "$GITHUB_WORKSPACE/platform"
 
       - name: cargo audit
         run: cargo audit --deny warnings
