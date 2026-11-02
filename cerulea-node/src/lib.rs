@@ -1,14 +1,17 @@
 // Library interface for cerulea-node
 // This allows tests and the binary to access internal modules
 
-// The coverage build checks the runtime call type one level deeper than
-// the default limit admits.
-#![recursion_limit = "256"]
+// The instrumented coverage build proves the runtime call type can move
+// between threads one level deeper than the default limit admits, and the
+// limit of 256 still overflowed. The limit here only bounds that proof at
+// compile time.
+#![recursion_limit = "1024"]
 
 pub mod benchmarking;
 pub mod block_tracker;
 pub mod chain_spec;
 pub mod command;
+pub mod custody_answer;
 pub mod fork_detection;
 pub mod node_command;
 pub use cerulea_consensus::lifecycle_tracer;

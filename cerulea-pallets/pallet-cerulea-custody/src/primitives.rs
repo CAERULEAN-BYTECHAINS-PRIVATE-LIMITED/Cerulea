@@ -366,4 +366,151 @@ mod tests {
         assert_ne!(CUSTODY_LEAF_DOMAIN, CUSTODY_NODE_DOMAIN);
         assert_ne!(CUSTODY_DRAW_DOMAIN, CUSTODY_NODE_DOMAIN);
     }
+
+    /// Encode a value, decode it back and read it as debug text.
+    fn round_trip<T: Encode + Decode + PartialEq + core::fmt::Debug>(value: &T) -> usize {
+        let bytes = value.encode();
+        assert_eq!(T::decode(&mut &bytes[..]).as_ref(), Ok(value));
+        assert!(T::decode(&mut &bytes[..bytes.len() - 1]).is_err());
+        assert!(!format!("{value:?}").is_empty());
+        bytes.len()
+    }
+
+    fn record_ref() -> RecordRef<u32> {
+        RecordRef {
+            block: 7,
+            index: 2,
+            collection: [3u8; 16],
+            key: BoundedVec::truncate_from(b"12/3".to_vec()),
+        }
+    }
+
+    /// The derived encoding, decoding, debug text and type records of every
+    /// custody type run here, so every region of the module is reached.
+    #[test]
+    fn every_custody_type_encodes_decodes_and_describes_itself() {
+        let reference = record_ref();
+        assert_eq!(round_trip(&reference), 4 + 4 + 16 + 1 + 4);
+        assert!(reference.encode().len() <= RecordRef::<u32>::max_encoded_len());
+        assert_eq!(reference.clone(), reference);
+        assert_eq!(
+            <RecordRef<u32> as TypeInfo>::type_info().path.ident(),
+            Some("RecordRef")
+        );
+
+        let challenge = Challenge::<u64, u32> {
+            target: 9,
+            block: 7,
+            record: reference.clone(),
+            issued: 10,
+            deadline: 13,
+        };
+        assert_eq!(round_trip(&challenge), 8 + 4 + 29 + 4 + 4);
+        assert!(challenge.encode().len() <= Challenge::<u64, u32>::max_encoded_len());
+        assert_eq!(challenge.clone(), challenge);
+        assert_eq!(
+            <Challenge<u64, u32> as TypeInfo>::type_info().path.ident(),
+            Some("Challenge")
+        );
+
+        for (position, state) in [
+            ChallengeState::Open,
+            ChallengeState::AnsweredInTime,
+            ChallengeState::Missed,
+            ChallengeState::Incorrect,
+        ]
+        .iter()
+        .enumerate()
+        {
+            assert_eq!(round_trip(state), 1);
+            assert_eq!(state.encode(), sp_std::vec![position as u8]);
+            #[allow(clippy::clone_on_copy)]
+            let copy = state.clone();
+            assert_eq!(copy, *state);
+        }
+        assert_eq!(ChallengeState::default(), ChallengeState::Open);
+        assert_eq!(ChallengeState::max_encoded_len(), 1);
+        assert_eq!(
+            <ChallengeState as TypeInfo>::type_info().path.ident(),
+            Some("ChallengeState")
+        );
+
+        let record = CustodyRecord {
+            answered: 1,
+            missed: 2,
+            faults: 3,
+            share: 4,
+        };
+        assert_eq!(round_trip(&record), 16);
+        assert_eq!(CustodyRecord::max_encoded_len(), 16);
+        assert_eq!(CustodyRecord::default().settled(), 0);
+        #[allow(clippy::clone_on_copy)]
+        let copy = record.clone();
+        assert_eq!(copy, record);
+        assert_eq!(
+            <CustodyRecord as TypeInfo>::type_info().path.ident(),
+            Some("CustodyRecord")
+        );
+        let full = CustodyRecord {
+            answered: u32::MAX,
+            missed: u32::MAX,
+            faults: 1,
+            share: 0,
+        };
+        assert_eq!(full.settled(), u32::MAX);
+
+        let step = ProofStep {
+            sibling: H256::repeat_byte(5),
+            sibling_on_left: true,
+        };
+        assert_eq!(round_trip(&step), 33);
+        assert_eq!(ProofStep::max_encoded_len(), 33);
+        #[allow(clippy::clone_on_copy)]
+        let copy = step.clone();
+        assert_eq!(copy, step);
+        assert_eq!(
+            <ProofStep as TypeInfo>::type_info().path.ident(),
+            Some("ProofStep")
+        );
+
+        let answer = ChallengeAnswer {
+            value: BoundedVec::truncate_from(b"Anitha holds 400 square metres".to_vec()),
+            proof: BoundedVec::truncate_from(sp_std::vec![step, step]),
+        };
+        assert_eq!(round_trip(&answer), 1 + 30 + 1 + 66);
+        assert!(answer.encode().len() <= ChallengeAnswer::max_encoded_len());
+        assert_eq!(answer.clone(), answer);
+        assert_eq!(
+            <ChallengeAnswer as TypeInfo>::type_info().path.ident(),
+            Some("ChallengeAnswer")
+        );
+    }
+
+    /// The empty validator set, the empty standing hook and the empty record
+    /// hook do nothing and refuse nothing.
+    #[test]
+    fn the_empty_interfaces_answer_with_nothing() {
+        assert!(<() as CustodyValidators<u64>>::custody_candidates().is_empty());
+        <() as CustodyStanding<u64>>::report_custody_share(&1, 5);
+        <() as CustodyStanding<u64>>::report_custody_fault(&1, 5);
+        assert_eq!(
+            <() as CustodyRecordHook>::note_committed(b"c", b"k", None),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_custody_entry_digests_the_value_and_marks_a_removal() {
+        let present = custody_entry(b"parcels", b"12/3", Some(b"deed"));
+        let absent = custody_entry(b"parcels", b"12/3", None);
+        assert_ne!(present, absent);
+        let (collection, key, digest): (sp_std::vec::Vec<u8>, sp_std::vec::Vec<u8>, [u8; 32]) =
+            Decode::decode(&mut &absent[..]).expect("the entry decodes");
+        assert_eq!(collection, b"parcels");
+        assert_eq!(key, b"12/3");
+        assert_eq!(digest, [0u8; 32]);
+        let (_, _, digest): (sp_std::vec::Vec<u8>, sp_std::vec::Vec<u8>, [u8; 32]) =
+            Decode::decode(&mut &present[..]).expect("the entry decodes");
+        assert_eq!(digest, sp_io::hashing::blake2_256(b"deed"));
+    }
 }

@@ -360,6 +360,17 @@ The deadline defaults to three blocks, which closes faster than a network fetch
 and a proof rebuild complete. Selection spans the full history from genesis, so
 retaining a subset fails over time. Challenge frequency is a policy value.
 
+The answer path runs on every validator node. The runtime writes each custody
+entry to the local store of the node as the block executes, under a key built
+from the block number, the parent hash and the position. On each new best
+block the node reads the published challenge. Where it names a validator whose
+seal key the node holds, the node reads the entries of the challenged block
+from its local store, checks them against the record root the chain holds,
+builds the inclusion proof with the code the chain verifies against, signs the
+answer with the seal key and submits it. A loopback test runs three validators
+with records written and requires every challenge answered and verified, with
+the custody share of the Trust Score moving.
+
 Every block carries a record root over the records that block committed.
 Separate domain separators keep a leaf hash apart from a node hash, and the
 position of a record enters its leaf, so no rearranged proof passes.

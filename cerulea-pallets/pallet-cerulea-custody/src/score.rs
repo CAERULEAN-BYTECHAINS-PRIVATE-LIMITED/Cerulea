@@ -201,4 +201,70 @@ mod tests {
         assert!(!movement.raised());
         assert!(!movement.lowered());
     }
+
+    /// The derived encoding, decoding and debug text of a movement run here,
+    /// so every region of the scoring module is reached.
+    #[test]
+    fn a_movement_encodes_decodes_and_describes_itself() {
+        let mut record = fresh();
+        let movement = settle(&mut record, ChallengeState::Incorrect);
+        let bytes = movement.encode();
+        assert_eq!(bytes.len(), 1 + 4 + 4 + 4);
+        assert_eq!(Movement::decode(&mut &bytes[..]), Ok(movement));
+        assert!(Movement::decode(&mut &bytes[..bytes.len() - 1]).is_err());
+        assert!(format!("{movement:?}").contains("Incorrect"));
+        #[allow(clippy::clone_on_copy)]
+        let copy = movement.clone();
+        assert_eq!(copy, movement);
+        assert_eq!(
+            <Movement as scale_info::TypeInfo>::type_info().path.ident(),
+            Some("Movement")
+        );
+    }
+
+    #[test]
+    fn the_share_caps_at_the_whole_and_floors_at_zero() {
+        let mut record = CustodyRecord {
+            answered: 1,
+            missed: 0,
+            faults: 0,
+            share: CustodyRecord::FULL_SHARE - 1,
+        };
+        let movement = settle(&mut record, ChallengeState::AnsweredInTime);
+        assert_eq!(movement.current_share, CustodyRecord::FULL_SHARE);
+        let mut low = CustodyRecord {
+            answered: 0,
+            missed: 1,
+            faults: 0,
+            share: 1,
+        };
+        assert_eq!(settle(&mut low, ChallengeState::Incorrect).current_share, 0);
+        assert_eq!(settle(&mut low, ChallengeState::Missed).current_share, 0);
+    }
+
+    #[test]
+    fn every_counter_saturates() {
+        let mut record = CustodyRecord {
+            answered: u32::MAX,
+            missed: u32::MAX,
+            faults: u32::MAX,
+            share: 0,
+        };
+        assert_eq!(record.settled(), u32::MAX);
+        settle(&mut record, ChallengeState::AnsweredInTime);
+        settle(&mut record, ChallengeState::Missed);
+        let movement = settle(&mut record, ChallengeState::Incorrect);
+        assert_eq!(
+            (record.answered, record.missed, record.faults),
+            (u32::MAX, u32::MAX, u32::MAX)
+        );
+        assert_eq!(movement.faults, u32::MAX);
+    }
+
+    #[test]
+    fn the_deadline_rule_reads_every_arm() {
+        assert!(inside_deadline(0, 0));
+        assert!(!inside_deadline(1, 0));
+        assert_eq!(state_for(5, 3, false), ChallengeState::Missed);
+    }
 }

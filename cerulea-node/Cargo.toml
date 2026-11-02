@@ -117,6 +117,10 @@ sc-transaction-pool.workspace = true        # Use workspace version
 
 # === Runtime ===
 cerulea-runtime.workspace = true                # CBC runtime
+# The Custody Engine answer path reads the challenge, builds the proof and
+# reads the account nonce for the signed answer.
+pallet-cerulea-custody = { workspace = true, default-features = true }
+frame-system-rpc-runtime-api = { workspace = true, default-features = true }
 cerulea-consensus = { path = "src/cerulea-consensus" } # CBC consensus implementation
 cerulea-primitives = { workspace = true, features = ["std"] }
 cerulea-platform-api = { workspace = true, features = ["std"] }

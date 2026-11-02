@@ -276,6 +276,11 @@ where
 {
     use crate::lifecycle_tracer::{LifecycleTracer, TraceMetadata};
 
+    // The runtime writes every custody entry to the local store of the node
+    // as the block executes, so a challenged validator answers from its own
+    // copy of the history.
+    config.offchain_worker.indexing_enabled = true;
+
     // STEP 6: Full service initialization started
     LifecycleTracer::global().trace_step(
         6,
@@ -632,6 +637,17 @@ where
                     .await;
                 }
             });
+    }
+
+    // A validator answers the custody challenges that name it.
+    if config.role.is_authority() {
+        crate::custody_answer::spawn(
+            &task_manager.spawn_handle(),
+            client.clone(),
+            backend.clone(),
+            transaction_pool.clone(),
+            keystore_container.keystore(),
+        );
     }
 
     // Start Registry Vote Creator Service (if node is authority)
