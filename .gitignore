@@ -1,21 +1,7 @@
 target/
-.kiro
-# Added by code-review-graph
-.code-review-graph/
 
-# AI Coding Tool Configs
-.gemini/
-.qoder/
-.opencode.json
-.mcp.json
-
-# Editor and AI Tool Instructions
 .github/
 .vscode/
-.cursorrules
-.windsurfrules
-GEMINI.md
-QODER.md
 
 keys/
 *.pem
