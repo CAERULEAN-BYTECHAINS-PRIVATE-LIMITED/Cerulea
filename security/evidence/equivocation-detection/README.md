@@ -36,7 +36,7 @@ about what happened.
 
 ## The implementing commit
 
-`c0042f4ffc093e59e911b37af7624309850c2508`, on branch `rebuild/foundation`.
+`2d1630016ee24ceddb25cbecd7917bf0464830c7`, on branch `rebuild/foundation`.
 Commit message: `P10-001 implement equivocation detection and penalty`.
 
 ## Where the code sits

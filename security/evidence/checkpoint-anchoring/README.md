@@ -35,7 +35,7 @@ far below the head and offer it to a node that just joined.
 
 ## The implementing commit
 
-`1fb8f49`, on branch `rebuild/foundation`.
+`509a8e3`, on branch `rebuild/foundation`.
 Commit message: `P10-002 implement checkpoint anchoring against the long-range attack`.
 
 ## Where the code sits

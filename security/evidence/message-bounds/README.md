@@ -28,7 +28,7 @@ of items at the price of one and slow every node that reads it.
 
 ## The implementing commit
 
-`2c7d301`, on branch `rebuild/foundation`.
+`0f3e7c9`, on branch `rebuild/foundation`.
 Commit message: `P10-004 bound and reprice every network-reachable message path`.
 
 ## Where the code sits

@@ -21,21 +21,21 @@ cargo test --release -p cerulea-node --test adversarial_test
 |---|---|---|---|---|---|
 | 1 | A forged block seal | Authoring Engine, seal check on import | `SealSignatureRejected`, `ValidatorKeysMismatch`, `AuthorOutsideCommittee` | `forged_*` | none needed |
 | 2 | A valid seal replayed at a later slot | Authoring Engine, seal check on import | `SealSlotMismatch`, `DrawProofRejected`, `SealSignatureRejected` | `replayed_*` | none needed |
-| 3 | A rank three member claiming the slot before the rank one timeout | Authoring Engine, rank timing and arrival check | `RankMismatch`, `RankTimingRejected`, `SealMomentAhead` | `early_rank_*` | `95c5569` |
+| 3 | A rank three member claiming the slot before the rank one timeout | Authoring Engine, rank timing and arrival check | `RankMismatch`, `RankTimingRejected`, `SealMomentAhead` | `early_rank_*` | `99d28ba` |
 | 4 | Vote flooding at and above the submission bound | Commit Engine, submission gate and signature collector | `SubmissionCountAboveLimit`, `SubmissionTooLarge`, `VoterOutsideSet`, `VoteSignatureRejected` | `vote_flood_*` | none needed |
 | 5 | Propagation set exhaustion above capacity | Commit Engine, capped message set, and the equivocation memory | eviction at capacity, `MessageAboveBound` | `gossip_exhaustion_*` | none needed |
-| 6 | A custody answer carrying a proof for another record | Custody Engine | `RootMismatch`, then the verdict `Incorrect` with one custody fault | `custody_*` | `95c5569` |
-| 7 | Equivocation across two ranks by one author | Authoring Engine, seal check on import and equivocation memory | `RankMismatch`, then an equivocation proof | `equivocation_*` | `95c5569` |
+| 6 | A custody answer carrying a proof for another record | Custody Engine | `RootMismatch`, then the verdict `Incorrect` with one custody fault | `custody_*` | `99d28ba` |
+| 7 | Equivocation across two ranks by one author | Authoring Engine, seal check on import and equivocation memory | `RankMismatch`, then an equivocation proof | `equivocation_*` | `99d28ba` |
 | 8 | An inbound bridge message carrying a proof issued for another endpoint | Bridge module verifier | `BridgeFault::SignatureInvalid`, `ProofDeclined` | `bridge_*` | none needed |
 | 9 | A relayer submission with a tampered authorisation | Relayer module | `SignatureInvalid`, `NonceUsed` | `relayer_*` | none needed |
 | 10 | An operator call touching customer state | Operator module with the permission module | `Outcome::PermissionDenied`, `NotAnOperator` | `operator_*` | none needed |
-| 11 | A licence attestation signed by a foreign key, and one that has expired | Tier module and Admission Engine | `SignatureInvalid`, `LicenceLapsed`, `LicenceError::SignatureRejected`, `LicenceError::Lapsed` | `licence_*` | `95c5569` |
-| 12 | A Blueprint action whose Access Manifest omits a collection it then writes | Execution Engine, manifest guard | `WriteOutsideManifest` | `manifest_*` | `95c5569` |
-| 13 | A transaction exceeding its metered bound | Execution Engine, resource meter | `ComputationLimitCrossed`, `StorageLimitCrossed` | `transaction_past_*`, `metered_bound_*` | `95c5569` |
+| 11 | A licence attestation signed by a foreign key, and one that has expired | Tier module and Admission Engine | `SignatureInvalid`, `LicenceLapsed`, `LicenceError::SignatureRejected`, `LicenceError::Lapsed` | `licence_*` | `99d28ba` |
+| 12 | A Blueprint action whose Access Manifest omits a collection it then writes | Execution Engine, manifest guard | `WriteOutsideManifest` | `manifest_*` | `99d28ba` |
+| 13 | A transaction exceeding its metered bound | Execution Engine, resource meter | `ComputationLimitCrossed`, `StorageLimitCrossed` | `transaction_past_*`, `metered_bound_*` | `99d28ba` |
 | 14 | A domain commit whose signer bitmap claims a non-member | Commit Engine, aggregate check | `AggregateBitmapMalformed`, `AggregateSignatureRejected` | `domain_commit_*` | none needed |
 
 A placement fault in the hunk staging of the first commits shifted three
-insertions. Commit `a73866a` places them where they belong.
+insertions. Commit `d5c715c` places them where they belong.
 
 The suite holds 32 tests over the 14 attacks and the review observations
 below. Every test passes on the tree that carries the fixes below. No test is
@@ -95,7 +95,7 @@ Each one carries a test in the suite.
    check. The custody answer, the bridge proof and the Blueprint artefact each
    run the check first in their calls. The runtime ties its block length to the
    extrinsic body bound at compile time. Tests: `network_path_*`. Fix commit:
-   `95c5569`.
+   `99d28ba`.
 
 2. **P-02, a validator sealing at two ranks.** Import refused the header at
    the rank the author lacks and recorded nothing. The refused head now joins
@@ -104,12 +104,12 @@ Each one carries a test in the suite.
    shared evidence check compares slot, seal key and draw key, so the pair
    completes a proof that travels the report path to the framework module.
    Tests: `equivocation_across_two_ranks_is_refused_at_import_and_raises_evidence`.
-   Fix commit: `95c5569`.
+   Fix commit: `99d28ba`.
 
 3. **P-03, an expired attestation at install.** The tier module refuses the
    attestation with `LicenceLapsed`. The fix sentence reads "The licence
    lapsed. Renew the subscription and install the new licence." Fix commit:
-   `95c5569`.
+   `99d28ba`.
 
 4. **P-04, the operator module answers success on a refusal.** Every call in a
    module runs inside one storage layer. A call that answers with an error
@@ -138,7 +138,7 @@ collection, the key and the digest of the stored value, so the entry stays
 inside the answer bound whatever the record size. The direct custody call now
 asks for the root origin, so no account fills the record tree of a block and
 crowds out the state records. Tests: `cerulea-node/tests/custody_state_test.rs`.
-Fix commit: `b6d7e5d`.
+Fix commit: `b27ded9`.
 
 ## The relayer dispatches the authorised call
 
@@ -149,7 +149,7 @@ carries the inner call. The authorisation names the content hash of that call.
 Once the signature holds, the module dispatches the call with the authoriser
 as the origin. A call other than the one the authorisation names fails on
 `CallMismatch`. Tests: `cerulea-node/tests/relayed_write_test.rs`. Fix commit:
-`0373f67`.
+`33bca25`.
 
 ## Decisions recorded
 
@@ -182,14 +182,14 @@ runtime joins the three answers.
    signed by the current key or carried by the root origin. Suspension and
    resumption come from an account that administers the deployment. Faults:
    `NotInstaller`, `RotationUnsigned`, `SignatureInvalid`, `NotSteward`. Fix
-   commit: `c50703c`.
+   commit: `ee95e4b`.
 2. **The relayer settings.** `register_sponsor`, `set_quota`,
    `set_account_limit`, `set_action_limit`, `throttle` and `lift_throttle`
    come from an account that administers the deployment. Fault: `NotSteward`.
-   Fix commit: `04de99d`.
+   Fix commit: `1ffacee`.
 3. **The operator role.** The root origin or an active operator of the
    deployment appoints and retires an operator. A chain specification appoints
-   the first operator. Fault: `NotAnOperator`. Fix commit: `b29c8f3`.
+   the first operator. Fault: `NotAnOperator`. Fix commit: `cb1abff`.
 4. **The validator licence.** The validator registry module holds the key the
    control plane signs validator licences with. A validator presents its
    attestation through `submit_validator_licence`, which runs the Admission
@@ -198,6 +198,6 @@ runtime joins the three answers.
    validator whose licence still holds. The root origin installs the key and
    the class. Faults: `LicenceRequired`, `LicenceSignatureRejected`,
    `LicenceLapsed`, `LicenceReplayed`, `LicenceHolderMismatch`. Fix commit:
-   `a67d8a6`.
+   `4c24438`.
 
 Controls implemented, certification not held.
