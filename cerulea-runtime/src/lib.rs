@@ -100,8 +100,28 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 mod block_times {
-    /// Defines the average expected block time in milliseconds for DCF consensus
-    pub const MILLI_SECS_PER_BLOCK: u64 = 6000;
+    /// Defines the average expected block time in milliseconds for DCF consensus.
+    ///
+    /// 200ms, not the 6000ms a general-purpose chain would use, because CBC-PRAMAAN
+    /// returns a GREEN/YELLOW/RED procurement decision only after that decision is
+    /// FINALIZED (Technical Implementation Specification Part 8.3), and PoC document
+    /// Section 7.2 commits to that finality-confirmed response landing under one second.
+    ///
+    /// Finality-confirmed latency is roughly `1.5 x MILLI_SECS_PER_BLOCK` when
+    /// `FinalityCheckpointInterval` is 1: on average half a block period waiting for
+    /// inclusion, then one more block for the finality checkpoint. At 6000ms that is
+    /// ~9s per decision even before the old 10-block checkpoint interval turned it into
+    /// ~60s, which no amount of API-side engineering can rescue.
+    ///
+    /// 500ms rather than 200ms because this chain runs THREE validators, and the budget
+    /// has to cover authoring plus propagation plus DVF vote aggregation across all of
+    /// them. At 200ms a three-node network stayed consistent while idle but diverged
+    /// under transaction load -- one validator fell behind, and because finality is
+    /// instant it had already finalized its own branch and could not reorg back,
+    /// rejecting the real chain as a "long-range attack". 500ms gives 2.5x the headroom
+    /// and still lands the finality-confirmed response at roughly 1.5 block periods,
+    /// about 750ms, inside PoC document Section 7.2's one-second commitment.
+    pub const MILLI_SECS_PER_BLOCK: u64 = 500;
 
     // The slot duration is the minimum time between blocks
     pub const SLOT_DURATION: u64 = MILLI_SECS_PER_BLOCK;
@@ -227,6 +247,28 @@ mod runtime {
 
     #[runtime::pallet_index(10)]
     pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
+
+    // CBC-PRAMAAN pallets (Technical Implementation Specification Part 6.1). Indices
+    // 11-16, immediately after the existing custom pallets (0-10), leaving 5 free below
+    // System/Timestamp/etc. in case an existing pallet ever needs a neighbor inserted
+    // without renumbering these six.
+    #[runtime::pallet_index(11)]
+    pub type PramaanRuleRegistry = pallet_pramaan_rule_registry;
+
+    #[runtime::pallet_index(12)]
+    pub type PramaanClassification = pallet_pramaan_classification;
+
+    #[runtime::pallet_index(13)]
+    pub type PramaanPreference = pallet_pramaan_preference;
+
+    #[runtime::pallet_index(14)]
+    pub type PramaanCertification = pallet_pramaan_certification;
+
+    #[runtime::pallet_index(15)]
+    pub type PramaanDebarment = pallet_pramaan_debarment;
+
+    #[runtime::pallet_index(16)]
+    pub type PramaanConsistency = pallet_pramaan_consistency;
 }
 use sp_runtime::traits::parameter_types;
 
@@ -327,8 +369,31 @@ parameter_types! {
     pub const StakeWeightFactor: u128 = 1;
     pub const ScoreWeightFactor: u128 = 1000;
     pub const ScoreBoostCap: u128 = 100_000;
-    pub const FinalityThreshold: sp_runtime::Perbill = sp_runtime::Perbill::from_percent(67);
-    pub const FinalityCheckpointInterval: u32 = 10;
+    /// Two of three validators, which requires 66% -- not 67%.
+    ///
+    /// This is arithmetic, not preference. Three validators of equal weight give any two
+    /// of them exactly 66.67% of the total. A 67% threshold is therefore strictly above
+    /// what a two-validator quorum can ever reach, so it silently demanded unanimity:
+    /// measured on a live three-node network, two votes carried 18,666 against a
+    /// threshold of 21,439 and finality never advanced past block 0.
+    ///
+    /// PoC document Section 4.8 commits to a majority quorum of three validators, so the
+    /// threshold has to sit at or below 2/3. 66% clears 66.67% with room for the integer
+    /// rounding in the weight calculation, while still requiring a genuine majority: a
+    /// single validator (33.3%) can never finalize alone.
+    pub const FinalityThreshold: sp_runtime::Perbill = sp_runtime::Perbill::from_percent(66);
+    /// Finalize at EVERY block, not every tenth.
+    ///
+    /// With the previous value of 10 the client's finalized head advanced in visible
+    /// 10-block jumps -- measured on a live node, finality sat at #10 while the chain
+    /// was at #19, then committed to #20, a ~60s sawtooth. A procurement decision that
+    /// must be finalized before it is returned therefore took up to 60s, against PoC
+    /// document Section 7.2's under-one-second commitment.
+    ///
+    /// 67% of three validators is two, so this remains genuine 2-of-3 quorum finality
+    /// (FinalityThreshold above is untouched); only the checkpoint cadence changed.
+    /// Every block is now its own checkpoint.
+    pub const FinalityCheckpointInterval: u32 = 1;
     pub const VoteRetentionRounds: u32 = 20;
 }
 

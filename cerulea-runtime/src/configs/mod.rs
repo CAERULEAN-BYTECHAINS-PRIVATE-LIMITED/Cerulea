@@ -22,6 +22,7 @@ use super::{
     AccountId, Balance, Balances, Block, BlockNumber, Hash, Nonce, PalletInfo, Runtime,
     RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask,
     System, EXISTENTIAL_DEPOSIT, SLOT_DURATION, VERSION,
+    PramaanRuleRegistry, PramaanDebarment, PramaanCertification,
 };
 
 use crate::{
@@ -362,4 +363,79 @@ impl pallet_todo::Config for Runtime {
     type MaxDescriptionLength = TodoConstU32<1024>;
     /// Allow up to 500 todos per account.
     type MaxTodosPerAccount = TodoConstU32<500>;
+}
+
+// ── CBC-PRAMAAN pallet runtime configuration ─────────────────
+// Technical Implementation Specification Part 6.1. Wires the six new pallets
+// (pramaan-pallets/*) together immediately below the existing custom pallets, per the
+// build spec's own instruction to keep the new pallets' Config impls adjacent to the
+// three existing ones. All six share the runtime's own `Balance = u128` (paise, per the
+// convention fixed in pallet-pramaan-certification's own doc comment and reconciled
+// across the other pallets that also carry currency values).
+use frame_system::EnsureRoot;
+
+/// "DPIIT or Root" (tech spec Part 5.1's Origin column for set_rule/set_default_rule).
+/// This runtime has no standalone DPIIT account/role-registry pallet, so — consistent
+/// with every pramaan-pallet's own documented placeholder-authorization approach (role
+/// enforcement deferred to the frontend/API layer per Part 9.1/10) — DPIIT authority is
+/// represented here as Root, reachable through the existing `pallet_sudo` already wired
+/// into this runtime. A future revision could replace this with
+/// `EnsureRoot<AccountId>::or(EnsureSignedBy<DpiitAccount, AccountId>)` once a
+/// dedicated DPIIT account exists.
+pub type DpiitOrRoot = EnsureRoot<AccountId>;
+
+impl pallet_pramaan_rule_registry::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_rule_registry::weights::SubstrateWeight<Runtime>;
+    type Balance = Balance;
+    type DpiitOrigin = DpiitOrRoot;
+}
+
+impl pallet_pramaan_classification::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_classification::weights::SubstrateWeight<Runtime>;
+    type Balance = Balance;
+    type RuleSource = PramaanRuleRegistry;
+    type DebarmentSource = PramaanDebarment;
+    /// Upper bound on components in one component-level / weighted-module declaration
+    /// (PathwayId::P2). 64 mirrors pramaan-primitives::MaxHsn as a generous ceiling.
+    type MaxComponents = ConstU32<64>;
+}
+
+impl pallet_pramaan_preference::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_preference::weights::SubstrateWeight<Runtime>;
+    type Balance = Balance;
+    type RuleSource = PramaanRuleRegistry;
+    /// Upper bound on bids one `calculate_preference` call can carry.
+    type MaxBids = ConstU32<128>;
+}
+
+impl pallet_pramaan_certification::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_certification::weights::SubstrateWeight<Runtime>;
+    type Balance = Balance;
+    type RuleSource = PramaanRuleRegistry;
+    /// The pallet's own on-chain empanelment register (`Auditors`), maintained by
+    /// `empanel_auditor` / `remove_auditor`. Not a compile-time list: DPIIT adds or
+    /// removes a firm with a transaction, and every change is itself finalized and
+    /// auditable.
+    type AuditorSource = PramaanCertification;
+    type AuditorAdminOrigin = DpiitOrRoot;
+    type MaxCertsPerAuditor = ConstU32<1000>;
+}
+
+impl pallet_pramaan_debarment::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_debarment::weights::SubstrateWeight<Runtime>;
+    type MaxRecords = ConstU32<32>;
+}
+
+impl pallet_pramaan_consistency::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_pramaan_consistency::weights::SubstrateWeight<Runtime>;
+    type MaxHistory = ConstU32<64>;
+    /// 10 percentage points either side, per the tolerance the 86%-vs-30% Sabarmati
+    /// Systems example (tech spec Part 5.6) clearly exceeds many times over.
+    type ToleranceBps = frame_support::traits::ConstU16<1000>;
 }

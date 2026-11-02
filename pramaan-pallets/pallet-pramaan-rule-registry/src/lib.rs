@@ -1,0 +1,260 @@
+//! pallet-pramaan-rule-registry
+//!
+//! Holds the nine-parameter rule set for every nodal ministry (PoC document Section
+//! 4.1, Table 10, Table 11). This is the single source every other pallet reads from
+//! through the `RuleLookup` trait, so a rule change is a storage update, never a
+//! redeploy — the mechanism behind PoC document Section 4.6 / 9.3's claim that adding a
+//! ministry or rule is configuration, not engineering.
+//!
+//! Technical Implementation Specification Part 5.1. Storage-map and origin-check
+//! pattern mirrored from pallet-cerulea-pos's validator registration extrinsic.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+pub use pallet::*;
+
+pub mod weights;
+pub use weights::*;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+use pramaan_primitives::{HsnCode, MinistryId, Rule};
+use sp_std::prelude::*;
+
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use pramaan_primitives::{BasisPoints, BPS_DENOMINATOR};
+
+	#[pallet::pallet]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config {
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type WeightInfo: WeightInfo;
+
+		/// The Balance type carried inside `Rule` (certification_threshold,
+		/// exemption_floor). Requires `Serialize + DeserializeOwned` (beyond what the
+		/// other five pallets' `Balance` associated types need) because this pallet
+		/// alone declares a `#[pallet::genesis_config]` embedding `RuleOf<T>`, and the
+		/// JSON-based `GenesisBuilder` runtime API serde-(de)serialises the whole
+		/// genesis patch.
+		type Balance: Parameter
+			+ Member
+			+ MaxEncodedLen
+			+ Copy
+			+ Default
+			+ TypeInfo
+			+ serde::Serialize
+			+ serde::de::DeserializeOwned;
+
+		/// DPIIT or Root, per tech spec Table 5's Origin column. A `EnsureOrigin`
+		/// combinator (e.g. `EnsureRoot` OR a designated DPIIT signed account) is
+		/// supplied by the runtime; this pallet does not hardcode which account is
+		/// DPIIT.
+		type DpiitOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+	}
+
+	pub type RuleOf<T> = Rule<<T as Config>::Balance, BlockNumberFor<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn rules)]
+	pub type Rules<T: Config> = StorageMap<_, Blake2_128Concat, MinistryId, RuleOf<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn default_rule)]
+	pub type DefaultRule<T: Config> = StorageValue<_, RuleOf<T>>;
+
+	/// Which nodal ministry an HSN code falls under.
+	///
+	/// The PPP-MII Order assigns product categories to nodal ministries, and a procuring
+	/// entity holds an HSN code long before it holds a ministry id -- an HSN is on the
+	/// catalogue line, the ministry is an administrative fact about it. Without this map
+	/// the caller has to already know the answer to the question they are asking, which
+	/// in practice means hardcoding it in the frontend and letting it drift.
+	///
+	/// Populated from the real notifications (Telecom, Heavy Industries' boilers, and
+	/// Chemicals carry explicit HSN codes). A code with no entry is not an error: it
+	/// means no ministry has notified that category, and the DPIIT default governs --
+	/// the same fallback `get_effective_rule` already applies.
+	#[pallet::storage]
+	#[pallet::getter(fn hsn_ministry)]
+	pub type HsnMinistryMap<T: Config> = StorageMap<_, Blake2_128Concat, HsnCode, MinistryId>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn rule_version)]
+	pub type RuleVersion<T: Config> = StorageMap<_, Blake2_128Concat, MinistryId, u32, ValueQuery>;
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		RuleUpdated { ministry: MinistryId, new_version: u32, block_number: BlockNumberFor<T> },
+		/// An HSN code was mapped to (or remapped to) a nodal ministry.
+		HsnMapped { hsn_code: HsnCode, ministry: MinistryId, block_number: BlockNumberFor<T> },
+		DefaultRuleUpdated { new_version: u32, block_number: BlockNumberFor<T> },
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		/// Caller is not DPIIT or Root.
+		NotAuthorised,
+		/// A field fails validation, e.g. preference_margin_bps > 10000.
+		InvalidRule,
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
+		#[pallet::weight(T::WeightInfo::set_rule())]
+		pub fn set_rule(origin: OriginFor<T>, ministry: MinistryId, rule: RuleOf<T>) -> DispatchResult {
+			T::DpiitOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+			Self::validate_rule(&rule)?;
+
+			let new_version = RuleVersion::<T>::get(&ministry).saturating_add(1);
+			Rules::<T>::insert(&ministry, &rule);
+			RuleVersion::<T>::insert(&ministry, new_version);
+
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::RuleUpdated { ministry: ministry.clone(), new_version, block_number });
+			::log::info!(
+				"[pramaan::rule-registry][prometheus] rule_updated{{ministry={:?}}} {}",
+				ministry,
+				new_version
+			);
+			Ok(())
+		}
+
+		/// Map an HSN code to its nodal ministry. DPIIT or Root.
+		///
+		/// Idempotent by design: remapping an HSN overwrites the previous owner rather
+		/// than failing, because nodal responsibility genuinely does move between
+		/// ministries and the registry has to be able to follow that.
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::set_rule())]
+		pub fn map_hsn_to_ministry(
+			origin: OriginFor<T>,
+			hsn_code: HsnCode,
+			ministry: MinistryId,
+		) -> DispatchResult {
+			T::DpiitOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+
+			HsnMinistryMap::<T>::insert(&hsn_code, &ministry);
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::HsnMapped { hsn_code, ministry, block_number });
+			Ok(())
+		}
+
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::set_default_rule())]
+		pub fn set_default_rule(origin: OriginFor<T>, rule: RuleOf<T>) -> DispatchResult {
+			T::DpiitOrigin::ensure_origin(origin).map_err(|_| Error::<T>::NotAuthorised)?;
+			Self::validate_rule(&rule)?;
+
+			DefaultRule::<T>::put(&rule);
+			// The default rule set shares no per-ministry RuleVersion key; report
+			// generation 1 always incremented at the storage layer by whichever admin
+			// flow calls this. A dedicated DefaultRuleVersion could be added if the
+			// default set needs its own audit trail distinct from Rules[ministry].
+			let block_number = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::DefaultRuleUpdated { new_version: 1, block_number });
+			::log::info!("[pramaan::rule-registry][prometheus] default_rule_updated{{}} 1");
+			Ok(())
+		}
+	}
+
+	impl<T: Config> Pallet<T> {
+		fn validate_rule(rule: &RuleOf<T>) -> Result<(), Error<T>> {
+			ensure!(rule.preference_margin_bps as u32 <= BPS_DENOMINATOR, Error::<T>::InvalidRule);
+			for hsn in rule.hsn_thresholds.iter() {
+				ensure!(
+					(hsn.class_one_bps as u32) <= BPS_DENOMINATOR && (hsn.class_two_bps as u32) <= BPS_DENOMINATOR,
+					Error::<T>::InvalidRule
+				);
+				ensure!(hsn.class_one_bps >= hsn.class_two_bps, Error::<T>::InvalidRule);
+			}
+			let _ = BasisPoints::default(); // keep import live if hsn_thresholds is ever empty
+			Ok(())
+		}
+
+		/// The rule governing an HSN code: resolve the code to its nodal ministry, then
+		/// read that ministry's effective rule. An unmapped code falls through to the
+		/// DPIIT default, which is the correct answer rather than a failure.
+		pub fn rule_for_hsn(hsn_code: &HsnCode) -> Option<RuleOf<T>> {
+			match HsnMinistryMap::<T>::get(hsn_code) {
+				Some(ministry) => Self::get_effective_rule(&ministry),
+				None => {
+					let now = frame_system::Pallet::<T>::block_number();
+					DefaultRule::<T>::get().filter(|r| r.effective_from <= now)
+				}
+			}
+		}
+
+		/// Rules[ministry] if set AND already in force, else DefaultRule. Used by
+		/// classification, preference, and certification via the `RuleLookup` trait
+		/// below, and by the Part 5.1 "default fallback" unit test.
+		///
+		/// **`effective_from` is enforced here, not merely recorded.** PoC document
+		/// Section 12.2.3 requires that every rule change carry an effective date, and a
+		/// notified commencement date is the whole point of that field: a ministry
+		/// notifies a change today that applies from a stated future date. Storing the
+		/// date and then judging bids against the new parameters immediately would make
+		/// the recorded date a decoration, and the API says as much to the caller
+		/// ("takes effect from block N"), so the claim has to be true.
+		///
+		/// A ministry rule whose `effective_from` is still in the future is treated as
+		/// not yet in force, and the DPIIT default applies until it commences -- which
+		/// is exactly the same fallback this function already applies to a ministry that
+		/// has notified no rule at all. The default is subject to the same test, so a
+		/// default scheduled for the future does not apply early either.
+		///
+		/// Decisions already taken are untouched: classification, preference and
+		/// certification store their results, so a later commencement never rewrites a
+		/// verdict that was correct under the rule in force when it was made.
+		pub fn get_effective_rule(ministry: &MinistryId) -> Option<RuleOf<T>> {
+			let now = frame_system::Pallet::<T>::block_number();
+			let in_force = |rule: &RuleOf<T>| rule.effective_from <= now;
+
+			match Rules::<T>::get(ministry) {
+				Some(rule) if in_force(&rule) => Some(rule),
+				_ => DefaultRule::<T>::get().filter(in_force),
+			}
+		}
+	}
+
+	impl<T: Config> pramaan_primitives::RuleLookup<T::Balance, BlockNumberFor<T>> for Pallet<T> {
+		fn rule(ministry: &MinistryId) -> Option<RuleOf<T>> {
+			Self::get_effective_rule(ministry)
+		}
+	}
+
+	/// Pre-loads `DefaultRule` at genesis with the DPIIT default rule set (PoC document
+	/// Table 3 / tech spec Part 7.2), so classification/preference/certification have a
+	/// fallback rule from block zero. The full 21-ministry set is intentionally NOT
+	/// baked in here — it is loaded post-genesis via the idempotent seed script (Part
+	/// 7.3/7.4) so it can be re-run during development without a chain restart.
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub default_rule: Option<RuleOf<T>>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			if let Some(rule) = &self.default_rule {
+				Pallet::<T>::validate_rule(rule).expect("genesis default_rule must be valid");
+				DefaultRule::<T>::put(rule);
+			}
+		}
+	}
+}

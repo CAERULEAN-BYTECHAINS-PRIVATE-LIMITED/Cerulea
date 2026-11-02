@@ -4,10 +4,38 @@
 
 use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, CBC}; // Runtime-specific types
 use alloc::{vec, vec::Vec}; // Alloc crate for dynamic arrays
-use frame_support::build_struct_json_patch; // Macro to build partial JSON patches for genesis config
+use frame_support::{build_struct_json_patch, BoundedVec}; // Macro to build partial JSON patches for genesis config
 use serde_json::Value; // JSON value type
 use sp_genesis_builder::{self, PresetId}; // Genesis builder utilities and PresetId for pre-defined configs
 use sp_keyring::Ed25519Keyring; // Keyring to easily access dev accounts
+use pramaan_primitives::{CalculationMethod, Divisibility, HsnThreshold, Rule};
+
+/// The DPIIT default rule set (PoC document Table 3 / tech spec Part 7.2), transcribed
+/// verbatim: standard calculation method, 20% preference margin, self-certification
+/// below / auditor certificate above Rs 10 crore, Para 3A applicable, PLI not linked by
+/// default, exemption floor Rs 5 lakh, divisibility determined per tender. Balance unit
+/// is paise throughout this build (see pallet-pramaan-certification's module doc).
+/// Mirrors scripts/seed-ministries/ministries.json's own "DPIIT" row exactly, which is
+/// the source of truth this was cross-checked against.
+fn pramaan_dpiit_default_rule() -> Rule<crate::Balance, crate::BlockNumber> {
+	Rule {
+		hsn_thresholds: BoundedVec::try_from(vec![HsnThreshold {
+			hsn_code: BoundedVec::try_from(b"*".to_vec()).expect("fits IdBound"),
+			class_one_bps: 5_000,
+			class_two_bps: 2_000,
+		}])
+		.expect("fits MaxHsn"),
+		para_3a_applicable: true,
+		pli_linked: false,
+		calculation_method: CalculationMethod::Standard,
+		preference_margin_bps: 2_000,
+		certification_threshold: 100_000_000_00, // Rs 10 crore in paise
+		exemption_floor: 500_000_00,             // Rs 5 lakh in paise
+		divisibility: Divisibility::Divisible,
+		effective_from: 0,
+		needs_reverification: false,
+	}
+}
 
 /// Returns a genesis configuration in JSON format with the specified authorities,
 /// endowed accounts, and sudo (root) key.
@@ -130,6 +158,27 @@ fn testnet_genesis_with_stakes_and_names(
 		dvf: pallet_cerulea_dvf::GenesisConfig {
 			initial_validator_weights: dvf_initial_weights,
 		},
+		pramaan_rule_registry: pallet_pramaan_rule_registry::GenesisConfig {
+			default_rule: Some(pramaan_dpiit_default_rule()),
+		},
+		// Two firms empanelled at genesis so a fresh chain can certify an
+		// above-threshold contract immediately. This is a STARTING register, not a
+		// fixed one: DPIIT adds or removes firms afterwards with empanel_auditor /
+		// remove_auditor, which are ordinary finalized transactions.
+		pramaan_certification: pallet_pramaan_certification::GenesisConfig {
+			auditors: vec![
+				(
+					Ed25519Keyring::Eve.to_account_id(),
+					BoundedVec::try_from(b"S. Raghavan & Associates, Cost Accountants".to_vec())
+						.expect("fits IdBound"),
+				),
+				(
+					Ed25519Keyring::Ferdie.to_account_id(),
+					BoundedVec::try_from(b"Narmada & Co., Chartered Accountants".to_vec())
+						.expect("fits IdBound"),
+				),
+			],
+		},
 	})
 }
 
@@ -150,9 +199,18 @@ pub fn development_config_genesis() -> Value {
 }
 
 /// Returns a local testnet configuration:
-/// - Alice and Bob are set as validators.
+/// - Alice, Bob and Charlie are validators, with EQUAL stake.
 /// - Endows all keyring accounts (except One and Two) with tokens.
 /// - Alice is the sudo key.
+///
+/// The stakes are deliberately equal rather than the 10M/8M/6M default ladder, because
+/// DVF derives each validator's voting weight from its stake and PoC document Section
+/// 4.8 promises a majority quorum of three. With unequal weights "two of three" stops
+/// being a property of the network and becomes a property of WHICH two: measured on this
+/// very topology, Alice plus the smallest validator carried 18,666 of a 21,439 threshold
+/// and finality stalled at block 0, while Alice plus the second-largest would have
+/// cleared it. Equal weight makes any two validators exactly 66.67%, which the 66%
+/// FinalityThreshold clears and no single validator (33.3%) can reach alone.
 pub fn local_config_genesis() -> Value {
 	let initial_validators = vec![
 		Ed25519Keyring::Alice.to_account_id(),
@@ -163,10 +221,11 @@ pub fn local_config_genesis() -> Value {
 		.filter(|v| v != &Ed25519Keyring::One && v != &Ed25519Keyring::Two)
 		.map(|v| v.to_account_id())
 		.collect::<Vec<_>>();
-	testnet_genesis(
+	testnet_genesis_with_stakes(
 		initial_validators,
 		endowed_accounts,
 		Ed25519Keyring::Alice.to_account_id(),
+		Some(vec![10_000_000 * CBC, 10_000_000 * CBC, 10_000_000 * CBC]),
 	)
 }
 
@@ -196,13 +255,15 @@ pub fn multi_validator_config_genesis() -> Value {
 		Ed25519Keyring::Eve.to_account_id(),
 	];
 
-	// Custom stakes for different validator profiles
+	// Equal stakes, so quorum is a property of the NETWORK rather than of which
+	// particular validators happen to have voted. See local_config_genesis for the
+	// measurement that motivated this.
 	let validator_stakes = vec![
-		15_000_000, // Alice: High stake validator
-		12_000_000, // Bob: Medium-high stake
-		8_000_000,  // Charlie: Medium stake
-		5_000_000,  // Dave: Low-medium stake
-		3_000_000,  // Eve: Minimum viable stake
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
+		10_000_000 * CBC,
 	];
 
 	// Custom validator names for better identification

@@ -2,10 +2,14 @@
 # Cerulea — 3-validator network on Render
 #
 # How it works:
-#   - Alice's network key is baked into the Docker image (keys/alice/secret_ed25519)
-#     so her peer-id is fixed and known at build time.
-#   - Bob and Charlie derive Alice's peer-id from the baked key at startup.
-#     No manual peer-id copy-paste required.
+#   - Alice's network key comes from the ALICE_NODE_KEY secret (sync: false), NOT from
+#     the image: keys/ is gitignored, so nothing is baked in a hosted build. Set the
+#     SAME value on all three services -- Bob and Charlie derive Alice's peer-id from
+#     it to build their bootnode address. Generate one with:
+#         cerulea-node key generate-node-key
+#     Without it Alice takes a random identity on each boot and the other two can never
+#     find her: the network degrades to a single validator with no quorum.
+#   - No manual peer-id copy-paste required.
 #   - The entrypoint (docker-entrypoint.sh) reads NODE_ROLE and starts the
 #     correct validator automatically. All key/directory setup is automatic.
 #
@@ -38,6 +42,14 @@ services:
     envVars:
       - key: NODE_ROLE
         value: alice
+      # Alice's P2P identity. sync: false means Render prompts for it once and stores
+      # it as a secret -- it is NOT in git, because keys/ is gitignored. Without it
+      # Alice generates a random peer-id on every boot and Bob/Charlie can never dial
+      # her: the network silently degrades to one validator and the 2-of-3 quorum
+      # claim stops being true. Generate with:
+      #   cerulea-node key generate-node-key
+      - key: ALICE_NODE_KEY
+        sync: false
       # PORT is read by the entrypoint as the RPC port.
       # Render's proxy forwards external traffic to this port.
       - key: PORT
@@ -66,6 +78,10 @@ services:
     envVars:
       - key: NODE_ROLE
         value: bob
+      # The same key Alice uses, so this node can derive her peer-id and dial her.
+      # Paste the identical value into all three services.
+      - key: ALICE_NODE_KEY
+        sync: false
       - key: PORT
         value: "9945"
       - key: P2P_PORT
@@ -96,6 +112,10 @@ services:
     envVars:
       - key: NODE_ROLE
         value: charlie
+      # The same key Alice uses, so this node can derive her peer-id and dial her.
+      # Paste the identical value into all three services.
+      - key: ALICE_NODE_KEY
+        sync: false
       - key: PORT
         value: "9946"
       - key: P2P_PORT
@@ -110,3 +130,34 @@ services:
       name: charlie-chain-data
       mountPath: /data
       sizeGB: 10
+
+  # ── CBC-PRAMAAN web application (Next.js) ─────────────────────────────────
+  # The frontend and its six trigger-point API routes (Technical Implementation
+  # Specification Parts 8.2 and 9). The API routes run server-side on this
+  # service and talk to the chain over Render's internal network, so a
+  # compliance decision never depends on the public internet round-tripping.
+  #
+  # CHAIN_WS_ENDPOINT uses the INTERNAL address ws://cbc-alice:9944 rather than
+  # the public wss://cbc-alice.onrender.com. Bob and Charlie already prove this
+  # internal DNS name resolves (they use ALICE_HOST: cbc-alice for P2P above),
+  # and staying internal avoids both TLS overhead and Render's public-proxy idle
+  # timeout on the long-lived finalized-heads subscription that Part 8.3's
+  # finality wait depends on.
+  - type: web
+    name: cbc-pramaan-web
+    runtime: node
+    rootDir: apps/web
+    region: oregon
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: CHAIN_WS_ENDPOINT
+        value: ws://cbc-alice:9944
+      # Render injects PORT; `next start` reads it automatically.
+      - key: NODE_ENV
+        value: production

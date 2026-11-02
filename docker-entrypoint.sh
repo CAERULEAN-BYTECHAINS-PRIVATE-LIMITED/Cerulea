@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-# NODE_ROLE must be explicitly set to: alice | bob | charlie
+# NODE_ROLE must be explicitly set to: solo | alice | bob | charlie
+#
+# STATE_PRUNING / BLOCKS_PRUNING (default: archive) bound how much history the node keeps.
+# Archive state filled a 5 GB volume in 48 days on the live solo node; blocks stay archived
+# (the explorer needs bodies and events) while state can be bounded, e.g. STATE_PRUNING=100000.
 # No default — fail loudly rather than silently start a second Alice.
 NODE_ROLE="${NODE_ROLE:?ERROR: NODE_ROLE must be set to alice, bob, or charlie}"
 
@@ -13,9 +17,30 @@ P2P_PORT="${P2P_PORT:-30333}"
 RPC_PORT="${PORT:-${RPC_PORT:-9944}}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9615}"
 
-# Alice's network key — baked into the image for a deterministic peer-id.
-# If not baked (e.g. local dev without the keys/ dir), one is generated.
+# Alice's network key — determines her peer-id, which Bob and Charlie dial.
+#
+# Three sources, in order of preference:
+#   1. ALICE_NODE_KEY   — 64 hex chars in the environment. THIS is what a hosted
+#                         deployment uses: keys/ is gitignored (correctly — a key does
+#                         not belong in git), so on Render there is no baked key and
+#                         Alice would otherwise generate a RANDOM identity on every
+#                         boot. Bob and Charlie dial a peer-id derived from this same
+#                         value, so a random one silently breaks the network: Alice
+#                         comes up alone, the other two never find her, and the
+#                         2-of-3 quorum claim quietly becomes a 1-of-1 chain.
+#   2. the baked key    — present only when keys/ existed at image build time.
+#   3. generated        — single-node local dev, where nothing dials Alice anyway.
+#
+# ALICE_PEER_ID may also be set directly, which skips derivation entirely; useful when
+# the bootnode is not managed by this compose/blueprint at all.
 ALICE_BAKED_KEY="/etc/cbc/alice_network_key"
+
+if [ -n "${ALICE_NODE_KEY:-}" ] && [ ! -f "$ALICE_BAKED_KEY" ]; then
+    mkdir -p "$(dirname "$ALICE_BAKED_KEY")"
+    printf '%s' "$ALICE_NODE_KEY" > "$ALICE_BAKED_KEY"
+    chmod 600 "$ALICE_BAKED_KEY"
+    echo "Installed Alice's network key from ALICE_NODE_KEY."
+fi
 
 # ── Alice: install her fixed key so her peer-id is always the same ──────────
 if [ "$NODE_ROLE" = "alice" ]; then
@@ -42,7 +67,9 @@ fi
 # ── Derive Alice's peer-id ───────────────────────────────────────────────────
 # Prefer the baked key (always available); fall back to Alice's live key
 # (useful in docker-compose where all nodes share a network volume).
-if [ -f "$ALICE_BAKED_KEY" ]; then
+if [ -n "${ALICE_PEER_ID:-}" ]; then
+    echo "Using ALICE_PEER_ID supplied by the environment."
+elif [ -f "$ALICE_BAKED_KEY" ]; then
     ALICE_PEER_ID=$(cerulea-node key inspect-node-key --file "$ALICE_BAKED_KEY" 2>/dev/null | tail -n 1)
 else
     # docker-compose local mode: wait for Alice's key to appear on the shared volume
@@ -81,18 +108,57 @@ echo "  ALICE_BOOTNODE : $ALICE_BOOTNODE"
 echo "======================================================"
 
 # Base args shared by all nodes — mirrors the local start_*.sh scripts exactly
+#
+# Listen on BOTH IPv4 and IPv6.
+#
+# Railway's private network (`<service>.railway.internal`) is IPv6-only, so a node
+# bound to 0.0.0.0 alone is unreachable from its peers there and the validators never
+# form a network -- the same silent single-validator degradation the ALICE_NODE_KEY
+# problem causes, from a different direction. Binding both is harmless on Render,
+# docker-compose and locally, so it is unconditional rather than platform-gated.
+# The bootnode address uses /dns/ (above), which resolves A and AAAA alike.
 BASE_ARGS=(
     --base-path "$BASE_PATH"
     --chain local
     --port "$P2P_PORT"
+    --listen-addr "/ip4/0.0.0.0/tcp/$P2P_PORT"
+    --listen-addr "/ip6/::/tcp/$P2P_PORT"
     --rpc-port "$RPC_PORT"
     --prometheus-port "$PROMETHEUS_PORT"
     --unsafe-rpc-external
     --rpc-cors all
     --validator
+    # Keep ALL state and ALL blocks. This is an audit chain: the whole premise is that a
+    # decision's block can be looked up and its state re-derived long after the fact, so
+    # discarding historical state defeats the point. It also stops "State already
+    # discarded" errors when a reader queries a block the default pruning window has
+    # already dropped -- which on a sub-second chain is only a few minutes of history.
+    --state-pruning "${STATE_PRUNING:-archive}"
+    --blocks-pruning "${BLOCKS_PRUNING:-archive}"
 )
 
 case "$NODE_ROLE" in
+    solo)
+        # A single, self-sufficient validator on the --dev genesis, where Alice is the
+        # sole authority and finalises every block herself. This is the reliable-uptime
+        # mode for the live site: with no peers there is no sync layer to desync and no
+        # quorum to lose, so finality can never stall mid-demo. Switching the live chain
+        # between `solo` and the three-validator roles is a NODE_ROLE change, no rebuild,
+        # so a three-node network that misbehaves in a hosted environment falls back
+        # instantly.
+        echo "Starting solo validator (--dev, single-node finality)..."
+        exec cerulea-node \
+            --base-path "$BASE_PATH" \
+            --dev \
+            --rpc-port "$RPC_PORT" \
+            --prometheus-port "$PROMETHEUS_PORT" \
+            --unsafe-rpc-external \
+            --rpc-cors all \
+            --state-pruning archive \
+            --blocks-pruning archive \
+            --name Solo
+        ;;
+
     alice)
         echo "Starting Alice (bootnode + public RPC)..."
         exec cerulea-node \

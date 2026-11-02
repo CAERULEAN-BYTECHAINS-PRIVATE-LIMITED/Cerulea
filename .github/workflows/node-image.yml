@@ -1,0 +1,109 @@
+name: node-image
+
+# Builds the cerulea-node Docker image on GitHub's runners and publishes it to GHCR.
+# Railway's builder kills this Rust build silently ~40 min in (see
+# docs/LIVE_DEPLOYMENT_STATE.md), so Railway deploys the image published here instead of
+# building from source. A failed build here never touches the running service.
+on:
+  push:
+    branches: [pramaan-poc, develop]
+    paths:
+      - Dockerfile
+      - docker-entrypoint.sh
+      - Cargo.toml
+      - Cargo.lock
+      - .cargo/**
+      - cerulea-node/**
+      - cerulea-runtime/**
+      - cerulea-pallets/**
+      - pramaan-pallets/**
+      - pramaan-primitives/**
+      - tools/**
+      - .github/workflows/node-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: node-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker system prune -af || true
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - name: Compute image name (GHCR requires lowercase)
+        id: img
+        run: echo "name=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/cerulea-node" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ steps.img.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max
+
+      # The org's GHCR packages are private and Railway cannot use private-registry
+      # credentials on its plan, so the node binary is ALSO published as a release asset of
+      # this (public) repository. Dockerfile.release downloads it, which turns Railway's
+      # 40-minute Rust build into a 30-second image assembly.
+      - name: Extract the node binary from the image
+        run: |
+          set -euo pipefail
+          IMG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker pull "$IMG"
+          # ./cerulea-node is the crate directory in this checkout, so extract into dist/.
+          mkdir -p dist
+          id=$(docker create "$IMG")
+          docker cp "$id:/usr/local/bin/cerulea-node" dist/cerulea-node
+          docker rm "$id"
+          chmod +x dist/cerulea-node
+          dist/cerulea-node --version || true
+          cp dist/cerulea-node "dist/cerulea-node-${{ github.sha }}"
+          (cd dist && sha256sum cerulea-node > cerulea-node.sha256)
+
+      - name: Publish the binary as a release asset (tag node-<branch>)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="node-${{ github.ref_name }}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "cerulea-node (${{ github.ref_name }})" --notes "Rolling release of the cerulea-node binary built from branch ${{ github.ref_name }}. The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable." --target "${{ github.sha }}"
+          gh release upload "$TAG" dist/cerulea-node dist/cerulea-node.sha256 "dist/cerulea-node-${{ github.sha }}" --clobber
+          gh release edit "$TAG" --notes "Latest build: ${{ github.sha }} ($(date -u +%FT%TZ)). The asset named cerulea-node is always the latest build; cerulea-node-<sha> assets are immutable."
+
+      - name: Summary
+        run: |
+          echo "Published ${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release asset: https://github.com/${{ github.repository }}/releases/download/node-${{ github.ref_name }}/cerulea-node" >> "$GITHUB_STEP_SUMMARY"

@@ -28,6 +28,13 @@ COPY cerulea-pallets/pallet-cerulea-pos/Cargo.toml     cerulea-pallets/pallet-ce
 COPY cerulea-pallets/pallet-cerulea-dcf/Cargo.toml     cerulea-pallets/pallet-cerulea-dcf/Cargo.toml
 COPY cerulea-pallets/pallet-cerulea-dvf/Cargo.toml     cerulea-pallets/pallet-cerulea-dvf/Cargo.toml
 COPY cerulea-pallets/pallet-todo/Cargo.toml        cerulea-pallets/pallet-todo/Cargo.toml
+COPY pramaan-primitives/Cargo.toml                             pramaan-primitives/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-rule-registry/Cargo.toml   pramaan-pallets/pallet-pramaan-rule-registry/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-classification/Cargo.toml  pramaan-pallets/pallet-pramaan-classification/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-preference/Cargo.toml      pramaan-pallets/pallet-pramaan-preference/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-certification/Cargo.toml   pramaan-pallets/pallet-pramaan-certification/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-debarment/Cargo.toml       pramaan-pallets/pallet-pramaan-debarment/Cargo.toml
+COPY pramaan-pallets/pallet-pramaan-consistency/Cargo.toml     pramaan-pallets/pallet-pramaan-consistency/Cargo.toml
 
 # tools has bins at the root (no src/ dir) — copy real source, it's tiny
 COPY tools/ tools/
@@ -43,6 +50,13 @@ RUN set -e; \
         cerulea-pallets/pallet-cerulea-dcf \
         cerulea-pallets/pallet-cerulea-dvf \
         cerulea-pallets/pallet-todo \
+        pramaan-primitives \
+        pramaan-pallets/pallet-pramaan-rule-registry \
+        pramaan-pallets/pallet-pramaan-classification \
+        pramaan-pallets/pallet-pramaan-preference \
+        pramaan-pallets/pallet-pramaan-certification \
+        pramaan-pallets/pallet-pramaan-debarment \
+        pramaan-pallets/pallet-pramaan-consistency \
     ; do \
         mkdir -p "$crate/src" && printf '// stub\n' > "$crate/src/lib.rs"; \
     done; \
@@ -58,10 +72,12 @@ RUN cargo fetch --locked
 ###############################################################################
 FROM deps AS builder
 
-COPY cerulea-node       cerulea-node
-COPY cerulea-runtime    cerulea-runtime
-COPY cerulea-pallets    cerulea-pallets
-COPY tools          tools
+COPY cerulea-node          cerulea-node
+COPY cerulea-runtime       cerulea-runtime
+COPY cerulea-pallets       cerulea-pallets
+COPY pramaan-primitives    pramaan-primitives
+COPY pramaan-pallets       pramaan-pallets
+COPY tools             tools
 
 RUN cargo build --release --locked -p cerulea-node
 
@@ -81,7 +97,10 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # restarts and deployments.  Bob and Charlie auto-generate their own keys.
 # If keys/alice/secret_ed25519 doesn't exist the entrypoint generates one at
 # first boot (useful for local dev without the keys/ directory).
-COPY keys/ /etc/cbc/keys/
+# keys/ is gitignored and absent from a clean checkout, so COPYing it fails the build
+# with "keys: not found" on every hosted platform. Alice's key now arrives at runtime
+# via ALICE_NODE_KEY, which docker-entrypoint.sh writes out before deriving her peer-id.
+# The guard below stays: it simply finds no baked key and falls through.
 RUN if [ -f /etc/cbc/keys/alice/secret_ed25519 ]; then \
         mkdir -p /etc/cbc && \
         cp /etc/cbc/keys/alice/secret_ed25519 /etc/cbc/alice_network_key && \
@@ -93,5 +112,11 @@ RUN chmod +x /usr/local/bin/cerulea-node /usr/local/bin/docker-entrypoint.sh
 # P2P | RPC | Prometheus
 EXPOSE 30333 9944 9615
 
-VOLUME ["/data"]
+# NOTE: no `VOLUME ["/data"]` directive.
+#
+# Railway rejects the build outright with "docker VOLUME at Line N is not supported,
+# use Railway Volumes", and every platform this runs on declares the mount itself:
+# Railway via its own Volumes, Render via the `disk:` block in render.yaml, and
+# docker-compose via its named volumes. A VOLUME line here would add nothing on any of
+# them while blocking one entirely.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

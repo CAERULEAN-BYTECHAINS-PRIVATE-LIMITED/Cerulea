@@ -1,0 +1,212 @@
+@import 'tailwindcss';
+
+/**
+ * CBC-PRAMAAN design tokens.
+ *
+ * The reference points are the interfaces this system would sit beside on a government
+ * officer's desktop: GeM, DigiLocker, the income-tax e-filing portal, an RBI return.
+ * Those share a shape — a dark institutional masthead, a white record surface, hairline
+ * rules, small type, right-aligned figures, and colour used almost nowhere. Everything
+ * below is in service of that: a 13px table cell is the default reading size, not an
+ * exception, and the accent appears on navigation and primary actions only.
+ *
+ * THE THREE STATUS COLOURS ARE RESERVED. They carry a legal meaning in this application
+ * (a compliance verdict under the PPP-MII Order) and must never be used for decoration,
+ * navigation, chart identity, hover states or form validation.
+ */
+@theme {
+  /* ---- Ink ------------------------------------------------------------------------ */
+  /* 17.4:1 on paper. Body copy, headings, table values. */
+  --color-ink: #0f1720;
+  /* 11.2:1. Secondary headings and emphasised labels. */
+  --color-ink-2: #2a3542;
+  /* 6.3:1. Field labels, hints, muted table cells — still passes body contrast. */
+  --color-ink-muted: #55606e;
+  /* 4.8:1. The lightest ink permitted on paper. Em dashes, disabled text, icon strokes. */
+  --color-ink-subtle: #69737f;
+
+  /* ---- Surfaces -------------------------------------------------------------------- */
+  --color-paper: #ffffff;
+  /* The application background and every table head. Cool, chroma near zero. */
+  --color-shell: #f2f4f7;
+  --color-shell-2: #e8ecf2;
+  --color-line: #d5dbe3;
+  --color-line-strong: #b6c0cc;
+  /* Chrome. The masthead is the only large dark area in the product. */
+  --color-masthead: #0d1521;
+  --color-masthead-2: #1b2634;
+
+  /* ---- Accent ---------------------------------------------------------------------- */
+  /* 8.7:1 on paper. Navigation selection, links, primary action, focus ring. Nothing else. */
+  --color-accent: #1b4a8f;
+  --color-accent-dark: #12335f;
+  --color-accent-tint: #e9eff8;
+  --color-accent-line: #b9cbe6;
+
+  /* ---- Reserved compliance status colours ------------------------------------------ */
+  --color-status-green: #1e8e3e;
+  --color-status-green-ink: #14682d;
+  --color-status-green-bg: #e6f4ea;
+  --color-status-yellow: #e8a100;
+  --color-status-yellow-ink: #8a6100;
+  --color-status-yellow-bg: #fdf3e0;
+  --color-status-red: #d93025;
+  --color-status-red-ink: #b3261e;
+  --color-status-red-bg: #fce9e7;
+
+  /**
+   * Form validation — deliberately NOT one of the three reserved colours.
+   *
+   * A mistyped bid number is a typo, not a compliance verdict, and #D93025 in this
+   * application legally means "blocked under the PPP-MII Order". This deep plum is what
+   * every invalid control and field-level error uses instead: clearly an error, and
+   * unmistakably not a status. 9.4:1 on paper, so it also carries at projector distance.
+   */
+  --color-form-error: #6e2639;
+  --color-form-error-bg: #f7ecf0;
+
+  /* ---- Type ------------------------------------------------------------------------ */
+  /**
+   * One family, six steps, fixed rem — no fluid clamping. Users read this at a consistent
+   * DPI and a heading that shrinks inside a panel looks broken, not responsive. The ratio
+   * is roughly 1.15, which is tight on purpose: there are a lot of type roles on these
+   * screens and exaggerated contrast between them reads as noise.
+   *
+   * `sm` is 13px and is the workhorse — table cells, form controls, data values. The
+   * default Tailwind scale is overridden rather than extended so density is what a
+   * developer gets by default.
+   */
+  --text-2xs: 0.6875rem; /* 11px — column heads, chips, footnotes */
+  --text-2xs--line-height: 1.45;
+  --text-2xs--letter-spacing: 0.02em;
+  --text-xs: 0.75rem; /* 12px — field labels, hints, meta */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.8125rem; /* 13px — table cells, controls, dense body */
+  --text-sm--line-height: 1.5;
+  --text-base: 0.875rem; /* 14px — body */
+  --text-base--line-height: 1.6;
+  --text-lg: 1rem; /* 16px — panel and section headings */
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.125rem; /* 18px — page title */
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.375rem; /* 22px — verdict word */
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 1.75rem; /* 28px — the single largest figure on any page */
+  --text-3xl--line-height: 1.1;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, 'Cascadia Mono', Menlo, monospace;
+
+  /* ---- Geometry -------------------------------------------------------------------- */
+  /* Sharp. A 12px radius reads as a consumer app; 3px reads as a form. */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+
+  /* ---- Elevation ------------------------------------------------------------------- */
+  /* Only two, and both are reserved for things that genuinely float. */
+  --shadow-pop: 0 6px 16px -4px rgb(15 23 32 / 0.18), 0 2px 4px -2px rgb(15 23 32 / 0.1);
+  --shadow-modal: 0 24px 48px -12px rgb(15 23 32 / 0.3);
+
+  /* ---- Z scale --------------------------------------------------------------------- */
+  --z-sticky: 20;
+  --z-dropdown: 40;
+  --z-backdrop: 60;
+  --z-modal: 70;
+  --z-tooltip: 80;
+
+  /* ---- Motion ---------------------------------------------------------------------- */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer base {
+  /**
+   * A single light appearance, committed to. This is projected in rooms with the lights
+   * on, and the reserved status colours must render identically on every machine the
+   * demonstration lands on rather than shifting with the viewer's OS theme.
+   */
+  :root {
+    color-scheme: light;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    height: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-height: 100%;
+    background: var(--color-shell);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Figures are read down a column and compared. They always line up. */
+  table,
+  input,
+  select,
+  textarea,
+  output,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One focus treatment across the whole product, including native controls. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/**
+ * A thin, opinionated scrollbar for the horizontally scrolling regions (wide tables, the
+ * navigation strip). Not a restyle of the page scrollbar — the platform one stays.
+ */
+@utility scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

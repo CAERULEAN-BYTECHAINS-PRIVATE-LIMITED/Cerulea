@@ -880,11 +880,25 @@ sp_api::decl_runtime_apis! {
                 Error::<T>::NonCheckpointBlock
             );
 
+            // Idempotent, NOT an error, when the checkpoint is already finalized.
+            //
+            // With more than one validator and instant finality this is the normal case,
+            // not an exception: every validator's aggregator submits its own
+            // justification, and by the time one node IMPORTS a peer's block carrying a
+            // justification for checkpoint N, it has very often already finalized N
+            // itself. Returning an error here makes `apply_extrinsic` fail during block
+            // import, and frame_executive turns any such failure into a panic that
+            // rejects the whole block (frame-executive apply_extrinsics) -- observed as
+            // "wasm trap: unreachable" and thousands of failed imports on a three-node
+            // network, while a single node never races itself and never sees it.
+            //
+            // Re-finalizing an already-finalized block is redundant work, not invalid
+            // work: the state it asks for already holds. A no-op success is the correct
+            // and safe outcome, and keeps block execution deterministic across nodes.
             let current_finalized_number = FinalizedBlockNumber::<T>::get();
-            ensure!(
-                block_number > current_finalized_number,
-                Error::<T>::BlockAlreadyFinalized
-            );
+            if block_number <= current_finalized_number {
+                return Ok(());
+            }
 
             let mut seen_validators = sp_std::collections::btree_set::BTreeSet::new();
             let mut accumulated_weight = 0u128;
@@ -1143,6 +1157,29 @@ sp_api::decl_runtime_apis! {
     #[pallet::validate_unsigned]
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
+
+        /// Import-time validation.
+        ///
+        /// `validate_unsigned` below rejects an already-finalized justification as
+        /// `Stale`, which is correct for the POOL: it keeps redundant gossip out. But
+        /// `pre_dispatch` also runs during BLOCK IMPORT, and with several validators and
+        /// instant finality a block legitimately carries a justification whose checkpoint
+        /// the importing node has already finalized. Rejecting it here fails
+        /// `apply_extrinsic` and frame_executive panics the whole block.
+        ///
+        /// So pre_dispatch does NOT re-run the staleness check. The dispatch itself is
+        /// idempotent (a justification for an already-finalized checkpoint is a no-op
+        /// success), so admitting it is safe; only the empty-votes case, which is a
+        /// malformed extrinsic rather than a stale one, is still refused.
+        fn pre_dispatch(call: &Self::Call) -> Result<(), TransactionValidityError> {
+            if let Call::submit_justification { justification } = call {
+                if justification.votes.is_empty() {
+                    return Err(InvalidTransaction::Custom(1).into());
+                }
+                return Ok(());
+            }
+            Err(InvalidTransaction::Call.into())
+        }
 
         fn validate_unsigned(
             _source: TransactionSource,

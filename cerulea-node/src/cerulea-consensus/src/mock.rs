@@ -319,6 +319,7 @@ pub fn create_test_consensus_params() -> ConsensusParams {
         max_transactions_per_block: 1000,
         slot_duration: std::time::Duration::from_secs(6),
         min_block_time: 6000,
+        startup_grace_ms: 0,
         metrics_update_interval: 10,
         score_refresh_interval: 50,
         consensus_loop_interval: 1000,
