@@ -16,3 +16,5 @@ tasks.yaml
 logs/
 *.log
 node_output_*
+*.pdf
+Cerulea-SRS.pdf
