@@ -1,6 +1,6 @@
 # CBC Monitoring Setup
 
-This directory contains the configuration files for monitoring your CBC node with Prometheus and Grafana.
+This directory contains the start values files for monitoring your CBC node with Prometheus and Grafana.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ This directory contains the configuration files for monitoring your CBC node wit
 
 ## Files
 
-- `prometheus.yml` - Prometheus configuration
+- `prometheus.yml` - Prometheus start values
 - `grafana/provisioning/` - Grafana auto-provisioning configs
   - `datasources/prometheus.yml` - Prometheus datasource config
   - `dashboards/dashboard.yml` - Dashboard provisioning config

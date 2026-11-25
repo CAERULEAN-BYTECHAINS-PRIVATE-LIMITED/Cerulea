@@ -1,6 +1,6 @@
 # CBC Node
 
-A Substrate-based blockchain node implementing the CBC (Caerulean ByteChains) protocol, featuring a hybrid consensus mechanism combining Proof of Stake (PoS) and Proof of Inference (PoI).
+A Substrate-based blockchain node implementing the CBC (Caerulean ByteChains) protocol, featuring a hybrid consensus mechanism combining Proof of Stake (PoS) and the retired inference path (PoI).
 
 ## Features
 
@@ -54,9 +54,9 @@ cargo build --release
 ### Available Chain Specifications
 
 - `dev` or `development` or `CBC` - Development chain with Alice as validator
-- `local` or `local_testnet` - Local testnet configuration
+- `local` or `local_testnet` - Local testnet start values
 - `multi_validator` - Multi-validator testnet setup
-- `high_stake` - High-stake validator configuration
+- `high_stake` - High-stake validator start values
 
 ### CBC-Specific Modes and Options
 
@@ -73,11 +73,11 @@ cargo build --release
 # Enable unsafe RPC methods (development only)
 ./target/release/cerulea-node --unsafe-rpc-expose
 
-# Configure RPC rate limiting
+# Set RPC rate limiting
 ./target/release/cerulea-node --rpc-rate-limit-window 60 --rpc-rate-limit-requests 100
 ```
 
-### Available CLI Commands
+### Available node command Commands
 
 #### Core Node Commands
 ```bash
@@ -131,7 +131,7 @@ cargo build --release
 ./target/release/cerulea-node benchmark machine --chain dev
 ```
 
-### Available CLI Options
+### Available node command Options
 
 ```
 USAGE:
@@ -164,7 +164,7 @@ OPTIONS:
 - **Runtime**: Contains the blockchain's business logic and state transition function
 - **Networking**: Handles peer-to-peer communication and block propagation
 - **RPC Server**: Provides comprehensive JSON-RPC interface with 19 CBC-specific endpoints
-- **CLI**: Advanced command-line interface for node management and utilities
+- **node command**: Advanced command-line interface for node management and utilities
 - **Fork Detection**: Real-time fork monitoring and detection system
 - **Block Tracker**: Validator performance monitoring and missed block tracking
 - **Logging System**: Structured logging with deduplication and file output
@@ -202,8 +202,8 @@ cerulea-node/
 │   ├── benchmarking.rs         # Benchmarking infrastructure
 │   ├── block_tracker.rs        # Block authoring and missed block tracking
 │   ├── chain_spec.rs           # Chain specification definitions
-│   ├── cli.rs                  # Command-line interface
-│   ├── command.rs              # CLI command handlers
+│   ├── node command.rs                  # Command-line interface
+│   ├── command.rs              # node command command handlers
 │   ├── fork_detection.rs       # Fork detection and monitoring
 │   ├── lib.rs                  # Library exports
 │   ├── logging.rs              # Advanced logging system
@@ -320,34 +320,34 @@ cargo doc --open
 ./target/release/cerulea-node query-authors --epoch 10
 ```
 
-## Configuration
+## Start values
 
 ### Chain Specification
 
 Chain specifications define the genesis state and network parameters. Available chains:
 - `dev` - Development chain with Alice as validator
-- `local` - Local testnet configuration  
+- `local` - Local testnet start values  
 - `multi_validator` - Multi-validator testnet setup
-- `high_stake` - High-stake validator configuration
+- `high_stake` - High-stake validator start values
 
 Custom chain specs can be loaded from JSON files.
 
-### Runtime Configuration
+### Runtime Start values
 
-The node's runtime configuration is defined in the `cerulea-runtime` crate with support for:
+The node's runtime start values is defined in the `cerulea-runtime` crate with support for:
 - Dynamic Consensus Framework (DCF) parameters
 - Validator set management
 - Epoch transition settings
 - Trust score calculations (65% PoS, 35% PoI weights)
 
-### CBC Mode Configuration
+### CBC Mode Start values
 
 The node supports different operational modes via `--cbc-mode`:
-- `production` (default) - Production-ready configuration
+- `production` (default) - Production-ready start values
 - `testing` - Testing environment settings
 - `development` - Development-specific optimizations
 
-### Logging Configuration
+### Logging Start values
 
 Advanced logging features:
 - File output: `--log-file cbc.log`
@@ -356,7 +356,7 @@ Advanced logging features:
 - Structured logging with CBC-specific prefixes
 - Color-coded output support
 
-### RPC Security Configuration
+### RPC Security Start values
 
 - Rate limiting: `--rpc-rate-limit-window` and `--rpc-rate-limit-requests`
 - CBC extensions: `--enable-cbc-extensions`
@@ -366,7 +366,7 @@ Advanced logging features:
 
 ### Prometheus Metrics
 
-The node exposes comprehensive metrics on the configured endpoint (default: `127.0.0.1:9615`):
+The node exposes comprehensive metrics on the set endpoint (default: `127.0.0.1:9615`):
 - Consensus metrics (block authoring, finalization)
 - Validator performance metrics
 - Network metrics (peer connections, block propagation)
@@ -376,7 +376,7 @@ The node exposes comprehensive metrics on the configured endpoint (default: `127
 ### Health Monitoring
 
 ```bash
-# Check node health via CLI
+# Check node health via node command
 ./target/release/cerulea-node health
 
 # Check health via RPC

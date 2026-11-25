@@ -1,19 +1,19 @@
-use sc_service::ChainType;
 use cerulea_runtime::WASM_BINARY;
 use sc_chain_spec::Properties;
+use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 
 // Chain constants
-pub const TOKEN_SYMBOL: &str = "CBC";
+pub const TOKEN_SYMBOL: &str = "CERULEA";
 pub const TOKEN_DECIMALS: u8 = 12;
-pub const PROTOCOL_ID: &str = "cbc";
+pub const PROTOCOL_ID: &str = "cerulea";
 
 pub type ChainSpec = sc_service::GenericChainSpec;
 
-/// Chain metadata structure containing CBC-specific parameters
+/// Chain metadata structure containing Cerulea-specific parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainMetadata {
-    pub cbc_epoch_length: u32,
+    pub cerulea_epoch_length: u32,
     pub cerulea_validator_count: u32,
 }
 
@@ -26,84 +26,126 @@ pub fn chain_properties() -> Properties {
     properties
 }
 
-/// Returns chain metadata with CBC-specific parameters
+/// Returns chain metadata with Cerulea-specific parameters
 #[allow(dead_code)]
 pub fn chain_metadata() -> ChainMetadata {
     ChainMetadata {
-        cbc_epoch_length: 100,
+        cerulea_epoch_length: 100,
         cerulea_validator_count: 10,
     }
 }
 
-
-
 pub fn development_chain_spec() -> Result<ChainSpec, String> {
-    Ok(
-        ChainSpec::builder(
-            WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?,
-            None,
-        )
-        .with_name("CBC Development Chain")
-        .with_id("cerulea_dev")
-        .with_chain_type(ChainType::Development)
-        .with_protocol_id(PROTOCOL_ID)
-        .with_properties(chain_properties())
-        .with_genesis_config_preset_name(sp_genesis_builder::DEV_RUNTIME_PRESET)
-        .build()
+    Ok(ChainSpec::builder(
+        WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?,
+        None,
     )
+    .with_name("Cerulea Development Chain")
+    .with_id("cerulea_dev")
+    .with_chain_type(ChainType::Development)
+    .with_protocol_id(PROTOCOL_ID)
+    .with_properties(chain_properties())
+    .with_genesis_config_preset_name(sp_genesis_builder::DEV_RUNTIME_PRESET)
+    .build())
 }
 
 pub fn local_chain_spec() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
-    
+
     // Created a minimal chain spec with properties and metadata
-    let chain_spec = ChainSpec::builder(
-        wasm_binary,
-        None,
-    )
-    .with_name("CBC Local Testnet")
-    .with_id("cerulea_local")
-    .with_chain_type(ChainType::Local)
-    .with_protocol_id(PROTOCOL_ID)
-    .with_properties(chain_properties())
-    .with_genesis_config_preset_name(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET)
-    .build();
-    
+    let chain_spec = ChainSpec::builder(wasm_binary, None)
+        .with_name("Cerulea Local Testnet")
+        .with_id("cerulea_local")
+        .with_chain_type(ChainType::Local)
+        .with_protocol_id(PROTOCOL_ID)
+        .with_properties(chain_properties())
+        .with_genesis_config_preset_name(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET)
+        .build();
+
     Ok(chain_spec)
+}
+
+/// The kind of deployment specification the node builds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeploymentSpec {
+    /// The public-access chain.
+    PublicAccess,
+    /// A private chain of one organisation.
+    Private,
+}
+
+/// Build one deployment specification from a control plane key value.
+///
+/// The value is what `CERULEA_CONTROL_PLANE_KEY` holds at the build. A build
+/// naming no key, a malformed key or a development key stops with the fix
+/// named, so no deployment starts without a licence key.
+pub fn deployment_chain_spec(
+    kind: DeploymentSpec,
+    control_plane_key: Option<&str>,
+) -> Result<ChainSpec, String> {
+    use cerulea_runtime::genesis_config_presets as presets;
+    let key = presets::parse_control_plane_key(control_plane_key).map_err(|e| e.to_string())?;
+    let (name, id, genesis) = match kind {
+        DeploymentSpec::PublicAccess => (
+            "Cerulea Public-Access Chain",
+            "cerulea_public_access",
+            presets::public_access_config_genesis(key),
+        ),
+        DeploymentSpec::Private => (
+            "Cerulea Private Chain",
+            "cerulea_private",
+            presets::private_config_genesis(key),
+        ),
+    };
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    Ok(ChainSpec::builder(wasm_binary, None)
+        .with_name(name)
+        .with_id(id)
+        .with_chain_type(ChainType::Live)
+        .with_protocol_id(PROTOCOL_ID)
+        .with_properties(chain_properties())
+        .with_genesis_config_patch(genesis)
+        .build())
+}
+
+/// The public-access chain specification, keyed from the environment.
+pub fn public_access_chain_spec() -> Result<ChainSpec, String> {
+    let value = std::env::var(cerulea_runtime::genesis_config_presets::CONTROL_PLANE_KEY_ENV).ok();
+    deployment_chain_spec(DeploymentSpec::PublicAccess, value.as_deref())
+}
+
+/// The private chain specification, keyed from the environment.
+pub fn private_chain_spec() -> Result<ChainSpec, String> {
+    let value = std::env::var(cerulea_runtime::genesis_config_presets::CONTROL_PLANE_KEY_ENV).ok();
+    deployment_chain_spec(DeploymentSpec::Private, value.as_deref())
 }
 
 pub fn multi_validator_chain_spec() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
-    
-    let chain_spec = ChainSpec::builder(
-        wasm_binary,
-        None,
-    )
-    .with_name("CBC Multi-Validator Testnet")
-    .with_id("cerulea_multi_validator")
-    .with_chain_type(ChainType::Local)
-    .with_protocol_id(PROTOCOL_ID)
-    .with_properties(chain_properties())
-    .with_genesis_config_preset_name("multi_validator")
-    .build();
-    
+
+    let chain_spec = ChainSpec::builder(wasm_binary, None)
+        .with_name("Cerulea Multi-Validator Testnet")
+        .with_id("cerulea_multi_validator")
+        .with_chain_type(ChainType::Local)
+        .with_protocol_id(PROTOCOL_ID)
+        .with_properties(chain_properties())
+        .with_genesis_config_preset_name("multi_validator")
+        .build();
+
     Ok(chain_spec)
 }
 
 pub fn high_stake_chain_spec() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
-    
-    let chain_spec = ChainSpec::builder(
-        wasm_binary,
-        None,
-    )
-    .with_name("CBC High-Stake Testnet")
-    .with_id("cerulea_high_stake")
-    .with_chain_type(ChainType::Local)
-    .with_protocol_id(PROTOCOL_ID)
-    .with_properties(chain_properties())
-    .with_genesis_config_preset_name("high_stake")
-    .build();
-    
+
+    let chain_spec = ChainSpec::builder(wasm_binary, None)
+        .with_name("Cerulea High-Stake Testnet")
+        .with_id("cerulea_high_stake")
+        .with_chain_type(ChainType::Local)
+        .with_protocol_id(PROTOCOL_ID)
+        .with_properties(chain_properties())
+        .with_genesis_config_preset_name("high_stake")
+        .build();
+
     Ok(chain_spec)
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Security gate. Runs on every task, every domain, no exceptions.
+# Security gate. Runs on every change in every repository, no exceptions.
 # Exit 0 = clean. Exit 1 = blocked.
 
 set -uo pipefail
 WORKTREE="${1:?usage: security-gate.sh <worktree>}"
 cd "$WORKTREE" || exit 90
-# If CHANGED_FILES is set, only judge those. Pre-existing issues are their own tasks.
+# If CHANGED_FILES is set, only judge those. Pre-existing issues are handled on their own.
 SCOPED="${CHANGED_FILES:-}"
 scoped_grep() {  # scoped_grep <pattern> <file-regex>
   if [ -n "$SCOPED" ]; then

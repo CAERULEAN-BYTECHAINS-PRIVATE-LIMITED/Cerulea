@@ -30,6 +30,8 @@ sc-basic-authorship = { workspace = true }
 sc-client-api = { workspace = true }
 serde = { workspace = true, features = ["derive", "std"] }
 cerulea-runtime = { features = ["std"], workspace = true }
+cerulea-primitives = { features = ["std"], workspace = true }
+cerulea-platform-api = { features = ["std"], workspace = true }
 tokio = { version = "1.37", features = ["rt", "macros", "time"] }
 log = "0.4"
 thiserror = "1.0"
@@ -52,6 +54,10 @@ sc-network-gossip = { workspace = true }
 
 
 [dev-dependencies]
+tempfile = "3"
+sc-keystore = "35.0.0"
+sc-network-sync = "0.48.0"
+sc-utils = "18.0.1"
 sp-core = { default-features = true, workspace = true }
 sp-io = { default-features = true, workspace = true }
 sp-runtime = { default-features = true, workspace = true }
@@ -60,8 +66,13 @@ pallet-timestamp = { workspace = true }
 
 [features]
 default = ["std"]
+# The clock offset setting of fault exercises. Test builds and the
+# multi-host exercise image carry it; a release build leaves it out.
+clock-offset = []
 std = [
 	"codec/std",
+	"cerulea-primitives/std",
+	"cerulea-platform-api/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",

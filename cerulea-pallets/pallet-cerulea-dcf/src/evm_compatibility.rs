@@ -4,9 +4,11 @@
 //! ensuring DCF events can be properly indexed and queried from the EVM side.
 
 use super::*;
+use codec::MaxEncodedLen;
 use frame_support::BoundedVec;
 use sp_core::ConstU32;
-use codec::MaxEncodedLen;
+use sp_runtime::traits::TrailingZeroInput;
+use sp_std::collections::btree_set::BTreeSet;
 use sp_std::vec::Vec;
 
 /// Maximum size for EVM-compatible event payloads (in bytes)
@@ -19,8 +21,7 @@ pub struct EvmEventValidator;
 impl EvmEventValidator {
     /// Check if EVM pallet is enabled in the runtime
     pub fn is_evm_enabled() -> bool {
-        // This would check if the EVM pallet is configured in the runtime
-        // For now, we'll assume it's always potentially available
+        // Event conversion runs inside this pallet and depends on no other pallet.
         true
     }
 
@@ -65,11 +66,11 @@ impl EvmEventValidator {
                 b'[' | b'{' | b'(' => {
                     current_nesting += 1;
                     max_nesting = max_nesting.max(current_nesting);
-                },
+                }
                 b']' | b'}' | b')' => {
                     current_nesting = current_nesting.saturating_sub(1);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
@@ -86,10 +87,10 @@ impl EvmEventValidator {
         let event_type = Self::get_event_type_id(event);
         let indexed_fields = Self::extract_indexed_fields(event)?;
         let data_fields = Self::extract_data_fields(event)?;
-        
+
         let encoded_len = encoded.len();
-        let raw_data = BoundedVec::try_from(encoded)
-            .map_err(|_| EvmCompatibilityError::PayloadTooLarge {
+        let raw_data =
+            BoundedVec::try_from(encoded).map_err(|_| EvmCompatibilityError::PayloadTooLarge {
                 actual_size: encoded_len as u32,
                 max_size: 2048,
             })?;
@@ -132,42 +133,46 @@ impl EvmEventValidator {
         let mut indexed_fields = BoundedVec::new();
 
         match event {
-            Event::ValidatorJoined { validator, .. } |
-            Event::ValidatorLeft { validator, .. } |
-            Event::ValidatorEjected { validator, .. } => {
+            Event::ValidatorJoined { validator, .. }
+            | Event::ValidatorLeft { validator, .. }
+            | Event::ValidatorEjected { validator, .. } => {
                 let encoded = validator.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             Event::EpochStarted { epoch, .. } => {
                 let encoded = epoch.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
-            Event::ProposalSubmitted { proposal_id, proposer, .. } => {
+            }
+            Event::ProposalSubmitted {
+                proposal_id,
+                proposer,
+                ..
+            } => {
                 let id_encoded = proposal_id.encode();
                 if id_encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(id_encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-                
+
                 let proposer_encoded = proposer.encode();
                 if proposer_encoded.len() <= 32 && indexed_fields.len() < 3 {
                     let bounded_field = BoundedVec::try_from(proposer_encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             Event::ProposalExecuted { proposal_id, .. } => {
                 let encoded = proposal_id.encode();
                 if encoded.len() <= 32 {
                     let bounded_field = BoundedVec::try_from(encoded).unwrap_or_default();
                     let _ = indexed_fields.try_push(bounded_field);
                 }
-            },
+            }
             _ => {
                 // For other events, no specific indexed fields
             }
@@ -184,14 +189,20 @@ impl EvmEventValidator {
         // In a real implementation, you might want to extract specific fields
         let encoded = event.encode();
         Self::validate_event_payload(&encoded)?;
-        
+
         let encoded_len = encoded.len();
-        BoundedVec::try_from(encoded)
-            .map_err(|_| EvmCompatibilityError::PayloadTooLarge {
-                actual_size: encoded_len as u32,
-                max_size: 1024,
-            })
+        BoundedVec::try_from(encoded).map_err(|_| EvmCompatibilityError::PayloadTooLarge {
+            actual_size: encoded_len as u32,
+            max_size: 1024,
+        })
     }
+}
+
+/// Build a bounded byte field from a short text sample.
+///
+/// The bound comes from the event field the text fills. Text beyond the bound is cut off.
+fn sample_text<S: frame_support::traits::Get<u32>>(text: &[u8]) -> BoundedVec<u8, S> {
+    BoundedVec::truncate_from(text.to_vec())
 }
 
 /// EVM-compatible event structure
@@ -211,20 +222,11 @@ pub struct EvmCompatibleEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub enum EvmCompatibilityError {
     /// Event payload exceeds EVM size limits
-    PayloadTooLarge {
-        actual_size: u32,
-        max_size: u32,
-    },
+    PayloadTooLarge { actual_size: u32, max_size: u32 },
     /// Event data has excessive nesting that may cause stack overflow
-    ExcessiveNesting {
-        level: u32,
-        max_level: u32,
-    },
+    ExcessiveNesting { level: u32, max_level: u32 },
     /// Indexed field exceeds EVM topic size limit
-    IndexedFieldTooLarge {
-        field_size: u32,
-        max_size: u32,
-    },
+    IndexedFieldTooLarge { field_size: u32, max_size: u32 },
     /// Event type not supported for EVM compatibility
     UnsupportedEventType,
     /// Event encoding failed
@@ -234,8 +236,7 @@ pub enum EvmCompatibilityError {
 impl<T: Config> Pallet<T> {
     /// Check if EVM pallet is enabled in the runtime
     pub fn is_evm_enabled() -> bool {
-        // This would check if the EVM pallet is configured in the runtime
-        // For now, we'll assume it's always potentially available
+        // Event conversion runs inside this pallet and depends on no other pallet.
         true
     }
 
@@ -246,22 +247,22 @@ impl<T: Config> Pallet<T> {
         }
 
         let evm_event = EvmEventValidator::convert_to_evm_format(event)?;
-        
+
         // Store the EVM-compatible event for potential EVM queries
         Self::store_evm_event(evm_event)?;
-        
+
         Ok(())
     }
 
     /// Store EVM-compatible event for later retrieval
     fn store_evm_event(evm_event: EvmCompatibleEvent) -> Result<(), EvmCompatibilityError> {
         let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-        
+
         // Store in a bounded vec to prevent unbounded growth
         EvmCompatibleEvents::<T>::mutate(current_block, |events| {
             let _ = events.try_push(evm_event);
         });
-        
+
         Ok(())
     }
 
@@ -277,10 +278,10 @@ impl<T: Config> Pallet<T> {
         to_block: u32,
     ) -> Vec<(u32, EvmCompatibleEvent)> {
         let mut results = Vec::new();
-        
+
         for block_num in from_block..=to_block {
             let events = Self::get_evm_events_for_block(block_num);
-            
+
             for event in events {
                 if let Some(filter_type) = event_type {
                     if event.event_type == filter_type {
@@ -291,37 +292,486 @@ impl<T: Config> Pallet<T> {
                 }
             }
         }
-        
+
         results
     }
 
-    /// Validate all DCF events for EVM compatibility
+    /// Validate every DCF event variant for EVM compatibility.
+    ///
+    /// The check converts one sample of each variant into the Ethereum Virtual Machine log
+    /// format. A failed conversion returns its error.
+    ///
+    /// The check then proves coverage. The first encoded byte of each sample is its variant
+    /// index. Each sample must carry a distinct index. The sampled indices must equal the
+    /// indices the event metadata declares. Equal sets also prove equal counts. A missing or
+    /// repeated variant returns `UnsupportedEventType`.
     pub fn validate_all_events_evm_compatible() -> Result<(), EvmCompatibilityError> {
-        // This would be called during testing to ensure all events are EVM-compatible
-        // For now, we'll just validate the event structure
-        
-        // Test with sample events
-        let sample_events = Self::get_sample_events_for_testing();
-        
-        for event in sample_events {
-            EvmEventValidator::convert_to_evm_format(&event)?;
+        let samples = Self::sample_events()?;
+        let mut sampled_indices = BTreeSet::new();
+
+        for event in &samples {
+            let evm_event = EvmEventValidator::convert_to_evm_format(event)?;
+            let index = evm_event
+                .raw_data
+                .first()
+                .copied()
+                .ok_or(EvmCompatibilityError::EncodingFailed)?;
+            if !sampled_indices.insert(index) {
+                return Err(EvmCompatibilityError::UnsupportedEventType);
+            }
         }
-        
+
+        let declared_indices = match <Event<T> as scale_info::TypeInfo>::type_info().type_def {
+            scale_info::TypeDef::Variant(definition) => definition
+                .variants
+                .iter()
+                .map(|variant| variant.index)
+                .collect::<BTreeSet<u8>>(),
+            _ => return Err(EvmCompatibilityError::UnsupportedEventType),
+        };
+
+        if sampled_indices != declared_indices {
+            return Err(EvmCompatibilityError::UnsupportedEventType);
+        }
+
         Ok(())
     }
 
-    /// Get sample events for testing EVM compatibility
-    fn get_sample_events_for_testing() -> Vec<Event<T>> {
-        // This would return sample events for testing
-        // Implementation would depend on the specific test requirements
-        Vec::new()
+    /// One sample of every event variant, in declaration order.
+    ///
+    /// Each sample carries realistic values. The values include a validator account, a block
+    /// number, a score of 75 and a proposal identifier of 1. Every encoded sample stays well
+    /// inside the payload limit.
+    ///
+    /// A new event variant needs a sample here. The coverage check in
+    /// `validate_all_events_evm_compatible` fails until the sample exists.
+    pub fn sample_events() -> Result<Vec<Event<T>>, EvmCompatibilityError> {
+        let account = <T::AccountId as codec::Decode>::decode(&mut TrailingZeroInput::zeroes())
+            .map_err(|_| EvmCompatibilityError::EncodingFailed)?;
+        let peer = <T::AccountId as codec::Decode>::decode(&mut TrailingZeroInput::new(&[1u8; 32]))
+            .map_err(|_| EvmCompatibilityError::EncodingFailed)?;
+
+        let stake: <T as Config>::Balance = 1_000u32.into();
+        let low_stake: <T as Config>::Balance = 500u32.into();
+        let total_stake: <T as Config>::Balance = 2_000u32.into();
+        let reward: <T as Config>::Balance = 100u32.into();
+        let slashed: <T as Config>::Balance = 50u32.into();
+
+        let output_hash = [7u8; 32];
+        let randomness_seed = [3u8; 32];
+        let commitment = [9u8; 32];
+
+        let violation = InvariantViolation::Temporal {
+            violation_type: TemporalViolationType::EpochRegression {
+                previous_epoch: 2,
+                current_epoch: 1,
+            },
+            context: sample_text(b"epoch counter moved back"),
+        };
+
+        Ok(sp_std::vec![
+            Event::ValidatorScoreUpdated {
+                validator: account.clone(),
+                stake_score: 75,
+                inference_score: 70,
+                final_score: 73,
+            },
+            Event::ConsensusWeightsUpdated {
+                pos_weight: 6_000,
+                poi_weight: 4_000,
+            },
+            Event::EpochStarted {
+                epoch: 1,
+                validators: sp_std::vec![account.clone(), peer.clone()],
+            },
+            Event::EpochEnded { epoch: 1 },
+            Event::ValidatorScoreDecayed {
+                validator: account.clone(),
+                old_score: 80,
+                new_score: 75,
+            },
+            Event::ValidatorScoreBoosted {
+                validator: account.clone(),
+                old_score: 75,
+                new_score: 80,
+                reason: ScoreBoostReason::ValidBlockAuthored,
+            },
+            Event::ValidatorEjected {
+                validator: peer.clone(),
+                reason: EjectionReason::ScoreBelowThreshold,
+            },
+            Event::ValidatorReEntered {
+                validator: peer.clone(),
+                score: 75,
+            },
+            Event::AuthorMismatch {
+                block_number: 10,
+                expected: Some(account.clone()),
+                actual: peer.clone(),
+            },
+            Event::AuthorValidationFailed {
+                block_number: 10,
+                expected: Some(account.clone()),
+                actual: peer.clone(),
+                reason: sample_text(b"author holds no seat in this slot"),
+            },
+            Event::InsufficientStake {
+                validator: peer.clone(),
+                required: stake,
+                available: low_stake,
+            },
+            Event::InvalidAuthor {
+                block_number: 10,
+                author: peer.clone(),
+            },
+            Event::GovernanceModeToggled { enabled: true },
+            Event::ProposalSubmitted {
+                proposal_id: 1,
+                proposer: account.clone(),
+                action: ProposalAction::AddValidator {
+                    validator: peer.clone(),
+                },
+            },
+            Event::ProposalExecuted {
+                proposal_id: 1,
+                status: ProposalStatus::Executed,
+            },
+            Event::ProposalVoted {
+                proposal_id: 1,
+                voter: peer.clone(),
+                approve: true,
+            },
+            Event::ProposalPassed { proposal_id: 1 },
+            Event::ProposalRejected { proposal_id: 2 },
+            Event::ValidatorJoinRequested {
+                validator: account.clone(),
+                stake_amount: stake,
+            },
+            Event::ValidatorJoined {
+                validator: account.clone(),
+                stake_amount: stake,
+            },
+            Event::ValidatorLeft {
+                validator: account.clone(),
+            },
+            Event::ValidatorLeaveRequested {
+                validator: account.clone(),
+                cooldown_expires_at: 110,
+            },
+            Event::ValidatorLeaveCancelled {
+                validator: account.clone(),
+            },
+            Event::ValidatorPoiScoreUpdated {
+                validator: account.clone(),
+                poi_score: 70,
+            },
+            Event::ValidatorMetadataUpdated {
+                validator: account.clone(),
+                name: sample_text(b"validator one"),
+            },
+            Event::ValidatorActivityUpdated {
+                validator: account.clone(),
+                blocks_authored: 19,
+                blocks_missed: 1,
+                uptime_percentage: 9_500,
+            },
+            Event::AutomaticValidatorProposal {
+                validator: peer.clone(),
+                action: ValidatorAction::Join,
+                score: 75,
+                reason: sample_text(b"score above the entry floor"),
+            },
+            Event::ValidatorAdded {
+                validator: peer.clone(),
+            },
+            Event::ValidatorRemoved {
+                validator: peer.clone(),
+            },
+            Event::ValidatorMisbehaviorReported {
+                reported_validator: peer.clone(),
+                reporter: account.clone(),
+                evidence: sample_text(b"two headers for one slot"),
+                total_reports: 1,
+            },
+            Event::ValidatorAutoSlashed {
+                validator: peer.clone(),
+                amount: slashed,
+                report_count: 3,
+            },
+            Event::InferenceSimulated {
+                validator: account.clone(),
+                triggered_by: peer.clone(),
+            },
+            Event::EpochTransition {
+                old_epoch: 1,
+                new_epoch: 2,
+                active_validators: sp_std::vec![account.clone(), peer.clone()],
+                removed_validators: Vec::new(),
+                added_validators: sp_std::vec![peer.clone()],
+                total_validators: 2,
+                average_performance_score: 75,
+                total_rewards_distributed: reward,
+                total_slashed_amount: slashed,
+            },
+            Event::EpochBoundaryDetected {
+                block_number: 10,
+                epoch: 1,
+                governance_mode: false,
+            },
+            Event::ValidatorNameRegistered {
+                validator: account.clone(),
+                name: sample_text(b"validator one"),
+            },
+            Event::ProposalCreated {
+                proposal_id: 1,
+                proposer: account.clone(),
+                action: ProposalAction::Reward {
+                    validator: peer.clone(),
+                    amount: reward,
+                },
+                description: sample_text(b"reward the validator for steady service"),
+            },
+            Event::ValidatorScoreUpdatedDetailed {
+                validator: account.clone(),
+                old_stake_score: 70,
+                new_stake_score: 75,
+                old_inference_score: 65,
+                new_inference_score: 70,
+                old_final_score: 68,
+                new_final_score: 73,
+                epoch: 1,
+            },
+            Event::TrustScoreUpdated {
+                validator: account.clone(),
+                old_score: 70,
+                new_score: 75,
+                uptime_component: 30,
+                inference_component: 25,
+                slashing_component: 0,
+            },
+            Event::CooldownExpired {
+                validator: account.clone(),
+                cooldown_type: sample_text(b"Leave"),
+                expired_at_block: 110,
+            },
+            Event::StakeOperationFailed {
+                validator: peer.clone(),
+                operation: sample_text(b"Reserve"),
+                reason: sample_text(b"free balance below the reserve amount"),
+            },
+            Event::TrustScoreDecayed {
+                validator: account.clone(),
+                old_score: 80,
+                new_score: 75,
+                decay_factor: 5,
+            },
+            Event::DcfParameterUpdated {
+                parameter: ParameterType::EpochLength,
+                old_value: sample_text(&100u32.encode()),
+                new_value: sample_text(&200u32.encode()),
+            },
+            Event::InvariantViolationsDetected {
+                epoch: 2,
+                violations: BoundedVec::truncate_from(sp_std::vec![violation]),
+                severity: InvariantSeverity::High,
+            },
+            Event::InvariantReportGenerated {
+                epoch: 2,
+                block_number: 20,
+                violations_count: 1,
+                severity: InvariantSeverity::High,
+            },
+            Event::StorageMigrationCompleted {
+                from_version: 1,
+                to_version: 2,
+            },
+            Event::StorageMigrationFailed {
+                from_version: 1,
+                to_version: 2,
+                error: sample_text(b"validator record failed to decode"),
+            },
+            Event::StorageValidationFailed {
+                version: 2,
+                error: sample_text(b"stake total differs from the reserved sum"),
+            },
+            Event::RateLimitViolation {
+                account: account.clone(),
+                operation: 0,
+                violation_type: 0,
+                current_count: 6,
+                limit: 5,
+            },
+            Event::RateLimitConfigUpdated {
+                max_proposals_per_block: 5,
+                max_joins_per_block: 3,
+                max_leaves_per_block: 3,
+            },
+            Event::BlockRateLimitCountersReset { block_number: 10 },
+            Event::DeterministicEpochProcessed {
+                epoch: 2,
+                block_number: 20,
+                randomness_seed,
+                author_sequence_length: 4,
+                output_hash,
+            },
+            Event::EpochReplayValidated {
+                epoch: 2,
+                validation_passed: true,
+                original_hash: output_hash,
+                replay_hash: output_hash,
+            },
+            Event::DeterministicAuthorSequenceGenerated {
+                epoch: 2,
+                sequence_length: 4,
+                randomness_seed,
+                first_author: account.clone(),
+            },
+            Event::GenesisValidationSucceeded {
+                validator_count: 2,
+                total_stake,
+            },
+            Event::GenesisValidationFailed {
+                error: sample_text(b"duplicate validator in the genesis list"),
+            },
+            Event::GenesisDryRunCompleted {
+                validator_count: 2,
+                total_stake,
+                invariant_checks_passed: 12,
+                warnings_count: 0,
+            },
+            Event::GenesisDryRunFailed {
+                error: sample_text(b"active set below the minimum size"),
+            },
+            Event::ApiVersionChanged {
+                old_version: 1,
+                new_version: 2,
+                breaking_changes: sample_text(b"score query returns the Trust Score parts"),
+            },
+            Event::PrivateChainModeEnabled {
+                allowlist_size: 2,
+                allow_updates: true,
+            },
+            Event::PrivateChainModeDisabled,
+            Event::ValidatorAddedToAllowlist {
+                validator: account.clone(),
+            },
+            Event::ValidatorRemovedFromAllowlist {
+                validator: peer.clone(),
+            },
+            Event::ValidatorForcedToLeave {
+                validator: peer.clone(),
+                reason: b"removed from the allowlist".to_vec(),
+            },
+            Event::EvmCompatibilityTested { success: true },
+            Event::EvmEventsQueried {
+                from_block: 1,
+                to_block: 10,
+                event_type: Some(1),
+                result_count: 3,
+            },
+            Event::BlockAuthored {
+                block_number: 10,
+                author: account.clone(),
+            },
+            Event::MissedBlock {
+                block_number: 11,
+                validator: peer.clone(),
+            },
+            Event::ValidatorStatusChanged {
+                validator: account.clone(),
+                old_status: ValidatorStatus::Active,
+                new_status: ValidatorStatus::Leaving,
+                block_number: 10,
+            },
+            Event::ValidatorUptimeUpdated {
+                validator: account.clone(),
+                epoch: 1,
+                blocks_expected: 20,
+                blocks_authored: 19,
+                blocks_missed: 1,
+                uptime_percentage: 9_500,
+            },
+            Event::AssuranceClassTableAmended {
+                class: crate::engines::assurance::TransactionClass::Financial,
+                previous_percent: 67,
+                current_percent: 70,
+                delay_blocks: 0,
+            },
+            Event::ScheduledChangeOpened {
+                id: 1,
+                class: crate::engines::assurance::TransactionClass::Constitutional,
+                committed_at: 10,
+                effective_at: 110,
+            },
+            Event::ScheduledChangeReleased {
+                id: 1,
+                class: crate::engines::assurance::TransactionClass::Constitutional,
+                released_at: 110,
+            },
+            Event::CustodyShareRecorded {
+                validator: account.clone(),
+                share: 950_000,
+            },
+            Event::CustodyFaultRecorded {
+                validator: peer.clone(),
+                faults: 1,
+            },
+            Event::ServiceEpochCounted {
+                validator: account.clone(),
+                epoch: 2,
+                epochs_served: 2,
+                standing: sp_runtime::Perbill::from_percent(75),
+            },
+            Event::SamplingReportSettled {
+                validator: account.clone(),
+                outcome: crate::engines::standing::SampleOutcome::Agreed,
+                sampling: sp_runtime::Perbill::from_percent(75),
+            },
+            Event::StandingDecayed {
+                validator: account.clone(),
+                idle_epochs: 3,
+                standing: sp_runtime::Perbill::from_percent(70),
+            },
+            Event::StandingReset {
+                validator: peer.clone(),
+                misconduct: crate::engines::standing::Misconduct::FalseCustodyProof,
+                epochs_destroyed: 2,
+            },
+            Event::CheckpointAnchored {
+                index: 0,
+                block: 10,
+                hash: output_hash,
+                commitment,
+            },
+            Event::EquivocationProven {
+                validator: peer.clone(),
+                slot: 12,
+                rank: 0,
+                epochs_destroyed: 2,
+            },
+            Event::AmendmentOpened {
+                id: 1,
+                policy: crate::engines::amendment::PolicyKind::Assurance,
+                approvals_required: 3,
+                effective_at: 110,
+            },
+            Event::AmendmentApproved {
+                id: 1,
+                approver: account.clone(),
+                approvals: 1,
+            },
+            Event::AmendmentEnacted {
+                id: 1,
+                policy: crate::engines::amendment::PolicyKind::Assurance,
+            },
+        ])
     }
 
     /// Clean up old EVM events to prevent storage bloat
     pub fn cleanup_old_evm_events(keep_blocks: u32) {
         let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
         let cutoff_block = current_block.saturating_sub(keep_blocks);
-        
+
         // Remove events older than cutoff by iterating and removing individual entries
         for block_num in 0..cutoff_block {
             EvmCompatibleEvents::<T>::remove(block_num);
@@ -348,7 +798,6 @@ mod tests {
         assert!(EvmEventValidator::validate_event_payload(&large_payload).is_err());
     }
 
-
     #[test]
     fn test_nesting_level_calculation() {
         // Test simple nesting
@@ -372,9 +821,7 @@ mod tests {
                 validator: 1u64,
                 stake_amount: 1000,
             };
-            let leave_event = Event::<Test>::ValidatorLeft {
-                validator: 1u64,
-            };
+            let leave_event = Event::<Test>::ValidatorLeft { validator: 1u64 };
 
             let join_id = EvmEventValidator::get_event_type_id(&join_event);
             let leave_id = EvmEventValidator::get_event_type_id(&leave_event);
@@ -391,9 +838,14 @@ mod tests {
             let block_number = 100u32;
             let sample_event = EvmCompatibleEvent {
                 event_type: 1,
-                indexed_fields: BoundedVec::try_from(vec![BoundedVec::try_from(vec![1u8, 2u8, 3u8]).unwrap_or_default()]).unwrap_or_default(),
+                indexed_fields: BoundedVec::try_from(vec![BoundedVec::try_from(vec![
+                    1u8, 2u8, 3u8,
+                ])
+                .unwrap_or_default()])
+                .unwrap_or_default(),
                 data_fields: BoundedVec::try_from(vec![4u8, 5u8, 6u8]).unwrap_or_default(),
-                raw_data: BoundedVec::try_from(vec![1u8, 2u8, 3u8, 4u8, 5u8, 6u8]).unwrap_or_default(),
+                raw_data: BoundedVec::try_from(vec![1u8, 2u8, 3u8, 4u8, 5u8, 6u8])
+                    .unwrap_or_default(),
             };
 
             // Store event
@@ -464,7 +916,7 @@ mod tests {
 
             // Verify old events are cleaned up
             assert!(DcfPallet::get_evm_events_for_block(5).is_empty());
-            
+
             // Verify recent events are kept
             assert!(!DcfPallet::get_evm_events_for_block(9).is_empty());
         });

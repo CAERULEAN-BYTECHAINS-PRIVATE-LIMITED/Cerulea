@@ -3,9 +3,9 @@
 ## Purpose
 The Validator Score Checker is a comprehensive command-line tool for analyzing validator performance in the Cerulea network. It provides detailed insights into validator metrics across multiple dimensions:
 
-1. PoS (Proof of Stake) scores and stake amounts
-2. PoI (Proof of Inference) scores and inference results
-3. Combined scores with configurable weights
+1. stake (stake) scores and stake amounts
+2. inference (inference) scores and inference results
+3. Combined scores with adjustable weights
 4. Validator participation rates
 5. Slashing history and rewards
 6. Epoch-by-epoch performance history
@@ -31,14 +31,14 @@ This tool is particularly useful for:
 
 ## Example Output
 ```
-Validator        PoS    PoI    Combined    Stake    Slashes    Active    Participation    Last Active
+Validator        stake    inference    Combined    Stake    Slashes    Active    Participation    Last Active
 ---------------------------------------------------------------------------------------------
 5GrwvaEF5zXb... 1000   800    1800        10000    0          Yes       95%             12345
 5FHneW46xGXg... 900    700    1600        8000     1          Yes       90%             12344
 5FLSigC9HGRK... 800    600    1400        7000     0          No        85%             12343
 
 Epoch History:
-Epoch    PoS    PoI    Combined    Blocks    Missed    Inferences    Slashes    Rewards
+Epoch    stake    inference    Combined    Blocks    Missed    Inferences    Slashes    Rewards
 --------------------------------------------------------------------------
 12345    1000   800    1800        100       0         50            0          100
 12344    950    750    1700        95        5         45            0          95
@@ -120,14 +120,14 @@ The tool will:
 3. Calculate combined scores
 4. Display the results in a sorted table
 
-## Configuration
+## Settings
 You can modify the following in the source code:
 - Node connection URL
 - Score calculation weights
 - Output format
 
 ## Future Improvements
-- Add command-line arguments for configuration
+- Add command-line arguments for settings
 - Support for historical score analysis
 - Export to CSV/JSON
 - Real-time monitoring mode

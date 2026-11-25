@@ -1,0 +1,187 @@
+{
+  "network": "polkadot",
+  "slug": "polkadot-westend",
+  "label": "Polkadot Westend",
+  "endpoint": "https://westend-rpc.polkadot.io",
+  "observedAt": "2026-09-30T05:03:32.555Z",
+  "height": 33089236,
+  "hash": "0x453250e3ecc82f0b7c8991fcdb6f5994ebf625b37445be61c80173068481ce96",
+  "timestamp": "2026-09-30T05:03:12.001Z",
+  "anchor": "The authority set 11142 of the network, 20 authorities, and their settling votes for the block.",
+  "inclusion": "A storage read proof from the header state root to the block number entry of the system store.",
+  "checks": [
+    "The node runs version 1.25.0-f2dc2a73f96.",
+    "The rebuilt header bytes hash to the block the justification settles.",
+    "Verified settling votes carry 14 of 20 weight."
+  ],
+  "outbound": {
+    "sent": false,
+    "detail": "The Westend faucet asks for a check against automated use, so the live pass carried no message out.",
+    "faucet": "https://faucet.polkadot.io/westend",
+    "command": "Paste the relayer address into the faucet page, then run: CERULEA_BRIDGE_LIVE=1 pnpm vitest run test/bridge/live.test.ts"
+  },
+  "bundle": {
+    "header": "0x7eaf1e164c7c1ee2bd98513b65180e74e6aecf46b3ada0d97b8a0885eabf2792529be307d5e9e18d8887e0384aea36bacaddd9b7896b03f2fbc92d7d32aa245cc471be41d4da709dd79b65c6a0d1751022fbe6557396c7c7b7e9c60610f4ce7fc57259e50c0642414245b501030a0000005819ca1100000000d6e29c14bd2475039cc1c8b3ef6c4c3f79c87fed2b3317c6868572c9cb468f42d58f684ff5414e6164c0ad775db8ea6785f5bf2c60b33fc3af728a78b4bd7302f82ebfa100a36340cfb02ab0d752d3a4d2450dbe0103c85598e87eb4e7f8fc0304424545468403c94f2444fa99d40551778cfabe8028b079cc67b20fedceb0a6ea5a7fbf0adfae05424142450101d6294eaa0b8469c81143f9a2e554d4e2d7d25e7a8a51320d1bab2dc03d5037781e59718f929e86200ce1377a7efff5c9b03566268b4fdc32bb1b4d1a5d90698e",
+    "hash": "0x453250e3ecc82f0b7c8991fcdb6f5994ebf625b37445be61c80173068481ce96",
+    "number": 33089236,
+    "parentHash": "0x7eaf1e164c7c1ee2bd98513b65180e74e6aecf46b3ada0d97b8a0885eabf2792",
+    "stateRoot": "0xd5e9e18d8887e0384aea36bacaddd9b7896b03f2fbc92d7d32aa245cc471be41",
+    "momentMillis": 1790744592001,
+    "round": "1895",
+    "setId": "11142",
+    "authorities": [
+      {
+        "key": "0xe408b1a16d123c3f9eebdd4b0be7dbbbfca28730b5f381b7ccf74e790c2fb7de",
+        "weight": 1
+      },
+      {
+        "key": "0x98bd69db92af7c0467eafc427b64e37df7f23744ca3eaea5073365f5ffea1b66",
+        "weight": 1
+      },
+      {
+        "key": "0xfcf5f94a513c06d03e64e2e96754c6eb2c8bd0ba299fcfd743e51a10733109a2",
+        "weight": 1
+      },
+      {
+        "key": "0x5f0b282a6b2338ad515535bc9a15b72077591f66c7b9117af54b05576d7b53f3",
+        "weight": 1
+      },
+      {
+        "key": "0x913d832017d5ffb4b34ed51a099e509a366f7be9ea27435489ffd616de854d7d",
+        "weight": 1
+      },
+      {
+        "key": "0x2859cfca60e6490ad903a1e7cbae1637a358e93d0b87fc28c015a8c03f44699b",
+        "weight": 1
+      },
+      {
+        "key": "0x61306d006ca775e8716270130340f97ea797c832bf5d12d5ce5437048f5594bd",
+        "weight": 1
+      },
+      {
+        "key": "0xa915edba023ad7b210accf3d7eef5a7956cabf6d8b946e0d730313112ef616ee",
+        "weight": 1
+      },
+      {
+        "key": "0x22d37fb3c2cc93588c8e269c3dafd06d405eff713096f7c777e1117664827a55",
+        "weight": 1
+      },
+      {
+        "key": "0x3134f60a3b754040ef73f987a2100f73acf9ecda8f0b7991ab7b5a5765daf68d",
+        "weight": 1
+      },
+      {
+        "key": "0x7b270550abd5f899df482c0504b61a996f96360b57be8c8af1cc009c0c55b5cf",
+        "weight": 1
+      },
+      {
+        "key": "0x7b81c2536e5500695e6f044055263eb29220d4c115e16cf05ffc123b1317e04e",
+        "weight": 1
+      },
+      {
+        "key": "0x02e1878ec4350e2a81d0010619119a11fb98f37ed499de6568768d5d02a5a469",
+        "weight": 1
+      },
+      {
+        "key": "0x30c3a2fc84c7f9657a8d611db0afd5dcc46b4bc0392ab7e8bfba0f342c775991",
+        "weight": 1
+      },
+      {
+        "key": "0xcde3d8c2d8ddbf15188878876ed758f8e627f75d6da947ed24aada1af3358f11",
+        "weight": 1
+      },
+      {
+        "key": "0xba59e330b7ec7afd4373df02547647b633438bc53164bc00d3e09df053999a92",
+        "weight": 1
+      },
+      {
+        "key": "0xc1dab4fcb5c72e4317a2763b9584f6e815946ded7fc13389ce1e152290d40a39",
+        "weight": 1
+      },
+      {
+        "key": "0x441606473cfe94e5bfff627ce52d2325bfd42cef4853d1a509c503d3abe5f15f",
+        "weight": 1
+      },
+      {
+        "key": "0x1d0760e9a622baab6a9ea80ea4eb480fc90b929145d4104c9012a12ee53dba64",
+        "weight": 1
+      },
+      {
+        "key": "0xe59e04bb87bc4e1e890372b74c4cb9434d95edd43cf7b82f086b6249696d4dbb",
+        "weight": 1
+      }
+    ],
+    "signatures": [
+      {
+        "signer": 12,
+        "signature": "0xcb9355075c5f8b8fc232909650994675d0911e30df1c6ea5f9d73b41fad91b9e750f510f21bba4f8877e15857a48eac13ecefe709941f370c8ed73e9d18c620c"
+      },
+      {
+        "signer": 18,
+        "signature": "0xc4bdd75423848dd925c001320189641b5bb68b380550d1d93ad1441b24f9281cdfde4085fefac17be4cafbbe067b3ca9eb864d6d1f31ccbadfea1009d9aa8907"
+      },
+      {
+        "signer": 8,
+        "signature": "0xdc6fa08c1f2f21be8d6454129ae806ffc2c37cc1e89edecc215ec8ac78aff25ea4d13d8de0bfaf1852a348db5cd87aa4f82827d6b6a0c62a688df9a0feded407"
+      },
+      {
+        "signer": 5,
+        "signature": "0x9e45e39e0260ed5c537c4a98abcea73d653a86989dd627d9c394e9f48716c54159de9491cd44647557d6b2d2d604e15386e97a3879cbf8429031e81809db9803"
+      },
+      {
+        "signer": 13,
+        "signature": "0x457cf8017515e0dc338c44af9ef70b73829363c7c64d1690f00dcb1792ffad228f85a2912084ca01201378894e39951aca5226b835825f84224571e6180ff009"
+      },
+      {
+        "signer": 9,
+        "signature": "0x1fff8b633f6b88b122d6531c46bf579e25ef06c0f232bb2e0770da5892a43bbbda3ebfdd6b681512dcb2330e4c600cb4b7126af91cf0c431fd2bb32d1093170a"
+      },
+      {
+        "signer": 17,
+        "signature": "0xf2008dfa726ec1de0ccfd49b7db4f9851c15ce35e3a6b0d11bb6d50834b53b7d22a25a96ca173183e992173c6b52bfa787b1bcf51a89a4f8bdcf21c5a1bc9008"
+      },
+      {
+        "signer": 3,
+        "signature": "0x554755c3b0e4bb3a8b9088deb3d62df910d5b9ea5d6aeedc521c017168f80d795de2044c3589f1188f40f23da081dca5d289b7d1c85a6e675d67c0c4d3ea9d09"
+      },
+      {
+        "signer": 6,
+        "signature": "0x7b79093d9188ef272ea99660b806e34053c39eaea4f9a507ebbd9ad0118baa88b8928a0b71447bcb734660148348659cb2e2d91cc30a0c3c06ba5a68b616010b"
+      },
+      {
+        "signer": 10,
+        "signature": "0x2583739922f06ba4b17e2eb113946a562aa10e4249549980a0335dbdb4560a5c66f815e2ceeb14529295ddd7ba1843f5e3f37193028f6797b041d62261fa790f"
+      },
+      {
+        "signer": 11,
+        "signature": "0x1a505b5f63f36657a9c17730849c2e6abf38f1bbca8299fb8a8bdce8da5c0e26f13ff8fa726bff3da40533e47bfb677fcd11e12dbe004c432658d3a6b387820a"
+      },
+      {
+        "signer": 7,
+        "signature": "0x84041a721500ef715aba417b799cad9253597f8ca065dd0ded6bc2a11af8a9a35992df62efd6a4216a7b281d8278a346ddf721a78402f0217513d9ef802e4f0f"
+      },
+      {
+        "signer": 16,
+        "signature": "0xe1566fac4f8e3c26d3d331a50dd4f2988730dbfbf0114add8de6ec5cc316acf0cf14e5d1b1ec4f2bdb6fe5dfd03cff0caa19011d6210d9ac5868d6fde2188904"
+      },
+      {
+        "signer": 2,
+        "signature": "0xce9f3a5d229f0f4f87e458fe6ef7fc2036959bc45b14edbe2aab301eaf46c9fbff4d373686b6a7128fce1cbaf501e396e1ff2e8bdba40f3eb1facb4dc92d0703"
+      }
+    ],
+    "signedWeight": 14,
+    "totalWeight": 20,
+    "key": "0x26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac",
+    "value": "0xd4e6f801",
+    "nodes": [
+      "0x800404545ea5c1b19ab7a04f536c519aca4983ac10d4e6f801545e98fdbe9ce6c55837576c60c7af3850100f000000",
+      "0x80c3c580d53e9d09cd2c5db8d934acadba855ceaeaf9a53afd06eff4f25eb7d1e3cda88380c87c7b2bce1a34540f3ab6d93720282bda13f9670489827feadc950cfa4b47a780c6eb013d662d689dacfe8a44f255b8445f3a01979fbb27526719a07456df2ceb80257442a3193ebf64fb8a0019b2d9fc1d97734011eb5a8d2ea414f5ff9a27952b80cbed9aa03d0070b37c3e1bc2336c9e206799909c4b3eb1d939dc9e32b67798a4800e5234729200ebbe23f91432b185afc0204e82e914fee2ffce8ef9b2fdb4f7d9806d325107d9381d9e295d80b3027fbf03d273c7d3920f6764d736381aaf98982e80867cf31f87804143d7c3afc9a46ece4506930cf84db9b30752b504063f17cc62",
+      "0x80ffff80b0365ca6102390287731726cc84713c7fd093a931837b79de8ab7307d8c5b462806e4c71c42e81d9260e60eb1ecf347dc65db0717d278235eed36e36228b75f02e8021771a622055ad9dae0c2092c7bd5ac9d59d8713b1e172ec16aa65e570b53552809c99530e6e148b5baebf43f1cf115910605bafedfe6122fff2331f8a63444f7b80fbc387673832e4a6d5ce672a0da90e8afcfefe6a34386765444553063fb9f4c48045d1ec37a657d8b48331cc4e0a0f8213e0d311f2be3ce57cc187ba268ff1a73480aca7da3ae410df514f9ab7c0940270273f81e17fc5ec2facd0db97745d603643802cd36a67e2b5f317779b48e7443563fa62ba051f0d1689593a2dc4f46895229080eaa2c38373c5031c79c78846c204ed1b0dfb63e35c7aa0ea033649ae407d0128803ab8152f4e09914148bfe07ae52f23a10eb036a0674e1a6505765b24eb6db2db80ab717c909db27c6ffa40ccbe2a2cf5c1e5cd7a957d0987d69fab39f77cd437ed804a7341d3ccae5dc69f2cd35e4acbfb1718bd8a611e512bcbf6e253f328ca5c2c8067aef9222c3deae4f3f57ff91f079a0634631c7e8e109243b9bcee9cecf5bbca80c1667f12a8dcf00a30ed33cdc4d758eca6e59d078cbcc2c0c5375c116217684c80b9b62301dfbc3aa1a4c54fd6e795dce4eb1592e3118c21cbb6cd494f35df4da28043f4b8f74f52370891d648cc387cc1f4a39e650b243c48e5dc31cb80a9920ba0",
+      "0x9eaa394eea5630e07c48ae0c9558cef7399f80b2492185119262bea95a443ae26e1736677d01624fcc15149dc46ba9511c42ff785f04abf5cb34d6244378cddbf18e849d963000000000072eb7a0c71311f4505f0e7b9012096b41c4eb3aaf947f6ea4290800004c5f0684a022a34dd8bfa2baaf44f172b71004018059b3a2df53bc83e2e926c253154c3eaba4c96cb13c04e00773fc834f5137e8c6804f83c49922eba5fd30b555d5f915cbcb7bd6065d702a5ff26689fd7beef1b7f0805d539968a64284784122d783a80a83e22297c8dc512c4333ed543429ebc3bc2a806b928644f4f88f7b110fec65eb9c7bcb2f202527b1579c1246bfc6b300c2428d4c5f021aab032aaa6e946ca50ad39ab666030401785f09cce9c888469bb1a0dceaa129672ef830a68f3e001c77657374656e64"
+    ],
+    "checkpoint": {
+      "height": 33089235,
+      "hash": "0x7eaf1e164c7c1ee2bd98513b65180e74e6aecf46b3ada0d97b8a0885eabf2792"
+    }
+  }
+}

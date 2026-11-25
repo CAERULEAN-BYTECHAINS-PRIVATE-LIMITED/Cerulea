@@ -1,0 +1,33 @@
+Cerulea chain, control evidence: peer diversity against the eclipse attack
+Task P10-003. Run date 2026-09-19. Rust 1.85, release profile.
+Run from chain/ with CARGO_BUILD_JOBS=4.
+
+$ cargo test --release -p cerulea-consensus
+test result: ok. 374 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+Thirteen of those tests sit in engines::peers::tests. They cover the address
+prefix widths, the healthy peer set, the halt on too few address ranges, the
+halt on too few peers, the recovery, and the validator allow-list of a private
+chain.
+
+$ cargo test --release -p cerulea-node --test eclipse_test
+running 7 tests
+test a_healthy_node_authors_its_slot ... ok
+test a_healthy_peer_set_spans_several_address_ranges ... ok
+test a_node_resumes_authoring_once_the_peer_set_recovers ... ok
+test a_private_chain_refuses_a_peer_outside_the_allow_list ... ok
+test an_eclipsed_node_halts_authoring_and_raises_an_alert ... ok
+test every_node_starts_from_a_peer_set_that_meets_the_requirement ... ok
+test the_network_carries_on_while_one_node_sits_eclipsed ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+An eclipsed node halts authoring and raises an alert. The proving test is
+an_eclipsed_node_halts_authoring_and_raises_an_alert. The test drives the real
+Authoring Engine through the multi-node harness at
+cerulea-node/src/test_harness.rs. The alert names the figures, states that
+reading stays open and names the fix.
+
+A private chain admits the validators the registry names. The proving test is
+a_private_chain_refuses_a_peer_outside_the_allow_list.
+
+Controls implemented, certification not held.

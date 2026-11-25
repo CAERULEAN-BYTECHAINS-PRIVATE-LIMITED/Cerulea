@@ -7,3 +7,12 @@ keys/
 secret_*
 .env
 tasks.yaml
+
+# Material that never belongs in the repository
+.DS_Store
+*/.DS_Store
+logs/
+*.log
+node_output_*
+*.pdf
+Cerulea-SRS.pdf

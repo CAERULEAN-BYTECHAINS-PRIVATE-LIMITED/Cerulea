@@ -12,19 +12,59 @@ members = [
     "cerulea-pallets/pallet-cerulea-poi",
     "cerulea-pallets/pallet-cerulea-pos",
     "cerulea-pallets/pallet-cerulea-dcf",
-    "cerulea-pallets/pallet-todo",
     "tools",
     "cerulea-node/src/cerulea-consensus",  "cerulea-pallets/pallet-cerulea-dvf",
+    "cerulea-pallets/pallet-cerulea-custody",
+    "cerulea-blueprint",
+    "cerulea-primitives",
+    "cerulea-platform-api",
+    "cerulea-pallets/pallet-cerulea-schema",
+    "cerulea-pallets/pallet-cerulea-state",
+    "cerulea-pallets/pallet-cerulea-collections",
+    "cerulea-pallets/pallet-cerulea-identity",
+    "cerulea-pallets/pallet-cerulea-permission",
+    "cerulea-pallets/pallet-cerulea-logic",
+    "cerulea-pallets/pallet-cerulea-audit",
+    "cerulea-pallets/pallet-cerulea-workflow",
+    "cerulea-pallets/pallet-cerulea-operator",
+    "cerulea-pallets/pallet-cerulea-relayer",
+    "cerulea-pallets/pallet-cerulea-tier",
+    "cerulea-pallets/pallet-cerulea-oracle",
+    "cerulea-pallets/pallet-cerulea-evolution",
+    "cerulea-pallets/pallet-cerulea-governance",
+    "cerulea-pallets/pallet-cerulea-rules",
+    "cerulea-pallets/pallet-cerulea-bridge",
 ]
+# The fuzz crate carries its own workspace and builds under cargo fuzz alone.
+exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.dependencies]
 cerulea-runtime= { path = "./cerulea-runtime", default-features = false }
+cerulea-blueprint = { path = "./cerulea-blueprint", default-features = false }
+cerulea-primitives = { path = "./cerulea-primitives", default-features = false }
+cerulea-platform-api = { path = "./cerulea-platform-api", default-features = false }
+pallet-cerulea-schema = { path = "./cerulea-pallets/pallet-cerulea-schema", default-features = false }
+pallet-cerulea-state = { path = "./cerulea-pallets/pallet-cerulea-state", default-features = false }
+pallet-cerulea-collections = { path = "./cerulea-pallets/pallet-cerulea-collections", default-features = false }
+pallet-cerulea-identity = { path = "./cerulea-pallets/pallet-cerulea-identity", default-features = false }
+pallet-cerulea-permission = { path = "./cerulea-pallets/pallet-cerulea-permission", default-features = false }
+pallet-cerulea-logic = { path = "./cerulea-pallets/pallet-cerulea-logic", default-features = false }
+pallet-cerulea-audit = { path = "./cerulea-pallets/pallet-cerulea-audit", default-features = false }
+pallet-cerulea-workflow = { path = "./cerulea-pallets/pallet-cerulea-workflow", default-features = false }
+pallet-cerulea-operator = { path = "./cerulea-pallets/pallet-cerulea-operator", default-features = false }
+pallet-cerulea-relayer = { path = "./cerulea-pallets/pallet-cerulea-relayer", default-features = false }
+pallet-cerulea-tier = { path = "./cerulea-pallets/pallet-cerulea-tier", default-features = false }
+pallet-cerulea-oracle = { path = "./cerulea-pallets/pallet-cerulea-oracle", default-features = false }
+pallet-cerulea-evolution = { path = "./cerulea-pallets/pallet-cerulea-evolution", default-features = false }
+pallet-cerulea-governance = { path = "./cerulea-pallets/pallet-cerulea-governance", default-features = false }
+pallet-cerulea-rules = { path = "./cerulea-pallets/pallet-cerulea-rules", default-features = false }
+pallet-cerulea-bridge = { path = "./cerulea-pallets/pallet-cerulea-bridge", default-features = false }
 pallet-cerulea-poi = { path="./cerulea-pallets/pallet-cerulea-poi", default-features = false }
 pallet-cerulea-pos = { path="./cerulea-pallets/pallet-cerulea-pos", default-features = false}
 pallet-cerulea-dcf = {path="./cerulea-pallets/pallet-cerulea-dcf", default-features = false}
 pallet-cerulea-dvf = {path="./cerulea-pallets/pallet-cerulea-dvf", default-features = false}
-pallet-todo = { path = "./cerulea-pallets/pallet-todo", default-features = false }
+pallet-cerulea-custody = { path = "./cerulea-pallets/pallet-cerulea-custody", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.8.0", default-features = false }
@@ -77,6 +117,8 @@ sp-transaction-pool = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
+sp-trie = { version = "39.1.0", default-features = false }
+sp-crypto-hashing = { version = "0.1.0", default-features = false }
 serde = { version = "1.0.219", default-features=false }
 sc-chain-spec = { version = "42.0.0", default-features = false }
 hex-literal ={ version = "1.0.0", default-features = false }

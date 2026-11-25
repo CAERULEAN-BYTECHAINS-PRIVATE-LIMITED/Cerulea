@@ -1,14 +1,14 @@
 //! # pallet-cerulea-dcf
 //!
-//! This pallet implements the Dynamic Consensus Framework (DCF) for the Cerulea, providing advanced validator management, scoring, and on-chain governance. It supports dynamic validator sets, configurable consensus weights, and robust governance mechanisms for slashing, rewards, and ejection.
+//! This pallet implements the Dynamic Consensus Framework (DCF) for the Cerulea, providing advanced validator management, scoring, and on-chain governance. It supports dynamic validator sets, adjustable consensus weights, and robust governance mechanisms for slashing, rewards, and ejection.
 //!
 //! ## Main Features
-//! - **Validator Scoring:** Combines Proof-of-Stake (PoS) and Proof-of-Inference (PoI) scores with configurable weights, supporting dynamic adjustment and decay.
+//! - **Validator Scoring:** Combines Proof-of-Stake (PoS) and the inference contribution (PoI) scores with adjustable weights, supporting dynamic adjustment and decay.
 //! - **Epoch Management:** Handles epoch transitions, validator activity tracking, score decay, and validator set updates.
 //! - **Governance:** Enables on-chain proposals for slashing, rewarding, and ejecting validators, with voting and execution logic.
 //! - **Block Authorship Tracking:** Monitors block authorship and missed blocks, applying score boosts or penalties accordingly.
 //! - **Runtime Hooks:** Integrates with runtime hooks for per-block and per-epoch logic, including automatic epoch transitions and score updates.
-//! - **Genesis Configuration:** Allows initialization of validator set, scores, and consensus parameters at genesis.
+//! - **Genesis Settings:** Allows initialization of validator set, scores, and consensus parameters at genesis.
 //! - **APIs:** Exposes runtime APIs for querying validator scores, participation, epoch state, and expected block authors.
 //! - **Sudo Controls:** Supports governance mode toggling and sudo-only operations for manual intervention and testing.
 //! - **Validator Cooldown System:** Enforces mandatory cooldown periods when validators leave to prevent gaming and ensure network stability.
@@ -41,9 +41,9 @@
 //! - **Cooldown Respect:** Leave cooldown periods are always respected and cannot be bypassed
 //! - **Block Finality:** Finalized blocks are immutable: `finalized_block <= current_block`
 //!
-//! ## Genesis Configuration Links
+//! ## Genesis Settings Links
 //!
-//! The pallet's configuration constants are initialized through genesis presets defined in
+//! The pallet's settings constants are initialized through genesis presets defined in
 //! `cerulea-runtime/src/genesis_config_presets.rs`. Available presets include:
 //!
 //! - **development:** Single validator (Alice) for local development
@@ -57,34 +57,34 @@
 //! - `max_validators: 100` - Maximum validator set size
 //! - Default validator stakes range from 3M to 50M units depending on preset
 //!
-//! ## Configuration Constants to Genesis Preset Mapping
+//! ## Settings Constants to Genesis Preset Mapping
 //!
-//! The pallet's configuration constants are initialized through genesis configuration
+//! The pallet's settings constants are initialized through genesis settings
 //! and can be customized for different network deployments:
 //!
-//! ### Validator Set Configuration
+//! ### Validator Set Settings
 //! - `MaxValidators` → `genesis.dcf.epoch_config.max_validators` (default: 100)
 //! - `MinActiveValidators` → Enforced at runtime (typically 1-3 for testnets)
 //! - `MinStake` → `genesis.dcf.epoch_config.min_stake` (default: 1,000,000 units)
 //!
-//! ### Epoch and Timing Configuration  
+//! ### Epoch and Timing Settings  
 //! - `EpochLength` → `genesis.dcf.epoch_config.blocks_per_epoch` (default: 100 blocks)
 //! - `LeaveCooldown` → Runtime constant (default: 1000-10000 blocks)
 //! - `ValidatorCooldownPeriod` → Runtime constant for re-entry restrictions
 //!
-//! ### Scoring and Performance Configuration
-//! - `DefaultPosWeight` → Initial PoS weight (default: 5000 = 50%)
-//! - `DefaultPoiWeight` → Initial PoI weight (default: 5000 = 50%)
+//! ### Scoring and Performance Settings
+//! - `DefaultPosWeight` → Initial stake share (default: 5000 = 50%)
+//! - `DefaultPoiWeight` → Initial inference share (default: 5000 = 50%)
 //! - `MinValidatorScore` → Minimum score for active participation (default: 30)
 //! - `MaxValidatorScore` → Maximum possible score (default: 10000)
 //!
-//! ### Trust Score Configuration
+//! ### Trust Score Settings
 //! - `TrustScoreUptimeWeight` → Uptime component weight (default: 40)
 //! - `TrustScoreInferenceWeight` → Inference component weight (default: 35)
 //! - `TrustScoreSlashingWeight` → Slashing penalty weight (default: 25)
 //! - `MaxTrustScore` → Maximum trust score value (default: 10000)
 //!
-//! ### Economic and Reward Configuration
+//! ### Economic and Reward Settings
 //! - `ValidatorReward` → Default reward amount for governance proposals
 //! - `SlashPercent` → Percentage of stake slashed for misbehavior (default: 10-30%)
 //! - `BaseRewardPercentage` → Base reward pool allocation (default: 60%)
@@ -107,7 +107,7 @@
 //! ### Example Genesis Preset Values
 //!
 //! **Development Preset:**
-//! ```rust
+//! ```text
 //! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice],
 //!     validator_stakes: vec![10_000_000],
@@ -121,7 +121,7 @@
 //! ```
 //!
 //! **Multi-Validator Preset:**
-//! ```rust
+//! ```text
 //! dcf: pallet_cerulea_dcf::GenesisConfig {
 //!     validators: vec![Alice, Bob, Charlie, Dave, Eve],
 //!     validator_stakes: vec![15_000_000, 12_000_000, 8_000_000, 5_000_000, 3_000_000],
@@ -210,7 +210,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(dead_code)]
-#[warn(unused_comparisons)]
+#![warn(unused_comparisons)]
+// The runtime API returns tuples the interface layer reads directly, and one
+// genesis helper carries every genesis field. Both shapes are part of the
+// published surface, so they stay as they are.
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 
 // Traits module
 pub mod traits;
@@ -227,24 +232,25 @@ pub mod private_chain;
 // EVM compatibility module
 pub mod evm_compatibility;
 
+// The pallet-side engines of the Dynamic Consensus Framework
+pub mod engines;
+
 // --- Imports --- //
 use frame_support::{
     pallet_prelude::*,
-    traits::{Get, Currency, ReservableCurrency},
-    BoundedVec,
-    Parameter,
+    traits::{Currency, Get, ReservableCurrency},
+    BoundedVec, Parameter,
 };
 use frame_system::pallet_prelude::*;
+use pallet_cerulea_poi as poi;
+use pallet_cerulea_pos as pos;
+use serde::{Deserialize, Serialize};
 use sp_runtime::{
-    traits::{SaturatedConversion, AtLeast32BitUnsigned, Saturating},
+    traits::{AtLeast32BitUnsigned, SaturatedConversion, Saturating},
     DigestItem,
 };
-use sp_io;
+use sp_std::fmt;
 use sp_std::prelude::*;
-use sp_std::fmt; 
-use pallet_cerulea_pos as pos;
-use pallet_cerulea_poi as poi;
-use serde::{Serialize, Deserialize};
 
 use scale_info::prelude::format;
 use scale_info::prelude::string::String;
@@ -252,21 +258,21 @@ use scale_info::prelude::string::String;
 // These APIs are exposed to the runtime for querying validator and consensus state.
 
 /// DCF Runtime API Version
-/// 
+///
 /// This constant defines the current version of the DCF Runtime API contract.
 /// It should be incremented whenever breaking changes are made to any API method
 /// signatures, argument types, or return shapes.
-/// 
+///
 /// Version History:
 /// - Version 1: Initial production-ready API contract with comprehensive
 ///   governance, invariant checking, and validator lifecycle management
-/// 
+///
 /// Breaking changes that require version increment:
 /// - Changing method signatures (name, parameters, return types)
 /// - Removing existing methods
 /// - Changing the semantics of existing methods
 /// - Modifying data structures used in API responses
-/// 
+///
 /// Non-breaking changes that do NOT require version increment:
 /// - Adding new methods
 /// - Adding optional fields to existing structures (with proper defaults)
@@ -276,27 +282,27 @@ pub const DCF_API_VERSION: u32 = 1;
 
 sp_api::decl_runtime_apis! {
     /// DCF Runtime API for querying validator and consensus state.
-    /// 
+    ///
     /// This API provides comprehensive access to the DCF system state including
-    /// validator information, consensus parameters, governance configuration,
+    /// validator information, consensus parameters, governance settings,
     /// and system health metrics. All methods are designed to be stable and
     /// backward-compatible within the same API version.
-    /// 
+    ///
     /// # API Contract Guarantees
-    /// 
+    ///
     /// - **Stability**: Method signatures will not change within the same API version
     /// - **Backward Compatibility**: Existing methods will continue to work as documented
     /// - **Type Safety**: All parameters and return types are strictly typed
     /// - **Error Handling**: Methods return appropriate error types for failure cases
     /// - **Performance**: All methods are optimized for runtime query performance
-    /// 
+    ///
     /// # Version Management
-    /// 
+    ///
     /// The API version is tracked via `DCF_API_VERSION` constant. Breaking changes
     /// will increment this version and emit `ApiVersionChanged` events.
-    /// 
+    ///
     /// # Usage Guidelines
-    /// 
+    ///
     /// - Always check API version compatibility before making calls
     /// - Handle `None` returns gracefully for optional data
     /// - Use encoded return types for complex data structures
@@ -308,22 +314,22 @@ sp_api::decl_runtime_apis! {
         BlockNumber: codec::Codec + Clone + Eq + sp_std::fmt::Debug,
     {
         /// Get the current DCF Runtime API version.
-        /// 
+        ///
         /// This method returns the version of the DCF Runtime API contract.
         /// Clients should check this version to ensure compatibility before
         /// making other API calls.
-        /// 
+        ///
         /// # Returns
         /// - `u32`: Current API version number
-        /// 
+        ///
         /// # Example Usage
-        /// ```rust
+        /// ```text
         /// let api_version = runtime_api.get_api_version();
         /// if api_version != expected_version {
         ///     // Handle version mismatch
         /// }
         /// ```
-        /// 
+        ///
         /// # Compatibility
         /// - This method will always be available in all API versions
         /// - Return type will never change
@@ -358,20 +364,16 @@ sp_api::decl_runtime_apis! {
         fn get_total_validators_count() -> u32;
         fn get_validator_set_info() -> (u32, u32, u32);
         fn get_validators_by_score() -> Vec<(AccountId, u64)>;
-        fn get_last_finalized_block() -> u32;
-        fn is_block_finalized(block_number: u32) -> bool;
         fn get_misbehavior_report_count(validator: AccountId) -> u32;
         fn get_misbehavior_reporters(validator: AccountId) -> Vec<AccountId>;
         fn get_misbehavior_evidence(validator: AccountId, reporter: AccountId) -> Option<Vec<u8>>;
         fn is_validator_at_risk(validator: AccountId) -> bool;
-        fn get_finality_info() -> (u32, u32);
-        fn blocks_since_finalization(current_block: u32) -> u32;
         fn get_validator_leave_request(validator: AccountId) -> Option<u32>;
         fn validate_expected_author(block_number: u32, actual_author: AccountId) -> bool;
         fn get_validator_stake(validator: AccountId) -> u128;
         fn get_leave_request_status(validator: AccountId) -> Option<(u32, u32, bool)>; // (request_block, expires_at, can_execute)
         fn get_epoch_manager_config() -> (u64, u64, u32, u32, u32, u32, u64, u32, u32, u32, u32); // (min_perf_score, high_perf_score, min_participation, high_participation, max_missed_blocks, max_missed_blocks_high, healthy_validator_score, healthy_participation_rate, healthy_missed_blocks_max, leave_cooldown, top_validators_display_count)
-        fn get_epoch_length() -> u32; // Get configurable epoch length from T::EpochLength
+        fn get_epoch_length() -> u32; // Get adjustable epoch length from T::EpochLength
         fn validate_block_author_strict(block_number: u32, actual_author: AccountId) -> Result<(), u8>;
         fn report_author_mismatch(block_number: u32, expected: Option<AccountId>, actual: AccountId) -> Result<(), sp_runtime::DispatchError>;
         fn report_successful_block_authorship(block_number: u32, author: AccountId) -> Result<(), sp_runtime::DispatchError>;
@@ -396,18 +398,18 @@ pub use weights::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use crate::traits::{DvfFinalizedBlockProvider, WeightFreezer};
+    use crate::traits::WeightFreezer;
 
     /// Current storage version for the DCF pallet.
-    /// 
+    ///
     /// This constant defines the expected storage schema version for the current
     /// runtime. It is used during runtime initialization to validate that the
     /// storage schema matches the runtime expectations.
-    /// 
+    ///
     /// Version History:
     /// - Version 1: Initial production-ready storage layout with comprehensive
     ///   governance, invariant checking, and validator lifecycle management
-    /// 
+    ///
     /// This version should be incremented whenever breaking changes are made
     /// to the storage layout that require migration.
     pub const CURRENT_STORAGE_VERSION: u32 = 1;
@@ -415,7 +417,9 @@ pub mod pallet {
     // --- Data Structures --- //
 
     /// Per-epoch statistics for a validator.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
+    #[derive(
+        Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default,
+    )]
     pub struct EpochStats {
         pub epoch: u32,
         pub stake_score: u64,
@@ -431,17 +435,29 @@ pub mod pallet {
         pub last_active_epoch: u32,
         pub current: EpochStats,
         pub history: BoundedVec<EpochStats, T::MaxValidatorHistorySize>, // Use Config constant
-        pub uptime: u32, // Number of epochs active
+        pub uptime: u32,                                                 // Number of epochs active
         pub inference_success_count: u32,
         pub participation_rate: u32, // Percentage (0 to T::PercentagePrecision)
-        pub inference_count: u64, // Total number of inferences performed
-        pub last_active_block: u32, // Last block number where validator was active
+        pub inference_count: u64,    // Total number of inferences performed
+        pub last_active_block: u32,  // Last block number where validator was active
         pub name: Option<BoundedVec<u8, T::MaxValidatorNameSize>>, // Use Config constant
         pub trust_score: u64, // Computed trust score based on uptime, inference success, and slashing history
     }
 
-    /// Configuration for epochs (block count, min stake, max validators).
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default, Serialize, Deserialize, frame_support::__private::codec::DecodeWithMemTracking)]
+    /// Settings for epochs (block count, min stake, max validators).
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        Serialize,
+        Deserialize,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     #[serde(rename_all = "camelCase")]
     pub struct EpochConfig {
         pub blocks_per_epoch: u32,
@@ -449,14 +465,28 @@ pub mod pallet {
         pub max_validators: u32,
     }
 
-    /// Configuration for trust score calculation with configurable weights and bounds.
+    /// The default settings carry the documented epoch length of 100 blocks.
+    ///
+    /// Every epoch reader divides by the epoch length, and genesis refuses a
+    /// zero length, so the default names a length a chain can run.
+    impl Default for EpochConfig {
+        fn default() -> Self {
+            EpochConfig {
+                blocks_per_epoch: 100,
+                min_stake: 0,
+                max_validators: 0,
+            }
+        }
+    }
+
+    /// Settings for trust score calculation with adjustable weights and bounds.
     ///
     /// This struct defines the weights used in trust score computation to balance
     /// different aspects of validator performance and reliability. The weights
     /// determine how much each component contributes to the final trust score.
     ///
     /// Trust score calculation formula with bounded growth and decay:
-    /// ```
+    /// ```text
     /// weighted_score = (uptime_score * uptime_weight + inference_score * inference_weight) / (uptime_weight + inference_weight)
     /// bounded_score = clamp(weighted_score, min_trust_score, max_trust_score)
     /// decay_factor = calculate_decay_factor(epochs_inactive, decay_rate)
@@ -497,7 +527,7 @@ pub mod pallet {
         pub stability_factor: u32,
     }
 
-    /// Trust score bounds configuration for preventing explosive growth and decay.
+    /// Trust score bounds settings for preventing explosive growth and decay.
     ///
     /// This struct defines the boundaries and rate limits that constrain trust score
     /// changes to ensure long-term stability and prevent gaming of the scoring system.
@@ -509,7 +539,7 @@ pub mod pallet {
     /// - **Absolute Bounds**: Ensures scores stay within min/max range
     /// - **Stability Smoothing**: Reduces score volatility through averaging
     ///
-    /// # Configuration Guidelines
+    /// # Settings Guidelines
     /// - Growth rates should be conservative to prevent gaming
     /// - Decay rates should allow recovery from temporary issues
     /// - Min/max bounds should reflect realistic performance ranges
@@ -601,7 +631,7 @@ pub mod pallet {
         }
     }
 
-    /// Deterministic epoch processing configuration and state.
+    /// Deterministic epoch processing settings and state.
     ///
     /// This struct manages the deterministic processing of epoch transitions to ensure
     /// that all nodes produce identical results when processing the same epoch with
@@ -682,7 +712,7 @@ pub mod pallet {
 
     /// Parameter range definition with minimum, maximum, and current values.
     ///
-    /// This generic struct defines safe operating ranges for any configurable parameter
+    /// This generic struct defines safe operating ranges for any adjustable parameter
     /// in the DCF system. It ensures that parameter updates remain within acceptable
     /// bounds while tracking the current value.
     ///
@@ -718,7 +748,7 @@ pub mod pallet {
         }
     }
 
-    /// Rate limiting configuration for DoS protection.
+    /// Rate limiting settings for DoS protection.
     ///
     /// This struct defines rate limits for various dispatchable operations to prevent
     /// abuse and DoS attacks. It includes per-block limits, per-account limits, and
@@ -744,7 +774,7 @@ pub mod pallet {
         pub max_leaves_per_block: u32,
         /// Maximum governance votes per block
         pub max_votes_per_block: u32,
-        
+
         // Per-account rate limits (within time windows)
         /// Maximum proposals per account per time window
         pub max_proposals_per_account: u32,
@@ -754,7 +784,7 @@ pub mod pallet {
         pub max_status_changes_per_account: u32,
         /// Time window for status change rate limiting (in blocks)
         pub status_change_rate_window: u32,
-        
+
         // Minimum intervals between operations
         /// Minimum blocks between validator status changes for same account
         pub min_validator_status_interval: u32,
@@ -762,7 +792,7 @@ pub mod pallet {
         pub min_proposal_interval: u32,
         /// Minimum blocks between governance votes for same account on different proposals
         pub min_vote_interval: u32,
-        
+
         // Weight bounds for operations with loops
         /// Maximum weight for operations that iterate over validator sets (in ref_time units)
         pub max_validator_iteration_weight: u64,
@@ -780,21 +810,21 @@ pub mod pallet {
                 max_joins_per_block: 3,
                 max_leaves_per_block: 3,
                 max_votes_per_block: 20,
-                
+
                 // Per-account limits with reasonable windows
                 max_proposals_per_account: 3,
                 proposal_rate_window: 100, // ~10 minutes at 6s blocks
                 max_status_changes_per_account: 2,
                 status_change_rate_window: 1000, // ~100 minutes at 6s blocks
-                
+
                 // Minimum intervals to prevent spam
                 min_validator_status_interval: 50, // ~5 minutes at 6s blocks
-                min_proposal_interval: 20, // ~2 minutes at 6s blocks
-                min_vote_interval: 1, // 1 block minimum
-                
+                min_proposal_interval: 20,         // ~2 minutes at 6s blocks
+                min_vote_interval: 1,              // 1 block minimum
+
                 // Weight bounds for loop operations
                 max_validator_iteration_weight: 1_000_000_000, // 1 second of compute
-                max_proposal_processing_weight: 500_000_000, // 0.5 seconds
+                max_proposal_processing_weight: 500_000_000,   // 0.5 seconds
                 max_loop_iterations: 1000,
             }
         }
@@ -849,12 +879,12 @@ pub mod pallet {
         },
     }
 
-    /// Comprehensive governance configuration with safety rails for all DCF parameters.
+    /// Comprehensive governance settings with safety rails for all DCF parameters.
     ///
-    /// This struct contains parameter ranges for all configurable aspects of the DCF
+    /// This struct contains parameter ranges for all adjustable aspects of the DCF
     /// system, providing centralized governance with built-in safety constraints.
     /// Each parameter has defined minimum and maximum values to prevent dangerous
-    /// configurations that could compromise network security or stability.
+    /// settings that could compromise network security or stability.
     ///
     /// Parameter categories include:
     /// - **Epoch Management**: Block counts, validator limits, stake requirements
@@ -874,20 +904,20 @@ pub mod pallet {
     /// to changing conditions and requirements.
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
     pub struct GovernanceConfig<T: Config> {
-        // Epoch configuration parameters
+        // Epoch settings parameters
         /// Range for blocks per epoch (typical: 100-7200 blocks)
         pub epoch_length: ParameterRange<u32>,
         /// Range for minimum stake requirement (prevents too low/high barriers)
         pub min_stake: ParameterRange<<T as pallet::Config>::Balance>,
         /// Range for maximum validators in active set (prevents overcrowding/underpopulation)
         pub max_validators: ParameterRange<u32>,
-        
+
         // Consensus weight parameters
         /// Range for Proof-of-Stake weight in final score calculation (0-10000 basis points)
         pub pos_weight: ParameterRange<u64>,
-        /// Range for Proof-of-Inference weight in final score calculation (0-10000 basis points)
+        /// Range for the inference contribution weight in final score calculation (0-10000 basis points)
         pub poi_weight: ParameterRange<u64>,
-        
+
         // Performance threshold parameters
         /// Range for minimum performance score threshold (prevents too strict/lenient standards)
         pub min_performance_score: ParameterRange<u64>,
@@ -897,7 +927,7 @@ pub mod pallet {
         pub min_participation_rate: ParameterRange<u32>,
         /// Range for high participation rate threshold (rewards exceptional availability)
         pub high_participation_rate: ParameterRange<u32>,
-        
+
         // Economic parameters
         /// Range for default validator reward amounts (prevents excessive/insufficient incentives)
         pub validator_reward: ParameterRange<<T as pallet::Config>::Balance>,
@@ -905,36 +935,36 @@ pub mod pallet {
         pub slash_percent: ParameterRange<u32>,
         /// Range for leave cooldown period in blocks (balances flexibility with stability)
         pub leave_cooldown: ParameterRange<BlockNumberFor<T>>,
-        
-        // Trust score configuration
+
+        // Trust score settings
         /// Range for uptime weight in trust score calculation
         pub trust_score_uptime_weight: ParameterRange<u32>,
         /// Range for inference weight in trust score calculation
         pub trust_score_inference_weight: ParameterRange<u32>,
         /// Range for slashing weight in trust score calculation
         pub trust_score_slashing_weight: ParameterRange<u32>,
-        
+
         /// Range for maximum trust score growth rate per epoch
         pub trust_score_max_growth_rate: ParameterRange<u32>,
-        
+
         /// Range for maximum trust score decay rate per epoch
         pub trust_score_max_decay_rate: ParameterRange<u32>,
-        
+
         /// Range for minimum trust score value
         pub trust_score_min_value: ParameterRange<u64>,
-        
+
         /// Range for maximum trust score value
         pub trust_score_max_value: ParameterRange<u64>,
-        
+
         /// Range for trust score stability factor
         pub trust_score_stability_factor: ParameterRange<u32>,
-        
+
         // Block production parameters
         /// Range for score boost awarded for successful block authorship
         pub block_authorship_boost: ParameterRange<u64>,
         /// Range for score penalty applied for missed blocks
         pub missed_block_penalty: ParameterRange<u64>,
-        
+
         // Inference scoring parameters
         /// Range for low-quality inference score boost
         pub inference_boost_low: ParameterRange<u64>,
@@ -1030,10 +1060,7 @@ pub mod pallet {
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
     pub enum MigrationError {
         /// Source storage version does not match expected version
-        VersionMismatch {
-            expected: u32,
-            found: u32,
-        },
+        VersionMismatch { expected: u32, found: u32 },
         /// Pre-migration validation failed
         PreValidationFailed {
             rule_id: BoundedVec<u8, ConstU32<64>>,
@@ -1054,10 +1081,7 @@ pub mod pallet {
         /// Migration already in progress
         MigrationInProgress,
         /// No migration path available
-        NoMigrationPath {
-            from: u32,
-            to: u32,
-        },
+        NoMigrationPath { from: u32, to: u32 },
     }
 
     /// Types of invariant violations that can occur in the DCF system.
@@ -1065,7 +1089,17 @@ pub mod pallet {
     /// This enum categorizes different types of system invariant violations
     /// to enable appropriate handling and reporting. Each violation type
     /// includes context information to aid in debugging and resolution.
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum InvariantViolation<T: Config> {
         /// Economic invariant violations related to balance and stake management
         Economic {
@@ -1091,7 +1125,17 @@ pub mod pallet {
     }
 
     /// Economic invariant violation types with specific details.
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum EconomicViolationType<T: Config> {
         /// Total reserved balance is less than total slashed amount
         ReservedLessThanSlashed {
@@ -1112,25 +1156,38 @@ pub mod pallet {
     }
 
     /// Validator set invariant violation types.
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum ValidatorViolationType<T: Config> {
         /// Active validator set exceeds maximum allowed size
-        ActiveSetTooLarge {
-            current_size: u32,
-            max_allowed: u32,
-        },
+        ActiveSetTooLarge { current_size: u32, max_allowed: u32 },
         /// Validator is both active and in cooldown simultaneously
-        ActiveAndInCooldown {
-            validator: T::AccountId,
-        },
+        ActiveAndInCooldown { validator: T::AccountId },
         /// Duplicate validator found in active set
-        DuplicateInActiveSet {
-            validator: T::AccountId,
-        },
+        DuplicateInActiveSet { validator: T::AccountId },
     }
 
     /// Temporal invariant violation types.
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum TemporalViolationType {
         /// Epoch number decreased (non-monotonic progression)
         EpochRegression {
@@ -1145,7 +1202,17 @@ pub mod pallet {
     }
 
     /// Severity level of invariant violations.
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum InvariantSeverity {
         /// Low severity - system can continue operating
         Low,
@@ -1225,13 +1292,13 @@ pub mod pallet {
 
     /// Genesis validation report generated by dry-run genesis build.
     ///
-    /// This report provides comprehensive information about the genesis configuration
+    /// This report provides comprehensive information about the genesis settings
     /// validation results, including statistics, invariant checks, and warnings.
     /// Used by the dry-run functionality to provide detailed feedback without
     /// actually modifying storage.
     #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub struct GenesisValidationReport<T: Config> {
-        /// Total number of validators in genesis configuration
+        /// Total number of validators in genesis settings
         pub validator_count: u32,
         /// Total stake across all validators
         pub total_stake: <T as pallet::Config>::Balance,
@@ -1241,7 +1308,7 @@ pub mod pallet {
         pub min_stake_validator: Option<(T::AccountId, <T as pallet::Config>::Balance)>,
         /// Validator with maximum stake (validator, stake amount)
         pub max_stake_validator: Option<(T::AccountId, <T as pallet::Config>::Balance)>,
-        /// Epoch configuration being validated
+        /// Epoch settings being validated
         pub epoch_config: EpochConfig,
         /// List of invariant checks performed and their results
         pub invariant_checks: Vec<String>,
@@ -1283,15 +1350,15 @@ pub mod pallet {
         }
     }
 
-    /// Enumeration of all configurable DCF parameters for governance updates.
+    /// Enumeration of all adjustable DCF parameters for governance updates.
     ///
     /// This enum provides a type-safe way to identify which parameter is being
     /// updated through governance calls. Each variant corresponds to a specific
-    /// configurable aspect of the DCF system.
+    /// adjustable aspect of the DCF system.
     ///
     /// Used by the `update_dcf_parameter` dispatchable to:
     /// - Identify which parameter range to validate against
-    /// - Apply the update to the correct configuration field
+    /// - Apply the update to the correct settings field
     /// - Emit appropriate events with parameter-specific information
     /// - Provide clear error messages for validation failures
     ///
@@ -1301,44 +1368,54 @@ pub mod pallet {
     /// - Economic incentives and penalties
     /// - Performance evaluation criteria
     /// - Trust score calculation components
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Debug,
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum ParameterType {
-        // Epoch configuration
+        // Epoch settings
         EpochLength,
         MinStake,
         MaxValidators,
-        
+
         // Consensus weights
         PosWeight,
         PoiWeight,
-        
+
         // Performance thresholds
         MinPerformanceScore,
         HighPerformanceScore,
         MinParticipationRate,
         HighParticipationRate,
-        
+
         // Economic parameters
         ValidatorReward,
         SlashPercent,
         LeaveCooldown,
-        
+
         // Trust score weights
         TrustScoreUptimeWeight,
         TrustScoreInferenceWeight,
         TrustScoreSlashingWeight,
-        
+
         // Trust score bounds and rates
         TrustScoreMaxGrowthRate,
         TrustScoreMaxDecayRate,
         TrustScoreMinValue,
         TrustScoreMaxValue,
         TrustScoreStabilityFactor,
-        
+
         // Block production parameters
         BlockAuthorshipBoost,
         MissedBlockPenalty,
-        
+
         // Inference scoring
         InferenceBoostLow,
         InferenceBoostMedium,
@@ -1346,25 +1423,65 @@ pub mod pallet {
     }
 
     /// Actions that can be proposed via governance.
-    #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
-    pub enum ProposalAction<T: Config + TypeInfo + fmt::Debug> { // <-- Change here
-        Slash { validator: T::AccountId, amount: <T as pallet::Config>::Balance },
-        Reward { validator: T::AccountId, amount: <T as pallet::Config>::Balance },
-        Eject { validator: T::AccountId, reason: EjectionReason },
-        AddValidator { validator: T::AccountId },
-        RemoveValidator { validator: T::AccountId },
-        RewardMultiple { validators: BoundedVec<T::AccountId, T::MaxProposalActionBoundedVecSize>, amount: <T as pallet::Config>::Balance },
+    #[derive(
+        Encode,
+        Decode,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
+    pub enum ProposalAction<T: Config + TypeInfo + fmt::Debug> {
+        // <-- Change here
+        Slash {
+            validator: T::AccountId,
+            amount: <T as pallet::Config>::Balance,
+        },
+        Reward {
+            validator: T::AccountId,
+            amount: <T as pallet::Config>::Balance,
+        },
+        Eject {
+            validator: T::AccountId,
+            reason: EjectionReason,
+        },
+        AddValidator {
+            validator: T::AccountId,
+        },
+        RemoveValidator {
+            validator: T::AccountId,
+        },
+        RewardMultiple {
+            validators: BoundedVec<T::AccountId, T::MaxProposalActionBoundedVecSize>,
+            amount: <T as pallet::Config>::Balance,
+        },
     }
 
     impl<T: Config + TypeInfo + fmt::Debug> Clone for ProposalAction<T> {
         fn clone(&self) -> Self {
             match self {
-                Self::Slash { validator, amount } => Self::Slash { validator: validator.clone(), amount: *amount },
-                Self::Reward { validator, amount } => Self::Reward { validator: validator.clone(), amount: *amount },
-                Self::Eject { validator, reason } => Self::Eject { validator: validator.clone(), reason: reason.clone() },
-                Self::AddValidator { validator } => Self::AddValidator { validator: validator.clone() },
-                Self::RemoveValidator { validator } => Self::RemoveValidator { validator: validator.clone() },
-                Self::RewardMultiple { validators, amount } => Self::RewardMultiple { validators: validators.clone(), amount: *amount },
+                Self::Slash { validator, amount } => Self::Slash {
+                    validator: validator.clone(),
+                    amount: *amount,
+                },
+                Self::Reward { validator, amount } => Self::Reward {
+                    validator: validator.clone(),
+                    amount: *amount,
+                },
+                Self::Eject { validator, reason } => Self::Eject {
+                    validator: validator.clone(),
+                    reason: reason.clone(),
+                },
+                Self::AddValidator { validator } => Self::AddValidator {
+                    validator: validator.clone(),
+                },
+                Self::RemoveValidator { validator } => Self::RemoveValidator {
+                    validator: validator.clone(),
+                },
+                Self::RewardMultiple { validators, amount } => Self::RewardMultiple {
+                    validators: validators.clone(),
+                    amount: *amount,
+                },
             }
         }
     }
@@ -1372,12 +1489,53 @@ pub mod pallet {
     impl<T: Config + TypeInfo + fmt::Debug> PartialEq for ProposalAction<T> {
         fn eq(&self, other: &Self) -> bool {
             match (self, other) {
-                (Self::Slash { validator: v1, amount: a1 }, Self::Slash { validator: v2, amount: a2 }) => v1 == v2 && a1 == a2,
-                (Self::Reward { validator: v1, amount: a1 }, Self::Reward { validator: v2, amount: a2 }) => v1 == v2 && a1 == a2,
-                (Self::Eject { validator: v1, reason: r1 }, Self::Eject { validator: v2, reason: r2 }) => v1 == v2 && r1 == r2,
-                (Self::AddValidator { validator: v1 }, Self::AddValidator { validator: v2 }) => v1 == v2,
-                (Self::RemoveValidator { validator: v1 }, Self::RemoveValidator { validator: v2 }) => v1 == v2,
-                (Self::RewardMultiple { validators: v1, amount: a1 }, Self::RewardMultiple { validators: v2, amount: a2 }) => v1 == v2 && a1 == a2,
+                (
+                    Self::Slash {
+                        validator: v1,
+                        amount: a1,
+                    },
+                    Self::Slash {
+                        validator: v2,
+                        amount: a2,
+                    },
+                ) => v1 == v2 && a1 == a2,
+                (
+                    Self::Reward {
+                        validator: v1,
+                        amount: a1,
+                    },
+                    Self::Reward {
+                        validator: v2,
+                        amount: a2,
+                    },
+                ) => v1 == v2 && a1 == a2,
+                (
+                    Self::Eject {
+                        validator: v1,
+                        reason: r1,
+                    },
+                    Self::Eject {
+                        validator: v2,
+                        reason: r2,
+                    },
+                ) => v1 == v2 && r1 == r2,
+                (Self::AddValidator { validator: v1 }, Self::AddValidator { validator: v2 }) => {
+                    v1 == v2
+                }
+                (
+                    Self::RemoveValidator { validator: v1 },
+                    Self::RemoveValidator { validator: v2 },
+                ) => v1 == v2,
+                (
+                    Self::RewardMultiple {
+                        validators: v1,
+                        amount: a1,
+                    },
+                    Self::RewardMultiple {
+                        validators: v2,
+                        amount: a2,
+                    },
+                ) => v1 == v2 && a1 == a2,
                 _ => false,
             }
         }
@@ -1387,7 +1545,8 @@ pub mod pallet {
 
     /// Governance proposal structure.
     #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-    pub struct GovernanceProposal<T: Config + TypeInfo + fmt::Debug> { // <-- Change here
+    pub struct GovernanceProposal<T: Config + TypeInfo + fmt::Debug> {
+        // <-- Change here
         pub proposer: T::AccountId,
         pub action: ProposalAction<T>,
         pub status: ProposalStatus,
@@ -1409,38 +1568,59 @@ pub mod pallet {
 
     impl<T: Config + TypeInfo + fmt::Debug> PartialEq for GovernanceProposal<T> {
         fn eq(&self, other: &Self) -> bool {
-            self.proposer == other.proposer &&
-            self.action == other.action &&
-            self.status == other.status &&
-            self.votes_for == other.votes_for &&
-            self.votes_against == other.votes_against
+            self.proposer == other.proposer
+                && self.action == other.action
+                && self.status == other.status
+                && self.votes_for == other.votes_for
+                && self.votes_against == other.votes_against
         }
     }
 
     impl<T: Config + TypeInfo + fmt::Debug> Eq for GovernanceProposal<T> {}
 
     /// Status of a governance proposal.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum ProposalStatus {
         Pending,
         Approved,
         Rejected,
         Executed,
+        /// The proposal was approved and its action failed when it ran.
+        Failed,
     }
 
     /// History of recent epochs for analytics and tracking.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
+    #[derive(
+        Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default,
+    )]
     pub struct EpochHistory<T: Config> {
         pub epoch_number: u32,
-        pub active_validators: BoundedVec<<T as frame_system::Config>::AccountId, <T as pos::Config>::MaxValidators>,
-        pub score_snapshot: BoundedVec
-            <(<T as frame_system::Config>::AccountId, u64), <T as pos::Config>::MaxValidators>,
-        pub inference_summary: BoundedVec
-            <(<T as frame_system::Config>::AccountId, Option<u64>), <T as pos::Config>::MaxValidators>,
+        pub active_validators:
+            BoundedVec<<T as frame_system::Config>::AccountId, <T as pos::Config>::MaxValidators>,
+        pub score_snapshot: BoundedVec<
+            (<T as frame_system::Config>::AccountId, u64),
+            <T as pos::Config>::MaxValidators,
+        >,
+        pub inference_summary: BoundedVec<
+            (<T as frame_system::Config>::AccountId, Option<u64>),
+            <T as pos::Config>::MaxValidators,
+        >,
     }
 
-    /// Non-generic struct for runtime API (AccountId = T::AccountId, all BoundedVecs use configurable size).
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
+    /// Non-generic struct for runtime API (AccountId = T::AccountId, all BoundedVecs use adjustable size).
+    #[derive(
+        Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default,
+    )]
     pub struct RuntimeEpochHistory<AccountId> {
         pub epoch_number: u32,
         pub active_validators: BoundedVec<AccountId, ConstU32<100>>, // Keep as reasonable default for runtime API compatibility
@@ -1473,10 +1653,12 @@ pub mod pallet {
         pub stake_score: u64,
         pub final_score: u64,
         pub participation_rate: u32, // 0 to T::PercentagePrecision
-        pub timestamp: u64, // Timestamp in milliseconds
+        pub timestamp: u64,          // Timestamp in milliseconds
     }
 
-    impl<T: Config> From<EpochHistory<T>> for RuntimeEpochHistory<<T as frame_system::Config>::AccountId> {
+    impl<T: Config> From<EpochHistory<T>>
+        for RuntimeEpochHistory<<T as frame_system::Config>::AccountId>
+    {
         fn from(e: EpochHistory<T>) -> Self {
             RuntimeEpochHistory {
                 epoch_number: e.epoch_number,
@@ -1492,7 +1674,7 @@ pub mod pallet {
     pub struct ValidatorProfile<AccountId, Balance, BlockNumber> {
         /// Current stake amount reserved by the validator
         pub stake: Balance,
-        /// Current Proof-of-Inference score
+        /// Current the inference contribution score
         pub poi_score: u32,
         /// Current final consensus score
         pub final_score: u64,
@@ -1515,11 +1697,11 @@ pub mod pallet {
     pub struct ScoreBreakdown {
         /// Proof-of-Stake score component
         pub pos_score: u64,
-        /// Proof-of-Inference score component
+        /// the inference contribution score component
         pub poi_score: u64,
         /// Weight applied to PoS score in final calculation
         pub pos_weight: u64,
-        /// Weight applied to PoI score in final calculation
+        /// Weight applied to inference contribution in final calculation
         pub poi_weight: u64,
         /// Final combined consensus score
         pub final_score: u64,
@@ -1527,7 +1709,7 @@ pub mod pallet {
         pub trust_score: u64,
     }
 
-    /// System constants and configuration parameters exposed via runtime API
+    /// System constants and settings parameters exposed via runtime API
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
     pub struct SystemConstants<Balance, BlockNumber> {
         /// Minimum stake required to become a validator
@@ -1543,46 +1725,45 @@ pub mod pallet {
     }
 
     /// Comprehensive system metrics for operational monitoring and visibility.
-    /// 
+    ///
     /// This structure provides aggregated metrics about the DCF system state,
     /// designed to reduce RPC fan-out by providing all essential metrics in
     /// a single compact API call. All metrics reflect the current epoch state
     /// and are updated automatically during epoch transitions.
-    /// 
+    ///
     /// # Field Semantics and Units
-    /// 
+    ///
     /// ## Validator Metrics
     /// - `active_validator_count`: Number of validators currently participating in consensus (count)
     /// - `total_validator_count`: Total number of registered validators including inactive ones (count)
     /// - `validator_set_capacity`: Maximum number of validators that can be active simultaneously (count)
-    /// 
+    ///
     /// ## Economic Metrics  
     /// - `total_reserved`: Sum of all validator stakes currently reserved in the system (Balance units)
     /// - `total_slashed`: Cumulative amount slashed from validators across all epochs (Balance units)
     /// - `total_rewards`: Cumulative rewards distributed to validators across all epochs (Balance units)
     /// - `average_stake`: Mean stake amount across all active validators (Balance units)
-    /// 
+    ///
     /// ## Epoch and Performance Metrics
     /// - `current_epoch`: Current epoch number, increments with each epoch transition (epoch number)
     /// - `blocks_in_current_epoch`: Number of blocks produced in the current epoch (block count)
     /// - `epoch_progress_percentage`: Progress through current epoch as percentage (0-100)
     /// - `average_trust_score`: Mean trust score across all active validators (0-10000 scale)
-    /// 
+    ///
     /// ## System Health Indicators
     /// - `invariant_health`: Overall system health based on invariant checks (enum: Healthy/Warning/Critical)
-    /// - `finality_lag`: Number of blocks between current block and last finalized block (block count)
     /// - `missed_blocks_current_epoch`: Total blocks missed by all validators in current epoch (block count)
-    /// 
+    ///
     /// # Usage Guidelines
-    /// 
+    ///
     /// - Use this API for dashboard displays and monitoring systems
     /// - Metrics are updated automatically during epoch transitions
     /// - All balance amounts are in the runtime's native balance units
     /// - Trust scores use a 0-10000 scale where 10000 represents maximum trust
     /// - Percentage values use integer representation (0-100 for percentages)
-    /// 
+    ///
     /// # Performance Characteristics
-    /// 
+    ///
     /// - Single RPC call provides comprehensive system overview
     /// - Metrics are cached and updated only during epoch transitions
     /// - Constant-time access to all aggregated values
@@ -1596,7 +1777,7 @@ pub mod pallet {
         pub total_validator_count: u32,
         /// Maximum number of validators that can be active simultaneously
         pub validator_set_capacity: u32,
-        
+
         // Economic metrics
         /// Total amount of tokens reserved as validator stakes across all validators
         pub total_reserved: <T as pallet::Config>::Balance,
@@ -1606,7 +1787,7 @@ pub mod pallet {
         pub total_rewards: <T as pallet::Config>::Balance,
         /// Average stake amount across all active validators
         pub average_stake: <T as pallet::Config>::Balance,
-        
+
         // Epoch and timing metrics
         /// Current epoch number (starts at 0, increments with each epoch transition)
         pub current_epoch: u32,
@@ -1616,12 +1797,10 @@ pub mod pallet {
         pub epoch_progress_percentage: u32,
         /// Average trust score across all active validators (0-10000 scale)
         pub average_trust_score: u64,
-        
+
         // System health metrics
         /// Overall system health status based on invariant validation
         pub invariant_health: InvariantHealth,
-        /// Number of blocks between current block and last finalized block
-        pub finality_lag: u32,
         /// Total number of blocks missed by all validators in current epoch
         pub missed_blocks_current_epoch: u32,
     }
@@ -1641,28 +1820,29 @@ pub mod pallet {
                 epoch_progress_percentage: 0,
                 average_trust_score: 0,
                 invariant_health: InvariantHealth::default(),
-                finality_lag: 0,
                 missed_blocks_current_epoch: 0,
             }
         }
     }
 
     /// System health status based on invariant validation results.
-    /// 
+    ///
     /// This enum represents the overall health of the DCF system based on
     /// the latest invariant checks performed during epoch transitions.
-    /// 
+    ///
     /// # Health Levels
-    /// 
+    ///
     /// - `Healthy`: All invariants pass, system operating normally
     /// - `Warning`: Minor invariant violations detected, system stable but monitoring recommended
     /// - `Critical`: Major invariant violations detected, immediate attention required
-    /// 
+    ///
     /// # Usage
-    /// 
+    ///
     /// Used in SystemMetrics to provide quick health assessment for monitoring systems.
     /// Operators should investigate Warning status and take immediate action on Critical status.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
+    #[derive(
+        Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default,
+    )]
     pub enum InvariantHealth {
         /// All system invariants are satisfied, normal operation
         #[default]
@@ -1674,28 +1854,30 @@ pub mod pallet {
     }
 
     /// Performance indicators for system-wide operational metrics.
-    /// 
+    ///
     /// This structure provides additional performance metrics that complement
     /// the core SystemMetrics, focusing on operational efficiency and
     /// network performance characteristics.
-    /// 
+    ///
     /// # Field Semantics and Units
-    /// 
+    ///
     /// ## Block Production Metrics
     /// - `average_block_time`: Mean time between blocks in current epoch (milliseconds)
     /// - `block_production_rate`: Blocks produced per minute in current epoch (blocks/minute)
     /// - `consensus_participation_rate`: Percentage of validators actively participating (0-100)
-    /// 
+    ///
     /// ## Score Distribution Metrics
     /// - `score_distribution_variance`: Variance in validator scores indicating competition level
     /// - `top_performer_score`: Highest validator score in current epoch (0-10000 scale)
     /// - `lowest_performer_score`: Lowest active validator score in current epoch (0-10000 scale)
-    /// 
+    ///
     /// ## Network Efficiency Metrics
     /// - `epoch_transition_efficiency`: Success rate of epoch transitions (0-100 percentage)
     /// - `governance_activity_level`: Number of active governance proposals
     /// - `validator_churn_rate`: Rate of validator set changes per epoch (percentage)
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default)]
+    #[derive(
+        Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, Default,
+    )]
     pub struct SystemPerformanceIndicators {
         // Block production metrics
         /// Average time between blocks in current epoch (milliseconds)
@@ -1704,7 +1886,7 @@ pub mod pallet {
         pub block_production_rate: u32,
         /// Percentage of active validators participating in consensus (0-100)
         pub consensus_participation_rate: u32,
-        
+
         // Score distribution metrics
         /// Statistical variance in validator scores (indicates competition level)
         pub score_distribution_variance: u64,
@@ -1712,7 +1894,7 @@ pub mod pallet {
         pub top_performer_score: u64,
         /// Lowest active validator score in current epoch (0-10000 scale)
         pub lowest_performer_score: u64,
-        
+
         // Network efficiency metrics
         /// Success rate of epoch transitions as percentage (0-100)
         pub epoch_transition_efficiency: u32,
@@ -1738,566 +1920,581 @@ pub mod pallet {
     }
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pos::Config<Balance = <Self as pallet::Config>::Balance> + poi::Config + TypeInfo + fmt::Debug {
+    pub trait Config:
+        frame_system::Config
+        + pos::Config<Balance = <Self as pallet::Config>::Balance>
+        + poi::Config
+        + TypeInfo
+        + fmt::Debug
+    {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-        
-        /// Interface to notify DVF of epoch transitions and weights
+
+        /// Interface to notify Registry of epoch transitions and weights
         type WeightFreezer: crate::traits::WeightFreezer<Self::AccountId>;
 
-        /// Interface to query the last DVF-finalized block number.
-        /// DCF progressive finality will not advance past this value.
-        type DvfFinalizedBlockProvider: crate::traits::DvfFinalizedBlockProvider;
-
         /// Interface to query and mutate validator registry state.
-        type ValidatorRegistry: crate::traits::ValidatorRegistryProvider<Self::AccountId, <Self as pallet::Config>::Balance, BlockNumberFor<Self>>;
-        
+        type ValidatorRegistry: crate::traits::ValidatorRegistryProvider<
+            Self::AccountId,
+            <Self as pallet::Config>::Balance,
+            BlockNumberFor<Self>,
+        >;
+
         // MaxValidators and MinActiveValidators are inherited from pos::Config
-        
+
         /// Maximum number of epoch history records to maintain in storage.
-        /// 
+        ///
         /// Controls the size of the circular buffer storing recent epoch data.
         /// Higher values provide more historical data for analysis but consume
         /// more storage space. When the limit is reached, oldest records are
         /// automatically removed.
-        /// 
+        ///
         /// Typical values: 24-168 (representing hours to weeks of history).
         #[pallet::constant]
         type MaxEpochHistory: Get<u32>;
-        
+
         // Scoring weights and thresholds
         /// Default weight for Proof-of-Stake (PoS) component in final score calculation.
-        /// 
+        ///
         /// Determines the initial influence of validator stake on their consensus score.
         /// Higher values give more importance to economic stake, while lower values
         /// reduce the impact of wealth on consensus participation.
-        /// 
+        ///
         /// Used in: final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision
         /// Typical values: 3000-7000 (30%-70% when using 10000 as 100%).
         #[pallet::constant]
         type DefaultPosWeight: Get<u64>;
-        
-        /// Default weight for Proof-of-Inference (PoI) component in final score calculation.
-        /// 
+
+        /// Default weight for the inference contribution (PoI) component in final score calculation.
+        ///
         /// Determines the initial influence of AI/ML inference performance on consensus score.
         /// Higher values emphasize technical AI capabilities, while lower values reduce
         /// the impact of inference accuracy on consensus participation.
-        /// 
+        ///
         /// Used in: final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision
         /// Typical values: 3000-7000 (30%-70% when using 10000 as 100%).
         #[pallet::constant]
         type DefaultPoiWeight: Get<u64>;
-        
 
-        
         /// Maximum number of consecutive epochs a validator can be inactive.
-        /// 
+        ///
         /// After this many epochs of inactivity, validators may be automatically
         /// ejected from the validator set to maintain network health and prevent
         /// accumulation of dead weight in the validator registry.
-        /// 
+        ///
         /// Typical values: 3-10 epochs depending on epoch length.
         #[pallet::constant]
         type MaxInactiveEpochs: Get<u32>;
-        
+
         /// Block interval for applying score decay to inactive validators.
-        /// 
+        ///
         /// Determines how frequently the pallet checks for and applies score
         /// decay to validators who haven't been active recently. More frequent
         /// checks provide better responsiveness but consume more computational resources.
-        /// 
+        ///
         /// Typical values: 10-100 blocks (1-10 minutes at 6s block time).
         #[pallet::constant]
         type ScoreDecayInterval: Get<u32>; // blocks
-        
+
         /// Block interval for updating validator participation rate metrics.
-        /// 
+        ///
         /// Controls how often the pallet recalculates participation rates,
         /// block production statistics, and other activity-based metrics.
         /// Affects the responsiveness of performance tracking.
-        /// 
+        ///
         /// Typical values: 50-200 blocks (5-20 minutes at 6s block time).
         #[pallet::constant]
         type ParticipationUpdateInterval: Get<u32>; // blocks
-        
+
         /// Block interval for checking and handling underperforming validators.
-        /// 
+        ///
         /// Determines how frequently the pallet evaluates validator performance
         /// and takes action against consistently poor performers. This includes
         /// score penalties, warnings, and potential ejection decisions.
-        /// 
+        ///
         /// Typical values: 50-500 blocks (5-50 minutes at 6s block time).
         #[pallet::constant]
         type UnderperformanceCheckInterval: Get<u32>; // blocks
-        
+
         /// Block interval for generating automatic validator management proposals.
-        /// 
+        ///
         /// Controls how often the pallet creates governance proposals for
         /// validator rewards, penalties, or set changes based on performance
         /// analysis and network health metrics.
-        /// 
+        ///
         /// Typical values: 100-1000 blocks (10-100 minutes at 6s block time).
         #[pallet::constant]
         type ValidatorProposalInterval: Get<u32>; // blocks
-        
+
         /// Block interval for updating comprehensive health and performance metrics.
-        /// 
+        ///
         /// Determines how frequently the pallet performs detailed health checks,
         /// updates performance histories, and generates network statistics.
         /// Less frequent updates reduce computational overhead.
-        /// 
+        ///
         /// Typical values: 500-2000 blocks (50-200 minutes at 6s block time).
         #[pallet::constant]
         type HealthMetricsInterval: Get<u32>; // blocks
-        
 
-        
         /// Number of blocks per epoch for validator set management and scoring.
-        /// 
+        ///
         /// Defines the fundamental time unit for validator operations including
         /// score updates, set rotations, reward distributions, and governance
         /// actions. Longer epochs provide stability, shorter epochs enable
         /// faster adaptation to changing conditions.
-        /// 
+        ///
         /// Typical values: 1200-7200 blocks (2-12 hours at 6s block time).
         #[pallet::constant]
         type EpochLength: Get<u32>; // blocks per epoch
-        
+
+        /// The shortest epoch the Amendment Engine admits, in blocks.
+        ///
+        /// Genesis refuses a shorter epoch, and the governance record carries
+        /// this figure as the floor of the epoch length range.
+        #[pallet::constant]
+        type MinEpochLength: Get<u32>;
+
+        /// The longest epoch the Amendment Engine admits, in blocks.
+        ///
+        /// Genesis refuses a longer epoch, and the governance record carries
+        /// this figure as the ceiling of the epoch length range.
+        #[pallet::constant]
+        type MaxEpochLength: Get<u32>;
+
         // Block authorship rewards and penalties
         /// Score boost awarded to validators for successfully authoring blocks.
-        /// 
+        ///
         /// Incentivizes consistent block production by rewarding validators
         /// who successfully create and submit valid blocks when selected.
         /// The boost is added to the validator's performance score.
-        /// 
+        ///
         /// Higher values encourage active participation in block production,
         /// while lower values reduce the impact of block authorship on scoring.
-        /// 
+        ///
         /// Typical values: 5-50 score points per successful block.
         #[pallet::constant]
         type BlockAuthorshipBoost: Get<u64>;
-        
+
         /// Score penalty applied to validators for missing assigned block slots.
-        /// 
+        ///
         /// Discourages validator downtime and unreliability by penalizing
         /// validators who fail to produce blocks when selected as the author.
         /// The penalty is subtracted from the validator's performance score.
-        /// 
+        ///
         /// Should be balanced to discourage poor performance without being
         /// so harsh as to cause cascading failures during network issues.
-        /// 
+        ///
         /// Typical values: 2-20 score points per missed block.
         #[pallet::constant]
         type MissedBlockPenalty: Get<u64>;
-        
+
         // Slashing and reward parameters are inherited from pos::Config
-        
+
         // Validator metadata limits
         /// Maximum length in bytes for validator display names.
-        /// 
+        ///
         /// Prevents abuse of the naming system while allowing reasonable
         /// length names for validator identification. Names are UTF-8 encoded
         /// so actual character count may be less than byte count.
-        /// 
+        ///
         /// Typical values: 32-128 bytes.
         #[pallet::constant]
         type MaxValidatorNameLength: Get<u32>;
-        
+
         /// Maximum length in bytes for validator website URLs.
-        /// 
+        ///
         /// Allows validators to provide website links for additional information
         /// while preventing storage abuse. Should accommodate typical URL lengths
         /// including domain names and paths.
-        /// 
+        ///
         /// Typical values: 64-256 bytes.
         #[pallet::constant]
         type MaxValidatorWebsiteLength: Get<u32>;
-        
+
         /// Maximum length in bytes for validator contact information.
-        /// 
+        ///
         /// Enables validators to provide contact details (email, social media)
         /// for community engagement while limiting storage usage. Should
         /// accommodate email addresses and social media handles.
-        /// 
+        ///
         /// Typical values: 64-128 bytes.
         #[pallet::constant]
         type MaxValidatorContactLength: Get<u32>;
-        
+
         /// Maximum length in bytes for validator description text.
-        /// 
+        ///
         /// Allows validators to provide detailed descriptions of their services,
         /// capabilities, and value propositions while preventing storage abuse.
         /// Should accommodate meaningful descriptions without excessive length.
-        /// 
+        ///
         /// Typical values: 128-512 bytes.
         #[pallet::constant]
         type MaxValidatorDescriptionLength: Get<u32>;
-        
+
         /// Maximum length in bytes for validator location information.
-        /// 
+        ///
         /// Enables validators to specify their geographic location for
         /// transparency and network distribution analysis. Should accommodate
         /// city, country, or region names.
-        /// 
+        ///
         /// Typical values: 32-64 bytes.
         #[pallet::constant]
         type MaxValidatorLocationLength: Get<u32>;
-        
+
         /// Maximum number of performance records to maintain per validator.
-        /// 
+        ///
         /// Controls the size of the performance history circular buffer.
         /// Higher values provide more detailed historical analysis but
         /// consume more storage space per validator.
-        /// 
+        ///
         /// Typical values: 50-200 records.
         #[pallet::constant]
         type MaxPerformanceHistoryLength: Get<u32>;
-        
+
         /// Maximum number of epoch statistics to maintain per validator.
-        /// 
+        ///
         /// Controls the size of the validator's epoch history buffer.
         /// Provides historical context for validator performance evaluation
         /// while limiting storage growth.
-        /// 
+        ///
         /// Typical values: 10-50 epochs.
         #[pallet::constant]
         type MaxValidatorHistoryLength: Get<u32>;
-        
+
         /// Maximum commission rate validators can charge in basis points.
-        /// 
+        ///
         /// Limits the fees validators can charge for their services to
         /// prevent excessive extraction from delegators or network participants.
         /// Expressed in basis points where 10000 = 100%.
-        /// 
+        ///
         /// Typical values: 1000-5000 (10%-50% maximum commission).
         #[pallet::constant]
         type MaxCommissionRate: Get<u32>; // basis points (10000 = 100%)
-        
 
         // Misbehavior reporting
         /// Maximum length in bytes for misbehavior evidence submissions.
-        /// 
+        ///
         /// Limits the size of evidence that can be submitted with misbehavior
         /// reports to prevent storage abuse while allowing sufficient space
         /// for cryptographic proofs, screenshots, logs, and other evidence.
-        /// 
+        ///
         /// Typical values: 1024-8192 bytes (1-8 KB per evidence submission).
         #[pallet::constant]
         type MaxEvidenceLength: Get<u32>;
-        
+
         /// Number of independent misbehavior reports required to trigger automatic slashing.
-        /// 
+        ///
         /// Prevents false accusations by requiring multiple independent reports
         /// before taking punitive action against a validator. Higher thresholds
         /// provide more protection against coordinated attacks but may delay
         /// action against genuine misbehavior.
-        /// 
+        ///
         /// Typical values: 3-10 independent reports.
         #[pallet::constant]
         type MisbehaviorSlashThreshold: Get<u32>; // Number of reports needed to trigger slash
-        
-        // Off-chain worker configuration
+
+        // Off-chain worker settings
         /// Timeout duration for off-chain worker operations in milliseconds.
-        /// 
+        ///
         /// Sets the maximum time off-chain workers can spend on external
         /// operations before timing out. Prevents workers from hanging
         /// indefinitely on slow or unresponsive external services.
-        /// 
+        ///
         /// Typical values: 10000-60000 (10-60 seconds).
         #[pallet::constant]
         type OffchainWorkerTimeout: Get<u64>; // milliseconds
-        
+
         /// Estimated average block production time in milliseconds.
-        /// 
+        ///
         /// Used by off-chain workers and timing calculations to estimate
         /// when certain block-based events will occur. Should match the
         /// network's actual average block time for accurate predictions.
-        /// 
+        ///
         /// Typical values: 6000-12000 (6-12 seconds per block).
         #[pallet::constant]
         type EstimatedBlockTime: Get<u64>; // milliseconds
-        
+
         // Performance thresholds
         /// Minimum performance score threshold for acceptable validator behavior.
-        /// 
+        ///
         /// Validators with scores below this threshold are considered underperforming
         /// and may be subject to penalties, warnings, or temporary removal from
         /// the active set. Sets the baseline for acceptable network participation.
-        /// 
+        ///
         /// Typical values: 20-50 score points.
         #[pallet::constant]
         type MinPerformanceScore: Get<u64>; // Minimum score for good performance (30)
-        
+
         // HighPerformanceScore is inherited from pos::Config
-        
+
         /// Minimum participation rate percentage for acceptable validator behavior.
-        /// 
+        ///
         /// Validators with participation rates below this threshold are considered
         /// unreliable and may face penalties or removal. Expressed as a percentage
         /// of assigned opportunities that were successfully fulfilled.
-        /// 
+        ///
         /// Typical values: 50-80 (50%-80% minimum participation).
         #[pallet::constant]
         type MinParticipationRate: Get<u32>; // Minimum participation rate percentage (50)
-        
+
         /// High participation rate threshold for exceptional validator recognition.
-        /// 
+        ///
         /// Validators with participation rates above this threshold are eligible
         /// for enhanced rewards and recognition as highly reliable network
         /// participants. Encourages consistent availability and performance.
-        /// 
+        ///
         /// Typical values: 85-95 (85%-95% high participation).
         #[pallet::constant]
         type HighParticipationRate: Get<u32>; // High participation rate percentage (90)
-        
+
         /// Maximum number of blocks a validator can miss before facing penalties.
-        /// 
+        ///
         /// Once a validator misses this many blocks, they become subject to
         /// score penalties, warnings, or temporary removal from the active set.
         /// Balances tolerance for occasional issues with network reliability needs.
-        /// 
+        ///
         /// Typical values: 5-20 blocks.
         #[pallet::constant]
         type MaxMissedBlocks: Get<u32>; // Maximum missed blocks before penalty (10)
-        
+
         /// Stricter missed block limit for high-performing validators.
-        /// 
+        ///
         /// High-performing validators are held to higher standards and face
         /// penalties after missing fewer blocks. Maintains quality expectations
         /// for validators who receive enhanced rewards and recognition.
-        /// 
+        ///
         /// Typical values: 1-5 blocks.
         #[pallet::constant]
         type MaxMissedBlocksHigh: Get<u32>; // Maximum missed blocks for high performers (2)
-        
+
         /// Score threshold defining a "healthy" validator in good standing.
-        /// 
+        ///
         /// Used for network health assessments, validator categorization,
         /// and determining eligibility for various network operations.
         /// Represents the score level for stable, reliable validators.
-        /// 
+        ///
         /// Typical values: 40-70 score points.
         #[pallet::constant]
         type HealthyValidatorScore: Get<u64>; // Score threshold for healthy validator (50)
-        
+
         /// Participation rate threshold defining a "healthy" validator.
-        /// 
+        ///
         /// Used alongside score thresholds to assess overall validator health
         /// and reliability. Validators meeting both score and participation
         /// thresholds are considered healthy network participants.
-        /// 
+        ///
         /// Typical values: 70-90 (70%-90% participation for health).
         #[pallet::constant]
         type HealthyParticipationRate: Get<u32>; // Participation rate for healthy validator (80)
-        
+
         /// Maximum missed blocks allowed for a validator to be considered healthy.
-        /// 
+        ///
         /// Works with other health metrics to provide a comprehensive assessment
         /// of validator reliability. Healthy validators should miss very few
         /// blocks to maintain their good standing status.
-        /// 
+        ///
         /// Typical values: 2-10 blocks.
         #[pallet::constant]
         type HealthyMissedBlocksMax: Get<u32>; // Max missed blocks for healthy validator (5)
-        
+
         // Score calculation thresholds
         /// Minimum absolute score change required to trigger validator set reordering.
-        /// 
+        ///
         /// When a validator's score changes by at least this amount, the system
         /// may reorder the validator set to maintain proper ranking. Prevents
         /// excessive reordering from minor score fluctuations while ensuring
         /// significant changes are reflected in validator rankings.
-        /// 
+        ///
         /// Typical values: 100-2000 score points.
         #[pallet::constant]
         type ScoreChangeThreshold: Get<u64>; // Minimum score change to trigger resort (1000)
-        
+
         /// Minimum percentage score change required to trigger validator set reordering.
-        /// 
+        ///
         /// Works alongside the absolute threshold to determine when reordering
         /// is necessary. Uses percentage to make the threshold adaptive to
         /// different score ranges and validator performance levels.
-        /// 
+        ///
         /// Typical values: 5-20 (5%-20% change required).
         #[pallet::constant]
         type ScoreChangePercentage: Get<u32>; // Percentage change to trigger resort (10%)
-        
+
         /// Minimum score improvement required for validator promotion considerations.
-        /// 
+        ///
         /// When a validator's score improves by at least this amount, they may
         /// be considered for promotion to higher tiers, enhanced rewards, or
         /// priority status. Recognizes significant performance improvements.
-        /// 
+        ///
         /// Typical values: 500-2000 score points.
         #[pallet::constant]
         type ScoreImprovementThreshold: Get<u64>; // Minimum improvement for validator promotion (1000)
-        
+
         /// Minimum percentage score improvement for validator promotion considerations.
-        /// 
+        ///
         /// Works with the absolute improvement threshold to identify validators
         /// who have significantly enhanced their performance and deserve
         /// recognition or advancement in the validator hierarchy.
-        /// 
+        ///
         /// Typical values: 10-25 (10%-25% improvement required).
         #[pallet::constant]
         type ScoreImprovementPercentage: Get<u32>; // Percentage improvement for promotion (10%)
-        
+
         // Contribution balance thresholds
         /// Maximum percentage that PoS (Proof-of-Stake) can contribute to final scores.
-        /// 
+        ///
         /// Prevents the consensus mechanism from becoming too heavily weighted
         /// toward economic stake by capping the PoS influence. Ensures that
         /// AI/ML performance (PoI) maintains meaningful impact on validator rankings.
-        /// 
+        ///
         /// Typical values: 70-95 (70%-95% maximum PoS influence).
         #[pallet::constant]
         type MaxPosContribution: Get<u32>; // Max PoS contribution percentage (90%)
-        
-        /// Maximum percentage that PoI (Proof-of-Inference) can contribute to final scores.
-        /// 
+
+        /// Maximum percentage that PoI (the inference contribution) can contribute to final scores.
+        ///
         /// Prevents the consensus mechanism from becoming too heavily weighted
         /// toward AI/ML performance by capping the PoI influence. Ensures that
         /// economic stake (PoS) maintains meaningful impact on validator rankings.
-        /// 
+        ///
         /// Typical values: 70-95 (70%-95% maximum PoI influence).
         #[pallet::constant]
         type MaxPoiContribution: Get<u32>; // Max PoI contribution percentage (90%)
-        
+
         /// Threshold for warning about imbalanced PoS/PoI contribution ratios.
-        /// 
+        ///
         /// When either PoS or PoI contribution exceeds this percentage of the
         /// total score calculation, the system may issue warnings or take
         /// corrective action to maintain balanced consensus participation.
-        /// 
+        ///
         /// Typical values: 75-90 (75%-90% triggers imbalance warnings).
         #[pallet::constant]
         type ImbalanceWarningThreshold: Get<u32>; // Threshold for imbalance warning (85%)
-        
+
         // Block processing intervals
         /// Block interval for checking and processing validator leave requests.
-        /// 
+        ///
         /// Determines how frequently the system checks for expired leave requests
         /// and processes validators who have completed their cooldown periods.
         /// More frequent checks provide faster response but consume more resources.
-        /// 
+        ///
         /// Typical values: 5-50 blocks (30 seconds to 5 minutes at 6s block time).
         #[pallet::constant]
         type LeaveRequestCheckInterval: Get<u32>; // Blocks between leave request checks (10)
-        
+
         /// Block interval for updating general validator and network metrics.
-        /// 
+        ///
         /// Controls how often the system updates various performance metrics,
         /// statistics, and monitoring data. Affects the freshness of metrics
         /// data available through APIs and internal calculations.
-        /// 
+        ///
         /// Typical values: 5-100 blocks (30 seconds to 10 minutes at 6s block time).
         #[pallet::constant]
         type MetricsUpdateInterval: Get<u32>; // Blocks between metrics updates (10)
-        
+
         /// Block interval for refreshing validator score calculations.
-        /// 
+        ///
         /// Determines how often the system recalculates validator scores based
         /// on current performance data, stake amounts, and inference results.
         /// More frequent updates provide better responsiveness to performance changes.
-        /// 
+        ///
         /// Typical values: 10-200 blocks (1-20 minutes at 6s block time).
         #[pallet::constant]
         type ScoreRefreshInterval: Get<u32>; // Blocks between score refreshes (50)
-        
+
         /// Block interval for generating detailed logging and diagnostic information.
-        /// 
+        ///
         /// Controls how frequently the system outputs comprehensive logs about
         /// validator performance, network health, and internal state. Detailed
         /// logging provides valuable debugging information but can be verbose.
-        /// 
+        ///
         /// Typical values: 50-500 blocks (5-50 minutes at 6s block time).
         #[pallet::constant]
         type DetailedLoggingInterval: Get<u32>; // Blocks between detailed logging (100)
-        
+
         /// Block interval for checking PoS/PoI contribution balance and issuing warnings.
-        /// 
+        ///
         /// Determines how often the system evaluates whether the consensus
         /// mechanism is properly balanced between stake-based and inference-based
         /// contributions. Helps maintain the hybrid nature of the consensus.
-        /// 
+        ///
         /// Typical values: 100-1000 blocks (10-100 minutes at 6s block time).
         #[pallet::constant]
         type ImbalanceCheckInterval: Get<u32>; // Blocks between imbalance checks (500)
-        
+
         // Validator set limits
         /// Number of top-performing validators to display in logs and API responses.
-        /// 
+        ///
         /// Limits the verbosity of validator rankings in logs while still providing
         /// visibility into the highest-performing network participants. Used for
         /// monitoring dashboards, API responses, and operational visibility.
-        /// 
+        ///
         /// Typical values: 3-20 validators.
         #[pallet::constant]
         type TopValidatorsDisplayCount: Get<u32>; // Number of top validators to display (5)
-        
+
         /// Number of validators to sample when performing network health checks.
-        /// 
+        ///
         /// Determines the sample size for statistical health assessments of the
         /// validator network. Larger samples provide more accurate health metrics
         /// but require more computational resources for analysis.
-        /// 
+        ///
         /// Typical values: 5-50 validators.
         #[pallet::constant]
         type HealthCheckSampleSize: Get<u32>; // Number of validators to sample for health (5)
-        
+
         // Percentage constants
         /// Value representing 100% for percentage calculations throughout the pallet.
-        /// 
+        ///
         /// Used as the base value for percentage calculations, allowing the system
         /// to work with different precision levels. Should match the precision
         /// factor used elsewhere in the pallet for consistency.
-        /// 
+        ///
         /// Common values: 100 (whole percentages) or 10000 (basis points).
         #[pallet::constant]
         type FullPercentage: Get<u32>; // 100% value
-        
+
         /// Percentage threshold for identifying high-performing validators.
-        /// 
+        ///
         /// Validators scoring above this percentage of the maximum possible score
         /// are considered high performers and eligible for enhanced rewards and
         /// recognition. Sets the bar for exceptional network participation.
-        /// 
+        ///
         /// Typical values: 70-90 (70%-90% of maximum score).
         #[pallet::constant]
         type HighPerformancePercentage: Get<u32>; // 80% for high performance threshold
-        
+
         // TopPerformerPercentage is inherited from pos::Config
-        
+
         // Reward distribution percentages
         /// Percentage of total reward pool allocated to base rewards for all validators.
-        /// 
+        ///
         /// Determines what portion of epoch rewards goes to the base reward pool
         /// that is distributed equally among all active validators. Provides a
         /// foundation reward level regardless of performance differences.
-        /// 
+        ///
         /// Typical values: 50-70 (50%-70% of total rewards).
         #[pallet::constant]
         type BaseRewardPercentage: Get<u32>; // Base reward percentage for all validators
-        
+
         /// Percentage of total reward pool allocated to performance-based rewards.
-        /// 
+        ///
         /// Determines what portion of epoch rewards goes to the performance pool
         /// that is distributed among validators meeting high performance thresholds.
         /// Incentivizes consistent good performance above baseline levels.
-        /// 
+        ///
         /// Typical values: 20-35 (20%-35% of total rewards).
         #[pallet::constant]
         type PerformanceRewardPercentage: Get<u32>; // Additional reward for high performers
-        
+
         /// Percentage of total reward pool allocated to top performer rewards.
-        /// 
+        ///
         /// Determines what portion of epoch rewards goes to the top performer pool
         /// that is distributed among the highest-ranking validators. Provides
         /// maximum incentive for exceptional performance and network contribution.
-        /// 
+        ///
         /// Typical values: 10-25 (10%-25% of total rewards).
         #[pallet::constant]
         type TopPerformerRewardPercentage: Get<u32>; // Additional reward for top performers
-        
+
         // MinStake is inherited from pos::Config
 
         // Trust score calculation weights
@@ -2358,7 +2555,14 @@ pub mod pallet {
         #[pallet::constant]
         type AuthorMismatchErrorCode: Get<u8>;
 
-        type Balance: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + MaxEncodedLen + serde::Serialize + for<'de> serde::Deserialize<'de>;
+        type Balance: Parameter
+            + Member
+            + AtLeast32BitUnsigned
+            + Default
+            + Copy
+            + MaxEncodedLen
+            + serde::Serialize
+            + for<'de> serde::Deserialize<'de>;
         // Currency is inherited from pos::Config
         type WeightInfo: WeightInfo;
     }
@@ -2401,7 +2605,7 @@ pub mod pallet {
     impl<T: Config> ValidatorStates<T> {
         pub fn get(key: &T::AccountId) -> Option<ValidatorState<T>> {
             let trait_state = T::ValidatorRegistry::get_validator_state(key)?;
-            let name_bounded = trait_state.name.map(|n| BoundedVec::truncate_from(n));
+            let name_bounded = trait_state.name.map(BoundedVec::truncate_from);
             let history_bounded = BoundedVec::truncate_from(trait_state.history);
             Some(ValidatorState {
                 last_active_epoch: trait_state.last_active_epoch,
@@ -2465,61 +2669,63 @@ pub mod pallet {
             res
         }
         pub fn iter() -> impl Iterator<Item = (T::AccountId, ValidatorState<T>)> {
-            T::ValidatorRegistry::get_validator_set().into_iter().filter_map(|v| {
-                let state = Self::get(&v)?;
-                Some((v, state))
-            })
+            T::ValidatorRegistry::get_validator_set()
+                .into_iter()
+                .filter_map(|v| {
+                    let state = Self::get(&v)?;
+                    Some((v, state))
+                })
         }
     }
 
     /// Current Proof-of-Stake (PoS) weight used in final score calculations.
-    /// 
+    ///
     /// This value determines how much influence a validator's stake has on their
     /// final consensus score. The final score is calculated as:
     /// `final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision`
-    /// 
-    /// Higher PoS weight values give more importance to validator stake amounts,
+    ///
+    /// Higher stake share values give more importance to validator stake amounts,
     /// while lower values reduce the influence of stake on consensus participation.
-    /// 
-    /// Default value is set via `T::DefaultPosWeight` configuration constant.
+    ///
+    /// Default value is set via `T::DefaultPosWeight` settings constant.
     /// Can be updated through governance or root calls to `update_consensus_weights`.
-    /// 
+    ///
     /// # Value: u64 - Weight multiplier for PoS scores (typically 0-10000 for percentage-based calculations)
     #[pallet::storage]
     #[pallet::getter(fn pos_weight)]
     pub type PosWeight<T: Config> = StorageValue<_, u64, ValueQuery>;
 
-    /// Current Proof-of-Inference (PoI) weight used in final score calculations.
-    /// 
+    /// Current the inference contribution (PoI) weight used in final score calculations.
+    ///
     /// This value determines how much influence a validator's inference performance
     /// has on their final consensus score. The final score is calculated as:
     /// `final_score = (stake_score * pos_weight + inference_score * poi_weight) / precision`
-    /// 
-    /// Higher PoI weight values give more importance to validator inference accuracy
+    ///
+    /// Higher inference share values give more importance to validator inference accuracy
     /// and participation, while lower values reduce the influence of AI/ML performance
     /// on consensus participation.
-    /// 
-    /// Default value is set via `T::DefaultPoiWeight` configuration constant.
+    ///
+    /// Default value is set via `T::DefaultPoiWeight` settings constant.
     /// Can be updated through governance or root calls to `update_consensus_weights`.
-    /// 
+    ///
     /// # Value: u64 - Weight multiplier for PoI scores (typically 0-10000 for percentage-based calculations)
     #[pallet::storage]
     #[pallet::getter(fn poi_weight)]
     pub type PoiWeight<T: Config> = StorageValue<_, u64, ValueQuery>;
 
     /// Complete set of all registered validators in the network.
-    /// 
+    ///
     /// This storage contains all validators who have joined the validator set,
     /// regardless of their current active status. Validators remain in this set
     /// until they are explicitly ejected or removed through governance actions.
-    /// 
+    ///
     /// The set includes both active validators (currently participating in consensus)
     /// and inactive validators (temporarily not participating due to low scores,
     /// maintenance, or other reasons).
-    /// 
+    ///
     /// Maximum size is bounded by `T::MaxValidators` to prevent unbounded growth.
     /// New validators are added through `join_validator_set` or `join_validators` calls.
-    /// 
+    ///
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of all registered validator accounts
     // Wrapped struct redirecting to T::ValidatorRegistry
     pub struct ValidatorSet<T>(sp_std::marker::PhantomData<T>);
@@ -2541,34 +2747,34 @@ pub mod pallet {
         }
     }
 
-    /// Configuration parameters for epoch management and transitions.
-    /// 
+    /// Settings parameters for epoch management and transitions.
+    ///
     /// Contains essential parameters that control how epochs operate:
-    /// - `blocks_per_epoch`: Number of blocks in each epoch (configurable via T::EpochLength)
+    /// - `blocks_per_epoch`: Number of blocks in each epoch (adjustable via T::EpochLength)
     /// - `min_stake`: Minimum stake required for validator participation
     /// - `max_validators`: Maximum number of validators allowed in the active set
-    /// 
-    /// This configuration is initialized during genesis and can be updated through
+    ///
+    /// This settings is initialized during genesis and can be updated through
     /// governance proposals or root calls. Changes typically take effect at the
     /// next epoch boundary to ensure consistency.
-    /// 
+    ///
     /// The epoch system is fundamental to validator set management, score decay,
     /// reward distribution, and network parameter updates.
-    /// 
-    /// # Value: EpochConfig - Struct containing epoch-related configuration parameters
+    ///
+    /// # Value: EpochConfig - Struct containing epoch-related settings parameters
     #[pallet::storage]
     #[pallet::getter(fn epoch_config)]
     pub type EpochConfigStorage<T: Config> = StorageValue<_, EpochConfig, ValueQuery>;
 
-    /// Configuration parameters for trust score calculation weights.
+    /// Settings parameters for trust score calculation weights.
     ///
     /// Stores the weights used to balance different components in trust score computation.
-    /// This configuration allows the network to adjust the relative importance of:
+    /// This settings allows the network to adjust the relative importance of:
     /// - Validator uptime and availability
     /// - AI/ML inference performance and accuracy
     /// - Historical slashing and penalty impacts
     ///
-    /// The configuration is initialized with default values during genesis:
+    /// The settings is initialized with default values during genesis:
     /// - Uptime weight: 40 (40% influence)
     /// - Inference weight: 35 (35% influence)  
     /// - Slashing weight: 25 (25% penalty impact)
@@ -2579,7 +2785,7 @@ pub mod pallet {
     /// - Increasing inference weight to emphasize AI capabilities
     /// - Adjusting slashing weight to modify penalty severity
     ///
-    /// Changes to trust score configuration affect all future trust score
+    /// Changes to trust score settings affect all future trust score
     /// calculations but do not retroactively modify historical scores.
     ///
     /// # Value: TrustScoreConfig - Struct containing trust score calculation weights
@@ -2587,14 +2793,14 @@ pub mod pallet {
     #[pallet::getter(fn trust_score_config)]
     pub type TrustScoreConfigStorage<T: Config> = StorageValue<_, TrustScoreConfig, ValueQuery>;
 
-    /// Comprehensive governance configuration with parameter ranges and safety rails.
+    /// Comprehensive governance settings with parameter ranges and safety rails.
     ///
-    /// This storage item contains all configurable DCF parameters with their allowed
+    /// This storage item contains all adjustable DCF parameters with their allowed
     /// ranges, current values, and validation rules. It provides a centralized
     /// governance system that ensures parameter changes remain within safe bounds.
     ///
     /// The GovernanceConfig includes ranges for:
-    /// - Epoch configuration (length, min stake, max validators)
+    /// - Epoch settings (length, min stake, max validators)
     /// - Consensus weights (PoS/PoI balance)
     /// - Performance thresholds and scoring parameters
     /// - Economic parameters (rewards, slashing, cooldowns)
@@ -2609,35 +2815,35 @@ pub mod pallet {
     /// This system prevents dangerous parameter changes that could destabilize
     /// the network while allowing controlled adaptation to changing conditions.
     ///
-    /// # Value: GovernanceConfig<T> - Complete parameter governance configuration
+    /// # Value: GovernanceConfig<T> - Complete parameter governance settings
     #[pallet::storage]
     #[pallet::getter(fn governance_config)]
     pub type GovernanceConfigStorage<T: Config> = StorageValue<_, GovernanceConfig<T>, ValueQuery>;
 
     /// The current epoch number in the blockchain's lifecycle.
-    /// 
+    ///
     /// Epochs are fundamental time periods used for:
     /// - Validator set updates and rotations
     /// - Score decay calculations for inactive validators
     /// - Reward distribution cycles
     /// - Performance evaluation periods
     /// - Governance proposal execution timing
-    /// 
+    ///
     /// The epoch number starts at 0 during genesis and increments by 1 at each
     /// epoch transition. Epoch transitions occur automatically based on block
     /// numbers (every T::EpochLength blocks) or can be triggered manually in
     /// governance mode.
-    /// 
+    ///
     /// This value is used throughout the pallet for temporal calculations and
     /// ensuring operations occur at appropriate epoch boundaries.
-    /// 
+    ///
     /// # Value: u32 - Current epoch number (starts at 0, increments indefinitely)
     #[pallet::storage]
     #[pallet::getter(fn current_epoch)]
     pub type CurrentEpoch<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     /// Set of validators currently active and participating in consensus.
-    /// 
+    ///
     /// Active validators are a subset of the total validator set who are currently
     /// eligible to participate in block production and consensus. To be active,
     /// validators must meet several criteria:
@@ -2645,13 +2851,13 @@ pub mod pallet {
     /// - Maintain sufficient stake (above T::MinStake)
     /// - Not be in a cooldown period after leaving
     /// - Not be ejected due to misbehavior or poor performance
-    /// 
+    ///
     /// This set is updated at each epoch transition based on validator performance,
     /// stake amounts, and participation rates. The active validator set is used by
     /// the consensus engine for block author selection and validation.
-    /// 
+    ///
     /// Maximum size is bounded by `T::MaxValidators` to ensure network performance.
-    /// 
+    ///
     /// # Value: BoundedVec<T::AccountId, T::MaxValidators> - List of currently active validator accounts
     // Wrapped struct redirecting to T::ValidatorRegistry
     pub struct ActiveValidators<T>(sp_std::marker::PhantomData<T>);
@@ -2665,29 +2871,29 @@ pub mod pallet {
     }
 
     /// Flag indicating whether governance mode is currently enabled.
-    /// 
+    ///
     /// When governance mode is enabled (true), the pallet operates with enhanced
     /// administrative capabilities:
     /// - Manual epoch transitions are allowed via `sudo_advance_epoch`
     /// - Governance proposals can be submitted and voted on
     /// - Root/sudo accounts have additional administrative powers
     /// - Certain automated processes may be disabled or modified
-    /// 
+    ///
     /// When disabled (false), the pallet operates in fully automated mode:
     /// - Epoch transitions occur automatically based on block numbers
     /// - Validator management is handled algorithmically
     /// - Reduced administrative intervention capabilities
-    /// 
+    ///
     /// This mode can be toggled by root accounts through `set_governance_mode`.
     /// Default value is typically false for decentralized operation.
-    /// 
+    ///
     /// # Value: bool - true if governance mode is enabled, false for automated mode
     #[pallet::storage]
     #[pallet::getter(fn governance_mode_enabled)]
     pub type GovernanceModeEnabled<T: Config> = StorageValue<_, bool, ValueQuery>;
 
     /// Storage for governance proposals indexed by unique proposal ID.
-    /// 
+    ///
     /// Contains all governance proposals that have been submitted to the network,
     /// including their current status, voting results, and proposed actions.
     /// Proposals can include:
@@ -2696,86 +2902,91 @@ pub mod pallet {
     /// - Validator ejection from the network
     /// - Validator addition to the network
     /// - Multiple validator operations
-    /// 
+    ///
     /// Each proposal has a unique ID (generated sequentially) and contains:
     /// - Proposer account
     /// - Proposed action details
     /// - Current status (Pending, Approved, Rejected, Executed)
     /// - Vote counts (for and against)
-    /// 
+    ///
     /// Proposals are created through `submit_proposal` and voted on via `vote_proposal`.
     /// Approved proposals can be executed through `execute_proposal`.
-    /// 
+    ///
     /// # Key: u32 - Unique proposal identifier
     /// # Value: GovernanceProposal<T> - Complete proposal information and status
     #[pallet::storage]
-    pub type Proposals<T: Config> = StorageMap<
-        _, Blake2_128Concat, u32, GovernanceProposal<T>, OptionQuery
-    >;
+    pub type Proposals<T: Config> =
+        StorageMap<_, Blake2_128Concat, u32, GovernanceProposal<T>, OptionQuery>;
 
     /// Counter for generating unique proposal IDs.
-    /// 
+    ///
     /// This value is incremented each time a new governance proposal is created,
     /// ensuring that every proposal has a unique identifier. The counter starts
     /// at 0 during genesis and increments indefinitely.
-    /// 
+    ///
     /// Used internally by the proposal system to:
     /// - Generate unique IDs for new proposals
     /// - Maintain proposal ordering and history
     /// - Enable efficient proposal lookup and management
-    /// 
+    ///
     /// The ID is assigned when a proposal is submitted and never reused,
     /// providing a permanent reference for each governance action.
-    /// 
+    ///
     /// # Value: u32 - Next available proposal ID (starts at 0, increments with each proposal)
     #[pallet::storage]
     #[pallet::getter(fn next_proposal_id)]
     pub type NextProposalId<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     /// Tracking system for individual votes on governance proposals.
-    /// 
+    ///
     /// This double map records which validators have voted on which proposals
     /// and their vote direction (for or against). Used to:
     /// - Prevent double voting by the same validator
     /// - Track voting participation rates
     /// - Maintain transparency in governance decisions
     /// - Enable vote auditing and verification
-    /// 
+    ///
     /// The boolean value indicates the vote direction:
     /// - true: Vote in favor of the proposal
     /// - false: Vote against the proposal
     /// - None: Validator has not voted on this proposal
-    /// 
+    ///
     /// Votes are cast through the `vote_proposal` extrinsic and are immutable
     /// once recorded to ensure governance integrity.
-    /// 
+    ///
     /// # Key1: u32 - Proposal ID
     /// # Key2: T::AccountId - Validator account who voted
     /// # Value: bool - Vote direction (true = for, false = against)
     #[pallet::storage]
     pub type ProposalVotes<T: Config> = StorageDoubleMap<
-        _, Blake2_128Concat, u32, Blake2_128Concat, T::AccountId, bool, OptionQuery
+        _,
+        Blake2_128Concat,
+        u32,
+        Blake2_128Concat,
+        T::AccountId,
+        bool,
+        OptionQuery,
     >;
 
     /// Queue of validator join/leave requests awaiting execution at epoch boundaries.
-    /// 
+    ///
     /// Validator set changes are not applied immediately but are queued and processed
     /// at epoch transitions to maintain consensus stability. This storage tracks:
     /// - Join requests from new validators wanting to participate
     /// - Leave requests from existing validators wanting to exit
-    /// 
+    ///
     /// Actions are submitted through:
     /// - `join_validator_set`: Request to join (requires meeting minimum requirements)
     /// - `leave_validator_set`: Request to leave (subject to cooldown periods)
-    /// 
+    ///
     /// Pending actions are processed during epoch transitions by:
     /// - Validating that join requests still meet requirements
     /// - Applying leave requests after cooldown periods
     /// - Updating the active validator set accordingly
-    /// 
+    ///
     /// This delayed execution ensures validator set stability during epochs
     /// and prevents rapid changes that could destabilize consensus.
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account requesting the action
     /// # Value: ValidatorAction - Type of action requested (Join or Leave)
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -2845,72 +3056,84 @@ pub mod pallet {
     }
 
     /// Join/leave intent for validators.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+    #[derive(
+        Encode,
+        Decode,
+        Clone,
+        PartialEq,
+        Eq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+        frame_support::__private::codec::DecodeWithMemTracking,
+    )]
     pub enum ValidatorAction {
         Join,
         Leave,
     }
 
-
-
     /// Historical record of recent epochs stored in a circular buffer.
-    /// 
+    ///
     /// Maintains a rolling history of the most recent epochs, including:
     /// - Epoch number and duration
     /// - Active validator set for each epoch
     /// - Aggregate performance metrics
     /// - Reward distribution summaries
     /// - Significant events and transitions
-    /// 
+    ///
     /// The history is stored as a bounded vector that acts as a ring buffer,
     /// automatically removing the oldest entries when the maximum size is reached.
     /// This provides efficient access to recent historical data while preventing
     /// unbounded storage growth.
-    /// 
+    ///
     /// Used for:
     /// - Performance trend analysis
     /// - Validator evaluation over time
     /// - Network health monitoring
     /// - Governance decision support
     /// - API queries for historical data
-    /// 
-    /// Maximum size is controlled by `T::MaxEpochHistory` configuration parameter.
-    /// 
+    ///
+    /// Maximum size is controlled by `T::MaxEpochHistory` settings parameter.
+    ///
     /// # Value: BoundedVec<EpochHistory<T>, T::MaxEpochHistory> - Circular buffer of recent epoch records
     #[pallet::storage]
     #[pallet::getter(fn epoch_histories)]
-    pub type EpochHistories<T: Config> = StorageValue<_, BoundedVec<EpochHistory<T>, T::MaxEpochHistory>, ValueQuery>;
+    pub type EpochHistories<T: Config> =
+        StorageValue<_, BoundedVec<EpochHistory<T>, T::MaxEpochHistory>, ValueQuery>;
 
     /// Human-readable display names for validators.
-    /// 
+    ///
     /// Allows validators to register a display name for better user experience
     /// in interfaces, explorers, and monitoring tools. Names are optional and
     /// purely cosmetic - they do not affect consensus or validator operations.
-    /// 
+    ///
     /// Names must be:
     /// - UTF-8 encoded strings
     /// - Maximum 32 bytes in length
     /// - Set by the validator through `set_validator_name` extrinsic
     /// - Unique per validator (no uniqueness enforcement across validators)
-    /// 
+    ///
     /// Used by:
     /// - Block explorers for validator identification
     /// - Monitoring dashboards and tools
     /// - Governance interfaces
     /// - API responses for better readability
-    /// 
+    ///
     /// If no name is set, interfaces should fall back to displaying the
     /// validator's account ID or a truncated version.
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: BoundedVec<u8, ConstU32<32>> - UTF-8 encoded display name (max 32 bytes)
     // Wrapped struct redirecting to T::ValidatorRegistry
     pub struct ValidatorNames<T>(sp_std::marker::PhantomData<T>);
     impl<T: Config> ValidatorNames<T> {
         pub fn get(key: &T::AccountId) -> Option<BoundedVec<u8, ConstU32<32>>> {
-            T::ValidatorRegistry::get_validator_name(key).map(|n| BoundedVec::truncate_from(n))
+            T::ValidatorRegistry::get_validator_name(key).map(BoundedVec::truncate_from)
         }
-        pub fn insert(key: &T::AccountId, val: impl sp_std::borrow::Borrow<BoundedVec<u8, ConstU32<32>>>) {
+        pub fn insert(
+            key: &T::AccountId,
+            val: impl sp_std::borrow::Borrow<BoundedVec<u8, ConstU32<32>>>,
+        ) {
             T::ValidatorRegistry::set_validator_name(key, val.borrow().to_vec());
         }
         pub fn remove(key: &T::AccountId) {
@@ -2919,27 +3142,27 @@ pub mod pallet {
     }
 
     /// Cumulative count of epochs each validator has been active.
-    /// 
+    ///
     /// Tracks the total number of epochs a validator has participated in
     /// consensus since joining the network. This metric is used for:
     /// - Long-term reliability assessment
     /// - Validator reputation scoring
     /// - Network stability analysis
     /// - Reward calculations based on participation history
-    /// 
+    ///
     /// The counter increments by 1 for each epoch where the validator:
     /// - Is in the active validator set
     /// - Successfully participates in consensus
     /// - Maintains minimum performance requirements
-    /// 
+    ///
     /// The counter does not increment during epochs where the validator:
     /// - Is inactive due to low scores
     /// - Is in a cooldown period
     /// - Is temporarily ejected
-    /// 
+    ///
     /// This provides a measure of validator commitment and network contribution
     /// over time, independent of short-term performance fluctuations.
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of epochs the validator has been active
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -2975,28 +3198,24 @@ pub mod pallet {
         }
     }
 
-    /// Total count of successful inference operations performed by each validator.
-    /// 
-    /// Tracks the cumulative number of successful AI/ML inference operations
-    /// completed by validators as part of the Proof-of-Inference (PoI) consensus.
-    /// This metric is fundamental to the CBC blockchain's AI-focused consensus mechanism.
-    /// 
-    /// The counter increments when validators:
-    /// - Successfully complete inference tasks
-    /// - Submit results that meet accuracy thresholds
-    /// - Participate in distributed AI computations
-    /// - Contribute to the network's AI capabilities
-    /// 
-
+    // Total count of successful inference operations performed by each validator.
+    // Tracks the cumulative number of successful AI/ML inference operations
+    // completed by validators as part of the the inference contribution (PoI) consensus.
+    // This metric is fundamental to the Cerulea blockchain's AI-focused consensus mechanism.
+    // The counter increments when validators:
+    // - Successfully complete inference tasks
+    // - Submit results that meet accuracy thresholds
+    // - Participate in distributed AI computations
+    // - Contribute to the network's AI capabilities
     /// Extended metadata and contact information for validators.
-    /// 
+    ///
     /// Stores comprehensive information about validators beyond their basic
     /// operational metrics. This metadata helps with:
     /// - Validator identification and branding
     /// - Community engagement and transparency
     /// - Technical support and communication
     /// - Network governance and coordination
-    /// 
+    ///
     /// The ValidatorMetadataInfo struct typically includes:
     /// - Website URL for the validator's homepage
     /// - Contact information (email, social media)
@@ -3004,14 +3223,14 @@ pub mod pallet {
     /// - Geographic location information
     /// - Technical specifications and capabilities
     /// - Commission rates and fee structures
-    /// 
+    ///
     /// All metadata is optional and self-reported by validators through
     /// the `set_validator_metadata` extrinsic. The information is not
     /// validated by the protocol but serves as a public registry.
-    /// 
+    ///
     /// Used by block explorers, staking interfaces, and community tools
     /// to provide richer validator information to users and delegators.
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: ValidatorMetadataInfo - Comprehensive metadata structure
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -3029,29 +3248,29 @@ pub mod pallet {
     }
 
     /// Historical performance records for each validator over time.
-    /// 
+    ///
     /// Maintains a time-series of performance metrics for each validator,
     /// stored as a bounded vector of PerformanceRecord entries. This data
     /// enables trend analysis and long-term validator evaluation.
-    /// 
+    ///
     /// Each PerformanceRecord typically contains:
     /// - Timestamp or epoch number
     /// - Performance scores (PoS, PoI, combined)
     /// - Block production statistics
     /// - Participation rates and uptime
     /// - Inference accuracy metrics
-    /// 
+    ///
     /// The history is maintained as a circular buffer with a maximum of 100
     /// entries per validator. When the limit is reached, the oldest records
     /// are automatically removed to make space for new ones.
-    /// 
+    ///
     /// Used for:
     /// - Performance trend analysis and prediction
     /// - Validator reliability assessment
     /// - Reward calculation based on historical performance
     /// - Network health monitoring and reporting
     /// - API endpoints for performance charts and graphs
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: BoundedVec<PerformanceRecord, ConstU32<100>> - Circular buffer of performance records
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -3078,28 +3297,28 @@ pub mod pallet {
     }
 
     /// Block number when each validator was last observed to be active.
-    /// 
+    ///
     /// Tracks the most recent block number where each validator demonstrated
     /// activity in the network. This is used for:
     /// - Detecting inactive or offline validators
     /// - Calculating activity-based score decay
     /// - Determining when to apply penalties for inactivity
     /// - Network health monitoring and alerting
-    /// 
+    ///
     /// A validator is considered "seen" when they:
     /// - Successfully author a block
     /// - Submit valid transactions or extrinsics
     /// - Participate in consensus voting
     /// - Complete inference operations
     /// - Respond to network challenges
-    /// 
+    ///
     /// The block number is updated automatically by the pallet's hooks
     /// and monitoring systems. Validators with stale "last seen" values
     /// may be subject to:
     /// - Score decay penalties
     /// - Temporary removal from active set
     /// - Reduced reward eligibility
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Block number of last observed activity
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -3117,28 +3336,28 @@ pub mod pallet {
     }
 
     /// Cumulative count of blocks successfully authored by each validator.
-    /// 
+    ///
     /// Tracks the total number of blocks each validator has successfully
     /// produced and added to the blockchain since joining the network.
     /// This is a key metric for validator performance evaluation.
-    /// 
+    ///
     /// The counter increments when a validator:
     /// - Is selected as the block author for a slot
     /// - Successfully produces a valid block
     /// - Has their block accepted by the network
     /// - Contributes to chain progression
-    /// 
+    ///
     /// Used for:
     /// - Block production performance assessment
     /// - Validator reliability scoring
     /// - Reward calculations based on contribution
     /// - Network statistics and monitoring
     /// - Participation rate calculations (authored vs. assigned)
-    /// 
+    ///
     /// Higher block counts indicate validators who are consistently
     /// available and capable of producing blocks when selected,
     /// contributing to network stability and throughput.
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of blocks successfully authored
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -3165,29 +3384,29 @@ pub mod pallet {
     }
 
     /// Cumulative count of blocks missed by each validator when they were selected.
-    /// 
+    ///
     /// Tracks the total number of block production opportunities that each
     /// validator failed to fulfill since joining the network. This is a
     /// critical metric for identifying unreliable validators.
-    /// 
+    ///
     /// A block is considered "missed" when:
     /// - The validator was selected as the block author
     /// - They failed to produce a block within the allocated time
     /// - Their produced block was invalid or rejected
     /// - They were offline or unresponsive during their slot
-    /// 
+    ///
     /// Used for:
     /// - Validator reliability assessment and penalties
     /// - Performance scoring and ranking
     /// - Automatic ejection decisions for poor performers
     /// - Network health monitoring and alerting
     /// - Participation rate calculations (missed vs. assigned)
-    /// 
+    ///
     /// High miss counts may result in:
     /// - Score penalties and reduced rewards
     /// - Temporary removal from active validator set
     /// - Permanent ejection for chronic poor performance
-    /// 
+    ///
     /// # Key: T::AccountId - Validator account
     /// # Value: u32 - Total number of blocks missed when selected as author
     // Wrapped struct redirecting to T::ValidatorRegistry
@@ -3213,121 +3432,50 @@ pub mod pallet {
         }
     }
 
-    /// Timestamp recording when each validator joined the network.
-    /// 
-    /// Stores the exact time (in milliseconds since Unix epoch) when each
-    /// validator successfully joined the validator set. This information
-    /// is used for various temporal calculations and historical analysis.
-    /// 
-    /// The timestamp is set when a validator:
-    /// - Successfully completes the `join_validator_set` process
-    /// - Meets all minimum requirements (stake, performance, etc.)
-    /// - Is officially added to the validator registry
-    /// 
-    /// Used for:
-    /// - Calculating validator tenure and experience
-    /// - Age-based reward calculations or bonuses
-    /// - Network growth analysis and statistics
-    /// - Validator lifecycle tracking
-    /// - API responses for validator information
-    /// 
-    /// The value is None for validators who joined before this tracking
+    // Timestamp recording when each validator joined the network.
+    // Stores the exact time (in milliseconds since Unix epoch) when each
+    // validator successfully joined the validator set. This information
+    // is used for various temporal calculations and historical analysis.
+    // The timestamp is set when a validator:
+    // - Successfully completes the `join_validator_set` process
+    // - Meets all minimum requirements (stake, performance, etc.)
+    // - Is officially added to the validator registry
+    // Used for:
+    // - Calculating validator tenure and experience
+    // - Age-based reward calculations or bonuses
+    // - Network growth analysis and statistics
+    // - Validator lifecycle tracking
+    // - API responses for validator information
+    // The value is None for validators who joined before this tracking
     // ValidatorJoinTime and ValidatorLeaveRequests moved to pallet-cerulea-pos.
 
-    /// Block number of the most recently finalized block in the network.
-    /// 
-    /// Tracks the highest block number that has achieved finality through
-    /// the consensus mechanism. Finalization typically occurs at epoch
-    /// boundaries or through explicit finality gadgets.
-    /// 
-    /// Finalized blocks are considered:
-    /// - Permanently part of the canonical chain
-    /// - Safe from reorganization or rollback
-    /// - Confirmed by sufficient validator consensus
-    /// - Available for state pruning and archival
-    /// 
-    /// Used for:
-    /// - Determining safe block heights for critical operations
-    /// - State pruning and storage optimization
-    /// - API responses about network finality status
-    /// - Calculating finality lag and network health metrics
-    /// - Ensuring transaction irreversibility guarantees
-    /// 
-    /// The value is updated through:
-    /// - Automatic finalization at epoch boundaries
-    /// - Explicit finality signals from consensus mechanisms
-    /// - Manual finalization through governance actions
-    /// 
-    /// # Value: u32 - Block number of the last finalized block
-    #[pallet::storage]
-    #[pallet::getter(fn last_finalized_block)]
-    pub type LastFinalizedBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-    /// Previous finalized block number for regression detection.
-    /// 
-    /// Stores the finalized block number from the previous epoch to enable
-    /// monotonic advancement validation and regression detection. This storage
-    /// is updated during each epoch transition to track finality progression.
-    /// 
-    /// Used for:
-    /// - Validating monotonic finality advancement
-    /// - Detecting finality regression attempts
-    /// - Ensuring finality never moves backward
-    /// - Generating finality progression reports
-    /// 
-    /// # Value: u32 - Block number of the previous finalized block
-    #[pallet::storage]
-    #[pallet::getter(fn previous_finalized_block)]
-    pub type PreviousFinalizedBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-    /// Best known block number from the previous epoch for finality validation.
-    /// 
-    /// Tracks the highest block number that was known during the previous epoch
-    /// to ensure that finality never exceeds the best known block of the prior
-    /// epoch. This prevents finality from advancing beyond what was actually
-    /// produced and validated.
-    /// 
-    /// Updated at each epoch boundary to capture the best block of the
-    /// concluding epoch before transitioning to the new epoch.
-    /// 
-    /// Used for:
-    /// - Validating finality bounds against actual block production
-    /// - Preventing finality from exceeding known block heights
-    /// - Ensuring finality consistency with block production
-    /// - Detecting invalid finality advancement attempts
-    /// 
-    /// # Value: u32 - Best known block number from previous epoch
-    #[pallet::storage]
-    #[pallet::getter(fn previous_epoch_best_block)]
-    pub type PreviousEpochBestBlock<T: Config> = StorageValue<_, u32, ValueQuery>;
-
     /// Evidence storage for validator misbehavior reports.
-    /// 
+    ///
     /// Stores cryptographic evidence and proof of validator misbehavior
     /// submitted by other network participants. This system enables
     /// decentralized monitoring and accountability for validator actions.
-    /// 
+    ///
     /// The double map structure allows multiple reporters to submit
     /// evidence against the same validator, building a comprehensive
     /// case for potential slashing or ejection actions.
-    /// 
+    ///
     /// Evidence can include:
     /// - Cryptographic proofs of equivocation (double-signing)
     /// - Invalid block production attempts
     /// - Consensus rule violations
     /// - Off-chain misbehavior with on-chain impact
     /// - Inference result manipulation or fraud
-    /// 
+    ///
     /// The evidence is bounded by `T::MaxEvidenceLength` to prevent
     /// storage abuse while allowing sufficient space for cryptographic
     /// proofs and detailed documentation.
-    /// 
+    ///
     /// Used for:
     /// - Building cases for validator slashing
     /// - Automatic ejection of malicious validators
     /// - Network security and integrity maintenance
     /// - Governance decision support for disciplinary actions
-    /// 
+    ///
     /// # Key1: T::AccountId - Validator being reported for misbehavior
     /// # Key2: T::AccountId - Account submitting the evidence report
     /// # Value: BoundedVec<u8, T::MaxEvidenceLength> - Cryptographic evidence and proof data
@@ -3352,7 +3500,7 @@ pub mod pallet {
     /// These scores are used to assess validator trustworthiness and influence their participation
     /// in consensus and reward distribution.
     ///
-    /// Trust scores are calculated using configurable weights for different components:
+    /// Trust scores are calculated using adjustable weights for different components:
     /// - Uptime score: Based on validator availability and participation
     /// - Inference success score: Based on AI/ML inference accuracy and participation
     /// - Slashing penalty: Negative impact from past misbehavior or poor performance
@@ -3376,13 +3524,8 @@ pub mod pallet {
     /// # Value: u64 - Current trust score (0 to T::MaxTrustScore)
     #[pallet::storage]
     #[pallet::getter(fn validator_trust_scores)]
-    pub type ValidatorTrustScores<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        T::AccountId,
-        u64,
-        ValueQuery,
-    >;
+    pub type ValidatorTrustScores<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u64, ValueQuery>;
 
     /// Historical trust score data for trend analysis and performance tracking.
     ///
@@ -3439,7 +3582,7 @@ pub mod pallet {
     /// These values can be updated through governance to adapt to network conditions
     /// while maintaining the integrity of the trust scoring system.
     ///
-    /// # Value: TrustScoreBoundsData - Current bounds configuration
+    /// # Value: TrustScoreBoundsData - Current bounds settings
     #[pallet::storage]
     #[pallet::getter(fn trust_score_bounds)]
     pub type TrustScoreBounds<T: Config> = StorageValue<_, TrustScoreBoundsData, ValueQuery>;
@@ -3459,7 +3602,8 @@ pub mod pallet {
     /// # Value: TrustScoreStabilityMetricsData - Current stability metrics
     #[pallet::storage]
     #[pallet::getter(fn trust_score_stability_metrics)]
-    pub type TrustScoreStabilityMetrics<T: Config> = StorageValue<_, TrustScoreStabilityMetricsData, ValueQuery>;
+    pub type TrustScoreStabilityMetrics<T: Config> =
+        StorageValue<_, TrustScoreStabilityMetricsData, ValueQuery>;
 
     /// Storage for invariant violation reports generated at epoch boundaries.
     ///
@@ -3475,13 +3619,8 @@ pub mod pallet {
     /// # Value: InvariantReport<T> - Complete invariant violation report
     #[pallet::storage]
     #[pallet::getter(fn invariant_reports)]
-    pub type InvariantReports<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        u32,
-        InvariantReport<T>,
-        OptionQuery,
-    >;
+    pub type InvariantReports<T: Config> =
+        StorageMap<_, Blake2_128Concat, u32, InvariantReport<T>, OptionQuery>;
 
     /// Storage for the latest invariant report for quick access.
     ///
@@ -3498,30 +3637,30 @@ pub mod pallet {
     // EpochTotalSlashed and EpochTotalRewarded moved to pallet-cerulea-pos.
 
     /// Storage version for the DCF pallet.
-    /// 
+    ///
     /// This storage item tracks the current version of the storage schema to enable
     /// safe migrations and upgrades. The version number is incremented whenever
     /// breaking changes are made to the storage layout.
-    /// 
+    ///
     /// Version History:
     /// - Version 1: Initial production-ready storage layout with comprehensive governance,
     ///   invariant checking, and validator lifecycle management
-    /// 
+    ///
     /// The storage version is validated during runtime initialization to ensure
     /// compatibility and trigger migrations when necessary.
-    /// 
+    ///
     /// # Value: u32 - Current storage schema version number
     #[pallet::storage]
     #[pallet::getter(fn storage_version)]
     pub type StorageVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Rate limiting configuration for DoS protection.
+    /// Rate limiting settings for DoS protection.
     ///
-    /// This storage item contains the current rate limiting configuration that
+    /// This storage item contains the current rate limiting settings that
     /// controls how frequently various operations can be performed to prevent
     /// abuse and DoS attacks on the network.
     ///
-    /// # Value: RateLimitConfig - Complete rate limiting configuration
+    /// # Value: RateLimitConfig - Complete rate limiting settings
     #[pallet::storage]
     #[pallet::getter(fn rate_limit_config)]
     pub type RateLimitConfigStorage<T: Config> = StorageValue<_, RateLimitConfig, ValueQuery>;
@@ -3535,9 +3674,8 @@ pub mod pallet {
     /// # Value: u32 - Number of operations performed in current block
     #[pallet::storage]
     #[pallet::getter(fn block_operation_counts)]
-    pub type BlockOperationCounts<T: Config> = StorageMap<
-        _, Blake2_128Concat, DispatchableType, u32, ValueQuery
-    >;
+    pub type BlockOperationCounts<T: Config> =
+        StorageMap<_, Blake2_128Concat, DispatchableType, u32, ValueQuery>;
 
     /// Per-account operation history for rate limiting.
     ///
@@ -3549,8 +3687,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn account_operation_history)]
     pub type AccountOperationHistory<T: Config> = StorageDoubleMap<
-        _, Blake2_128Concat, T::AccountId, Blake2_128Concat, DispatchableType, 
-        BoundedVec<u32, ConstU32<100>>, ValueQuery
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        Blake2_128Concat,
+        DispatchableType,
+        BoundedVec<u32, ConstU32<100>>,
+        ValueQuery,
     >;
 
     /// Last operation block for minimum interval enforcement.
@@ -3563,7 +3706,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn last_operation_block)]
     pub type LastOperationBlock<T: Config> = StorageDoubleMap<
-        _, Blake2_128Concat, T::AccountId, Blake2_128Concat, DispatchableType, u32, OptionQuery
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        Blake2_128Concat,
+        DispatchableType,
+        u32,
+        OptionQuery,
     >;
 
     // ValidatorEpochSlashed and ValidatorEpochRewarded moved to pallet-cerulea-pos.
@@ -3584,7 +3733,8 @@ pub mod pallet {
     /// # Value: DeterministicEpochEngine - Complete deterministic processing state
     #[pallet::storage]
     #[pallet::getter(fn deterministic_engine)]
-    pub type DeterministicEngineState<T: Config> = StorageValue<_, DeterministicEpochEngine, ValueQuery>;
+    pub type DeterministicEngineState<T: Config> =
+        StorageValue<_, DeterministicEpochEngine, ValueQuery>;
 
     /// Historical epoch processing outputs for replay validation.
     ///
@@ -3606,9 +3756,8 @@ pub mod pallet {
     /// # Value: EpochProcessingOutput<T> - Complete processing inputs and outputs
     #[pallet::storage]
     #[pallet::getter(fn epoch_processing_outputs)]
-    pub type EpochProcessingOutputs<T: Config> = StorageMap<
-        _, Blake2_128Concat, u32, EpochProcessingOutput<T>, OptionQuery
-    >;
+    pub type EpochProcessingOutputs<T: Config> =
+        StorageMap<_, Blake2_128Concat, u32, EpochProcessingOutput<T>, OptionQuery>;
 
     /// Deterministic author sequences for each epoch.
     ///
@@ -3625,9 +3774,8 @@ pub mod pallet {
     /// # Value: BoundedVec<T::AccountId, ConstU32<1000>> - Deterministic author sequence
     #[pallet::storage]
     #[pallet::getter(fn epoch_author_sequences)]
-    pub type EpochAuthorSequences<T: Config> = StorageMap<
-        _, Blake2_128Concat, u32, BoundedVec<T::AccountId, ConstU32<1000>>, OptionQuery
-    >;
+    pub type EpochAuthorSequences<T: Config> =
+        StorageMap<_, Blake2_128Concat, u32, BoundedVec<T::AccountId, ConstU32<1000>>, OptionQuery>;
 
     /// Snapshotted validator scores taken at a fixed block before each epoch boundary.
     /// Used as the weight input for the next epoch's author sequence so all nodes
@@ -3637,9 +3785,11 @@ pub mod pallet {
     /// # Value: BoundedVec<(AccountId, score)> - Scores frozen at snapshot block
     #[pallet::storage]
     pub type EpochScoreSnapshot<T: Config> = StorageMap<
-        _, Blake2_128Concat, u32,
+        _,
+        Blake2_128Concat,
+        u32,
         BoundedVec<(T::AccountId, u64), ConstU32<1000>>,
-        OptionQuery
+        OptionQuery,
     >;
 
     /// Aggregated system metrics for operational monitoring.
@@ -3688,7 +3838,8 @@ pub mod pallet {
     /// # Value: SystemPerformanceIndicators - Detailed performance metrics
     #[pallet::storage]
     #[pallet::getter(fn performance_indicators)]
-    pub type PerformanceIndicatorsStorage<T: Config> = StorageValue<_, SystemPerformanceIndicators, ValueQuery>;
+    pub type PerformanceIndicatorsStorage<T: Config> =
+        StorageValue<_, SystemPerformanceIndicators, ValueQuery>;
 
     /// Metrics update timestamp for cache invalidation.
     ///
@@ -3710,9 +3861,9 @@ pub mod pallet {
     #[pallet::getter(fn metrics_last_updated)]
     pub type MetricsLastUpdated<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Private chain configuration and validator allowlist.
+    /// Private chain settings and validator allowlist.
     ///
-    /// This storage item contains the configuration for private chain mode,
+    /// This storage item contains the settings for private chain mode,
     /// including the validator allowlist and permission settings.
     ///
     /// # Usage
@@ -3720,10 +3871,11 @@ pub mod pallet {
     /// - Managing validator allowlists and permissions
     /// - Enforcing private chain access restrictions
     ///
-    /// # Value: PrivateChainConfig<T::AccountId> - Complete private chain configuration
+    /// # Value: PrivateChainConfig<T::AccountId> - Complete private chain settings
     #[pallet::storage]
     #[pallet::getter(fn private_chain_config)]
-    pub type PrivateChainConfigStorage<T: Config> = StorageValue<_, private_chain::PrivateChainConfig<T::AccountId>, OptionQuery>;
+    pub type PrivateChainConfigStorage<T: Config> =
+        StorageValue<_, private_chain::PrivateChainConfig<T::AccountId>, OptionQuery>;
 
     /// EVM-compatible events storage for cross-chain event querying.
     ///
@@ -3747,15 +3899,226 @@ pub mod pallet {
         ValueQuery,
     >;
 
-    /// Slashing history for validators.
+    /// The class table of the Assurance Engine.
     ///
-    /// This storage item maintains a complete history of slashing events
-    /// for each validator, including amounts, reasons, and timestamps.
+    /// The table names the share of aggregated Trust Score weight each
+    /// transaction class needs, and the delay window each class waits. A
+    /// deployment starts from the profile in
+    /// `engines::assurance::ClassTable::starting_profile`. The Amendment
+    /// Engine governs every later change.
+    #[pallet::storage]
+    #[pallet::getter(fn assurance_class_table)]
+    pub type AssuranceClassTable<T: Config> =
+        StorageValue<_, crate::engines::assurance::ClassTable, ValueQuery>;
+
+    /// The custody share of each validator, in parts per million.
     ///
+    /// The Custody Engine reports the share after every settled challenge. The
+    /// Standing Engine folds the share into the Trust Score.
+    #[pallet::storage]
+    #[pallet::getter(fn custody_share_of)]
+    pub type CustodyShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, OptionQuery>;
+
+    /// The proven custody faults of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn custody_faults_of)]
+    pub type CustodyFaults<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+
+    /// The network this deployment runs.
+    ///
+    /// The public-access chain and a private chain weigh a validator
+    /// differently, so the Trust Score composition reads this value.
+    #[pallet::storage]
+    #[pallet::getter(fn chain_kind)]
+    pub type DeploymentChainKind<T: Config> =
+        StorageValue<_, crate::engines::standing::ChainKind, ValueQuery>;
+
+    /// The epochs of service that carry a validator to the whole standing
+    /// share.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_ramp_epochs)]
+    pub type StandingRampEpochs<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// The service record of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn service_record)]
+    pub type ServiceRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::ServiceRecord,
+        ValueQuery,
+    >;
+
+    /// The verification sampling record of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn sampling_record)]
+    pub type SamplingRecords<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::SamplingRecord,
+        ValueQuery,
+    >;
+
+    /// The standing share of each validator, after decay.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_share_of)]
+    pub type StandingShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The measured operational performance of each validator.
+    #[pallet::storage]
+    #[pallet::getter(fn performance_share_of)]
+    pub type PerformanceShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The role weight of each validator on a private chain.
+    #[pallet::storage]
+    #[pallet::getter(fn role_share_of)]
+    pub type RoleShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The credential attestation share of each validator on a private chain.
+    #[pallet::storage]
+    #[pallet::getter(fn attestation_share_of)]
+    pub type AttestationShares<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, sp_runtime::Perbill, OptionQuery>;
+
+    /// The reset each validator carries from proven misconduct.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_reset_of)]
+    pub type StandingResets<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::ResetRecord,
+        OptionQuery,
+    >;
+
+    /// The equivocation fault each validator carries.
+    ///
+    /// Equivocation means one validator sealing two different headers for one
+    /// slot at one rank. The record names the slot, the rank and the two
+    /// headers, so an operator reads what the chain proved.
+    #[pallet::storage]
+    #[pallet::getter(fn equivocation_fault_of)]
+    pub type EquivocationFaults<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        crate::engines::standing::FaultRecord,
+        OptionQuery,
+    >;
+
+    /// The equivocations the chain has already penalised.
+    ///
+    /// One slot, one rank and one seal key take one penalty. A second report of
+    /// one equivocation leaves the chain unchanged.
+    #[pallet::storage]
+    #[pallet::getter(fn equivocation_penalised)]
+    pub type PenalisedEquivocations<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        crate::engines::standing::FaultKey,
+        crate::engines::standing::FaultRecord,
+        OptionQuery,
+    >;
+
+    /// The anchored checkpoints of this chain, by index.
+    ///
+    /// A checkpoint is one committed block the chain names as settled. Every
+    /// node keeps a copy in its own store and refuses any chain that disagrees
+    /// with an anchored checkpoint.
+    #[pallet::storage]
+    #[pallet::getter(fn anchored_checkpoint)]
+    pub type AnchoredCheckpoints<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u32,
+        cerulea_primitives::checkpoint::Checkpoint,
+        OptionQuery,
+    >;
+
+    /// The highest checkpoint the chain anchored.
+    #[pallet::storage]
+    #[pallet::getter(fn latest_checkpoint)]
+    pub type LatestCheckpoint<T: Config> =
+        StorageValue<_, cerulea_primitives::checkpoint::Checkpoint, OptionQuery>;
+
+    /// The blocks between two checkpoints.
+    ///
+    /// A value of zero anchors nothing. The chain then keeps producing blocks
+    /// with no checkpoint above genesis.
+    #[pallet::storage]
+    #[pallet::getter(fn checkpoint_interval)]
+    pub type CheckpointInterval<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// The decay the Standing Engine applies during inactivity.
+    #[pallet::storage]
+    #[pallet::getter(fn standing_decay_settings)]
+    pub type StandingDecay<T: Config> =
+        StorageValue<_, crate::engines::standing::DecaySettings, ValueQuery>;
+
+    /// The eight policies of this deployment profile.
+    #[pallet::storage]
+    #[pallet::getter(fn policy_set)]
+    pub type Policies<T: Config> =
+        StorageValue<_, crate::engines::amendment::PolicySet, ValueQuery>;
+
+    /// The identifier the next amendment receives.
+    #[pallet::storage]
+    #[pallet::getter(fn next_amendment_id)]
+    pub type NextAmendmentId<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// The amendments under way.
+    #[pallet::storage]
+    #[pallet::getter(fn amendment)]
+    pub type Amendments<T: Config> =
+        StorageMap<_, Blake2_128Concat, u64, crate::engines::amendment::Amendment, OptionQuery>;
+
+    /// The accounts that approved each amendment.
+    #[pallet::storage]
+    pub type AmendmentApprovals<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        u64,
+        Blake2_128Concat,
+        T::AccountId,
+        bool,
+        ValueQuery,
+    >;
+
+    /// The identifier the next scheduled change receives.
+    #[pallet::storage]
+    #[pallet::getter(fn next_scheduled_change_id)]
+    pub type NextScheduledChangeId<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// Changes waiting out the delay window their class carries.
+    ///
+    /// A constitutional change commits at nine tenths of aggregated weight and
+    /// then waits. The chain releases the change at the first block at or after
+    /// the effective block. A release inside the window fails and names the
+    /// blocks remaining.
+    #[pallet::storage]
+    #[pallet::getter(fn scheduled_change)]
+    pub type ScheduledChanges<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u64,
+        crate::engines::assurance::ScheduledChange<BoundedVec<u8, ConstU32<512>>>,
+        OptionQuery,
+    >;
+
+    // Slashing history for validators.
+    // The slashing history moved to pallet-cerulea-pos. That pallet holds the
+    // amount, the reason and the block of every slashing event.
 
     // --- Events --- //
     /// Events emitted by the pallet for all state transitions and validator lifecycle changes.
-    /// 
+    ///
     /// These events provide comprehensive coverage of all validator operations, consensus changes,
     /// governance actions, and network state transitions. They are essential for:
     /// - Block explorers and monitoring tools
@@ -3767,42 +4130,42 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Emitted when a validator's scores are updated during normal operations.
-        /// 
+        ///
         /// This event is triggered when validator scores change due to:
         /// - Stake amount changes affecting PoS scores
         /// - Inference performance updates affecting PoI scores
         /// - Manual score adjustments through governance
         /// - Automatic score recalculations during epoch transitions
-        /// 
+        ///
         /// The final_score is computed as: (stake_score * pos_weight + inference_score * poi_weight) / precision
         ValidatorScoreUpdated {
             /// The validator whose scores were updated
             validator: T::AccountId,
             /// New Proof-of-Stake score based on validator's stake amount
             stake_score: u64,
-            /// New Proof-of-Inference score based on AI/ML performance
+            /// New the inference contribution score based on AI/ML performance
             inference_score: u64,
             /// New combined final score used for consensus ranking
             final_score: u64,
         },
 
         /// Emitted when the consensus weight distribution between PoS and PoI is modified.
-        /// 
+        ///
         /// This event occurs when governance or root accounts adjust the relative importance
         /// of stake-based vs. inference-based scoring in the consensus mechanism. The weights
         /// must always sum to the precision factor (typically 10000 for basis points).
-        /// 
+        ///
         /// Changes affect all future score calculations but do not retroactively modify
         /// existing validator scores until their next update.
         ConsensusWeightsUpdated {
             /// New weight for Proof-of-Stake component (0-10000 basis points)
             pos_weight: u64,
-            /// New weight for Proof-of-Inference component (0-10000 basis points)
+            /// New weight for the inference contribution component (0-10000 basis points)
             poi_weight: u64,
         },
 
         /// Emitted at the beginning of each new epoch with the active validator set.
-        /// 
+        ///
         /// This event marks the start of a new epoch period and includes the complete
         /// list of validators who are eligible to participate in consensus during this epoch.
         /// The validator list is determined by:
@@ -3818,7 +4181,7 @@ pub mod pallet {
         },
 
         /// Emitted at the conclusion of an epoch period.
-        /// 
+        ///
         /// This event marks the end of an epoch and typically precedes epoch transition
         /// activities such as validator set updates, reward distributions, and score decay
         /// applications. It provides a clear boundary for epoch-based calculations.
@@ -3828,11 +4191,11 @@ pub mod pallet {
         },
 
         /// Emitted when a validator's score is reduced due to inactivity.
-        /// 
+        ///
         /// Score decay is applied to validators who have not been active for extended
         /// periods to encourage consistent participation and prevent dormant validators
         /// from maintaining high rankings indefinitely. Decay is applied according to
-        /// the configured decay rate and inactivity thresholds.
+        /// the set decay rate and inactivity thresholds.
         ValidatorScoreDecayed {
             /// The validator whose score was decayed
             validator: T::AccountId,
@@ -3843,7 +4206,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator receives a score boost for positive actions.
-        /// 
+        ///
         /// Score boosts reward validators for beneficial network activities such as:
         /// - Successfully authoring blocks when selected
         /// - Submitting high-quality inference results
@@ -3861,7 +4224,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator is forcibly removed from the validator set.
-        /// 
+        ///
         /// Validator ejection occurs when validators consistently fail to meet network
         /// standards or engage in malicious behavior. Ejection can be triggered by:
         /// - Chronic poor performance below minimum thresholds
@@ -3876,7 +4239,7 @@ pub mod pallet {
         },
 
         /// Emitted when a previously ejected validator successfully rejoins the network.
-        /// 
+        ///
         /// This event occurs when validators who were previously ejected for poor
         /// performance or other issues demonstrate improved capabilities and are
         /// allowed to rejoin the validator set. Re-entry typically requires:
@@ -3891,7 +4254,7 @@ pub mod pallet {
         },
 
         /// Emitted when block author validation fails due to author mismatch.
-        /// 
+        ///
         /// This critical security event occurs when the actual block author differs
         /// from the expected author according to the consensus algorithm. This can
         /// indicate:
@@ -3899,7 +4262,7 @@ pub mod pallet {
         /// - Malicious attempts to produce unauthorized blocks
         /// - Network synchronization issues
         /// - Validator set inconsistencies
-        /// 
+        ///
         /// Blocks with author mismatches are rejected to maintain network security.
         AuthorMismatch {
             /// Block number where the mismatch was detected
@@ -3923,7 +4286,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator attempts to join but lacks sufficient stake.
-        /// 
+        ///
         /// This event occurs when validators try to join the network but do not meet
         /// the minimum stake requirements. It provides transparency about failed join
         /// attempts and helps validators understand the requirements for participation.
@@ -3937,7 +4300,7 @@ pub mod pallet {
         },
 
         /// Emitted when an invalid block author is detected during validation.
-        /// 
+        ///
         /// This event indicates that a block was produced by a validator who was not
         /// authorized to produce blocks at that time. This is distinct from author
         /// mismatch as it specifically identifies unauthorized block production attempts.
@@ -3949,11 +4312,11 @@ pub mod pallet {
         },
 
         /// Emitted when governance mode is enabled or disabled.
-        /// 
+        ///
         /// Governance mode changes affect how the pallet operates:
         /// - When enabled: Manual epoch transitions allowed, enhanced admin powers
         /// - When disabled: Fully automated operation, reduced admin intervention
-        /// 
+        ///
         /// This event provides transparency about the current operational mode.
         GovernanceModeToggled {
             /// New governance mode state (true = enabled, false = disabled)
@@ -3961,7 +4324,7 @@ pub mod pallet {
         },
 
         /// Emitted when a new governance proposal is submitted to the network.
-        /// 
+        ///
         /// Governance proposals enable decentralized decision-making for validator
         /// management actions including slashing, rewards, ejections, and set changes.
         /// This event marks the beginning of the proposal lifecycle.
@@ -3975,7 +4338,7 @@ pub mod pallet {
         },
 
         /// Emitted when a governance proposal is executed after approval.
-        /// 
+        ///
         /// This event occurs when approved proposals are executed by authorized
         /// accounts (typically root). It marks the completion of the governance
         /// process and the implementation of the proposed changes.
@@ -3987,7 +4350,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator casts a vote on a governance proposal.
-        /// 
+        ///
         /// This event tracks individual voting participation in the governance
         /// process, providing transparency about validator engagement in network
         /// decision-making and enabling vote auditing.
@@ -4001,27 +4364,27 @@ pub mod pallet {
         },
 
         /// Emitted when a governance proposal receives sufficient approval votes.
-        /// 
+        ///
         /// This event occurs when a proposal reaches the required quorum and has
         /// more approval votes than rejection votes. Approved proposals become
         /// eligible for execution by authorized accounts.
-        ProposalPassed { 
+        ProposalPassed {
             /// Unique identifier of the approved proposal
-            proposal_id: u32 
+            proposal_id: u32,
         },
 
         /// Emitted when a governance proposal is rejected by validator votes.
-        /// 
+        ///
         /// This event occurs when a proposal reaches the required quorum but has
         /// more rejection votes than approval votes. Rejected proposals cannot
         /// be executed and are marked as failed.
-        ProposalRejected { 
+        ProposalRejected {
             /// Unique identifier of the rejected proposal
-            proposal_id: u32 
+            proposal_id: u32,
         },
 
         /// Emitted when a validator requests to join the network.
-        /// 
+        ///
         /// This event marks the beginning of the validator onboarding process when
         /// a validator submits a request to join the network. The request includes
         /// stake commitment and triggers validation of eligibility requirements.
@@ -4034,12 +4397,12 @@ pub mod pallet {
         },
 
         /// Emitted when a new validator successfully joins the network.
-        /// 
+        ///
         /// This event marks the successful completion of the validator onboarding
         /// process, including meeting stake requirements, passing validation checks,
         /// and being added to the validator registry. The validator becomes eligible
         /// for consensus participation.
-        ValidatorJoined { 
+        ValidatorJoined {
             /// Account of the validator who joined the network
             validator: T::AccountId,
             /// Amount of stake that was reserved for validator participation
@@ -4047,22 +4410,22 @@ pub mod pallet {
         },
 
         /// Emitted when a validator completes the process of leaving the network.
-        /// 
+        ///
         /// This event occurs when validators successfully exit the network after
         /// completing required cooldown periods. Their stake is unreserved and
         /// they are removed from all validator sets and registries.
-        ValidatorLeft { 
+        ValidatorLeft {
             /// Account of the validator who left the network
-            validator: T::AccountId 
+            validator: T::AccountId,
         },
 
         /// Emitted when a validator requests to leave the network.
-        /// 
+        ///
         /// This event marks the beginning of the validator exit process. The validator
         /// enters a cooldown period during which they must continue participating
         /// while their leave request is processed. This prevents rapid validator
         /// set changes that could destabilize consensus.
-        ValidatorLeaveRequested { 
+        ValidatorLeaveRequested {
             /// Account of the validator requesting to leave
             validator: T::AccountId,
             /// Block number when the cooldown period expires and leaving is allowed
@@ -4070,7 +4433,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator cancels their pending leave request.
-        /// 
+        ///
         /// This event occurs when validators decide to remain in the network after
         /// previously requesting to leave. The leave request is cancelled and the
         /// validator continues normal participation without entering cooldown.
@@ -4079,20 +4442,20 @@ pub mod pallet {
             validator: T::AccountId,
         },
 
-        /// Emitted when a validator's Proof-of-Inference score is updated.
-        /// 
+        /// Emitted when a validator's the inference contribution score is updated.
+        ///
         /// This event specifically tracks changes to PoI scores, which reflect
         /// validator performance in AI/ML inference tasks. PoI scores are a critical
-        /// component of the CBC consensus mechanism's hybrid scoring system.
+        /// component of the Cerulea consensus mechanism's hybrid scoring system.
         ValidatorPoiScoreUpdated {
-            /// The validator whose PoI score was updated
+            /// The validator whose inference contribution was updated
             validator: T::AccountId,
-            /// New Proof-of-Inference score value
+            /// New the inference contribution score value
             poi_score: u64,
         },
 
         /// Emitted when validator metadata (such as display name) is updated.
-        /// 
+        ///
         /// This event tracks changes to validator metadata that improve user
         /// experience in interfaces and monitoring tools. Metadata updates do
         /// not affect consensus operations but enhance validator identification.
@@ -4104,7 +4467,7 @@ pub mod pallet {
         },
 
         /// Emitted when validator activity metrics are updated.
-        /// 
+        ///
         /// This event tracks changes to validator performance metrics including
         /// block production statistics and uptime percentages. These metrics
         /// are used for performance evaluation and score calculations.
@@ -4120,7 +4483,7 @@ pub mod pallet {
         },
 
         /// Emitted when the system automatically generates a validator management proposal.
-        /// 
+        ///
         /// This event occurs when automated systems detect conditions that warrant
         /// validator management actions and create governance proposals accordingly.
         /// This enables algorithmic governance while maintaining human oversight.
@@ -4136,7 +4499,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator is added to the validator set.
-        /// 
+        ///
         /// This event occurs when validators are successfully added to the network
         /// through governance proposals or administrative actions. It differs from
         /// ValidatorJoined in that it can occur through external proposals rather
@@ -4147,7 +4510,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator is removed from the validator set.
-        /// 
+        ///
         /// This event occurs when validators are removed through governance
         /// proposals or administrative actions. It differs from ValidatorLeft
         /// in that it can be involuntary removal rather than self-initiated leaving.
@@ -4156,10 +4519,8 @@ pub mod pallet {
             validator: T::AccountId,
         },
 
-
-
         /// Emitted when misbehavior is reported against a validator.
-        /// 
+        ///
         /// This event occurs when network participants submit evidence of validator
         /// misbehavior. Multiple reports against the same validator can trigger
         /// automatic slashing when the threshold is reached, providing decentralized
@@ -4176,9 +4537,9 @@ pub mod pallet {
         },
 
         /// Emitted when a validator is automatically slashed due to multiple misbehavior reports.
-        /// 
+        ///
         /// This event occurs when the number of independent misbehavior reports against
-        /// a validator reaches the configured threshold, triggering automatic slashing
+        /// a validator reaches the set threshold, triggering automatic slashing
         /// without requiring governance approval. This provides rapid response to
         /// clear cases of validator misbehavior.
         ValidatorAutoSlashed {
@@ -4191,7 +4552,7 @@ pub mod pallet {
         },
 
         /// Emitted when an inference operation is simulated for development purposes.
-        /// 
+        ///
         /// This event is used during development and testing to simulate AI/ML
         /// inference operations without requiring actual inference computations.
         /// It helps test the PoI scoring system and validator performance tracking.
@@ -4202,35 +4563,8 @@ pub mod pallet {
             triggered_by: T::AccountId,
         },
 
-        /// Emitted when a block achieves finality in the network.
-        /// 
-        /// Block finalization marks blocks as permanently part of the canonical
-        /// chain and safe from reorganization. This event is critical for
-        /// applications that require transaction irreversibility guarantees.
-        BlockFinalized {
-            /// Block number that achieved finality
-            block_number: u32,
-        },
-
-        /// Emitted when consensus finality is reached for a specific block.
-        /// 
-        /// This event provides detailed finality tracking for consensus monitoring
-        /// and includes information about the validator set that participated in
-        /// achieving finality. It's essential for consensus health monitoring and
-        /// provides more detailed information than BlockFinalized.
-        FinalityMarker {
-            /// Block number that achieved consensus finality
-            block_number: u32,
-            /// Hash of the finalized block for verification
-            block_hash: T::Hash,
-            /// List of validators that participated in achieving finality
-            participating_validators: Vec<T::AccountId>,
-            /// Total number of validators in the active set during finality
-            total_validators: u32,
-        },
-
         /// Emitted when an epoch transition occurs with validator set changes and performance metrics.
-        /// 
+        ///
         /// This comprehensive event provides complete information about epoch changes
         /// including validator set updates, performance metrics, and transition details.
         /// It's essential for monitoring network evolution and validator performance over time.
@@ -4256,7 +4590,7 @@ pub mod pallet {
         },
 
         /// Emitted when an epoch boundary is detected during block processing.
-        /// 
+        ///
         /// This event occurs when the system detects that an epoch transition
         /// should occur based on block numbers or other criteria. It provides
         /// early notification of pending epoch changes.
@@ -4270,7 +4604,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator registers a display name.
-        /// 
+        ///
         /// This event tracks validator name registrations that improve user
         /// experience in interfaces and monitoring tools. Names are purely
         /// cosmetic and do not affect consensus operations.
@@ -4282,7 +4616,7 @@ pub mod pallet {
         },
 
         /// Emitted when a detailed governance proposal is created with description.
-        /// 
+        ///
         /// This enhanced proposal event includes additional context and description
         /// information to help validators make informed voting decisions. It
         /// supplements the basic ProposalSubmitted event with richer metadata.
@@ -4298,7 +4632,7 @@ pub mod pallet {
         },
 
         /// Emitted when validator scores are updated with detailed before/after information.
-        /// 
+        ///
         /// This comprehensive score update event provides complete visibility into
         /// score changes including individual component changes and the epoch
         /// context. It's essential for detailed performance analysis and debugging.
@@ -4309,9 +4643,9 @@ pub mod pallet {
             old_stake_score: u64,
             /// New Proof-of-Stake score value
             new_stake_score: u64,
-            /// Previous Proof-of-Inference score value
+            /// Previous the inference contribution score value
             old_inference_score: u64,
-            /// New Proof-of-Inference score value
+            /// New the inference contribution score value
             new_inference_score: u64,
             /// Previous combined final score value
             old_final_score: u64,
@@ -4321,10 +4655,8 @@ pub mod pallet {
             epoch: u32,
         },
 
-
-
         /// Emitted when a validator's trust score is updated with component breakdown.
-        /// 
+        ///
         /// This comprehensive trust score event provides complete visibility into
         /// trust score calculations including the individual components (uptime,
         /// inference success, slashing penalties) that contribute to the final score.
@@ -4344,7 +4676,7 @@ pub mod pallet {
         },
 
         /// Emitted when a cooldown period expires and restrictions are lifted.
-        /// 
+        ///
         /// This event occurs when validators complete required cooldown periods
         /// for leaving or re-entry restrictions. It marks the end of waiting
         /// periods and the restoration of full network participation rights.
@@ -4358,7 +4690,7 @@ pub mod pallet {
         },
 
         /// Emitted when a stake operation fails due to insufficient funds or other issues.
-        /// 
+        ///
         /// This event provides transparency about failed stake operations including
         /// the specific operation that failed and the reason for failure. This
         /// helps validators understand and resolve stake-related issues.
@@ -4372,7 +4704,7 @@ pub mod pallet {
         },
 
         /// Emitted when a validator's trust score decays due to inactivity.
-        /// 
+        ///
         /// Trust score decay is applied to validators who have not been active
         /// for extended periods to encourage consistent participation. This event
         /// tracks the decay process and its impact on validator rankings.
@@ -4388,17 +4720,17 @@ pub mod pallet {
         },
 
         /// Emitted when a DCF parameter is updated through governance.
-        /// 
+        ///
         /// This critical governance event occurs when network parameters are modified
         /// through the parameter governance system. It provides complete transparency
         /// about parameter changes including the specific parameter, old value, and new value.
-        /// 
+        ///
         /// Parameter changes are subject to safety rails that ensure:
         /// - New values are within acceptable ranges
         /// - Changes are authorized by root accounts only
         /// - All changes are documented with full audit trail
         /// - Parameter readback is available via runtime API
-        /// 
+        ///
         /// This event is essential for network monitoring, governance auditing,
         /// and ensuring parameter changes are properly tracked and validated.
         DcfParameterUpdated {
@@ -4411,17 +4743,17 @@ pub mod pallet {
         },
 
         /// Emitted when invariant violations are detected during epoch transitions.
-        /// 
+        ///
         /// This event signals that one or more system invariants have been violated,
         /// which could indicate potential security issues, bugs, or system instability.
         /// The event includes detailed information about each violation to aid in
         /// debugging and resolution.
-        /// 
+        ///
         /// # Fields
         /// - `epoch`: Epoch number when violations were detected
         /// - `violations`: List of specific invariant violations found
         /// - `severity`: Overall severity level of the violations
-        /// 
+        ///
         /// # Usage
         /// - System health monitoring and alerting
         /// - Automated incident response triggers
@@ -4437,17 +4769,17 @@ pub mod pallet {
         },
 
         /// Emitted when an invariant report is generated at epoch boundaries.
-        /// 
+        ///
         /// This event is emitted for every epoch transition, regardless of whether
         /// violations were found. It provides a comprehensive health check report
         /// that can be used for monitoring system stability and detecting trends.
-        /// 
+        ///
         /// # Fields
         /// - `epoch`: Epoch number for the report
         /// - `block_number`: Block number when the report was generated
         /// - `violations_count`: Number of violations detected
         /// - `severity`: Overall severity of any violations found
-        /// 
+        ///
         /// # Usage
         /// - Regular system health monitoring
         /// - Trend analysis and predictive maintenance
@@ -4465,16 +4797,16 @@ pub mod pallet {
         },
 
         /// Emitted when storage migration is completed successfully.
-        /// 
+        ///
         /// This event indicates that the storage schema has been successfully
         /// migrated from one version to another during a runtime upgrade.
         /// It provides transparency about migration activities and confirms
         /// that the storage is now compatible with the current runtime.
-        /// 
+        ///
         /// # Fields
         /// - `from_version`: Storage version before migration
         /// - `to_version`: Storage version after migration
-        /// 
+        ///
         /// # Usage
         /// - Runtime upgrade monitoring and validation
         /// - Migration audit trails and compliance
@@ -4488,17 +4820,17 @@ pub mod pallet {
         },
 
         /// Emitted when storage migration fails during runtime upgrade.
-        /// 
+        ///
         /// This critical event indicates that storage migration could not be
         /// completed successfully, which may prevent the runtime upgrade from
         /// proceeding safely. The error information helps diagnose and resolve
         /// migration issues.
-        /// 
+        ///
         /// # Fields
         /// - `from_version`: Storage version that migration attempted to start from
         /// - `to_version`: Storage version that migration attempted to reach
         /// - `error`: Detailed error information about the failure
-        /// 
+        ///
         /// # Usage
         /// - Critical system alerts and incident response
         /// - Migration debugging and troubleshooting
@@ -4514,16 +4846,16 @@ pub mod pallet {
         },
 
         /// Emitted when storage validation fails during initialization or migration.
-        /// 
+        ///
         /// This event indicates that storage data validation detected inconsistencies,
         /// corruption, or constraint violations that could compromise system integrity.
         /// Storage validation failures require immediate attention to prevent data loss
         /// or system instability.
-        /// 
+        ///
         /// # Fields
         /// - `version`: Storage version that was being validated
         /// - `error`: Detailed error information about the validation failure
-        /// 
+        ///
         /// # Usage
         /// - Critical system health monitoring
         /// - Data integrity alerts and incident response
@@ -4537,20 +4869,20 @@ pub mod pallet {
         },
 
         /// Emitted when a rate limit violation is detected and an operation is rejected.
-        /// 
+        ///
         /// This event provides information about rate limiting violations
         /// to help identify potential DoS attacks or misconfigured clients.
-        /// 
+        ///
         /// # Fields
         /// - `account`: Account that attempted the rate-limited operation
         /// - `operation`: Type of operation that was rate limited (encoded as u8)
         /// - `violation_type`: Type of violation (0=PerBlock, 1=PerAccount, 2=MinInterval, 3=Weight)
         /// - `current_count`: Current count that exceeded the limit
         /// - `limit`: The limit that was exceeded
-        /// 
+        ///
         /// # Usage
         /// - DoS attack detection and monitoring
-        /// - Client configuration debugging
+        /// - Client settings debugging
         /// - Network abuse prevention and analysis
         /// - Rate limiting effectiveness monitoring
         RateLimitViolation {
@@ -4566,18 +4898,18 @@ pub mod pallet {
             limit: u32,
         },
 
-        /// Emitted when rate limiting configuration is updated.
-        /// 
+        /// Emitted when rate limiting settings is updated.
+        ///
         /// This event documents changes to rate limiting parameters for
         /// audit trails and monitoring purposes.
-        /// 
+        ///
         /// # Fields
         /// - `max_proposals_per_block`: New maximum proposals per block
         /// - `max_joins_per_block`: New maximum joins per block
         /// - `max_leaves_per_block`: New maximum leaves per block
-        /// 
+        ///
         /// # Usage
-        /// - Configuration change auditing
+        /// - Settings change auditing
         /// - Rate limiting parameter monitoring
         /// - Security policy compliance tracking
         /// - System administration logging
@@ -4591,13 +4923,13 @@ pub mod pallet {
         },
 
         /// Emitted when per-block operation counters are reset.
-        /// 
+        ///
         /// This event is emitted at the beginning of each block when
         /// per-block rate limiting counters are reset to zero.
-        /// 
+        ///
         /// # Fields
         /// - `block_number`: Block number where counters were reset
-        /// 
+        ///
         /// # Usage
         /// - Rate limiting system monitoring
         /// - Block processing verification
@@ -4609,19 +4941,19 @@ pub mod pallet {
         },
 
         /// Emitted when deterministic epoch processing is completed.
-        /// 
+        ///
         /// This event indicates that an epoch transition has been processed
         /// using deterministic algorithms, ensuring that all nodes produce
         /// identical results. The event includes key processing outputs
         /// for validation and monitoring.
-        /// 
+        ///
         /// # Event Data
         /// - `epoch`: Epoch number that was processed
         /// - `block_number`: Block number where processing occurred
         /// - `randomness_seed`: Deterministic randomness seed used
         /// - `author_sequence_length`: Length of generated author sequence
         /// - `output_hash`: Hash of all processing outputs for validation
-        /// 
+        ///
         /// # Usage
         /// - Monitoring deterministic processing completion
         /// - Validating epoch transition consistency
@@ -4641,17 +4973,17 @@ pub mod pallet {
         },
 
         /// Emitted when epoch replay validation is performed.
-        /// 
+        ///
         /// This event indicates that replay validation has been executed
         /// to verify the deterministic nature of epoch processing. It
         /// includes the validation result and relevant details.
-        /// 
+        ///
         /// # Event Data
         /// - `epoch`: Epoch number that was replayed
         /// - `validation_passed`: Whether replay validation succeeded
         /// - `original_hash`: Hash from original processing
         /// - `replay_hash`: Hash from replay processing
-        /// 
+        ///
         /// # Usage
         /// - Monitoring replay validation execution
         /// - Detecting non-deterministic behavior
@@ -4669,17 +5001,17 @@ pub mod pallet {
         },
 
         /// Emitted when a deterministic author sequence is generated.
-        /// 
+        ///
         /// This event indicates that a new deterministic author sequence
         /// has been generated for an epoch, providing the expected block
         /// authors for deterministic block production.
-        /// 
+        ///
         /// # Event Data
         /// - `epoch`: Epoch number for the sequence
         /// - `sequence_length`: Number of authors in the sequence
         /// - `randomness_seed`: Seed used for deterministic generation
         /// - `first_author`: First author in the sequence (for verification)
-        /// 
+        ///
         /// # Usage
         /// - Monitoring author sequence generation
         /// - Validating deterministic block production
@@ -4696,141 +5028,50 @@ pub mod pallet {
             first_author: T::AccountId,
         },
 
-        /// Emitted when finality regression is detected during validation.
-        /// 
-        /// This critical event indicates that the finalized block number has
-        /// moved backward, which violates the fundamental finality guarantee
-        /// that finalized blocks are immutable. This should never occur in
-        /// normal operation and indicates a serious consensus issue.
-        /// 
-        /// # Event Data
-        /// - `previous_finalized`: Previously finalized block number
-        /// - `attempted_finalized`: Block number that was attempted to be finalized
-        /// - `current_block`: Current block number for context
-        /// - `epoch`: Epoch when the regression was detected
-        /// 
-        /// # Usage
-        /// - Critical system alerts and incident response
-        /// - Consensus failure detection and analysis
-        /// - System integrity monitoring
-        /// - Debugging finality mechanism issues
-        FinalityRegressionDetected {
-            /// Previously finalized block number that was higher
-            previous_finalized: u32,
-            /// Block number that was attempted to be finalized (lower than previous)
-            attempted_finalized: u32,
-            /// Current block number for context
-            current_block: u32,
-            /// Epoch when the regression was detected
-            epoch: u32,
-        },
-
-        /// Emitted when finality advancement validation fails.
-        /// 
-        /// This event indicates that an attempt to advance finality was rejected
-        /// because it would violate finality constraints, such as exceeding the
-        /// best known block of the previous epoch or advancing too far ahead.
-        /// 
-        /// # Event Data
-        /// - `attempted_block`: Block number that was attempted to be finalized
-        /// - `current_finalized`: Current finalized block number
-        /// - `best_known_block`: Best known block number from previous epoch
-        /// - `epoch`: Epoch when the validation failed
-        /// - `reason`: Specific reason for the validation failure
-        /// 
-        /// # Usage
-        /// - Finality mechanism debugging and monitoring
-        /// - Consensus validation and integrity checking
-        /// - System health monitoring and alerting
-        /// - Audit trails for finality decisions
-        FinalityAdvancementRejected {
-            /// Block number that was attempted to be finalized
-            attempted_block: u32,
-            /// Current finalized block number before the attempt
-            current_finalized: u32,
-            /// Best known block number from previous epoch
-            best_known_block: u32,
-            /// Epoch when the validation failed
-            epoch: u32,
-            /// Specific reason for the validation failure
-            reason: BoundedVec<u8, ConstU32<128>>,
-        },
-
-        /// Emitted when finality progression is validated successfully.
-        /// 
-        /// This event confirms that finality has advanced correctly according
-        /// to all validation rules, including monotonic advancement and bounds
-        /// checking against the best known block of the previous epoch.
-        /// 
-        /// # Event Data
-        /// - `previous_finalized`: Previous finalized block number
-        /// - `new_finalized`: New finalized block number
-        /// - `advancement`: Number of blocks by which finality advanced
-        /// - `epoch`: Epoch when the advancement occurred
-        /// - `validation_checks_passed`: Number of validation checks that passed
-        /// 
-        /// # Usage
-        /// - Monitoring healthy finality progression
-        /// - Validating finality mechanism correctness
-        /// - System health and performance tracking
-        /// - Audit trails for successful finality updates
-        FinalityProgressionValidated {
-            /// Previous finalized block number
-            previous_finalized: u32,
-            /// New finalized block number after advancement
-            new_finalized: u32,
-            /// Number of blocks by which finality advanced
-            advancement: u32,
-            /// Epoch when the advancement occurred
-            epoch: u32,
-            /// Number of validation checks that passed
-            validation_checks_passed: u32,
-        },
-
-        /// Emitted when genesis configuration validation succeeds.
-        /// 
-        /// This event indicates that a genesis configuration has passed all
+        /// Emitted when genesis settings validation succeeds.
+        ///
+        /// This event indicates that a genesis settings has passed all
         /// validation checks including duplicate validator detection, stake
         /// validation, and invariant verification. The event provides summary
-        /// statistics about the validated configuration.
-        /// 
+        /// statistics about the validated settings.
+        ///
         /// # Fields
-        /// - `validator_count`: Number of validators in the configuration
+        /// - `validator_count`: Number of validators in the settings
         /// - `total_stake`: Total stake across all validators
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.1: Confirms duplicate validators and invalid stakes were checked
         /// - 11.2: Confirms active set size validation passed
-        /// 
+        ///
         /// # Usage
-        /// - Genesis configuration testing and validation
+        /// - Genesis settings testing and validation
         /// - Network launch preparation and verification
-        /// - Configuration audit trails and compliance
+        /// - Settings audit trails and compliance
         /// - Automated testing and CI/CD pipelines
         GenesisValidationSucceeded {
-            /// Number of validators in the validated configuration
+            /// Number of validators in the validated settings
             validator_count: u32,
-            /// Total stake across all validators in the configuration
+            /// Total stake across all validators in the settings
             total_stake: <T as pallet::Config>::Balance,
         },
 
-        /// Emitted when genesis configuration validation fails.
-        /// 
-        /// This event indicates that a genesis configuration has failed one or more
+        /// Emitted when genesis settings validation fails.
+        ///
+        /// This event indicates that a genesis settings has failed one or more
         /// validation checks. The error field provides detailed information about
         /// what caused the validation to fail, enabling developers to fix issues.
-        /// 
+        ///
         /// # Fields
         /// - `error`: Detailed error message describing the validation failure
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.1: Reports failures in duplicate validator or stake validation
         /// - 11.2: Reports failures in active set size validation
-        /// 
+        ///
         /// # Usage
-        /// - Genesis configuration debugging and troubleshooting
+        /// - Genesis settings debugging and troubleshooting
         /// - Development environment error reporting
-        /// - Configuration validation feedback
+        /// - Settings validation feedback
         /// - Automated testing failure analysis
         GenesisValidationFailed {
             /// Detailed error message describing why validation failed
@@ -4838,29 +5079,29 @@ pub mod pallet {
         },
 
         /// Emitted when genesis dry-run completes successfully.
-        /// 
+        ///
         /// This event indicates that a complete dry-run of genesis build has
         /// completed successfully, including all invariant checks and system
         /// validation. The event provides comprehensive statistics about the
         /// dry-run results.
-        /// 
+        ///
         /// # Fields
         /// - `validator_count`: Number of validators in the dry-run
         /// - `total_stake`: Total stake across all validators
         /// - `invariant_checks_passed`: Number of invariant checks that passed
         /// - `warnings_count`: Number of warnings generated during dry-run
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.3: Confirms dry-run function executed and asserted all invariants
         /// - 11.4: Provides comprehensive validation without side effects
-        /// 
+        ///
         /// # Usage
-        /// - Genesis configuration comprehensive testing
+        /// - Genesis settings comprehensive testing
         /// - Network launch readiness verification
         /// - System health validation and monitoring
-        /// - Configuration optimization and tuning
+        /// - Settings optimization and tuning
         GenesisDryRunCompleted {
-            /// Number of validators in the dry-run configuration
+            /// Number of validators in the dry-run settings
             validator_count: u32,
             /// Total stake across all validators in the dry-run
             total_stake: <T as pallet::Config>::Balance,
@@ -4871,50 +5112,50 @@ pub mod pallet {
         },
 
         /// Emitted when genesis dry-run fails.
-        /// 
+        ///
         /// This event indicates that the dry-run of genesis build has failed
         /// during execution. The error field provides detailed information about
         /// what caused the dry-run to fail, enabling developers to diagnose
         /// and resolve issues.
-        /// 
+        ///
         /// # Fields
         /// - `error`: Detailed error message describing the dry-run failure
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.3: Reports failures in dry-run function execution
         /// - 11.4: Provides error feedback without side effects
-        /// 
+        ///
         /// # Usage
-        /// - Genesis configuration debugging and troubleshooting
+        /// - Genesis settings debugging and troubleshooting
         /// - Development environment error reporting
         /// - Dry-run validation failure analysis
-        /// - System configuration issue diagnosis
+        /// - System settings issue diagnosis
         GenesisDryRunFailed {
             /// Detailed error message describing why the dry-run failed
             error: BoundedVec<u8, ConstU32<256>>,
         },
 
         /// Emitted when the DCF Runtime API version changes due to breaking changes.
-        /// 
+        ///
         /// This critical event indicates that the DCF Runtime API contract has been
         /// updated with breaking changes that may affect client compatibility.
         /// Clients should monitor this event and update their integration code
         /// to handle the new API version.
-        /// 
+        ///
         /// # Fields
         /// - `old_version`: Previous API version number
         /// - `new_version`: New API version number
         /// - `breaking_changes`: Description of breaking changes made
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 12.2: Provides API versioning and breaking change event emission
-        /// 
+        ///
         /// # Usage
         /// - Client compatibility monitoring and alerting
         /// - API version tracking and management
         /// - Breaking change notification and communication
         /// - Integration testing and validation triggers
-        /// 
+        ///
         /// # Breaking Change Examples
         /// - Method signature changes (parameters, return types)
         /// - Method removal or renaming
@@ -4930,12 +5171,12 @@ pub mod pallet {
         },
 
         /// Private chain mode has been enabled with validator allowlist.
-        /// 
+        ///
         /// This event is emitted when the network transitions from public mode
         /// to private chain mode with a fixed validator allowlist.
-        /// 
+        ///
         /// # Usage
-        /// - Network configuration monitoring
+        /// - Network settings monitoring
         /// - Validator management system updates
         /// - Compliance and audit logging
         PrivateChainModeEnabled {
@@ -4946,22 +5187,22 @@ pub mod pallet {
         },
 
         /// Private chain mode has been disabled, returning to public mode.
-        /// 
+        ///
         /// This event is emitted when the network transitions from private
         /// chain mode back to public mode, removing validator restrictions.
-        /// 
+        ///
         /// # Usage
-        /// - Network configuration monitoring
+        /// - Network settings monitoring
         /// - Validator management system updates
         /// - Compliance and audit logging
         PrivateChainModeDisabled,
 
         /// Validator has been added to the private chain allowlist.
-        /// 
+        ///
         /// This event is emitted when a validator account is added to the
         /// allowlist in private chain mode, granting them permission to
         /// participate in the network.
-        /// 
+        ///
         /// # Usage
         /// - Validator onboarding tracking
         /// - Access control audit trails
@@ -4972,11 +5213,11 @@ pub mod pallet {
         },
 
         /// Validator has been removed from the private chain allowlist.
-        /// 
+        ///
         /// This event is emitted when a validator account is removed from
         /// the allowlist in private chain mode, revoking their permission
         /// to participate in the network.
-        /// 
+        ///
         /// # Usage
         /// - Validator offboarding tracking
         /// - Access control audit trails
@@ -4987,11 +5228,11 @@ pub mod pallet {
         },
 
         /// Validator was forced to leave due to allowlist removal.
-        /// 
+        ///
         /// This event is emitted when an active validator is automatically
         /// removed from the validator set because they were removed from
         /// the private chain allowlist.
-        /// 
+        ///
         /// # Usage
         /// - Automatic validator management tracking
         /// - Network security monitoring
@@ -5004,10 +5245,10 @@ pub mod pallet {
         },
 
         /// EVM compatibility test was performed.
-        /// 
+        ///
         /// This event is emitted when the EVM compatibility system is tested
         /// to validate that DCF events can be properly converted to EVM format.
-        /// 
+        ///
         /// # Usage
         /// - EVM integration testing and validation
         /// - System health monitoring for EVM compatibility
@@ -5018,10 +5259,10 @@ pub mod pallet {
         },
 
         /// EVM events were queried for a block range.
-        /// 
+        ///
         /// This event is emitted when EVM-compatible events are queried
         /// for analysis or debugging purposes.
-        /// 
+        ///
         /// # Usage
         /// - EVM event querying and analysis
         /// - System debugging and monitoring
@@ -5038,12 +5279,12 @@ pub mod pallet {
         },
 
         /// Emitted when a validator successfully authors a block.
-        /// 
+        ///
         /// This event tracks successful block production by validators and is
         /// essential for monitoring validator performance and network health.
         /// It provides transparency about which validators are actively
         /// participating in block production.
-        /// 
+        ///
         /// # Usage
         /// - Block production monitoring and analytics
         /// - Validator performance tracking
@@ -5057,12 +5298,12 @@ pub mod pallet {
         },
 
         /// Emitted when a validator misses their assigned block production slot.
-        /// 
+        ///
         /// This event tracks missed block production opportunities and is
         /// critical for identifying validator performance issues and network
         /// health problems. Missed blocks can indicate validator downtime,
         /// network connectivity issues, or other operational problems.
-        /// 
+        ///
         /// # Usage
         /// - Validator performance monitoring
         /// - Network reliability assessment
@@ -5076,16 +5317,16 @@ pub mod pallet {
         },
 
         /// Emitted when a validator's status changes from one state to another.
-        /// 
+        ///
         /// This event tracks all validator status transitions including:
         /// - Active to Inactive (due to poor performance or voluntary withdrawal)
         /// - Inactive to Active (when performance improves or rejoining)
         /// - Active/Inactive to Leaving (when requesting to leave the network)
         /// - Any status to Ejected (when forcibly removed for misbehavior)
-        /// 
+        ///
         /// Status changes are critical for monitoring validator lifecycle and
         /// ensuring proper network participation tracking.
-        /// 
+        ///
         /// # Usage
         /// - Validator lifecycle monitoring and analytics
         /// - Status change audit trails and compliance
@@ -5103,17 +5344,17 @@ pub mod pallet {
         },
 
         /// Emitted at epoch transitions with uptime information for each validator.
-        /// 
+        ///
         /// This event provides comprehensive uptime tracking for all validators
         /// during epoch transitions. It includes detailed metrics about validator
         /// performance and participation during the completed epoch.
-        /// 
+        ///
         /// Uptime metrics help assess validator reliability and are used for:
         /// - Performance-based reward calculations
         /// - Validator ranking and selection
         /// - Network health assessment
         /// - Slashing and penalty decisions
-        /// 
+        ///
         /// # Usage
         /// - Validator performance analytics and reporting
         /// - Reward distribution calculations
@@ -5134,10 +5375,144 @@ pub mod pallet {
             uptime_percentage: u32,
         },
 
+        /// The class table of the Assurance Engine changed.
+        AssuranceClassTableAmended {
+            /// The class whose row changed.
+            class: crate::engines::assurance::TransactionClass,
+            /// The share the class needed before the change, in percent.
+            previous_percent: u8,
+            /// The share the class needs now, in percent.
+            current_percent: u8,
+            /// The delay window the class waits now, in blocks.
+            delay_blocks: u32,
+        },
+        /// A change entered the delay window its class carries.
+        ScheduledChangeOpened {
+            /// The identifier of the change.
+            id: u64,
+            /// The class the change carries.
+            class: crate::engines::assurance::TransactionClass,
+            /// The block at which the change committed.
+            committed_at: u32,
+            /// The first block at which the change takes effect.
+            effective_at: u32,
+        },
+        /// A change waited out its window and took effect.
+        ScheduledChangeReleased {
+            /// The identifier of the change.
+            id: u64,
+            /// The class the change carried.
+            class: crate::engines::assurance::TransactionClass,
+            /// The block at which the change took effect.
+            released_at: u32,
+        },
+
+        /// The Custody Engine reported a custody share for one validator.
+        CustodyShareRecorded {
+            /// The validator the report names.
+            validator: T::AccountId,
+            /// The custody share, in parts per million.
+            share: u32,
+        },
+        /// The Custody Engine proved a custody fault.
+        CustodyFaultRecorded {
+            /// The validator the fault names.
+            validator: T::AccountId,
+            /// The fault count after the report.
+            faults: u32,
+        },
+
+        /// One epoch of service counted toward standing.
+        ServiceEpochCounted {
+            /// The validator that served.
+            validator: T::AccountId,
+            /// The epoch that counted.
+            epoch: u32,
+            /// The epochs the validator has served.
+            epochs_served: u32,
+            /// The standing share after the epoch.
+            standing: sp_runtime::Perbill,
+        },
+        /// One verification sampling report settled.
+        SamplingReportSettled {
+            /// The validator that reported.
+            validator: T::AccountId,
+            /// The outcome the chain recorded.
+            outcome: crate::engines::standing::SampleOutcome,
+            /// The sampling share after the report.
+            sampling: sp_runtime::Perbill,
+        },
+        /// Standing fell through inactivity.
+        StandingDecayed {
+            /// The validator that fell.
+            validator: T::AccountId,
+            /// The idle epochs the chain counted.
+            idle_epochs: u32,
+            /// The standing share after the fall.
+            standing: sp_runtime::Perbill,
+        },
+        /// Proven misconduct returned standing to zero.
+        StandingReset {
+            /// The validator the chain proved misconduct against.
+            validator: T::AccountId,
+            /// The misconduct the chain proved.
+            misconduct: crate::engines::standing::Misconduct,
+            /// The epochs of service the reset destroyed.
+            epochs_destroyed: u32,
+        },
+        /// The chain anchored one checkpoint.
+        CheckpointAnchored {
+            /// The position of the checkpoint in the anchored set.
+            index: u32,
+            /// The block the checkpoint settles.
+            block: u32,
+            /// The hash of that block.
+            hash: [u8; 32],
+            /// The thirty two byte commitment the checkpoint folds into.
+            commitment: [u8; 32],
+        },
+        /// The chain proved one equivocation and applied the penalty.
+        EquivocationProven {
+            /// The validator that sealed two headers for one slot.
+            validator: T::AccountId,
+            /// The slot both headers served.
+            slot: u64,
+            /// The rank the author claimed in both headers.
+            rank: u8,
+            /// The epochs of service the reset destroyed.
+            epochs_destroyed: u32,
+        },
+        /// An amendment opened against one policy.
+        AmendmentOpened {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The policy the amendment changes.
+            policy: crate::engines::amendment::PolicyKind,
+            /// The approvals the amendment needs.
+            approvals_required: u32,
+            /// The first block at which the amendment takes effect.
+            effective_at: u32,
+        },
+        /// An account approved an amendment.
+        AmendmentApproved {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The account that approved.
+            approver: T::AccountId,
+            /// The approvals collected so far.
+            approvals: u32,
+        },
+        /// An amendment took effect and the policy changed.
+        AmendmentEnacted {
+            /// The identifier of the amendment.
+            id: u64,
+            /// The policy the amendment changed.
+            policy: crate::engines::amendment::PolicyKind,
+        },
     }
 
     /// Errors that can occur during replay validation.
-    /// 
+    ///
     /// These errors indicate failures in deterministic epoch processing
     /// replay validation, which is critical for ensuring consensus
     /// consistency across all nodes.
@@ -5164,7 +5539,7 @@ pub mod pallet {
 
     // --- Errors --- //
     /// Errors that can occur during pallet operations.
-    /// 
+    ///
     /// These errors provide specific feedback about why operations failed,
     /// enabling clients and users to understand and resolve issues. Each
     /// error includes context about the failure condition and potential
@@ -5172,556 +5547,618 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         /// The specified validator account was not found in the validator registry.
-        /// 
+        ///
         /// This error occurs when operations reference a validator account that:
         /// - Has never joined the validator set
         /// - Has been removed or ejected from the network
         /// - Was provided with an incorrect account identifier
-        /// 
+        ///
         /// Resolution: Verify the validator account exists and is registered.
         ValidatorNotFound,
 
         /// The provided consensus weights are invalid or do not sum correctly.
-        /// 
+        ///
         /// This error occurs when updating PoS/PoI weights with values that:
         /// - Do not sum to the required precision factor (typically 10000)
         /// - Contain negative or zero values
         /// - Would result in division by zero in score calculations
-        /// 
+        ///
         /// Resolution: Ensure weights are positive and sum to the precision factor.
         InvalidWeight,
 
-        /// The epoch configuration parameters are invalid or inconsistent.
-        /// 
-        /// This error occurs when epoch configuration contains:
+        /// The epoch settings parameters are invalid or inconsistent.
+        ///
+        /// This error occurs when epoch settings contains:
         /// - Zero or negative epoch length
         /// - Minimum stake amounts that exceed maximum possible values
         /// - Maximum validator counts that exceed system limits
         /// - Inconsistent parameter combinations
-        /// 
+        ///
         /// Resolution: Verify all epoch parameters are within valid ranges.
         InvalidEpochConfig,
 
         /// The operation requires more validators than are currently available.
-        /// 
+        ///
         /// This error occurs when:
         /// - Attempting to remove validators below the minimum required count
         /// - Governance proposals require more validators than exist
         /// - Epoch transitions cannot maintain minimum validator requirements
-        /// 
+        ///
         /// Resolution: Ensure sufficient validators are available for the operation.
         NotEnoughValidators,
 
         /// The requested operation is not allowed when governance mode is enabled.
-        /// 
+        ///
         /// This error occurs when attempting operations that are restricted
         /// during governance mode, such as:
         /// - Automatic epoch transitions when manual control is enabled
         /// - Certain administrative functions reserved for governance periods
-        /// 
+        ///
         /// Resolution: Disable governance mode or use appropriate governance functions.
         NotAllowedInGovernanceMode,
 
         /// The account is not registered as a validator in the network.
-        /// 
+        ///
         /// This error occurs when non-validator accounts attempt operations
         /// that are restricted to registered validators, such as:
         /// - Voting on governance proposals
         /// - Submitting inference results
         /// - Participating in validator-only functions
-        /// 
+        ///
         /// Resolution: Join the validator set before attempting validator operations.
         NotValidator,
 
         /// The validator has already voted on the specified governance proposal.
-        /// 
+        ///
         /// This error prevents double-voting on governance proposals to maintain
         /// the integrity of the voting process. Each validator can only vote
         /// once per proposal, and votes cannot be changed after submission.
-        /// 
+        ///
         /// Resolution: Votes are final and cannot be modified after submission.
         AlreadyVoted,
 
         /// The governance proposal has not been approved by validator votes.
-        /// 
+        ///
         /// This error occurs when attempting to execute proposals that:
         /// - Have not reached the required voting quorum
         /// - Have more rejection votes than approval votes
         /// - Are still in the pending voting phase
-        /// 
+        ///
         /// Resolution: Wait for sufficient approval votes before attempting execution.
         ProposalNotApproved,
 
         /// The governance proposal has already been executed and cannot be executed again.
-        /// 
+        ///
         /// This error prevents duplicate execution of governance proposals to
         /// maintain system consistency. Once a proposal is executed, its
         /// status is permanently marked as executed.
-        /// 
+        ///
         /// Resolution: Proposals can only be executed once after approval.
         ProposalAlreadyExecuted,
 
         /// The provided score value is outside the valid range.
-        /// 
+        ///
         /// This error occurs when score values:
         /// - Exceed the maximum allowed score (T::MaxValidatorScore)
         /// - Are negative or otherwise invalid
         /// - Would cause overflow in score calculations
-        /// 
+        ///
         /// Resolution: Ensure scores are within the valid range (0 to MaxValidatorScore).
         InvalidScore,
 
         /// The validator account is already registered in the validator set.
-        /// 
+        ///
         /// This error prevents duplicate validator registrations that could
         /// cause inconsistencies in the validator set. Each account can only
         /// be registered as a validator once.
-        /// 
+        ///
         /// Resolution: Use a different account or check existing validator status.
         ValidatorAlreadyExists,
 
         /// The validator is not currently in the active validator set.
-        /// 
+        ///
         /// This error occurs when operations require validators to be in the
         /// active set but they are currently:
         /// - Inactive due to low scores
         /// - In cooldown periods
         /// - Temporarily removed for maintenance
-        /// 
+        ///
         /// Resolution: Ensure the validator is active before attempting the operation.
         ValidatorNotInSet,
 
         /// A leave request is already active and the cooldown period has not expired.
-        /// 
+        ///
         /// This error prevents validators from submitting multiple leave requests
         /// or attempting to leave again before completing the required cooldown
         /// period from a previous leave request.
-        /// 
+        ///
         /// Resolution: Wait for the current cooldown period to expire or cancel the existing request.
         LeaveCooldownActive,
 
         /// The validator is in a cooldown period after leaving and cannot rejoin yet.
-        /// 
+        ///
         /// This error enforces the mandatory cooldown period that prevents
         /// validators from immediately rejoining after leaving the network.
         /// This prevents gaming of the validator system and ensures network stability.
-        /// 
+        ///
         /// Resolution: Wait for the cooldown period to expire before attempting to rejoin.
         ValidatorInCooldown,
 
         /// The validator has a pending leave request and cannot perform this operation.
-        /// 
+        ///
         /// This error occurs when validators attempt operations that are incompatible
         /// with having an active leave request, such as:
         /// - Submitting additional leave requests
         /// - Modifying stake while leaving
         /// - Participating in governance while leaving
-        /// 
+        ///
         /// Resolution: Cancel the leave request or wait for cooldown to complete.
         ValidatorHasPendingLeaveRequest,
 
         /// The validator cannot rejoin due to insufficient stake reservation.
-        /// 
+        ///
         /// This error occurs during rejoin validation when:
         /// - The validator's free balance is insufficient for minimum stake
         /// - Previous stake reservation failed to be properly unreserved
         /// - Currency system errors prevent stake reservation
-        /// 
+        ///
         /// Resolution: Ensure sufficient balance and retry the join operation.
         ValidatorRejoinStakeReservationFailed,
 
         /// The validator cannot rejoin due to cooldown period not yet expired.
-        /// 
+        ///
         /// This error provides specific information about cooldown status when
         /// validators attempt to rejoin before the mandatory cooldown period
         /// has fully expired.
-        /// 
+        ///
         /// Resolution: Wait for the remaining cooldown blocks to pass.
         ValidatorRejoinCooldownNotExpired,
 
         /// Concurrent leave requests are not allowed for the same validator.
-        /// 
+        ///
         /// This error prevents race conditions and ensures consistent state
         /// when multiple leave requests might be submitted simultaneously
         /// for the same validator account.
-        /// 
+        ///
         /// Resolution: Wait for the current leave request to be processed.
         ConcurrentLeaveRequestNotAllowed,
 
         /// Block author validation failed due to author mismatch or other issues.
-        /// 
+        ///
         /// This critical error occurs when:
         /// - The actual block author differs from the expected author
         /// - Block author validation cannot be completed
         /// - Consensus algorithm inconsistencies are detected
-        /// 
+        ///
         /// Resolution: This indicates a serious consensus issue that requires investigation.
         AuthorValidationFailed,
 
         /// The validator does not have sufficient stake to join the network.
-        /// 
+        ///
         /// This error occurs when validators attempt to join with stake amounts
         /// below the minimum required threshold (T::MinStake). Sufficient stake
         /// is required to ensure economic security and validator commitment.
-        /// 
+        ///
         /// Resolution: Increase stake to meet the minimum requirement before joining.
         InsufficientStake,
 
         /// The trust score calculation failed due to invalid parameters or data.
-        /// 
+        ///
         /// This error occurs when trust score computation encounters:
         /// - Invalid historical data
         /// - Inconsistent performance metrics
-        /// - Configuration errors in trust score weights
-        /// 
-        /// Resolution: Verify trust score configuration and validator performance data.
+        /// - Settings errors in trust score weights
+        ///
+        /// Resolution: Verify trust score settings and validator performance data.
         TrustScoreCalculationFailed,
 
         /// The validator metadata is invalid or exceeds size limits.
-        /// 
+        ///
         /// This error occurs when validator metadata:
         /// - Exceeds maximum allowed length for names, descriptions, etc.
         /// - Contains invalid UTF-8 encoding
         /// - Includes prohibited characters or content
-        /// 
+        ///
         /// Resolution: Ensure metadata meets size and format requirements.
         InvalidValidatorMetadata,
 
         /// The stake operation failed due to insufficient balance or other issues.
-        /// 
+        ///
         /// This error occurs when stake operations cannot be completed due to:
         /// - Insufficient free balance for reserving stake
         /// - Currency system errors
         /// - Arithmetic overflow in stake calculations
-        /// 
+        ///
         /// Resolution: Ensure sufficient balance is available for stake operations.
         StakeOperationFailed,
 
-        /// The cooldown period configuration is invalid or inconsistent.
-        /// 
+        /// The cooldown period settings is invalid or inconsistent.
+        ///
         /// This error occurs when cooldown periods:
         /// - Are set to zero or negative values
         /// - Exceed reasonable maximum limits
         /// - Are inconsistent with other timing parameters
-        /// 
-        /// Resolution: Configure cooldown periods within valid ranges.
+        ///
+        /// Resolution: Set cooldown periods within valid ranges.
         InvalidCooldownPeriod,
 
         /// The misbehavior evidence is invalid or cannot be processed.
-        /// 
+        ///
         /// This error occurs when misbehavior reports contain:
         /// - Invalid cryptographic proofs
         /// - Evidence that exceeds maximum size limits
         /// - Malformed or corrupted evidence data
-        /// 
+        ///
         /// Resolution: Ensure evidence is properly formatted and within size limits.
         InvalidMisbehaviorEvidence,
 
         /// The epoch transition failed due to system inconsistencies.
-        /// 
+        ///
         /// This error occurs when epoch transitions cannot be completed due to:
         /// - Validator set inconsistencies
         /// - Score calculation errors
         /// - System state corruption
-        /// 
+        ///
         /// Resolution: This indicates a serious system issue requiring investigation.
         EpochTransitionFailed,
 
-        /// The parameter value is outside the allowed range defined in governance configuration.
-        /// 
+        /// The parameter value is outside the allowed range defined in governance settings.
+        ///
         /// This error occurs when attempting to update DCF parameters with values that:
         /// - Are below the minimum allowed value for the parameter
         /// - Exceed the maximum allowed value for the parameter
         /// - Would create unsafe or unstable network conditions
-        /// 
+        ///
         /// Each parameter has predefined safe operating ranges to prevent:
         /// - Network destabilization from extreme values
         /// - Economic vulnerabilities from inappropriate settings
-        /// - Performance degradation from poor configurations
-        /// 
+        /// - Performance degradation from poor settings
+        ///
         /// Resolution: Check the parameter's allowed range and provide a value within bounds.
         ParameterOutOfRange,
 
         /// The specified parameter type is not recognized or supported.
-        /// 
+        ///
         /// This error occurs when attempting to update parameters that:
         /// - Do not exist in the current parameter governance system
         /// - Are not yet implemented for governance updates
         /// - Have been deprecated or removed from the system
-        /// 
+        ///
         /// Resolution: Verify the parameter type exists and is supported for updates.
         InvalidParameterType,
 
         /// The parameter update operation is not authorized for the calling account.
-        /// 
+        ///
         /// This error enforces that only root accounts can update DCF parameters
         /// through the governance system. Parameter updates require the highest
-        /// level of authorization to prevent unauthorized network configuration changes.
-        /// 
+        /// level of authorization to prevent unauthorized network settings changes.
+        ///
         /// Unauthorized parameter changes could:
         /// - Compromise network security and stability
         /// - Create economic vulnerabilities
         /// - Disrupt consensus operations
         /// - Enable attacks or gaming
-        /// 
+        ///
         /// Resolution: Ensure the call is made with root origin/authorization.
         UnauthorizedParameterUpdate,
 
-        /// The governance configuration is invalid or corrupted.
-        /// 
-        /// This error occurs when the governance configuration storage contains:
+        /// The governance settings is invalid or corrupted.
+        ///
+        /// This error occurs when the governance settings storage contains:
         /// - Inconsistent parameter ranges (min > max)
         /// - Invalid current values outside their ranges
-        /// - Corrupted or malformed configuration data
-        /// - Missing required configuration parameters
-        /// 
+        /// - Corrupted or malformed settings data
+        /// - Missing required settings parameters
+        ///
         /// This is a critical system error that indicates governance system corruption
         /// and requires immediate attention to restore parameter governance functionality.
-        /// 
+        ///
         /// Resolution: This indicates a serious system issue requiring investigation and repair.
         InvalidGovernanceConfig,
-        
+
         /// Arithmetic operation would result in overflow.
-        /// 
+        ///
         /// This error occurs when balance calculations would exceed the maximum
         /// value that can be represented by the Balance type. This prevents
         /// silent overflow that could lead to incorrect balance calculations.
-        /// 
+        ///
         /// Common causes:
         /// - Adding rewards that exceed maximum balance
         /// - Multiplying large stake amounts by percentages
         /// - Accumulating values beyond type limits
-        /// 
+        ///
         /// Resolution: Use smaller amounts or implement chunked operations.
         ArithmeticOverflow,
-        
+
         /// Arithmetic operation would result in underflow.
-        /// 
+        ///
         /// This error occurs when balance calculations would result in negative
         /// values that cannot be represented by unsigned Balance types. This
         /// prevents silent underflow that could lead to incorrect calculations.
-        /// 
+        ///
         /// Common causes:
         /// - Slashing more than available balance
         /// - Subtracting larger values from smaller ones
         /// - Negative intermediate calculations
-        /// 
+        ///
         /// Resolution: Ensure sufficient balance before performing operations.
         ArithmeticUnderflow,
-        
+
         /// Operation would exceed per-epoch slashing bounds.
-        /// 
+        ///
         /// This error occurs when slashing operations would exceed the maximum
         /// allowed slashing amount per epoch, either for individual validators
         /// or across all validators. This prevents excessive slashing that could
         /// destabilize the network.
-        /// 
+        ///
         /// Resolution: Reduce slashing amounts or distribute across multiple epochs.
         SlashingBoundsExceeded,
-        
+
         /// Operation would exceed per-epoch reward bounds.
-        /// 
+        ///
         /// This error occurs when reward operations would exceed the maximum
         /// allowed reward amount per epoch, either for individual validators
         /// or across all validators. This prevents excessive reward distribution.
-        /// 
+        ///
         /// Resolution: Reduce reward amounts or distribute across multiple epochs.
         RewardBoundsExceeded,
-        
+
         /// Storage version mismatch detected during runtime initialization.
-        /// 
+        ///
         /// This error occurs when the runtime detects that the storage schema version
         /// does not match the expected version for the current runtime. This indicates
         /// that a migration is required before the runtime can safely operate.
-        /// 
+        ///
         /// Common causes:
         /// - Runtime upgrade without proper migration
         /// - Corrupted storage version data
         /// - Downgrade to incompatible runtime version
         /// - Missing migration execution
-        /// 
+        ///
         /// Resolution: Execute the appropriate migration or restore compatible runtime.
         StorageVersionMismatch,
-        
+
         /// Storage migration failed to complete successfully.
-        /// 
+        ///
         /// This error occurs when storage migration encounters issues that prevent
         /// successful completion. Migration failures can leave the system in an
         /// inconsistent state and require manual intervention.
-        /// 
+        ///
         /// Common causes:
         /// - Insufficient storage space for migration
         /// - Corrupted source data during migration
         /// - Logic errors in migration code
         /// - Resource constraints during migration
-        /// 
+        ///
         /// Resolution: Investigate migration logs and retry with fixes.
         MigrationFailed,
-        
+
         /// Storage validation failed during migration or initialization.
-        /// 
+        ///
         /// This error occurs when storage validation checks detect inconsistencies
         /// or corruption in the storage data. This can happen during migrations
         /// or runtime initialization when validating existing data.
-        /// 
+        ///
         /// Common causes:
         /// - Data corruption in storage
         /// - Incomplete previous migrations
         /// - Manual storage modifications
         /// - Hardware or software failures
-        /// 
+        ///
         /// Resolution: Restore from backup or perform data recovery procedures.
         StorageValidationFailed,
 
         /// Rate limit exceeded for per-block operations.
-        /// 
+        ///
         /// This error occurs when the number of operations of a specific type
-        /// in the current block exceeds the configured per-block limit. This
+        /// in the current block exceeds the set per-block limit. This
         /// prevents DoS attacks that attempt to overwhelm the network with
         /// excessive operations in a single block.
-        /// 
+        ///
         /// Common causes:
         /// - Multiple accounts submitting operations simultaneously
         /// - Coordinated spam attacks on the network
         /// - Misconfigured automation tools
         /// - Network congestion during high activity periods
-        /// 
+        ///
         /// Resolution: Wait for the next block or reduce operation frequency.
         PerBlockRateLimitExceeded,
 
         /// Rate limit exceeded for per-account operations.
-        /// 
+        ///
         /// This error occurs when an account attempts to perform more operations
         /// of a specific type within the rate limiting time window than allowed.
         /// This prevents individual accounts from spamming the network.
-        /// 
+        ///
         /// Common causes:
         /// - Rapid repeated operations by the same account
         /// - Automated tools with excessive operation frequency
         /// - Account compromise leading to spam behavior
         /// - Misconfigured client applications
-        /// 
+        ///
         /// Resolution: Wait for the rate limiting window to expire before retrying.
         PerAccountRateLimitExceeded,
 
         /// Minimum interval between operations not respected.
-        /// 
+        ///
         /// This error occurs when an account attempts to perform an operation
         /// before the required minimum interval has elapsed since their last
         /// operation of the same type. This prevents rapid-fire operations
         /// that could destabilize the network.
-        /// 
+        ///
         /// Common causes:
         /// - Attempting validator status changes too frequently
         /// - Submitting proposals in rapid succession
         /// - Client applications not respecting timing constraints
         /// - Race conditions in automated systems
-        /// 
+        ///
         /// Resolution: Wait for the minimum interval to elapse before retrying.
         MinimumIntervalViolation,
 
-        /// Operation weight exceeds configured bounds.
-        /// 
+        /// Operation weight exceeds set bounds.
+        ///
         /// This error occurs when an operation would consume more computational
-        /// weight than the configured maximum for that operation type. This
+        /// weight than the set maximum for that operation type. This
         /// prevents operations with large loops or heavy computation from
         /// blocking the network.
-        /// 
+        ///
         /// Common causes:
         /// - Operations iterating over large validator sets
         /// - Processing excessive numbers of proposals
         /// - Complex calculations exceeding weight limits
         /// - Unbounded loops in operation logic
-        /// 
+        ///
         /// Resolution: Reduce operation scope or increase weight limits if appropriate.
         WeightLimitExceeded,
 
-        /// Rate limiting configuration is invalid.
-        /// 
-        /// This error occurs when attempting to update rate limiting configuration
+        /// Rate limiting settings is invalid.
+        ///
+        /// This error occurs when attempting to update rate limiting settings
         /// with invalid values that could compromise network security or stability.
-        /// 
+        ///
         /// Common causes:
         /// - Zero or negative rate limits
         /// - Inconsistent time windows and limits
         /// - Weight limits that are too restrictive
-        /// - Configuration values that would prevent normal operation
-        /// 
-        /// Resolution: Provide valid rate limiting configuration values.
+        /// - Settings values that would prevent normal operation
+        ///
+        /// Resolution: Provide valid rate limiting settings values.
         InvalidRateLimitConfig,
 
-        /// Genesis configuration validation failed.
-        /// 
-        /// This error occurs when genesis configuration validation detects issues
+        /// Genesis settings validation failed.
+        ///
+        /// This error occurs when genesis settings validation detects issues
         /// that would prevent safe network initialization. The validation checks
         /// include duplicate validator detection, stake validation, active set
         /// size limits, and invariant verification.
-        /// 
+        ///
         /// Common causes:
-        /// - Duplicate validators in the genesis configuration
+        /// - Duplicate validators in the genesis settings
         /// - Validator stakes below minimum requirements
         /// - Active set size exceeding MaxValidators limit
-        /// - Invalid epoch configuration parameters
-        /// - Invariant violations in the proposed configuration
-        /// 
-        /// Resolution: Fix the genesis configuration issues and retry validation.
+        /// - Invalid epoch settings parameters
+        /// - Invariant violations in the proposed settings
+        ///
+        /// Resolution: Fix the genesis settings issues and retry validation.
         GenesisValidationFailed,
 
         /// Private chain mode is disabled but operation requires it.
-        /// 
+        ///
         /// This error occurs when attempting private chain specific operations
         /// while the network is running in public mode.
-        /// 
+        ///
         /// Resolution: Enable private chain mode or use public mode operations.
         PrivateChainModeDisabled,
 
         /// Allowlist updates are disabled in private chain mode.
-        /// 
+        ///
         /// This error occurs when attempting to modify the validator allowlist
-        /// while allowlist updates are disabled in the private chain configuration.
-        /// 
+        /// while allowlist updates are disabled in the private chain settings.
+        ///
         /// Resolution: Enable allowlist updates or use root privileges if available.
         AllowlistUpdatesDisabled,
 
         /// Validator allowlist is full and cannot accept more entries.
-        /// 
+        ///
         /// This error occurs when attempting to add validators to a full allowlist
         /// that has reached its maximum capacity.
-        /// 
+        ///
         /// Resolution: Remove existing validators or increase allowlist capacity.
         AllowlistFull,
 
         /// Account is not in the validator allowlist for private chain.
-        /// 
+        ///
         /// This error occurs when non-allowlisted accounts attempt operations
         /// that are restricted to allowlisted validators in private chain mode.
-        /// 
+        ///
         /// Resolution: Add the account to the allowlist or use an allowlisted account.
         NotInAllowlist,
 
         /// Proposal submitter is not in the validator allowlist.
-        /// 
+        ///
         /// This error occurs when non-allowlisted accounts attempt to submit
         /// governance proposals in private chain mode.
-        /// 
+        ///
         /// Resolution: Use an allowlisted account to submit proposals.
         ProposerNotInAllowlist,
 
         /// Proposal target is not in the validator allowlist.
-        /// 
+        ///
         /// This error occurs when proposals target validators that are not
         /// in the allowlist in private chain mode.
-        /// 
+        ///
         /// Resolution: Target only allowlisted validators in proposals.
         TargetNotInAllowlist,
 
         /// Too many validators specified for the allowlist.
-        /// 
+        ///
         /// This error occurs when attempting to create a private chain allowlist
         /// with more validators than the maximum allowed.
-        /// 
+        ///
         /// Resolution: Reduce the number of validators in the allowlist.
         TooManyValidators,
+
+        /// The class table failed inspection, so the table stays unchanged.
+        AssuranceTableInvalid,
+        /// The delay window still holds, so the change stays scheduled.
+        DelayWindowOpen,
+        /// No change carries that identifier.
+        ScheduledChangeNotFound,
+        /// The change already took effect.
+        ScheduledChangeAlreadyReleased,
+        /// The queue of scheduled changes is full for this block.
+        ScheduledChangeQueueFull,
+
+        /// The epoch already counted toward standing.
+        ServiceEpochAlreadyCounted,
+        /// The evidence misses a service condition.
+        ServiceConditionsUnmet,
+        /// No amendment carries that identifier.
+        AmendmentNotFound,
+        /// The account lacks the authority this deployment names.
+        AmendmentAuthorityAbsent,
+        /// The approvals fall short of the quorum.
+        AmendmentQuorumShort,
+        /// The delay window still holds.
+        AmendmentDelayWindowOpen,
+        /// The amendment already took effect.
+        AmendmentAlreadyEnacted,
+        /// The voting window closed with the quorum unmet.
+        AmendmentVotingWindowClosed,
+        /// The account already approved this amendment.
+        AmendmentAlreadyApproved,
+        /// The chosen profile crosses a fixed limit.
+        ProfileCrossesFixedLimit,
+        /// The equivocation evidence failed the check.
+        ///
+        /// The two sealed headers name a different slot, a different rank or a
+        /// different validator, or one of the two signatures failed the check.
+        /// Report two headers one validator sealed for one slot at one rank.
+        EquivocationEvidenceRejected,
+        /// The seal key the evidence names belongs to no registered validator.
+        ///
+        /// The Admission Engine records the draw key and the seal key of every
+        /// validator. Register the keys before reporting evidence against them.
+        EquivocationAuthorUnregistered,
+        /// The seal key the evidence names differs from the recorded key.
+        ///
+        /// Report evidence built from the seal key the chain holds for that
+        /// validator.
+        EquivocationKeysMismatch,
+        /// The checkpoint sits out of order with the anchored set.
+        ///
+        /// Anchor checkpoints in index order starting from zero, each above the
+        /// block the one before it settles.
+        CheckpointOutOfOrder,
+        /// The chain already anchored a checkpoint at that index.
+        ///
+        /// Read the anchored checkpoint for what the chain settled.
+        CheckpointAlreadyAnchored,
+        /// The chain already applied the penalty for this equivocation.
+        ///
+        /// One slot, one rank and one seal key take one penalty. Read the fault
+        /// record for what the chain proved.
+        EquivocationAlreadyPenalised,
     }
 
     // --- Dispatchable Calls --- //
@@ -5745,11 +6182,11 @@ pub mod pallet {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.stake_score = stake_score;
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            })
+            .map_err(sp_runtime::DispatchError::from)?;
             Self::update_final_score(&validator)?;
             Ok(())
         }
-
 
         /// Update consensus weights for PoS and PoI.
         #[pallet::call_index(2)]
@@ -5760,7 +6197,11 @@ pub mod pallet {
             poi_weight: u64,
         ) -> DispatchResult {
             ensure_root(origin)?;
-            ensure!(pos_weight + poi_weight == T::PercentagePrecision::get() as u64, Error::<T>::InvalidWeight);
+            // A checked sum refuses two shares whose total wraps.
+            ensure!(
+                pos_weight.checked_add(poi_weight) == Some(T::PercentagePrecision::get() as u64),
+                Error::<T>::InvalidWeight
+            );
             PosWeight::<T>::put(pos_weight);
             PoiWeight::<T>::put(poi_weight);
             Self::deposit_event_with_evm_compat(Event::ConsensusWeightsUpdated {
@@ -5771,25 +6212,25 @@ pub mod pallet {
         }
 
         /// Update a DCF parameter through the governance system with safety rails.
-        /// 
-        /// This dispatchable allows root accounts to update any configurable DCF parameter
-        /// while enforcing safety constraints defined in the governance configuration.
+        ///
+        /// This dispatchable allows root accounts to update any adjustable DCF parameter
+        /// while enforcing safety constraints defined in the governance settings.
         /// All parameter updates are validated against predefined ranges to prevent
-        /// dangerous configurations that could destabilize the network.
-        /// 
+        /// dangerous settings that could destabilize the network.
+        ///
         /// The function:
         /// - Validates the caller has root authorization
         /// - Checks the parameter type is supported
         /// - Validates the new value is within the allowed range
-        /// - Updates the parameter in the governance configuration
-        /// - Applies the change to the active system configuration
+        /// - Updates the parameter in the governance settings
+        /// - Applies the change to the active system settings
         /// - Emits an event documenting the change with old/new values
-        /// 
+        ///
         /// # Parameters
         /// - `origin`: Must be root origin for authorization
         /// - `parameter`: The specific parameter type to update
         /// - `value`: New value for the parameter (encoded as bytes for type flexibility)
-        /// 
+        ///
         /// # Errors
         /// - `UnauthorizedParameterUpdate`: If caller is not root
         /// - `InvalidParameterType`: If parameter type is not supported
@@ -5804,50 +6245,50 @@ pub mod pallet {
         ) -> DispatchResult {
             // Ensure only root can update parameters
             ensure_root(origin)?;
-            
-            // Get current governance configuration
+
+            // Get current governance settings
             let mut config = GovernanceConfigStorage::<T>::get();
-            
+
             // Store old value for event emission
             let old_value = Self::get_parameter_value(&config, &parameter)?;
-            
+
             // Validate and update the parameter
             Self::validate_and_update_parameter(&mut config, parameter.clone(), &value)?;
-            
-            // Store updated configuration
+
+            // Store updated settings
             GovernanceConfigStorage::<T>::put(&config);
-            
-            // Apply the parameter change to active system configuration
+
+            // Apply the parameter change to active system settings
             Self::apply_parameter_change(&parameter, &value)?;
-            
+
             // Emit event documenting the change
             Self::deposit_event(Event::DcfParameterUpdated {
                 parameter,
                 old_value,
                 new_value: value,
             });
-            
+
             Ok(())
         }
 
-        /// Update rate limiting configuration for DoS protection.
-        /// 
+        /// Update rate limiting settings for DoS protection.
+        ///
         /// This dispatchable allows root accounts to update the rate limiting
-        /// configuration that controls how frequently various operations can be
+        /// settings that controls how frequently various operations can be
         /// performed to prevent abuse and DoS attacks.
-        /// 
-        /// The function validates the new configuration to ensure it won't prevent
+        ///
+        /// The function validates the new settings to ensure it won't prevent
         /// normal network operation while providing adequate protection against abuse.
-        /// 
+        ///
         /// # Parameters
         /// - `origin`: Must be root origin for authorization
         /// - `max_proposals_per_block`: Maximum proposal submissions per block
         /// - `max_joins_per_block`: Maximum validator join operations per block
         /// - `max_leaves_per_block`: Maximum validator leave operations per block
-        /// 
+        ///
         /// # Errors
         /// - `BadOrigin`: If caller is not root
-        /// - `InvalidRateLimitConfig`: If configuration values are invalid
+        /// - `InvalidRateLimitConfig`: If settings values are invalid
         #[pallet::call_index(35)]
         #[pallet::weight(Weight::from_parts(50_000_000, 0))] // Fixed weight for config update
         pub fn update_rate_limit_config(
@@ -5856,18 +6297,18 @@ pub mod pallet {
             max_joins_per_block: u32,
             max_leaves_per_block: u32,
         ) -> DispatchResult {
-            // Ensure only root can update rate limiting configuration
+            // Ensure only root can update rate limiting settings
             ensure_root(origin)?;
-            
+
             // Create new config with provided values and defaults for others
             let mut new_config = RateLimitConfigStorage::<T>::get();
             new_config.max_proposals_per_block = max_proposals_per_block;
             new_config.max_joins_per_block = max_joins_per_block;
             new_config.max_leaves_per_block = max_leaves_per_block;
-            
-            // Update configuration with validation
+
+            // Update settings with validation
             Self::update_rate_limit_config_internal(new_config)?;
-            
+
             Ok(())
         }
 
@@ -5886,7 +6327,10 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::sudo_advance_epoch())]
         pub fn sudo_advance_epoch(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
-            ensure!(GovernanceModeEnabled::<T>::get(), Error::<T>::NotAllowedInGovernanceMode);
+            ensure!(
+                GovernanceModeEnabled::<T>::get(),
+                Error::<T>::NotAllowedInGovernanceMode
+            );
             let _ = Self::handle_epoch_transition();
             Ok(())
         }
@@ -5900,19 +6344,42 @@ pub mod pallet {
             description: Option<BoundedVec<u8, ConstU32<128>>>,
         ) -> DispatchResult {
             let proposer = ensure_signed(origin)?;
-            
+
             // Check rate limits before proceeding
             let weight = <T as Config>::WeightInfo::submit_proposal();
-            if let Err((e, violation_opt)) = Self::check_rate_limits(&proposer, DispatchableType::SubmitProposal, weight) {
+            if let Err((e, violation_opt)) =
+                Self::check_rate_limits(&proposer, DispatchableType::SubmitProposal, weight)
+            {
                 // Handle rate limit violation using the violation info
                 if let Some(violation) = violation_opt {
                     let (operation_code, violation_type, current_count, limit) = match violation {
-                        RateLimitViolation::PerBlockLimitExceeded { current_count, limit, .. } => (0u8, 0u8, current_count, limit),
-                        RateLimitViolation::PerAccountLimitExceeded { current_count, limit, .. } => (0u8, 1u8, current_count, limit),
-                        RateLimitViolation::MinimumIntervalViolation { blocks_since_last, required_interval, .. } => (0u8, 2u8, blocks_since_last, required_interval),
-                        RateLimitViolation::WeightLimitExceeded { actual_weight, max_weight, .. } => (0u8, 3u8, (actual_weight / 1000) as u32, (max_weight / 1000) as u32),
+                        RateLimitViolation::PerBlockLimitExceeded {
+                            current_count,
+                            limit,
+                            ..
+                        } => (0u8, 0u8, current_count, limit),
+                        RateLimitViolation::PerAccountLimitExceeded {
+                            current_count,
+                            limit,
+                            ..
+                        } => (0u8, 1u8, current_count, limit),
+                        RateLimitViolation::MinimumIntervalViolation {
+                            blocks_since_last,
+                            required_interval,
+                            ..
+                        } => (0u8, 2u8, blocks_since_last, required_interval),
+                        RateLimitViolation::WeightLimitExceeded {
+                            actual_weight,
+                            max_weight,
+                            ..
+                        } => (
+                            0u8,
+                            3u8,
+                            (actual_weight / 1000) as u32,
+                            (max_weight / 1000) as u32,
+                        ),
                     };
-                    
+
                     Self::deposit_event(Event::RateLimitViolation {
                         account: proposer,
                         operation: operation_code,
@@ -5921,29 +6388,32 @@ pub mod pallet {
                         limit,
                     });
                 }
-                
+
                 return Err(e);
             }
-            
+
             // Check private chain governance restrictions
             if Self::is_private_chain_mode() {
                 Self::validate_governance_in_private_mode(&proposer)?;
-                
+
                 // Also validate the target if it's a validator-specific action
                 match &action {
-                    ProposalAction::Slash { validator, .. } |
-                    ProposalAction::Reward { validator, .. } => {
+                    ProposalAction::Slash { validator, .. }
+                    | ProposalAction::Reward { validator, .. } => {
                         Self::validate_proposal_in_private_mode(&proposer, validator)?;
-                    },
-                    ProposalAction::Eject { validator, reason: _ } => {
+                    }
+                    ProposalAction::Eject {
+                        validator,
+                        reason: _,
+                    } => {
                         Self::validate_proposal_in_private_mode(&proposer, validator)?;
-                    },
+                    }
                     _ => {
                         // For non-validator-specific actions, just check proposer
                     }
                 }
             }
-            
+
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
@@ -5959,18 +6429,20 @@ pub mod pallet {
                 proposer: proposer.clone(),
                 action: action.clone(),
             });
-            
+
             // Emit detailed proposal created event
             Self::deposit_event(Event::ProposalCreated {
                 proposal_id,
                 proposer: proposer.clone(),
                 action,
-                description: description.unwrap_or_else(|| BoundedVec::truncate_from(b"No description provided".to_vec())),
+                description: description.unwrap_or_else(|| {
+                    BoundedVec::truncate_from(b"No description provided".to_vec())
+                }),
             });
-            
+
             // Record the operation for rate limiting
             Self::record_operation(&proposer, DispatchableType::SubmitProposal);
-            
+
             Ok(())
         }
 
@@ -5983,19 +6455,48 @@ pub mod pallet {
             approve: bool,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+            // The quorum counts the active validators, so a vote from outside
+            // that set counts toward nothing and the pallet refuses it.
+            ensure!(
+                ActiveValidators::<T>::get().contains(&who),
+                Error::<T>::NotValidator
+            );
+
             // Check rate limits before proceeding
             let weight = <T as Config>::WeightInfo::vote_proposal();
-            if let Err((e, violation_opt)) = Self::check_rate_limits(&who, DispatchableType::VoteProposal, weight) {
+            if let Err((e, violation_opt)) =
+                Self::check_rate_limits(&who, DispatchableType::VoteProposal, weight)
+            {
                 // Handle rate limit violation using the violation info
                 if let Some(violation) = violation_opt {
                     let (operation_code, violation_type, current_count, limit) = match violation {
-                        RateLimitViolation::PerBlockLimitExceeded { current_count, limit, .. } => (2u8, 0u8, current_count, limit),
-                        RateLimitViolation::PerAccountLimitExceeded { current_count, limit, .. } => (2u8, 1u8, current_count, limit),
-                        RateLimitViolation::MinimumIntervalViolation { blocks_since_last, required_interval, .. } => (2u8, 2u8, blocks_since_last, required_interval),
-                        RateLimitViolation::WeightLimitExceeded { actual_weight, max_weight, .. } => (2u8, 3u8, (actual_weight / 1000) as u32, (max_weight / 1000) as u32),
+                        RateLimitViolation::PerBlockLimitExceeded {
+                            current_count,
+                            limit,
+                            ..
+                        } => (2u8, 0u8, current_count, limit),
+                        RateLimitViolation::PerAccountLimitExceeded {
+                            current_count,
+                            limit,
+                            ..
+                        } => (2u8, 1u8, current_count, limit),
+                        RateLimitViolation::MinimumIntervalViolation {
+                            blocks_since_last,
+                            required_interval,
+                            ..
+                        } => (2u8, 2u8, blocks_since_last, required_interval),
+                        RateLimitViolation::WeightLimitExceeded {
+                            actual_weight,
+                            max_weight,
+                            ..
+                        } => (
+                            2u8,
+                            3u8,
+                            (actual_weight / 1000) as u32,
+                            (max_weight / 1000) as u32,
+                        ),
                     };
-                    
+
                     Self::deposit_event(Event::RateLimitViolation {
                         account: who,
                         operation: operation_code,
@@ -6004,13 +6505,19 @@ pub mod pallet {
                         limit,
                     });
                 }
-                
+
                 return Err(e);
             }
             Proposals::<T>::try_mutate_exists(proposal_id, |maybe_prop| {
                 let prop = maybe_prop.as_mut().ok_or(Error::<T>::ProposalNotApproved)?;
-                ensure!(matches!(prop.status, ProposalStatus::Pending), Error::<T>::ProposalAlreadyExecuted);
-                ensure!(!ProposalVotes::<T>::contains_key(proposal_id, &who), Error::<T>::AlreadyVoted);
+                ensure!(
+                    matches!(prop.status, ProposalStatus::Pending),
+                    Error::<T>::ProposalAlreadyExecuted
+                );
+                ensure!(
+                    !ProposalVotes::<T>::contains_key(proposal_id, &who),
+                    Error::<T>::AlreadyVoted
+                );
 
                 if approve {
                     prop.votes_for += 1;
@@ -6038,56 +6545,68 @@ pub mod pallet {
                 }
                 Ok::<(), Error<T>>(())
             })?;
-            
+
             // Record the operation for rate limiting
             Self::record_operation(&who, DispatchableType::VoteProposal);
-            
+
             Ok(())
         }
 
         /// Execute an approved governance proposal (sudo only).
         #[pallet::call_index(7)]
         #[pallet::weight(<T as Config>::WeightInfo::execute_proposal())]
-        pub fn execute_proposal(
-            origin: OriginFor<T>,
-            proposal_id: u32,
-        ) -> DispatchResult {
+        pub fn execute_proposal(origin: OriginFor<T>, proposal_id: u32) -> DispatchResult {
             ensure_root(origin)?;
             Proposals::<T>::try_mutate_exists(proposal_id, |maybe_prop| {
                 let prop = maybe_prop.as_mut().ok_or(Error::<T>::ProposalNotApproved)?;
-                ensure!(matches!(prop.status, ProposalStatus::Approved), Error::<T>::ProposalNotApproved);
+                ensure!(
+                    matches!(prop.status, ProposalStatus::Approved),
+                    Error::<T>::ProposalNotApproved
+                );
 
-                // Execute action with proper implementation
-                match &prop.action {
+                // Run the action and keep its outcome. A failed action leaves
+                // the proposal marked as failed, so the record never claims an
+                // execution that did not happen.
+                let outcome: DispatchResult = match &prop.action {
                     ProposalAction::Slash { validator, amount } => {
-                        // Implement actual slashing logic
-                        let _ = pos::Pallet::<T>::execute_slash_validator(validator, *amount);
+                        pos::Pallet::<T>::execute_slash_validator(validator, *amount)
                     }
                     ProposalAction::Reward { validator, amount } => {
-                        // Implement actual reward logic
-                        let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                        pos::Pallet::<T>::execute_reward_validator(validator, *amount)
                     }
                     ProposalAction::RewardMultiple { validators, amount } => {
-                        // Reward multiple validators with the same amount
+                        // Every validator receives the amount. The first failure
+                        // stands as the outcome, and the rest still run.
+                        let mut first_failure: DispatchResult = Ok(());
                         for validator in validators.iter() {
-                            let _ = pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                            let paid =
+                                pos::Pallet::<T>::execute_reward_validator(validator, *amount);
+                            if first_failure.is_ok() {
+                                first_failure = paid;
+                            }
                         }
-                        log::info!("Rewarded {} validators with amount {:?} each", validators.len(), amount);
+                        log::info!(
+                            "Rewarded {} validators with amount {:?} each",
+                            validators.len(),
+                            amount
+                        );
+                        first_failure
                     }
                     ProposalAction::Eject { validator, reason } => {
-                        // Implement actual ejection logic
-                        let _ = Self::execute_eject_validator(validator, reason.clone());
+                        Self::execute_eject_validator(validator, reason.clone())
                     }
                     ProposalAction::AddValidator { validator } => {
-                        // Add validator to the validator set
-                        let _ = Self::execute_add_validator(validator);
+                        Self::execute_add_validator(validator)
                     }
                     ProposalAction::RemoveValidator { validator } => {
-                        // Remove validator from the validator set
-                        let _ = Self::execute_remove_validator(validator);
+                        Self::execute_remove_validator(validator)
                     }
-                }
-                prop.status = ProposalStatus::Executed;
+                };
+                prop.status = if outcome.is_ok() {
+                    ProposalStatus::Executed
+                } else {
+                    ProposalStatus::Failed
+                };
                 Self::deposit_event(Event::ProposalExecuted {
                     proposal_id,
                     status: prop.status.clone(),
@@ -6165,7 +6684,10 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
             let default_reward = T::ValidatorReward::get();
-            let action = ProposalAction::Reward { validator: validator.clone(), amount: default_reward };
+            let action = ProposalAction::Reward {
+                validator: validator.clone(),
+                amount: default_reward,
+            };
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
@@ -6181,7 +6703,11 @@ pub mod pallet {
                 proposer,
                 action,
             });
-            log::info!("Default reward proposal created for validator {:?} with amount {:?}", validator, default_reward);
+            log::info!(
+                "Default reward proposal created for validator {:?} with amount {:?}",
+                validator,
+                default_reward
+            );
             Ok(())
         }
 
@@ -6195,29 +6721,29 @@ pub mod pallet {
             amount: <T as pallet::Config>::Balance,
         ) -> DispatchResult {
             ensure_root(origin)?;
-            
+
             // Validate validators list length
             ensure!(
                 validators.len() <= MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
             ensure!(!validators.is_empty(), Error::<T>::NotEnoughValidators);
-            
+
             // Check weight bounds for validator iteration
             let config = RateLimitConfigStorage::<T>::get();
             let estimated_weight = validators.len() as u64 * 10_000; // Estimate 10k weight per validator validation
-            
+
             if estimated_weight > config.max_proposal_processing_weight {
                 return Err(Error::<T>::WeightLimitExceeded.into());
             }
-            
+
             // Limit iterations to prevent unbounded loops
             let max_iterations = config.max_loop_iterations.min(validators.len() as u32);
             ensure!(
                 validators.len() <= max_iterations as usize,
                 Error::<T>::WeightLimitExceeded
             );
-            
+
             // Validate that all validators exist
             for validator in validators.iter() {
                 ensure!(
@@ -6225,10 +6751,13 @@ pub mod pallet {
                     Error::<T>::ValidatorNotFound
                 );
             }
-            
+
             let bounded_validators = BoundedVec::try_from(validators.clone())
                 .map_err(|_| Error::<T>::NotEnoughValidators)?;
-            let action = ProposalAction::RewardMultiple { validators: bounded_validators, amount };
+            let action = ProposalAction::RewardMultiple {
+                validators: bounded_validators,
+                amount,
+            };
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
@@ -6258,14 +6787,14 @@ pub mod pallet {
             validators: Vec<T::AccountId>,
         ) -> DispatchResult {
             ensure_root(origin)?;
-            
+
             // Validate validators list length
             ensure!(
                 validators.len() <= MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
             ensure!(!validators.is_empty(), Error::<T>::NotEnoughValidators);
-            
+
             // Validate that all validators exist
             for validator in validators.iter() {
                 ensure!(
@@ -6273,11 +6802,14 @@ pub mod pallet {
                     Error::<T>::ValidatorNotFound
                 );
             }
-            
+
             let default_reward = T::ValidatorReward::get();
             let bounded_validators = BoundedVec::try_from(validators.clone())
                 .map_err(|_| Error::<T>::NotEnoughValidators)?;
-            let action = ProposalAction::RewardMultiple { validators: bounded_validators, amount: default_reward };
+            let action = ProposalAction::RewardMultiple {
+                validators: bounded_validators,
+                amount: default_reward,
+            };
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
@@ -6306,16 +6838,19 @@ pub mod pallet {
             proposer: T::AccountId,
         ) -> DispatchResult {
             ensure_root(origin)?;
-            
+
             let active_validators = ActiveValidators::<T>::get();
-            ensure!(!active_validators.is_empty(), Error::<T>::NotEnoughValidators);
-            
+            ensure!(
+                !active_validators.is_empty(),
+                Error::<T>::NotEnoughValidators
+            );
+
             let default_reward = T::ValidatorReward::get();
             let bounded_validators = BoundedVec::try_from(active_validators.clone().into_inner())
                 .map_err(|_| Error::<T>::NotEnoughValidators)?;
-            let action = ProposalAction::RewardMultiple { 
-                validators: bounded_validators, 
-                amount: default_reward 
+            let action = ProposalAction::RewardMultiple {
+                validators: bounded_validators,
+                amount: default_reward,
             };
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
@@ -6332,8 +6867,11 @@ pub mod pallet {
                 proposer,
                 action,
             });
-            log::info!("Reward proposal created for all {} active validators with amount {:?} each", 
-                      active_validators.len(), default_reward);
+            log::info!(
+                "Reward proposal created for all {} active validators with amount {:?} each",
+                active_validators.len(),
+                default_reward
+            );
             Ok(())
         }
 
@@ -6349,7 +6887,10 @@ pub mod pallet {
             reason: EjectionReason,
         ) -> DispatchResult {
             ensure_root(origin)?;
-            let action = ProposalAction::Eject { validator, reason: reason.clone() };
+            let action = ProposalAction::Eject {
+                validator,
+                reason: reason.clone(),
+            };
             let proposal_id = NextProposalId::<T>::get();
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
@@ -6370,22 +6911,22 @@ pub mod pallet {
 
         // join_validator_set moved to pallet-cerulea-dvf.
 
-        /// Validate a genesis configuration without applying it.
-        /// 
-        /// This dispatchable allows validation of genesis configurations for testing
+        /// Validate a genesis settings without applying it.
+        ///
+        /// This dispatchable allows validation of genesis settings for testing
         /// and verification purposes. It performs comprehensive checks including
         /// duplicate validator detection, stake validation, and invariant verification.
-        /// 
+        ///
         /// # Arguments
         /// * `origin` - Must be root origin for security
         /// * `validators` - List of validator accounts
         /// * `validator_stakes` - List of validator stakes (must match validators length or be empty)
-        /// * `epoch_config` - Epoch configuration parameters
-        /// 
+        /// * `epoch_config` - Epoch settings parameters
+        ///
         /// # Errors
         /// * `BadOrigin` - If caller is not root
         /// * `GenesisValidationFailed` - If validation fails with details in event
-        /// 
+        ///
         /// # Requirements Coverage
         /// * 11.1: Validates for duplicate validators and invalid stakes
         /// * 11.2: Checks active set size not exceeding MaxValidators
@@ -6417,15 +6958,17 @@ pub mod pallet {
                     // Emit success event
                     Self::deposit_event(Event::GenesisValidationSucceeded {
                         validator_count: genesis_config.validators.len() as u32,
-                        total_stake: genesis_config.validator_stakes.iter().fold(
-                            <T as pallet::Config>::Balance::from(0u32),
-                            |acc, stake| acc.saturating_add(*stake)
-                        ),
+                        total_stake: genesis_config
+                            .validator_stakes
+                            .iter()
+                            .fold(<T as pallet::Config>::Balance::from(0u32), |acc, stake| {
+                                acc.saturating_add(*stake)
+                            }),
                     });
                     Ok(())
-                },
+                }
                 Err(error) => {
-                    log::error!("============== [CBC-TRACE] 38 [pallet-cerulea-dcf::validate_genesis_configuration] Genesis validation failed: {:?} ==============", error);
+                    log::error!("============== [Cerulea-TRACE] 38 [pallet-cerulea-dcf::validate_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisValidationFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
@@ -6436,20 +6979,20 @@ pub mod pallet {
         }
 
         /// Perform a dry-run of genesis build with comprehensive reporting.
-        /// 
+        ///
         /// This dispatchable simulates the complete genesis build process without
         /// modifying storage, providing detailed validation results and analysis.
-        /// 
+        ///
         /// # Arguments
         /// * `origin` - Must be root origin for security
         /// * `validators` - List of validator accounts
         /// * `validator_stakes` - List of validator stakes (must match validators length or be empty)
-        /// * `epoch_config` - Epoch configuration parameters
-        /// 
+        /// * `epoch_config` - Epoch settings parameters
+        ///
         /// # Errors
         /// * `BadOrigin` - If caller is not root
         /// * `GenesisValidationFailed` - If dry-run fails with details in event
-        /// 
+        ///
         /// # Requirements Coverage
         /// * 11.3: Implements dry-run function that builds genesis and asserts all invariants
         /// * 11.4: Provides comprehensive validation without side effects
@@ -6485,9 +7028,9 @@ pub mod pallet {
                         warnings_count: report.warnings.len() as u32,
                     });
                     Ok(())
-                },
+                }
                 Err(error) => {
-                    log::error!("============== [CBC-TRACE] 38 [pallet-cerulea-dcf::dry_run_genesis_configuration] Genesis validation failed: {:?} ==============", error);
+                    log::error!("============== [Cerulea-TRACE] 38 [pallet-cerulea-dcf::dry_run_genesis_configuration] Genesis validation failed: {:?} ==============", error);
                     // Emit failure event with error details
                     Self::deposit_event(Event::GenesisDryRunFailed {
                         error: error.as_bytes().to_vec().try_into().unwrap_or_default(),
@@ -6504,30 +7047,27 @@ pub mod pallet {
         /// Set validator display name
         #[pallet::call_index(15)]
         #[pallet::weight(<T as Config>::WeightInfo::set_validator_name())]
-        pub fn set_validator_name(
-            origin: OriginFor<T>,
-            name: Vec<u8>,
-        ) -> DispatchResult {
+        pub fn set_validator_name(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+
             // Ensure the validator exists
             ensure!(
                 ValidatorStates::<T>::contains_key(&who),
                 Error::<T>::ValidatorNotFound
             );
-            
+
             // Validate name length
-            let bounded_name = BoundedVec::try_from(name)
-                .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
+            let bounded_name =
+                BoundedVec::try_from(name).map_err(|_| Error::<T>::InvalidEpochConfig)?;
+
             ValidatorNames::<T>::insert(&who, &bounded_name);
-            
+
             // Emit event for validator name registration
             Self::deposit_event(Event::ValidatorNameRegistered {
                 validator: who,
                 name: bounded_name,
             });
-            
+
             Ok(())
         }
 
@@ -6545,38 +7085,45 @@ pub mod pallet {
             min_stake_required: Option<<T as pallet::Config>::Balance>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+
             // Ensure the validator exists
             ensure!(
                 ValidatorStates::<T>::contains_key(&who),
                 Error::<T>::ValidatorNotFound
             );
-            
+
             // Validate and convert inputs
-            let bounded_name = BoundedVec::try_from(name)
-                .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
-            let bounded_website = website.map(|w| BoundedVec::try_from(w))
+            let bounded_name =
+                BoundedVec::try_from(name).map_err(|_| Error::<T>::InvalidEpochConfig)?;
+
+            let bounded_website = website
+                .map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
-            let bounded_contact = contact.map(|c| BoundedVec::try_from(c))
+
+            let bounded_contact = contact
+                .map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
-            let bounded_description = description.map(|d| BoundedVec::try_from(d))
+
+            let bounded_description = description
+                .map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
-            let bounded_location = location.map(|l| BoundedVec::try_from(l))
+
+            let bounded_location = location
+                .map(BoundedVec::try_from)
                 .transpose()
                 .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-            
+
             // Validate commission rate
             if let Some(rate) = commission_rate {
-                ensure!(rate <= T::MaxCommissionRate::get(), Error::<T>::InvalidEpochConfig);
+                ensure!(
+                    rate <= T::MaxCommissionRate::get(),
+                    Error::<T>::InvalidEpochConfig
+                );
             }
-            
+
             let now = Self::get_current_timestamp();
             let metadata = ValidatorMetadataInfo {
                 name: bounded_name.clone(),
@@ -6591,28 +7138,29 @@ pub mod pallet {
                     .unwrap_or(now),
                 updated_at: now,
             };
-            
+
             ValidatorMetadata::<T>::insert(&who, metadata);
             ValidatorNames::<T>::insert(&who, &bounded_name);
-            
+
             // Emit event for validator name registration
             Self::deposit_event(Event::ValidatorNameRegistered {
                 validator: who.clone(),
                 name: bounded_name.clone(),
             });
-            
+
             // Set join time if not already set
             if !ValidatorJoinTime::<T>::contains_key(&who) {
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let current_block =
+                    frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 ValidatorJoinTime::<T>::insert(&who, current_block);
             }
-            
+
             // Emit event
             Self::deposit_event(Event::ValidatorMetadataUpdated {
                 validator: who,
                 name: bounded_name,
             });
-            
+
             Ok(())
         }
 
@@ -6626,23 +7174,29 @@ pub mod pallet {
             blocks_missed: u32,
         ) -> DispatchResult {
             ensure_root(origin)?; // Only callable by root or internal logic
-            
+
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            
-            // Update last seen
+
+            // The uptime reads the earlier sighting, so it runs before this
+            // report moves the last seen block to the present one.
+            let uptime_percentage = Self::calculate_uptime_percentage(&validator);
             ValidatorLastSeen::<T>::insert(&validator, current_block);
-            
+
             // Update total counters
-            ValidatorBlocksAuthored::<T>::mutate(&validator, |total| *total += blocks_authored);
-            ValidatorBlocksMissed::<T>::mutate(&validator, |total| *total += blocks_missed);
-            
+            // The counters saturate at their ceiling, so a large report never
+            // wraps and never panics.
+            ValidatorBlocksAuthored::<T>::mutate(&validator, |total| {
+                *total = total.saturating_add(blocks_authored)
+            });
+            ValidatorBlocksMissed::<T>::mutate(&validator, |total| {
+                *total = total.saturating_add(blocks_missed)
+            });
+
             // Update performance history
             let current_epoch = Self::current_epoch();
             let now = Self::get_current_timestamp();
-            
+
             if let Some(state) = ValidatorStates::<T>::get(&validator) {
-                let uptime_percentage = Self::calculate_uptime_percentage(&validator);
-                
                 let performance_record = PerformanceRecord {
                     epoch: current_epoch,
                     blocks_authored,
@@ -6654,14 +7208,16 @@ pub mod pallet {
                     participation_rate: state.participation_rate,
                     timestamp: now,
                 };
-                
+
                 ValidatorPerformanceHistory::<T>::mutate(&validator, |history| {
-                    if history.len() >= T::MaxPerformanceHistoryLength::get() as usize {
+                    if history.len() >= T::MaxPerformanceHistoryLength::get() as usize
+                        && !history.is_empty()
+                    {
                         history.remove(0); // Remove oldest record
                     }
                     let _ = history.try_push(performance_record);
                 });
-                
+
                 // Emit event
                 Self::deposit_event(Event::ValidatorActivityUpdated {
                     validator: validator.clone(),
@@ -6670,7 +7226,7 @@ pub mod pallet {
                     uptime_percentage,
                 });
             }
-            
+
             Ok(())
         }
 
@@ -6683,38 +7239,38 @@ pub mod pallet {
             evidence: BoundedVec<u8, T::MaxEvidenceLength>,
         ) -> DispatchResult {
             let reporter = ensure_signed(origin)?;
-            
+
             // Ensure the reporter is in the ValidatorSet
             let validator_set = ValidatorSet::<T>::get();
             ensure!(
                 validator_set.contains(&reporter),
                 Error::<T>::ValidatorNotInSet
             );
-            
+
             // Ensure the reported validator exists in the ValidatorSet
             ensure!(
                 validator_set.contains(&validator),
                 Error::<T>::ValidatorNotFound
             );
-            
+
             // Ensure reporter is not reporting themselves
             ensure!(reporter != validator, Error::<T>::InvalidScore); // Reuse existing error
-            
+
             // Check if this reporter has already reported this validator
             ensure!(
                 !MisbehaviorReports::<T>::contains_key(&validator, &reporter),
                 Error::<T>::InvalidScore // Reuse existing error for duplicate report
             );
-            
+
             // Store the report
             MisbehaviorReports::<T>::insert(&validator, &reporter, &evidence);
-            
+
             // Count total reports for this validator
             let mut report_count = 0u32;
             for (_, _) in MisbehaviorReports::<T>::iter_prefix(&validator) {
                 report_count = report_count.saturating_add(1);
             }
-            
+
             // Emit event
             Self::deposit_event(Event::ValidatorMisbehaviorReported {
                 reported_validator: validator.clone(),
@@ -6722,20 +7278,24 @@ pub mod pallet {
                 evidence: evidence.clone(),
                 total_reports: report_count,
             });
-            
+
             // Check if we've reached the threshold for automatic slashing
             let slash_threshold = T::MisbehaviorSlashThreshold::get();
             if report_count >= slash_threshold {
                 // Execute automatic slash
                 let slash_amount = Self::calculate_slash_amount(&validator)?;
-                let _ = pos::Pallet::<T>::execute_slash_validator_with_reason(&validator, slash_amount, pos::SlashReason::ConsensusViolation);
-                
+                let _ = pos::Pallet::<T>::execute_slash_validator_with_reason(
+                    &validator,
+                    slash_amount,
+                    pos::SlashReason::ConsensusViolation,
+                );
+
                 // Force eject validator
                 let _ = pos::Pallet::<T>::force_eject_validator(&validator);
-                
+
                 // Clear all reports for this validator since they've been slashed
                 let _ = MisbehaviorReports::<T>::clear_prefix(&validator, u32::MAX, None);
-                
+
                 // Emit auto-slash event
                 Self::deposit_event(Event::ValidatorAutoSlashed {
                     validator,
@@ -6743,23 +7303,733 @@ pub mod pallet {
                     report_count,
                 });
             }
-            
+
             Ok(())
         }
 
+        /// Replace the share and the delay window one transaction class carries.
+        ///
+        /// The whole table passes inspection before it reaches storage. A table
+        /// that fails inspection leaves the stored table untouched.
+        #[pallet::call_index(38)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn set_assurance_class(
+            origin: OriginFor<T>,
+            class: crate::engines::assurance::TransactionClass,
+            threshold_percent: u8,
+            delay_blocks: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let mut table = AssuranceClassTable::<T>::get();
+            let previous_percent = table.threshold_percent(class);
+            table.set_threshold_percent(class, threshold_percent);
+            table.set_delay_blocks(class, delay_blocks);
+            table
+                .inspect()
+                .map_err(|_| Error::<T>::AssuranceTableInvalid)?;
+
+            AssuranceClassTable::<T>::put(table);
+            Self::deposit_event(Event::AssuranceClassTableAmended {
+                class,
+                previous_percent,
+                current_percent: threshold_percent,
+                delay_blocks,
+            });
+            Ok(())
+        }
+
+        /// Schedule a change under the delay window its class carries.
+        ///
+        /// A constitutional change waits the full window. A lighter class takes
+        /// effect at the block of commitment.
+        #[pallet::call_index(39)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_proposal())]
+        pub fn schedule_class_change(
+            origin: OriginFor<T>,
+            class: crate::engines::assurance::TransactionClass,
+            payload: BoundedVec<u8, ConstU32<512>>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let _ = Self::open_scheduled_change(class, payload)?;
+            Ok(())
+        }
+
+        /// Release a change that waited out its window.
+        ///
+        /// A release inside the window fails. The chain also releases a matured
+        /// change on its own at the start of every block.
+        #[pallet::call_index(40)]
+        #[pallet::weight(<T as Config>::WeightInfo::execute_proposal())]
+        pub fn release_scheduled_change(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            ensure_signed(origin)?;
+            Self::release_change(id)
+        }
+
+        /// Count one epoch of service toward the standing of a validator.
+        ///
+        /// An epoch counts once. Every service condition holds for the epoch to
+        /// count.
+        #[pallet::call_index(41)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_validator_activity())]
+        pub fn record_service_epoch(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            epoch: u32,
+            evidence: crate::engines::standing::ServiceEvidence,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(
+                evidence.meets_conditions(),
+                Error::<T>::ServiceConditionsUnmet
+            );
+
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let counted = crate::engines::standing::record_epoch(&mut record, epoch, evidence);
+            ensure!(counted, Error::<T>::ServiceEpochAlreadyCounted);
+            ServiceRecords::<T>::insert(&validator, record);
+
+            let ramp = Self::ramp_epochs();
+            let standing = crate::engines::standing::accumulated(&record, ramp);
+            StandingShares::<T>::insert(&validator, standing);
+
+            Self::deposit_event(Event::ServiceEpochCounted {
+                validator,
+                epoch,
+                epochs_served: record.epochs_served,
+                standing,
+            });
+            Ok(())
+        }
+
+        /// Settle one verification sampling report.
+        #[pallet::call_index(42)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_validator_activity())]
+        pub fn report_sampling_outcome(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            outcome: crate::engines::standing::SampleOutcome,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let mut record = SamplingRecords::<T>::get(&validator);
+            let sampling = crate::engines::standing::settle_sample(&mut record, outcome);
+            SamplingRecords::<T>::insert(&validator, record);
+            Self::deposit_event(Event::SamplingReportSettled {
+                validator,
+                outcome,
+                sampling,
+            });
+            Ok(())
+        }
+
+        /// Return the standing of one validator to zero on proven misconduct.
+        #[pallet::call_index(43)]
+        #[pallet::weight(<T as Config>::WeightInfo::report_validator_misbehavior())]
+        pub fn prove_misconduct(
+            origin: OriginFor<T>,
+            validator: T::AccountId,
+            misconduct: crate::engines::standing::Misconduct,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let epoch = Self::current_epoch();
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let outcome = crate::engines::standing::reset(&mut record, misconduct, epoch);
+            ServiceRecords::<T>::insert(&validator, record);
+            StandingShares::<T>::insert(&validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(&validator, outcome);
+
+            Self::deposit_event(Event::StandingReset {
+                validator,
+                misconduct,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            Ok(())
+        }
+
+        /// Open an amendment against one policy.
+        ///
+        /// The amendment runs under the Amendment policy in force at this
+        /// block.
+        #[pallet::call_index(44)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_proposal())]
+        pub fn open_amendment(
+            origin: OriginFor<T>,
+            policy: crate::engines::amendment::PolicyKind,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let policies = Policies::<T>::get();
+            let seated = T::ValidatorRegistry::is_validator_active(&who);
+            ensure!(
+                crate::engines::amendment::holds_authority(
+                    policies.amendment.authority,
+                    false,
+                    seated,
+                    seated,
+                ),
+                Error::<T>::AmendmentAuthorityAbsent
+            );
+
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let body_size = T::ValidatorRegistry::get_active_validators().len() as u32;
+            let amendment = crate::engines::amendment::open(
+                &policies,
+                policy,
+                now,
+                body_size,
+                crate::engines::amendment::DEFAULT_VOTING_WINDOW_BLOCKS,
+            );
+
+            let id = NextAmendmentId::<T>::get();
+            NextAmendmentId::<T>::put(id.saturating_add(1));
+            let approvals_required = crate::engines::amendment::approvals_for_quorum(
+                amendment.body_size,
+                amendment.quorum,
+            );
+            let effective_at = amendment.effective_at;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentOpened {
+                id,
+                policy,
+                approvals_required,
+                effective_at,
+            });
+            Ok(())
+        }
+
+        /// Approve an amendment.
+        #[pallet::call_index(45)]
+        #[pallet::weight(<T as Config>::WeightInfo::vote_proposal())]
+        pub fn approve_amendment(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(
+                T::ValidatorRegistry::is_validator_active(&who),
+                Error::<T>::AmendmentAuthorityAbsent
+            );
+            ensure!(
+                !AmendmentApprovals::<T>::get(id, &who),
+                Error::<T>::AmendmentAlreadyApproved
+            );
+
+            let mut amendment = Amendments::<T>::get(id).ok_or(Error::<T>::AmendmentNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            crate::engines::amendment::approve(&mut amendment, now)
+                .map_err(Self::amendment_error)?;
+
+            AmendmentApprovals::<T>::insert(id, &who, true);
+            let approvals = amendment.approvals;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentApproved {
+                id,
+                approver: who,
+                approvals,
+            });
+            Ok(())
+        }
+
+        /// Enact an amendment that reached the quorum and waited out the delay.
+        #[pallet::call_index(46)]
+        #[pallet::weight(<T as Config>::WeightInfo::execute_proposal())]
+        pub fn enact_amendment(origin: OriginFor<T>, id: u64) -> DispatchResult {
+            ensure_signed(origin)?;
+            let mut amendment = Amendments::<T>::get(id).ok_or(Error::<T>::AmendmentNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let policy = crate::engines::amendment::enact(&mut amendment, now)
+                .map_err(Self::amendment_error)?;
+            Amendments::<T>::insert(id, amendment);
+
+            Self::deposit_event(Event::AmendmentEnacted { id, policy });
+            Ok(())
+        }
+
+        /// Replace the eight policies with a profile the solver returned.
+        ///
+        /// The profile passes every fixed limit before it reaches storage.
+        #[pallet::call_index(47)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn adopt_policy_set(
+            origin: OriginFor<T>,
+            policies: crate::engines::amendment::PolicySet,
+            point: crate::engines::amendment::CandidatePoint,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            crate::engines::amendment::inspect_point(&point)
+                .map_err(|_| Error::<T>::ProfileCrossesFixedLimit)?;
+            Policies::<T>::put(policies);
+            Ok(())
+        }
+
+        /// Prove one equivocation and apply the penalty.
+        ///
+        /// Equivocation means one validator sealing two different headers for
+        /// one slot at one rank. A slot is one fixed span of time. The evidence
+        /// carries both sealed headers with the signature the author placed on
+        /// each one. Any account submits the evidence. The chain checks both
+        /// signatures itself, so the reporter earns no trust from the report.
+        ///
+        /// A proof that passes every check returns the standing of that
+        /// validator to zero through the Standing Engine reset path, records
+        /// the fault and takes the seat away at once.
+        #[pallet::call_index(48)]
+        #[pallet::weight(<T as Config>::WeightInfo::report_validator_misbehavior())]
+        pub fn report_equivocation(
+            origin: OriginFor<T>,
+            proof: sp_std::boxed::Box<cerulea_primitives::equivocation::EquivocationProof>,
+        ) -> DispatchResult {
+            let _reporter = ensure_signed(origin)?;
+
+            // The shared evidence code runs on the node and on the chain, so
+            // both sides reach the same answer over one proof. The evidence
+            // travels behind a pointer, so one large call leaves every other
+            // call of this module its own size.
+            let facts = cerulea_primitives::equivocation::verify_equivocation(&proof)
+                .map_err(|_| Error::<T>::EquivocationEvidenceRejected)?;
+
+            let key = crate::engines::standing::FaultKey::of(&facts);
+            ensure!(
+                PenalisedEquivocations::<T>::get(key).is_none(),
+                Error::<T>::EquivocationAlreadyPenalised
+            );
+
+            // The draw key that won the seat names the validator account.
+            let validator = T::ValidatorRegistry::draw_key_owner(&facts.draw_key)
+                .ok_or(Error::<T>::EquivocationAuthorUnregistered)?;
+            let recorded = T::ValidatorRegistry::validator_seal_key(&validator)
+                .ok_or(Error::<T>::EquivocationAuthorUnregistered)?;
+            ensure!(
+                recorded == facts.seal_key,
+                Error::<T>::EquivocationKeysMismatch
+            );
+
+            let epoch = Self::current_epoch();
+            let block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
+            // The Standing Engine reset path returns standing to zero.
+            let mut record = ServiceRecords::<T>::get(&validator);
+            let outcome = crate::engines::standing::reset(
+                &mut record,
+                crate::engines::standing::Misconduct::TwoBlocksAtOneSlot,
+                epoch,
+            );
+            ServiceRecords::<T>::insert(&validator, record);
+            StandingShares::<T>::insert(&validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(&validator, outcome);
+
+            let fault = crate::engines::standing::fault_record(
+                &facts,
+                epoch,
+                block,
+                outcome.epochs_destroyed,
+            );
+            EquivocationFaults::<T>::insert(&validator, fault);
+            PenalisedEquivocations::<T>::insert(key, fault);
+
+            // Two blocks at one slot break safety, so the seat goes at once.
+            if crate::engines::standing::Misconduct::TwoBlocksAtOneSlot.removes_the_seat_at_once() {
+                let _ = T::ValidatorRegistry::eject_validator(
+                    &validator,
+                    crate::EjectionReason::RepeatedMisbehavior,
+                );
+            }
+
+            Self::deposit_event(Event::StandingReset {
+                validator: validator.clone(),
+                misconduct: crate::engines::standing::Misconduct::TwoBlocksAtOneSlot,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            Self::deposit_event(Event::EquivocationProven {
+                validator,
+                slot: facts.slot,
+                rank: facts.rank,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            Ok(())
+        }
+
+        /// Anchor one checkpoint against the long-range attack.
+        ///
+        /// A long-range attack rewrites history from a point far below the
+        /// head. A checkpoint is one committed block the chain names as
+        /// settled. Every node keeps a copy and refuses any chain that
+        /// disagrees with an anchored checkpoint.
+        ///
+        /// The index rises by one and the block number rises, so the anchored
+        /// set carries no gap and no repeat.
+        #[pallet::call_index(49)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn anchor_checkpoint(
+            origin: OriginFor<T>,
+            checkpoint: cerulea_primitives::checkpoint::Checkpoint,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(
+                AnchoredCheckpoints::<T>::get(checkpoint.index).is_none(),
+                Error::<T>::CheckpointAlreadyAnchored
+            );
+            let held = LatestCheckpoint::<T>::get();
+            cerulea_primitives::checkpoint::follows(held.as_ref(), &checkpoint)
+                .map_err(|_| Error::<T>::CheckpointOutOfOrder)?;
+
+            AnchoredCheckpoints::<T>::insert(checkpoint.index, checkpoint);
+            LatestCheckpoint::<T>::put(checkpoint);
+
+            Self::deposit_event(Event::CheckpointAnchored {
+                index: checkpoint.index,
+                block: checkpoint.block,
+                hash: checkpoint.hash,
+                commitment: checkpoint.commitment(),
+            });
+            Ok(())
+        }
+
+        /// Set the blocks between two checkpoints.
+        ///
+        /// A value of zero anchors nothing.
+        #[pallet::call_index(50)]
+        #[pallet::weight(<T as Config>::WeightInfo::update_consensus_weights())]
+        pub fn set_checkpoint_interval(origin: OriginFor<T>, blocks: u32) -> DispatchResult {
+            ensure_root(origin)?;
+            CheckpointInterval::<T>::put(blocks);
+            Ok(())
+        }
     }
 
     // --- Internal Logic --- //
     impl<T: Config> Pallet<T> {
+        /// The blocks between two checkpoints.
+        ///
+        /// A chain that set no interval takes the interval of the starting
+        /// profile.
+        pub fn checkpoint_interval_blocks() -> u32 {
+            let held = CheckpointInterval::<T>::get();
+            if held == 0 {
+                cerulea_primitives::checkpoint::DEFAULT_CHECKPOINT_INTERVAL
+            } else {
+                held
+            }
+        }
+
+        /// Report whether one block number falls on a checkpoint boundary.
+        pub fn checkpoint_due_at(block: u32) -> bool {
+            cerulea_primitives::checkpoint::checkpoint_due(
+                block,
+                Self::checkpoint_interval_blocks(),
+            )
+        }
+
+        /// The anchored checkpoints the chain holds, in index order.
+        ///
+        /// A node reads this list at start and fills its own store. The
+        /// Bitcoin anchoring path of the bridge module commits the commitment
+        /// of each entry to an external network.
+        pub fn anchored_checkpoints() -> sp_std::vec::Vec<cerulea_primitives::checkpoint::Checkpoint>
+        {
+            let mut held: sp_std::vec::Vec<cerulea_primitives::checkpoint::Checkpoint> =
+                AnchoredCheckpoints::<T>::iter_values().collect();
+            held.sort_by_key(|checkpoint| checkpoint.index);
+            held
+        }
+
+        /// The highest block the anchored set settles.
+        pub fn highest_anchored_block() -> u32 {
+            LatestCheckpoint::<T>::get()
+                .map(|checkpoint| checkpoint.block)
+                .unwrap_or(0)
+        }
+
+        /// The epochs of service that carry a validator to the whole standing
+        /// share.
+        pub fn ramp_epochs() -> u32 {
+            let held = StandingRampEpochs::<T>::get();
+            if held == 0 {
+                crate::engines::standing::DEFAULT_RAMP_EPOCHS
+            } else {
+                held
+            }
+        }
+
+        /// The decay the Standing Engine applies during inactivity.
+        pub fn decay_settings() -> crate::engines::standing::DecaySettings {
+            let held = StandingDecay::<T>::get();
+            if held.decay_percent == 0 && held.grace_epochs == 0 {
+                crate::engines::standing::DecaySettings::starting_profile()
+            } else {
+                held
+            }
+        }
+
+        /// The standing share of one validator.
+        pub fn standing_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            StandingShares::<T>::get(validator).unwrap_or_else(|| {
+                crate::engines::standing::accumulated(
+                    &ServiceRecords::<T>::get(validator),
+                    Self::ramp_epochs(),
+                )
+            })
+        }
+
+        /// The verification sampling share of one validator.
+        pub fn sampling_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            SamplingRecords::<T>::get(validator).share()
+        }
+
+        /// The measured operational performance of one validator.
+        pub fn performance_share(validator: &T::AccountId) -> sp_runtime::Perbill {
+            PerformanceShares::<T>::get(validator).unwrap_or_else(sp_runtime::Perbill::one)
+        }
+
+        /// The Trust Score of one validator.
+        ///
+        /// The composition reads the network this deployment runs. The
+        /// public-access chain weighs standing, performance, custody and
+        /// sampling. A private chain weighs role, attestation, performance and
+        /// custody.
+        pub fn trust_score(validator: &T::AccountId) -> crate::engines::standing::TrustScore {
+            let components = crate::engines::standing::Components {
+                standing: Self::standing_share(validator),
+                performance: Self::performance_share(validator),
+                // The Custody Engine reports its share in parts per million and
+                // the score reads parts per billion, so the share scales by a
+                // thousand on the way in.
+                custody: sp_runtime::Perbill::from_parts(
+                    Self::custody_share(validator)
+                        .min(1_000_000)
+                        .saturating_mul(1_000),
+                ),
+                sampling: Self::sampling_share(validator),
+                role: RoleShares::<T>::get(validator).unwrap_or_default(),
+                attestation: AttestationShares::<T>::get(validator).unwrap_or_default(),
+            };
+            crate::engines::standing::compose(DeploymentChainKind::<T>::get(), components)
+        }
+
+        /// The voting weight of one validator.
+        pub fn trust_weight(validator: &T::AccountId) -> u128 {
+            Self::trust_score(validator).weight()
+        }
+
+        /// Apply the penalty for two votes one validator signed in one round.
+        ///
+        /// A vote is the signed result of a validator for one checkpoint, so
+        /// the Standing Engine treats the pair as two results at one height.
+        /// Standing returns to zero, the reset is recorded and the seat goes
+        /// at once. The answer is the number of served epochs destroyed.
+        pub fn penalise_vote_equivocation(validator: &T::AccountId) -> u32 {
+            let misconduct = crate::engines::standing::Misconduct::TwoResultsAtOneHeight;
+            let epoch = Self::current_epoch();
+            let mut record = ServiceRecords::<T>::get(validator);
+            let outcome = crate::engines::standing::reset(&mut record, misconduct, epoch);
+            ServiceRecords::<T>::insert(validator, record);
+            StandingShares::<T>::insert(validator, sp_runtime::Perbill::zero());
+            StandingResets::<T>::insert(validator, outcome);
+            if misconduct.removes_the_seat_at_once() {
+                let _ = T::ValidatorRegistry::eject_validator(
+                    validator,
+                    crate::EjectionReason::RepeatedMisbehavior,
+                );
+            }
+            Self::deposit_event(Event::StandingReset {
+                validator: validator.clone(),
+                misconduct,
+                epochs_destroyed: outcome.epochs_destroyed,
+            });
+            outcome.epochs_destroyed
+        }
+
+        /// Lower the standing of every validator that let an epoch pass.
+        ///
+        /// The block initialisation hook calls this at every epoch boundary, so
+        /// an absent validator drifts downward with no person acting.
+        pub fn apply_standing_decay(current_epoch: u32) -> u32 {
+            let settings = Self::decay_settings();
+            let ramp = Self::ramp_epochs();
+            let mut moved = 0u32;
+            let records: sp_std::vec::Vec<(T::AccountId, crate::engines::standing::ServiceRecord)> =
+                ServiceRecords::<T>::iter().collect();
+            for (validator, record) in records {
+                let idle =
+                    crate::engines::standing::idle_epochs(current_epoch, record.last_served_epoch);
+                if idle <= settings.grace_epochs {
+                    continue;
+                }
+                let base = crate::engines::standing::accumulated(&record, ramp);
+                let held = crate::engines::standing::decayed(base, idle, settings);
+                let previous = StandingShares::<T>::get(&validator).unwrap_or(base);
+                if held != previous {
+                    StandingShares::<T>::insert(&validator, held);
+                    moved = moved.saturating_add(1);
+                    Self::deposit_event(Event::StandingDecayed {
+                        validator,
+                        idle_epochs: idle,
+                        standing: held,
+                    });
+                }
+            }
+            moved
+        }
+
+        /// Draw the verification sample for one round.
+        ///
+        /// Every node draws the same positions from the parent block hash and
+        /// the round number.
+        pub fn draw_sampling_positions(round: u64, window: u32) -> sp_std::vec::Vec<u32> {
+            let parent = frame_system::Pallet::<T>::parent_hash();
+            let parent = sp_core::H256::from_slice(parent.as_ref());
+            crate::engines::standing::draw_sample(
+                parent,
+                round,
+                window,
+                crate::engines::standing::DEFAULT_SAMPLE_SIZE,
+            )
+        }
+
+        /// Solve for deployment profiles from five plain-language declarations.
+        ///
+        /// The call is pure, so the same answer reaches a chain query and an
+        /// off-chain question. Every profile passes the fixed limits.
+        pub fn solve_profiles(
+            declarations: crate::engines::amendment::Declarations,
+        ) -> sp_std::vec::Vec<crate::engines::amendment::Profile> {
+            crate::engines::amendment::solve(declarations)
+        }
+
+        /// Map an amendment failure onto a pallet error.
+        pub fn amendment_error(
+            failure: crate::engines::amendment::AmendmentError,
+        ) -> DispatchError {
+            match failure {
+                crate::engines::amendment::AmendmentError::AuthorityAbsent => {
+                    Error::<T>::AmendmentAuthorityAbsent.into()
+                }
+                crate::engines::amendment::AmendmentError::QuorumShort => {
+                    Error::<T>::AmendmentQuorumShort.into()
+                }
+                crate::engines::amendment::AmendmentError::DelayWindowOpen => {
+                    Error::<T>::AmendmentDelayWindowOpen.into()
+                }
+                crate::engines::amendment::AmendmentError::AlreadyEnacted => {
+                    Error::<T>::AmendmentAlreadyEnacted.into()
+                }
+                crate::engines::amendment::AmendmentError::VotingWindowClosed => {
+                    Error::<T>::AmendmentVotingWindowClosed.into()
+                }
+                crate::engines::amendment::AmendmentError::AlreadyApproved => {
+                    Error::<T>::AmendmentAlreadyApproved.into()
+                }
+            }
+        }
+
+        /// The share one domain needs, resolved from the classes present.
+        ///
+        /// A domain is one group of transactions that touch overlapping state.
+        /// A domain carrying several classes commits at the share of the
+        /// highest class present.
+        pub fn domain_assurance(
+            classes: sp_std::vec::Vec<crate::engines::assurance::TransactionClass>,
+            total_weight: u128,
+        ) -> Result<
+            crate::engines::assurance::DomainAssurance,
+            crate::engines::assurance::ThresholdError,
+        > {
+            let table = AssuranceClassTable::<T>::get();
+            crate::engines::assurance::resolve_domain(&table, classes, total_weight)
+        }
+
+        /// Report whether a domain commits at the aggregated weight given.
+        pub fn domain_reaches_threshold(
+            classes: sp_std::vec::Vec<crate::engines::assurance::TransactionClass>,
+            total_weight: u128,
+            aggregated_weight: u128,
+        ) -> bool {
+            match Self::domain_assurance(classes, total_weight) {
+                Ok(assurance) => assurance.reached(aggregated_weight),
+                Err(_) => false,
+            }
+        }
+
+        /// Open a delay window for one change and return its identifier.
+        pub fn open_scheduled_change(
+            class: crate::engines::assurance::TransactionClass,
+            payload: BoundedVec<u8, ConstU32<512>>,
+        ) -> Result<u64, DispatchError> {
+            let table = AssuranceClassTable::<T>::get();
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let change =
+                crate::engines::assurance::ScheduledChange::schedule(&table, class, payload, now);
+
+            let id = NextScheduledChangeId::<T>::get();
+            let next = id
+                .checked_add(1)
+                .ok_or(Error::<T>::ScheduledChangeQueueFull)?;
+            NextScheduledChangeId::<T>::put(next);
+
+            let committed_at = change.window.committed_at;
+            let effective_at = change.window.effective_at;
+            ScheduledChanges::<T>::insert(id, change);
+
+            Self::deposit_event(Event::ScheduledChangeOpened {
+                id,
+                class,
+                committed_at,
+                effective_at,
+            });
+            Ok(id)
+        }
+
+        /// Release one scheduled change where its window has run out.
+        pub fn release_change(id: u64) -> DispatchResult {
+            let mut change =
+                ScheduledChanges::<T>::get(id).ok_or(Error::<T>::ScheduledChangeNotFound)?;
+            let now = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
+            match change.release(now) {
+                Ok(_) => {
+                    let class = change.class;
+                    ScheduledChanges::<T>::remove(id);
+                    Self::deposit_event(Event::ScheduledChangeReleased {
+                        id,
+                        class,
+                        released_at: now,
+                    });
+                    Ok(())
+                }
+                Err(crate::engines::assurance::DelayError::WindowOpen(_)) => {
+                    Err(Error::<T>::DelayWindowOpen.into())
+                }
+                Err(crate::engines::assurance::DelayError::AlreadyReleased) => {
+                    Err(Error::<T>::ScheduledChangeAlreadyReleased.into())
+                }
+            }
+        }
+
+        /// Release every scheduled change whose window has run out.
+        ///
+        /// The block initialisation hook calls this. A change therefore takes
+        /// effect without a person acting.
+        pub fn release_matured_changes(now: u32) -> u32 {
+            let mut released = 0u32;
+            let matured: sp_std::vec::Vec<u64> = ScheduledChanges::<T>::iter()
+                .filter(|(_, change)| change.is_ready(now))
+                .map(|(id, _)| id)
+                .collect();
+            for id in matured {
+                if Self::release_change(id).is_ok() {
+                    released = released.saturating_add(1);
+                }
+            }
+            released
+        }
+
         /// Emit event with EVM compatibility support.
-        /// 
+        ///
         /// This function wraps the standard event emission with EVM compatibility
         /// features, ensuring events can be properly indexed and queried from
         /// EVM-based applications when the EVM pallet is enabled.
-        /// 
+        ///
         /// # Parameters
         /// - `event`: The DCF event to emit
-        /// 
+        ///
         /// # Effects
         /// - Emits the event via standard Substrate event system
         /// - Converts and stores EVM-compatible version if EVM is enabled
@@ -6767,41 +8037,51 @@ pub mod pallet {
         pub fn deposit_event_with_evm_compat(event: Event<T>) {
             // Emit standard Substrate event
             <Pallet<T>>::deposit_event(event.clone());
-            
+
             // Attempt to emit EVM-compatible version
             if let Err(e) = Self::emit_evm_compatible_event(&event) {
                 // Log error but don't fail the operation
                 log::warn!("Failed to emit EVM-compatible event: {:?}", e);
             }
         }
-        
-
-
-
 
         /// Get encoded parameter value for runtime API.
         pub fn get_parameter_value_encoded(parameter: Vec<u8>) -> Option<Vec<u8>> {
             use codec::Decode;
-            
+
             // Decode the parameter type
             if let Ok(param_type) = ParameterType::decode(&mut &parameter[..]) {
                 let config = GovernanceConfigStorage::<T>::get();
-                
+
                 match param_type {
                     ParameterType::EpochLength => Some(config.epoch_length.current.encode()),
                     ParameterType::MinStake => Some(config.min_stake.current.encode()),
                     ParameterType::MaxValidators => Some(config.max_validators.current.encode()),
-                    ParameterType::MinPerformanceScore => Some(config.min_performance_score.current.encode()),
+                    ParameterType::MinPerformanceScore => {
+                        Some(config.min_performance_score.current.encode())
+                    }
                     ParameterType::SlashPercent => Some(config.slash_percent.current.encode()),
-                    ParameterType::ValidatorReward => Some(config.validator_reward.current.encode()),
+                    ParameterType::ValidatorReward => {
+                        Some(config.validator_reward.current.encode())
+                    }
                     ParameterType::LeaveCooldown => Some(config.leave_cooldown.current.encode()),
                     ParameterType::PosWeight => Some(config.pos_weight.current.encode()),
                     ParameterType::PoiWeight => Some(config.poi_weight.current.encode()),
-                    ParameterType::BlockAuthorshipBoost => Some(config.block_authorship_boost.current.encode()),
-                    ParameterType::MissedBlockPenalty => Some(config.missed_block_penalty.current.encode()),
-                    ParameterType::InferenceBoostLow => Some(config.inference_boost_low.current.encode()),
-                    ParameterType::InferenceBoostMedium => Some(config.inference_boost_medium.current.encode()),
-                    ParameterType::InferenceBoostHigh => Some(config.inference_boost_high.current.encode()),
+                    ParameterType::BlockAuthorshipBoost => {
+                        Some(config.block_authorship_boost.current.encode())
+                    }
+                    ParameterType::MissedBlockPenalty => {
+                        Some(config.missed_block_penalty.current.encode())
+                    }
+                    ParameterType::InferenceBoostLow => {
+                        Some(config.inference_boost_low.current.encode())
+                    }
+                    ParameterType::InferenceBoostMedium => {
+                        Some(config.inference_boost_medium.current.encode())
+                    }
+                    ParameterType::InferenceBoostHigh => {
+                        Some(config.inference_boost_high.current.encode())
+                    }
                     _ => None, // Other parameter types not yet implemented
                 }
             } else {
@@ -6812,82 +8092,116 @@ pub mod pallet {
         /// Validate encoded parameter value for runtime API.
         pub fn validate_parameter_value_encoded(parameter: Vec<u8>, value: Vec<u8>) -> bool {
             use codec::Decode;
-            
+
             // Decode the parameter type
             if let Ok(param_type) = ParameterType::decode(&mut &parameter[..]) {
                 let config = GovernanceConfigStorage::<T>::get();
-                
+
                 match param_type {
                     ParameterType::EpochLength => {
                         if let Ok(val) = u32::decode(&mut &value[..]) {
                             val >= config.epoch_length.min && val <= config.epoch_length.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::MinStake => {
                         if let Ok(val) = <T as pallet::Config>::Balance::decode(&mut &value[..]) {
                             val >= config.min_stake.min && val <= config.min_stake.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::MaxValidators => {
                         if let Ok(val) = u32::decode(&mut &value[..]) {
                             val >= config.max_validators.min && val <= config.max_validators.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::MinPerformanceScore => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.min_performance_score.min && val <= config.min_performance_score.max
-                        } else { false }
-                    },
+                            val >= config.min_performance_score.min
+                                && val <= config.min_performance_score.max
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::SlashPercent => {
                         if let Ok(val) = u32::decode(&mut &value[..]) {
                             val >= config.slash_percent.min && val <= config.slash_percent.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::ValidatorReward => {
                         if let Ok(val) = <T as pallet::Config>::Balance::decode(&mut &value[..]) {
                             val >= config.validator_reward.min && val <= config.validator_reward.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::LeaveCooldown => {
                         if let Ok(val) = BlockNumberFor::<T>::decode(&mut &value[..]) {
                             val >= config.leave_cooldown.min && val <= config.leave_cooldown.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::PosWeight => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
                             val >= config.pos_weight.min && val <= config.pos_weight.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::PoiWeight => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
                             val >= config.poi_weight.min && val <= config.poi_weight.max
-                        } else { false }
-                    },
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::BlockAuthorshipBoost => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.block_authorship_boost.min && val <= config.block_authorship_boost.max
-                        } else { false }
-                    },
+                            val >= config.block_authorship_boost.min
+                                && val <= config.block_authorship_boost.max
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::MissedBlockPenalty => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.missed_block_penalty.min && val <= config.missed_block_penalty.max
-                        } else { false }
-                    },
+                            val >= config.missed_block_penalty.min
+                                && val <= config.missed_block_penalty.max
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::InferenceBoostLow => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.inference_boost_low.min && val <= config.inference_boost_low.max
-                        } else { false }
-                    },
+                            val >= config.inference_boost_low.min
+                                && val <= config.inference_boost_low.max
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::InferenceBoostMedium => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.inference_boost_medium.min && val <= config.inference_boost_medium.max
-                        } else { false }
-                    },
+                            val >= config.inference_boost_medium.min
+                                && val <= config.inference_boost_medium.max
+                        } else {
+                            false
+                        }
+                    }
                     ParameterType::InferenceBoostHigh => {
                         if let Ok(val) = u64::decode(&mut &value[..]) {
-                            val >= config.inference_boost_high.min && val <= config.inference_boost_high.max
-                        } else { false }
-                    },
+                            val >= config.inference_boost_high.min
+                                && val <= config.inference_boost_high.max
+                        } else {
+                            false
+                        }
+                    }
                     _ => false, // Other parameter types not yet implemented
                 }
             } else {
@@ -6895,10 +8209,33 @@ pub mod pallet {
             }
         }
 
+        /// The inference contribution one validator carries.
+        ///
+        /// The inference module answers a share of one, counted in parts per
+        /// billion, the way every Standing Engine component answers. The
+        /// composition holds that share at the ceiling of one and then at the
+        /// highest recorded score, so a large raw result never lifts the
+        /// recorded contribution past either bound.
+        pub fn inference_contribution(validator: &T::AccountId) -> u64 {
+            poi::Pallet::<T>::get_score(validator)
+                .min(poi::CONTRIBUTION_CEILING)
+                .min(T::MaxValidatorScore::get())
+        }
+
         /// Recalculate and update the final score for a validator.
         fn update_final_score(validator: &T::AccountId) -> DispatchResult {
+            // The inference module owns the contribution figure. Read it back
+            // here as a share of one, so a submitted inference reaches the
+            // recorded score inside the bound the share carries.
+            let contributed = Self::inference_contribution(validator);
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
+                // The detailed event reports the scores held before this update,
+                // so they are read before the new contribution lands.
+                let old_stake_score = state.current.stake_score;
+                let old_inference_score = state.current.inference_score;
+                let old_final_score = state.current.final_score;
+                state.current.inference_score = contributed;
                 let stake_score = state.current.stake_score;
                 let inference_score = state.current.inference_score;
                 let pos_weight = if !PosWeight::<T>::exists() {
@@ -6915,20 +8252,19 @@ pub mod pallet {
                 } else {
                     PoiWeight::<T>::get()
                 };
-                let mut final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+                let mut final_score = (stake_score.saturating_mul(pos_weight)
+                    + inference_score.saturating_mul(poi_weight))
+                    / T::PercentagePrecision::get() as u64;
                 if final_score > T::MaxValidatorScore::get() {
                     final_score = T::MaxValidatorScore::get();
                 }
-                let old_stake_score = state.current.stake_score;
-                let old_inference_score = state.current.inference_score;
-                let old_final_score = state.current.final_score;
                 state.current.final_score = final_score;
                 state.last_active_epoch = Self::current_epoch();
-                
+
                 // NOTE: Do NOT write a score-sorted ActiveValidators list back to storage here.
                 // ActiveValidators is sorted by account ID at epoch transitions only.
                 // Score-based ordering is for metrics/display only (see get_validators_by_score).
-                if state.history.len() == state.history.capacity() && !state.history.is_empty() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -6945,7 +8281,7 @@ pub mod pallet {
                     inference_score,
                     final_score,
                 });
-                
+
                 // Emit detailed score update event
                 Self::deposit_event(Event::ValidatorScoreUpdatedDetailed {
                     validator: validator.clone(),
@@ -6958,7 +8294,8 @@ pub mod pallet {
                     epoch: Self::current_epoch(),
                 });
                 Ok::<(), Error<T>>(())
-            }).map_err(Into::into)
+            })
+            .map_err(Into::into)
         }
 
         /// Apply score decay to a validator if inactive.
@@ -6969,9 +8306,11 @@ pub mod pallet {
                 let inactive_epochs = current_epoch.saturating_sub(last_active);
                 if inactive_epochs > 0 {
                     let decay_rate = ValidatorScoreDecayOf::<T>::get();
-                    let decay_amount = state.current.final_score.saturating_mul(decay_rate as u64) / T::PercentagePrecision::get() as u64;
+                    let decay_amount = state.current.final_score.saturating_mul(decay_rate as u64)
+                        / T::PercentagePrecision::get() as u64;
                     let old_score = state.current.final_score;
-                    state.current.final_score = state.current.final_score.saturating_sub(decay_amount);
+                    state.current.final_score =
+                        state.current.final_score.saturating_sub(decay_amount);
                     if state.current.final_score > T::MaxValidatorScore::get() {
                         state.current.final_score = T::MaxValidatorScore::get();
                     }
@@ -6986,7 +8325,8 @@ pub mod pallet {
                     }
                 }
                 Ok::<(), Error<T>>(())
-            }).map_err(Into::into)
+            })
+            .map_err(Into::into)
         }
 
         /// Boost a validator's score for a given reason.
@@ -7003,7 +8343,7 @@ pub mod pallet {
                     state.current.final_score = T::MaxValidatorScore::get();
                 }
                 state.last_active_epoch = Self::current_epoch();
-                if state.history.len() == state.history.capacity() {
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -7021,50 +8361,52 @@ pub mod pallet {
                     reason,
                 });
                 Ok::<(), Error<T>>(())
-            }).map_err(Into::into)
+            })
+            .map_err(Into::into)
         }
 
         /// Calculate the slash amount for a validator based on their stake
-        fn calculate_slash_amount(validator: &T::AccountId) -> Result<<T as pallet::Config>::Balance, DispatchError> {
+        fn calculate_slash_amount(
+            validator: &T::AccountId,
+        ) -> Result<<T as pallet::Config>::Balance, DispatchError> {
             // Ensure validator exists
             ensure!(
                 ValidatorStates::<T>::contains_key(validator),
                 Error::<T>::ValidatorNotFound
             );
-            
+
             // Calculate slash amount as a percentage of their stake
             let stake_balance = T::Currency::free_balance(validator);
             let slash_percent = T::SlashPercent::get();
-            
+
             // Use saturating operations to avoid overflow
             let slash_amount = stake_balance / 100u32.into() * slash_percent.into();
-            
+
             Ok(slash_amount)
         }
 
         /// Record inference activity for a validator
         fn record_inference_activity(validator: &T::AccountId) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-            
+
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                
+
                 // Increment inference count
                 state.inference_count = state.inference_count.saturating_add(1);
-                
+
                 // Update last active block
                 state.last_active_block = current_block;
-                
+
                 // Update last active epoch
                 state.last_active_epoch = Self::current_epoch();
-                
+
                 Ok::<(), Error<T>>(())
             })?;
-            
-            
+
             // Update trust score after inference activity
             Self::update_trust_score(validator)?;
-            
+
             Ok(())
         }
 
@@ -7074,7 +8416,8 @@ pub mod pallet {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.missed_blocks = state.current.missed_blocks.saturating_add(1);
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            })
+            .map_err(sp_runtime::DispatchError::from)?;
 
             Ok(())
         }
@@ -7082,7 +8425,7 @@ pub mod pallet {
         /// Record block authorship for a validator and boost score.
         pub fn record_block_authorship(validator: &T::AccountId) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-            
+
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.authored_blocks = state.current.authored_blocks.saturating_add(1);
@@ -7091,7 +8434,8 @@ pub mod pallet {
                 // Update last active epoch
                 state.last_active_epoch = Self::current_epoch();
                 Ok::<(), Error<T>>(())
-            }).map_err(|e| sp_runtime::DispatchError::from(e))?;
+            })
+            .map_err(sp_runtime::DispatchError::from)?;
 
             // Update blocks authored counter
             ValidatorBlocksAuthored::<T>::mutate(validator, |count| {
@@ -7103,10 +8447,10 @@ pub mod pallet {
                 T::BlockAuthorshipBoost::get(),
                 ScoreBoostReason::ValidBlockAuthored,
             )?;
-            
+
             // Update trust score after block authorship
             Self::update_trust_score(validator)?;
-            
+
             Ok(())
         }
 
@@ -7122,7 +8466,9 @@ pub mod pallet {
                     block_number,
                     author: author.clone(),
                 });
-                return Err(sp_runtime::DispatchError::Other("Author is not an active validator"));
+                return Err(sp_runtime::DispatchError::Other(
+                    "Author is not an active validator",
+                ));
             }
 
             // Record the block authorship
@@ -7160,7 +8506,7 @@ pub mod pallet {
             // If there was an expected author, record it as a missed block
             if let Some(expected_author) = expected {
                 Self::record_missed_block(&expected_author)?;
-                
+
                 log::warn!(
                     "DCF: Author mismatch at block #{}: expected {:?}, got {:?}",
                     block_number,
@@ -7196,9 +8542,15 @@ pub mod pallet {
             Ok(())
         }
 
-
         /// Eject a validator from the active set for a given reason.
         fn eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
+            // The status event reports the status the validator held, so it
+            // is read before the removal changes it.
+            let old_status = if Self::is_validator_active(validator) {
+                ValidatorStatus::Active
+            } else {
+                ValidatorStatus::Inactive
+            };
             let mut active_validators = ActiveValidators::<T>::get();
             if let Some(pos) = active_validators.iter().position(|v| v == validator) {
                 active_validators.remove(pos);
@@ -7207,11 +8559,6 @@ pub mod pallet {
 
             // Emit validator status change event (from Active/Inactive to Ejected)
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let old_status = if Self::is_validator_active(validator) {
-                ValidatorStatus::Active
-            } else {
-                ValidatorStatus::Inactive
-            };
             Self::deposit_event(Event::ValidatorStatusChanged {
                 validator: validator.clone(),
                 old_status,
@@ -7235,51 +8582,52 @@ pub mod pallet {
         /// Handle comprehensive epoch transition with all required steps.
         fn handle_comprehensive_epoch_transition(block_number: u32) -> Weight {
             let mut weight = Weight::zero();
-            
+
             // Step 1: Run score aggregation for all validators
             weight = weight.saturating_add(Self::run_comprehensive_score_aggregation());
-            
+
             // Step 2: Generate automatic proposals based on current state
             weight = weight.saturating_add(Self::generate_epoch_proposals());
-            
+
             // Step 3: Execute or queue proposals
             weight = weight.saturating_add(Self::process_epoch_proposals());
-            
+
             // Step 4: Handle deterministic epoch transition with replayability
-            weight = weight.saturating_add(Self::handle_deterministic_epoch_transition(block_number));
-            
+            weight =
+                weight.saturating_add(Self::handle_deterministic_epoch_transition(block_number));
+
             // Step 5: Finalize epoch (optional - finalize last epoch's best block)
             weight = weight.saturating_add(Self::finalize_previous_epoch(block_number));
-            
+
             // Step 6: Update epoch-specific metrics and cleanup
             weight = weight.saturating_add(Self::update_epoch_metrics(block_number));
-            
+
             weight
         }
 
         /// Handle regular block processing for non-epoch boundary blocks.
         fn handle_regular_block_processing(block_number: u32, current_epoch: u32) -> Weight {
             let mut weight = Weight::zero();
-            
+
             // 1. Validate block authorship and update validator metrics (every block)
             Self::process_block_authorship(block_number);
-            
+
             // 2. Apply score decay for inactive validators
             if block_number % T::ScoreDecayInterval::get() == 0 {
                 let decay_weight = Self::apply_validator_score_decay(current_epoch);
                 weight = weight.saturating_add(decay_weight);
             }
-            
+
             // 3. Update validator participation rates
             if block_number % T::ParticipationUpdateInterval::get() == 0 {
                 let participation_weight = Self::update_validator_participation_rates();
                 weight = weight.saturating_add(participation_weight);
-                
+
                 // Resort validators by updated scores — only in-memory for display,
                 // do NOT write score-sorted order back to ActiveValidators storage
                 // (storage order must stay account-ID sorted for determinism).
             }
-            
+
             // 4. Snapshot validator scores 5 blocks before the epoch boundary.
             // This freezes scores at a fixed, agreed-upon point so all nodes use
             // identical weights when generating the next epoch's author sequence,
@@ -7298,18 +8646,22 @@ pub mod pallet {
                     let active = ActiveValidators::<T>::get();
                     let snapshot: BoundedVec<(T::AccountId, u64), ConstU32<1000>> =
                         BoundedVec::truncate_from(
-                            active.iter().map(|v| {
-                                let score = ValidatorStates::<T>::get(v)
-                                    .map(|s| s.current.final_score)
-                                    .unwrap_or(1)
-                                    .max(1);
-                                (v.clone(), score)
-                            }).collect::<Vec<_>>()
+                            active
+                                .iter()
+                                .map(|v| {
+                                    let score = ValidatorStates::<T>::get(v)
+                                        .map(|s| s.current.final_score)
+                                        .unwrap_or(1)
+                                        .max(1);
+                                    (v.clone(), score)
+                                })
+                                .collect::<Vec<_>>(),
                         );
                     EpochScoreSnapshot::<T>::insert(next_epoch, snapshot);
                     log::info!(
                         "DCF: Snapshotted validator scores for epoch {} at block {}",
-                        next_epoch, block_number
+                        next_epoch,
+                        block_number
                     );
                     weight = weight.saturating_add(Weight::from_parts(50_000, 0));
                 }
@@ -7319,19 +8671,19 @@ pub mod pallet {
             if block_number % T::UnderperformanceCheckInterval::get() == 0 {
                 Self::check_and_handle_underperforming_validators();
             }
-            
+
             // 6. Generate automatic validator proposals based on scores
             if block_number % T::ValidatorProposalInterval::get() == 0 {
                 Self::generate_automatic_validator_proposals();
             }
-            
+
             // Cooldown and leave requests are managed by pallet-cerulea-pos.
 
             // 8. Emit periodic health metrics
             if block_number % T::HealthMetricsInterval::get() == 0 {
                 Self::emit_dcf_health_metrics(block_number);
             }
-            
+
             weight
         }
 
@@ -7348,25 +8700,25 @@ pub mod pallet {
         }
 
         /// Check economic invariants at epoch boundaries.
-        /// 
+        ///
         /// This function validates critical economic invariants that ensure the system's
         /// economic model remains consistent and secure. It checks for violations such as:
         /// - Total reserved balance being less than total slashed amount
         /// - Validators having negative reserved balances
         /// - Active validators with stakes below minimum requirements
-        /// 
+        ///
         /// Returns a list of detected violations for reporting and handling.
         pub fn check_economic_invariants() -> Vec<InvariantViolation<T>> {
             let mut violations = Vec::new();
-            
+
             // Check 1: Total reserved balance >= total slashed amount
             let mut total_reserved = <T as pallet::Config>::Balance::default();
             let mut total_slashed = <T as pallet::Config>::Balance::default();
-            
+
             for validator in ValidatorSet::<T>::get().iter() {
                 let reserved = T::Currency::reserved_balance(validator);
                 total_reserved = total_reserved.saturating_add(reserved);
-                
+
                 // For now, we'll estimate slashed amount from score penalties
                 // In a full implementation, this would track actual slashed amounts
                 if let Some(state) = ValidatorStates::<T>::get(validator) {
@@ -7374,16 +8726,18 @@ pub mod pallet {
                     if state.current.final_score < max_score {
                         let score_loss = max_score - state.current.final_score;
                         // Estimate slashed amount based on score loss (simplified)
-                        let estimated_slash = T::Currency::minimum_balance().saturating_mul(
-                            (score_loss as u32).into()
-                        );
+                        let estimated_slash = T::Currency::minimum_balance()
+                            .saturating_mul((score_loss as u32).into());
                         total_slashed = total_slashed.saturating_add(estimated_slash);
                     }
                 }
             }
-            
+
             if total_reserved < total_slashed {
-                let context = format!("Reserved: {:?}, Slashed: {:?}", total_reserved, total_slashed);
+                let context = format!(
+                    "Reserved: {:?}, Slashed: {:?}",
+                    total_reserved, total_slashed
+                );
                 if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                     violations.push(InvariantViolation::Economic {
                         violation_type: EconomicViolationType::ReservedLessThanSlashed {
@@ -7394,7 +8748,7 @@ pub mod pallet {
                     });
                 }
             }
-            
+
             // Check 2: No validator has negative reserved balance
             for validator in ValidatorSet::<T>::get().iter() {
                 let reserved = T::Currency::reserved_balance(validator);
@@ -7402,7 +8756,9 @@ pub mod pallet {
                     // Check if this validator should have a reserved balance
                     if ActiveValidators::<T>::get().contains(validator) {
                         let context = format!("Validator: {:?}", validator);
-                        if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
+                        if let Ok(bounded_context) =
+                            BoundedVec::try_from(context.as_bytes().to_vec())
+                        {
                             violations.push(InvariantViolation::Economic {
                                 violation_type: EconomicViolationType::NegativeReservedBalance {
                                     validator: validator.clone(),
@@ -7414,13 +8770,16 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             // Check 3: Active validators meet minimum stake requirements
             let min_stake = MinStakeOf::<T>::get();
             for validator in ActiveValidators::<T>::get().iter() {
                 let stake = T::Currency::reserved_balance(validator);
                 if stake < min_stake {
-                    let context = format!("Validator: {:?}, Stake: {:?}, Min: {:?}", validator, stake, min_stake);
+                    let context = format!(
+                        "Validator: {:?}, Stake: {:?}, Min: {:?}",
+                        validator, stake, min_stake
+                    );
                     if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                         violations.push(InvariantViolation::Economic {
                             violation_type: EconomicViolationType::StakeBelowMinimum {
@@ -7433,28 +8792,32 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             violations
         }
 
         /// Check validator set invariants at epoch boundaries.
-        /// 
+        ///
         /// This function validates validator set invariants that ensure proper
         /// validator lifecycle management and prevent inconsistent states such as:
         /// - Active validator set exceeding maximum allowed size
         /// - Validators being both active and in cooldown simultaneously
         /// - Duplicate validators in the active set
-        /// 
+        ///
         /// Returns a list of detected violations for reporting and handling.
         pub fn check_validator_invariants() -> Vec<InvariantViolation<T>> {
             let mut violations = Vec::new();
-            
+
             let active_validators = ActiveValidators::<T>::get();
             let max_validators = MaxValidatorsOf::<T>::get();
-            
+
             // Check 1: Active set size does not exceed maximum
             if active_validators.len() as u32 > max_validators {
-                let context = format!("Active: {}, Max: {}", active_validators.len(), max_validators);
+                let context = format!(
+                    "Active: {}, Max: {}",
+                    active_validators.len(),
+                    max_validators
+                );
                 if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                     violations.push(InvariantViolation::Validator {
                         violation_type: ValidatorViolationType::ActiveSetTooLarge {
@@ -7465,11 +8828,12 @@ pub mod pallet {
                     });
                 }
             }
-            
+
             // Check 2: No validator is both active and in cooldown
             for validator in active_validators.iter() {
-                if ValidatorLeaveRequests::<T>::contains_key(validator) || 
-                   RecentlyRemovedValidators::<T>::contains_key(validator) {
+                if ValidatorLeaveRequests::<T>::contains_key(validator)
+                    || RecentlyRemovedValidators::<T>::contains_key(validator)
+                {
                     let context = format!("Validator: {:?}", validator);
                     if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
                         violations.push(InvariantViolation::Validator {
@@ -7481,7 +8845,7 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             // Check 3: No duplicate validators in active set
             let mut seen_validators = sp_std::collections::btree_set::BTreeSet::new();
             for validator in active_validators.iter() {
@@ -7497,22 +8861,25 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             violations
         }
 
         /// Check temporal invariants at epoch boundaries.
-        /// 
+        ///
         /// This function validates temporal invariants that ensure proper progression
         /// of time-based system state such as:
         /// - Epochs advancing monotonically
         /// - Finality markers advancing monotonically
         /// - Finality never exceeds best known block of prior epoch
-        /// 
+        ///
         /// Returns a list of detected violations for reporting and handling.
-        pub fn check_temporal_invariants(previous_epoch: u32, current_epoch: u32) -> Vec<InvariantViolation<T>> {
+        pub fn check_temporal_invariants(
+            previous_epoch: u32,
+            current_epoch: u32,
+        ) -> Vec<InvariantViolation<T>> {
             let mut violations = Vec::new();
-            
+
             // Check 1: Epoch progression is monotonic
             if current_epoch < previous_epoch {
                 let context = format!("Previous: {}, Current: {}", previous_epoch, current_epoch);
@@ -7526,263 +8893,48 @@ pub mod pallet {
                     });
                 }
             }
-            
-            // Check 2: Finality markers advance monotonically
-            let current_finalized = LastFinalizedBlock::<T>::get();
-            let previous_finalized = PreviousFinalizedBlock::<T>::get();
-            
-            if current_finalized < previous_finalized {
-                let context = format!("Previous finalized: {}, Current finalized: {}", previous_finalized, current_finalized);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
-            
-            // Check 3: Finality doesn't exceed current block
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            if current_finalized > current_block {
-                let context = format!("Finalized: {}, Current block: {}", current_finalized, current_block);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized: current_block,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
-            
-            // Check 4: Finality doesn't exceed best known block of previous epoch
-            let previous_epoch_best = PreviousEpochBestBlock::<T>::get();
-            if current_finalized > previous_epoch_best && previous_epoch_best > 0 {
-                let context = format!("Finalized: {}, Previous epoch best: {}", current_finalized, previous_epoch_best);
-                if let Ok(bounded_context) = BoundedVec::try_from(context.as_bytes().to_vec()) {
-                    violations.push(InvariantViolation::Temporal {
-                        violation_type: TemporalViolationType::FinalityRegression {
-                            previous_finalized: previous_epoch_best,
-                            current_finalized,
-                        },
-                        context: bounded_context,
-                    });
-                }
-            }
-            
+
             violations
         }
 
-        /// Validate finality marker advancement with comprehensive correctness checks.
-        /// 
-        /// This function performs comprehensive validation of finality marker updates
-        /// to ensure they comply with all finality correctness requirements:
-        /// - Monotonic advancement (never moves backward)
-        /// - Bounded by current block number
-        /// - Bounded by best known block of previous epoch
-        /// - Reasonable advancement rate (not too large jumps)
-        /// 
-        /// # Arguments
-        /// - `new_finalized_block`: The block number being proposed for finalization
-        /// - `epoch`: Current epoch number for context
-        /// 
-        /// # Returns
-        /// - `Ok(())`: If the finality advancement is valid
-        /// - `Err(reason)`: If the advancement should be rejected with reason
-        pub fn validate_finality_advancement(
-            new_finalized_block: u32, 
-            epoch: u32
-        ) -> Result<(), BoundedVec<u8, ConstU32<128>>> {
-            let current_finalized = LastFinalizedBlock::<T>::get();
-            let _previous_finalized = PreviousFinalizedBlock::<T>::get();
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            let previous_epoch_best = PreviousEpochBestBlock::<T>::get();
-            
-            // Check 1: Monotonic advancement - new finalized must be >= current
-            if new_finalized_block < current_finalized {
-                let reason = format!("Finality regression: {} < {}", new_finalized_block, current_finalized);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    // Emit regression detection event
-                    Self::deposit_event(Event::FinalityRegressionDetected {
-                        previous_finalized: current_finalized,
-                        attempted_finalized: new_finalized_block,
-                        current_block,
-                        epoch,
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // Check 2: Cannot exceed current block number
-            if new_finalized_block > current_block {
-                let reason = format!("Finality exceeds current block: {} > {}", new_finalized_block, current_block);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    Self::deposit_event(Event::FinalityAdvancementRejected {
-                        attempted_block: new_finalized_block,
-                        current_finalized,
-                        best_known_block: current_block,
-                        epoch,
-                        reason: bounded_reason.clone(),
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // Check 3: Cannot exceed best known block of previous epoch (if available)
-            // For progressive finalization, we allow advancement within the current epoch
-            // Only restrict if we're trying to finalize blocks from future epochs
-            let current_epoch = Self::current_epoch();
-            let current_epoch_start = current_epoch.saturating_mul(T::EpochLength::get());
-            let is_progressive_finalization = new_finalized_block <= current_block && 
-                                            new_finalized_block >= current_epoch_start;
-            
-            if previous_epoch_best > 0 && !is_progressive_finalization && new_finalized_block > previous_epoch_best {
-                let reason = format!("Finality exceeds previous epoch best: {} > {} (not progressive)", new_finalized_block, previous_epoch_best);
-                if let Ok(bounded_reason) = BoundedVec::try_from(reason.as_bytes().to_vec()) {
-                    Self::deposit_event(Event::FinalityAdvancementRejected {
-                        attempted_block: new_finalized_block,
-                        current_finalized,
-                        best_known_block: previous_epoch_best,
-                        epoch,
-                        reason: bounded_reason.clone(),
-                    });
-                    return Err(bounded_reason);
-                }
-            }
-            
-            // All checks passed - emit successful validation event
-            let advancement = new_finalized_block.saturating_sub(current_finalized);
-            Self::deposit_event(Event::FinalityProgressionValidated {
-                previous_finalized: current_finalized,
-                new_finalized: new_finalized_block,
-                advancement,
-                epoch,
-                validation_checks_passed: 3, // Number of checks that passed
-            });
-            
-            Ok(())
-        }
-
-        /// Update finality markers with comprehensive validation and tracking.
-        /// 
-        /// This function safely updates the finality markers while maintaining
-        /// all correctness guarantees and tracking previous values for regression
-        /// detection. It should be called during epoch transitions to advance
-        /// finality in a controlled manner.
-        /// 
-        /// # Arguments
-        /// - `new_finalized_block`: The block number to finalize
-        /// - `epoch`: Current epoch number for context
-        /// 
-        /// # Returns
-        /// - `Ok(())`: If finality was successfully updated
-        /// - `Err(reason)`: If the update was rejected
-        pub fn update_finality_markers(
-            new_finalized_block: u32, 
-            epoch: u32
-        ) -> Result<(), BoundedVec<u8, ConstU32<128>>> {
-            // Validate the finality advancement first
-            Self::validate_finality_advancement(new_finalized_block, epoch)?;
-
-            // Cap DCF progressive finality at the last DVF-finalized block.
-            // DVF is the primary finality authority; DCF must not advance the hard
-            // finalized head past the last DVF checkpoint.
-            let dvf_finalized = T::DvfFinalizedBlockProvider::dvf_finalized_block();
-            let capped_block = new_finalized_block.min(dvf_finalized);
-
-            if capped_block == 0 {
-                // DVF has not finalized any block yet; skip DCF progressive finality
-                // to avoid advancing ahead of DVF.
-                log::debug!(
-                    "DCF: Progressive finality skipped — DVF has not finalized any block yet"
-                );
-                return Ok(());
-            }
-
-            if capped_block < new_finalized_block {
-                log::debug!(
-                    "DCF: Progressive finality capped at DVF-finalized block {} (requested {})",
-                    capped_block, new_finalized_block
-                );
-            }
-            
-            // Store current finalized block as previous for next validation
-            let current_finalized = LastFinalizedBlock::<T>::get();
-
-            // Nothing to advance if already at or past the cap
-            if current_finalized >= capped_block {
-                return Ok(());
-            }
-
-            PreviousFinalizedBlock::<T>::put(current_finalized);
-            
-            // Update the current finalized block
-            LastFinalizedBlock::<T>::put(capped_block);
-            
-            // Update best known block for current epoch
-            let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-            PreviousEpochBestBlock::<T>::put(current_block);
-            
-            // Emit finalization events
-            Self::deposit_event(Event::BlockFinalized {
-                block_number: capped_block,
-            });
-            
-            // Get active validators for detailed finality tracking
-            let active_validators = Self::active_validators();
-            let block_hash = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(capped_block));
-            
-            Self::deposit_event(Event::FinalityMarker {
-                block_number: capped_block,
-                block_hash,
-                participating_validators: active_validators.to_vec(),
-                total_validators: active_validators.len() as u32,
-            });
-            
-            log::info!("DCF: Finality advanced from {} to {} in epoch {}", 
-                      current_finalized, capped_block, epoch);
-            
-            Ok(())
-        }
-
         /// Check all invariants at epoch boundaries and generate a comprehensive report.
-        /// 
+        ///
         /// This is the main entry point for invariant checking that orchestrates
         /// all individual invariant checks and generates a comprehensive report.
         /// It's called during epoch transitions to ensure system integrity.
-        /// 
+        ///
         /// Returns an InvariantReport containing all detected violations and their severity.
         pub fn check_invariants_at_epoch_boundary(epoch: u32) -> InvariantReport<T> {
             let mut all_violations = Vec::new();
             let block_number = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let timestamp = 0u64; // In tests, we can't access offchain timestamp
-            
+
             // Run all invariant checks
             let economic_violations = Self::check_economic_invariants();
             let validator_violations = Self::check_validator_invariants();
-            let temporal_violations = Self::check_temporal_invariants(
-                epoch.saturating_sub(1), 
-                epoch
-            );
-            
+            let temporal_violations =
+                Self::check_temporal_invariants(epoch.saturating_sub(1), epoch);
+
             // Combine all violations
             all_violations.extend(economic_violations);
             all_violations.extend(validator_violations);
             all_violations.extend(temporal_violations);
-            
+
             // Determine overall severity
             let severity = if all_violations.is_empty() {
                 InvariantSeverity::Low
             } else {
                 // Determine severity based on violation types
-                let has_economic = all_violations.iter().any(|v| matches!(v, InvariantViolation::Economic { .. }));
-                let has_validator = all_violations.iter().any(|v| matches!(v, InvariantViolation::Validator { .. }));
-                let has_temporal = all_violations.iter().any(|v| matches!(v, InvariantViolation::Temporal { .. }));
-                
+                let has_economic = all_violations
+                    .iter()
+                    .any(|v| matches!(v, InvariantViolation::Economic { .. }));
+                let has_validator = all_violations
+                    .iter()
+                    .any(|v| matches!(v, InvariantViolation::Validator { .. }));
+                let has_temporal = all_violations
+                    .iter()
+                    .any(|v| matches!(v, InvariantViolation::Temporal { .. }));
+
                 match (has_economic, has_validator, has_temporal) {
                     (true, true, true) => InvariantSeverity::Critical,
                     (true, true, false) | (true, false, true) => InvariantSeverity::High,
@@ -7792,10 +8944,10 @@ pub mod pallet {
                     (false, false, false) => InvariantSeverity::Low,
                 }
             };
-            
+
             // Create bounded violations vector
             let bounded_violations = BoundedVec::truncate_from(all_violations);
-            
+
             let report = InvariantReport {
                 epoch,
                 block_number,
@@ -7803,11 +8955,11 @@ pub mod pallet {
                 severity: severity.clone(),
                 timestamp,
             };
-            
+
             // Store the report
             InvariantReports::<T>::insert(epoch, &report);
             LatestInvariantReport::<T>::put(&report);
-            
+
             // Emit events
             if !bounded_violations.is_empty() {
                 Self::deposit_event(Event::InvariantViolationsDetected {
@@ -7816,14 +8968,14 @@ pub mod pallet {
                     severity: severity.clone(),
                 });
             }
-            
+
             Self::deposit_event(Event::InvariantReportGenerated {
                 epoch,
                 block_number,
                 violations_count: bounded_violations.len() as u32,
                 severity,
             });
-            
+
             report
         }
 
@@ -7837,6 +8989,10 @@ pub mod pallet {
 
             // Reset epoch bounds tracking in pos pallet for the new epoch
             pos::Pallet::<T>::reset_epoch_totals();
+
+            // Carry the inference module to the same epoch, so a validator
+            // contributes once per epoch on the counter the chain runs.
+            poi::Pallet::<T>::advance_epoch(next_epoch);
 
             // Apply pending join/leave requests and get actual changes
             let (added_validators, removed_validators) = Self::apply_pending_validator_actions();
@@ -7853,27 +9009,36 @@ pub mod pallet {
 
             // Check invariants at epoch boundary
             let _invariant_report = Self::check_invariants_at_epoch_boundary(next_epoch);
-            
+
             // Log epoch transition details
             if governance_mode {
                 log::info!("DCF: Auto epoch transition {} -> {} (governance mode enabled) - {} active validators", 
                           current_epoch, next_epoch, active_validators.len());
             } else {
-                log::info!("DCF: Auto epoch transition {} -> {} (standard mode) - {} active validators", 
-                          current_epoch, next_epoch, active_validators.len());
+                log::info!(
+                    "DCF: Auto epoch transition {} -> {} (standard mode) - {} active validators",
+                    current_epoch,
+                    next_epoch,
+                    active_validators.len()
+                );
             }
-            
+
             // Always emit epoch events regardless of governance mode
             Self::deposit_event_with_evm_compat(Event::EpochStarted {
                 epoch: next_epoch,
                 validators: active_validators.clone().into_inner(),
             });
-            
+
             // Calculate performance metrics for the epoch transition
             let total_validators = ValidatorSet::<T>::get().len() as u32;
             let average_performance_score = if !active_validators.is_empty() {
-                let total_score: u64 = active_validators.iter()
-                    .map(|v| ValidatorStates::<T>::get(v).map(|s| s.current.final_score).unwrap_or(0))
+                let total_score: u64 = active_validators
+                    .iter()
+                    .map(|v| {
+                        ValidatorStates::<T>::get(v)
+                            .map(|s| s.current.final_score)
+                            .unwrap_or(0)
+                    })
                     .sum();
                 total_score / active_validators.len() as u64
             } else {
@@ -7881,7 +9046,8 @@ pub mod pallet {
             };
 
             // Calculate actual rewards distributed and slashed amounts during the previous epoch
-            let (total_rewards_distributed, total_slashed_amount) = Self::calculate_epoch_economic_impact(current_epoch);
+            let (total_rewards_distributed, total_slashed_amount) =
+                Self::calculate_epoch_economic_impact(current_epoch);
 
             // Emit comprehensive epoch transition event with performance metrics
             Self::deposit_event(Event::EpochTransition {
@@ -7902,14 +9068,14 @@ pub mod pallet {
                     let blocks_authored = state.current.authored_blocks;
                     let blocks_missed = state.current.missed_blocks;
                     let blocks_expected = blocks_authored + blocks_missed;
-                    
+
                     // Calculate uptime percentage (0-10000 representing 0-100%)
                     let uptime_percentage = if blocks_expected > 0 {
                         (blocks_authored * 10000) / blocks_expected
                     } else {
                         10000 // 100% if no blocks were expected
                     };
-                    
+
                     Self::deposit_event(Event::ValidatorUptimeUpdated {
                         validator: validator.clone(),
                         epoch: current_epoch, // Report for the completed epoch
@@ -7921,19 +9087,28 @@ pub mod pallet {
                 }
             }
 
-
-
             // --- EpochHistory recording ---
-            let score_snapshot: BoundedVec<_, MaxValidatorsOf<T>> =
-                BoundedVec::truncate_from(active_validators.iter().map(|v| {
-                    let score = ValidatorStates::<T>::get(v).map(|s| s.current.final_score).unwrap_or_default();
-                    (v.clone(), score)
-                }).collect::<Vec<_>>());
-            let inference_summary: BoundedVec<_, MaxValidatorsOf<T>> =
-                BoundedVec::truncate_from(active_validators.iter().map(|v| {
-                    let inf = poi::Pallet::<T>::inference_results(v).map(|(result, _)| result as u64);
-                    (v.clone(), inf)
-                }).collect::<Vec<_>>());
+            let score_snapshot: BoundedVec<_, MaxValidatorsOf<T>> = BoundedVec::truncate_from(
+                active_validators
+                    .iter()
+                    .map(|v| {
+                        let score = ValidatorStates::<T>::get(v)
+                            .map(|s| s.current.final_score)
+                            .unwrap_or_default();
+                        (v.clone(), score)
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let inference_summary: BoundedVec<_, MaxValidatorsOf<T>> = BoundedVec::truncate_from(
+                active_validators
+                    .iter()
+                    .map(|v| {
+                        let inf =
+                            poi::Pallet::<T>::inference_results(v).map(|(result, _)| result as u64);
+                        (v.clone(), inf)
+                    })
+                    .collect::<Vec<_>>(),
+            );
 
             let mut histories = EpochHistories::<T>::get();
             let new_history = EpochHistory::<T> {
@@ -7955,20 +9130,20 @@ pub mod pallet {
         }
 
         /// Handle deterministic epoch transition with replayability.
-        /// 
+        ///
         /// This function extends the standard epoch transition with deterministic
         /// processing capabilities, ensuring that all nodes produce identical
         /// results when processing the same epoch with the same inputs.
-        /// 
+        ///
         /// Key features:
         /// - Uses deterministic randomness seeded from block numbers and fixed salts
         /// - Generates deterministic author sequences for the new epoch
         /// - Records processing outputs for replay validation
         /// - Validates replay consistency with previous processing
-        /// 
+        ///
         /// # Arguments
         /// - `block_number`: Block number where epoch transition occurs
-        /// 
+        ///
         /// # Returns
         /// - Weight consumed by the deterministic processing
         pub fn handle_deterministic_epoch_transition(block_number: u32) -> Weight {
@@ -7976,12 +9151,6 @@ pub mod pallet {
             let current_epoch = Self::current_epoch();
             let next_epoch = current_epoch.saturating_add(1);
 
-            // Update PreviousEpochBestBlock to the last block of the epoch that just ended.
-            // This is block_number - 1 (the boundary block belongs to the new epoch).
-            // Without this, validate_finality_advancement Check 3 rejects all progressive
-            // finality with "Finality exceeds previous epoch best: N > 1 (not progressive)".
-            PreviousEpochBestBlock::<T>::put(block_number.saturating_sub(1));
-            
             // Initialize deterministic engine if not already done
             let mut engine = DeterministicEngineState::<T>::get();
             if engine.randomness_salt == [0u8; 32] {
@@ -7989,46 +9158,50 @@ pub mod pallet {
                 engine.randomness_salt = Self::generate_genesis_randomness_salt();
                 weight = weight.saturating_add(Weight::from_parts(10_000, 0));
             }
-            
+
             // Generate deterministic epoch salt
             engine.epoch_salt = Self::generate_epoch_salt(next_epoch, &engine.randomness_salt);
-            
+
             // Generate deterministic randomness seed for this epoch
             let randomness_seed = Self::generate_deterministic_randomness(
                 block_number,
                 next_epoch,
                 &engine.randomness_salt,
-                &engine.epoch_salt
+                &engine.epoch_salt,
             );
-            
+
             // Capture inputs for replay validation
             let active_validators = ActiveValidators::<T>::get();
             let input_hash = Self::compute_epoch_input_hash(
                 current_epoch,
                 block_number,
                 &active_validators,
-                &randomness_seed
+                &randomness_seed,
             );
-            
+
             // Perform standard epoch transition
             weight = weight.saturating_add(Self::handle_epoch_transition());
-            
+
             // Get updated active validators after transition
             let new_active_validators = ActiveValidators::<T>::get();
-            
+
             // Generate deterministic author sequence for the new epoch
             let author_sequence = Self::generate_deterministic_author_sequence(
                 next_epoch,
                 &new_active_validators,
-                &randomness_seed
+                &randomness_seed,
             );
-            
+
             // Cache the author sequence
             EpochAuthorSequences::<T>::insert(next_epoch, &author_sequence);
             weight = weight.saturating_add(Weight::from_parts(5_000, 0));
-            
-            // Capture outputs for replay validation
-            let (added_validators, removed_validators) = Self::get_epoch_validator_changes(current_epoch);
+
+            // Capture outputs for replay validation. The standard transition
+            // has recorded the history of the new epoch, so the changes compare
+            // the new epoch with the epoch before it. The replay reads the
+            // same pair.
+            let (added_validators, removed_validators) =
+                Self::get_epoch_validator_changes(next_epoch);
             let validator_scores = Self::get_all_validator_scores(&new_active_validators);
             let output_hash = Self::compute_epoch_output_hash(
                 next_epoch,
@@ -8036,9 +9209,9 @@ pub mod pallet {
                 &added_validators,
                 &removed_validators,
                 &validator_scores,
-                &author_sequence
+                &author_sequence,
             );
-            
+
             // Create processing output record
             let processing_output = EpochProcessingOutput::<T> {
                 epoch: next_epoch,
@@ -8052,37 +9225,33 @@ pub mod pallet {
                 input_hash,
                 output_hash,
             };
-            
-            // Invoke DVF weight freezing.
-            // Use the live PoS stake (raw u128 token amount) so that freeze_epoch_weights
-            // can normalize it correctly via VOTE_WEIGHT_SCALE. Using the stale
-            // stake_score field (a u64 truncation of the raw amount) caused validators
-            // like Charlie to receive a weight of 0 whenever stake_score was reset to 0
-            // by run_comprehensive_score_aggregation at the epoch boundary.
-            let dvf_input: Vec<(T::AccountId, u128, u128)> = new_active_validators.iter().map(|validator| {
-                // Read the real PoS stake directly — this is the same source used by
-                // freeze_epoch_weights and always reflects the validator's actual bond.
-                let stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
-                let score = ValidatorStates::<T>::get(validator)
-                    .map(|s| s.current.final_score as u128)
-                    .unwrap_or(1); // Default to 1 so weight is never 0 for active validators
-                (validator.clone(), stake, score)
-            }).collect();
+
+            // Freeze the commit weight of the new epoch in the validator
+            // registry. The commit weight is the Trust Score the Standing
+            // Engine composes, read as a share of one in parts per billion.
+            // Stake travels beside it as the admission input the design names
+            // resource cost, and enters no weight.
+            let dvf_input: Vec<(T::AccountId, u128, u128)> = new_active_validators
+                .iter()
+                .map(|validator| {
+                    let stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
+                    let trust = Self::trust_weight(validator).max(1);
+                    (validator.clone(), stake, trust)
+                })
+                .collect();
             T::WeightFreezer::freeze_epoch_weights(next_epoch, &dvf_input);
-            
+
             // Store processing output for replay validation
             EpochProcessingOutputs::<T>::insert(next_epoch, &processing_output);
             weight = weight.saturating_add(Weight::from_parts(15_000, 0));
-            
+
             // Update engine state
             engine.last_processed_epoch = next_epoch;
             engine.last_epoch_output_hash = output_hash;
-            engine.author_sequence_cache = BoundedVec::truncate_from(
-                author_sequence.encode()
-            );
+            engine.author_sequence_cache = BoundedVec::truncate_from(author_sequence.encode());
             DeterministicEngineState::<T>::put(engine);
             weight = weight.saturating_add(Weight::from_parts(5_000, 0));
-            
+
             // Emit deterministic processing event
             Self::deposit_event(Event::DeterministicEpochProcessed {
                 epoch: next_epoch,
@@ -8091,49 +9260,49 @@ pub mod pallet {
                 author_sequence_length: author_sequence.len() as u32,
                 output_hash,
             });
-            
+
             log::info!(
                 "DCF: Deterministic epoch transition completed for epoch {} at block {} with {} authors",
                 next_epoch, block_number, author_sequence.len()
             );
-            
+
             weight
         }
-        
+
         /// Generate deterministic randomness for epoch processing.
-        /// 
+        ///
         /// This function creates a deterministic randomness seed using:
         /// - Block number (provides temporal uniqueness)
         /// - Epoch number (provides epoch-specific variation)
         /// - Fixed randomness salt (provides network-specific entropy)
         /// - Epoch salt (provides additional epoch-specific entropy)
-        /// 
+        ///
         /// The randomness is deterministic and will produce identical results
         /// across all nodes when given the same inputs.
-        /// 
+        ///
         /// # Arguments
         /// - `block_number`: Block number where epoch transition occurs
         /// - `epoch`: Epoch number being processed
         /// - `randomness_salt`: Fixed network-wide randomness salt
         /// - `epoch_salt`: Epoch-specific salt
-        /// 
+        ///
         /// # Returns
         /// - 32-byte deterministic randomness seed
         pub fn generate_deterministic_randomness(
             block_number: u32,
             epoch: u32,
             randomness_salt: &[u8; 32],
-            epoch_salt: &[u8; 16]
+            epoch_salt: &[u8; 16],
         ) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
-            
+
             // Combine all entropy sources
             let mut input = Vec::new();
             input.extend_from_slice(&block_number.to_le_bytes());
             input.extend_from_slice(&epoch.to_le_bytes());
             input.extend_from_slice(randomness_salt);
             input.extend_from_slice(epoch_salt);
-            
+
             // Add deterministic entropy from the PARENT block's hash.
             // We are inside on_initialize(block_number) — block_number's own hash
             // does not exist yet (it is being built). block_hash(block_number - 1)
@@ -8141,47 +9310,47 @@ pub mod pallet {
             // reached this epoch boundary. This is the correct anchor point.
             let parent_block_number = block_number.saturating_sub(1);
             let parent_block_hash = frame_system::Pallet::<T>::block_hash(
-                BlockNumberFor::<T>::from(parent_block_number)
+                BlockNumberFor::<T>::from(parent_block_number),
             );
             input.extend_from_slice(parent_block_hash.as_ref());
-            
+
             // Generate deterministic hash
             blake2_256(&input)
         }
-        
+
         /// Generate deterministic author sequence for an epoch.
-        /// 
+        ///
         /// This function creates a deterministic ordering of validators for block
         /// authorship during an epoch. The sequence is generated using weighted
         /// selection based on validator scores, with deterministic randomness
         /// ensuring identical results across all nodes.
-        /// 
+        ///
         /// The author sequence determines the expected author for each block
         /// within the epoch, enabling deterministic block production scheduling.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number for the sequence
         /// - `validators`: Active validators for the epoch
         /// - `randomness_seed`: Deterministic randomness seed
-        /// 
+        ///
         /// # Returns
         /// - Deterministic sequence of authors for the epoch
         pub fn generate_deterministic_author_sequence(
             _epoch: u32,
             validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
-            randomness_seed: &[u8; 32]
+            randomness_seed: &[u8; 32],
         ) -> BoundedVec<T::AccountId, ConstU32<1000>> {
             if validators.is_empty() {
                 return BoundedVec::new();
             }
-            
-            // Get epoch configuration
+
+            // Get epoch settings
             let epoch_config = Self::epoch_config();
             let blocks_per_epoch = epoch_config.blocks_per_epoch;
-            
+
             // Calculate sequence length (limit to reasonable size)
             let sequence_length = blocks_per_epoch.min(1000);
-            
+
             // Use snapshotted scores for this epoch if available — scores were frozen
             // 5 blocks before the epoch boundary so all nodes have identical weights.
             // Fall back to equal weights only if no snapshot exists (e.g. epoch 0).
@@ -8191,7 +9360,8 @@ pub mod pallet {
                     // Build weight map from snapshot, preserving PoS+PoI scoring
                     let weight_map: sp_std::collections::btree_map::BTreeMap<_, _> =
                         snap.into_iter().collect();
-                    validators.iter()
+                    validators
+                        .iter()
                         .map(|v| {
                             let w = weight_map.get(v).copied().unwrap_or(1).max(1);
                             (v.clone(), w)
@@ -8203,45 +9373,42 @@ pub mod pallet {
                     validators.iter().map(|v| (v.clone(), 1u64)).collect()
                 }
             };
-            
+
             // Sort by account ID for deterministic ordering
             validator_weights.sort_by(|a, b| a.0.cmp(&b.0));
-            
+
             let mut sequence = Vec::new();
             let mut rng_state = *randomness_seed;
-            
+
             // Generate deterministic author sequence
             for block_offset in 0..sequence_length {
                 // Update RNG state deterministically
                 rng_state = Self::advance_deterministic_rng(rng_state, block_offset);
-                
+
                 // Select author using weighted selection
-                let selected_author = Self::select_weighted_author(
-                    &validator_weights,
-                    &rng_state
-                );
-                
+                let selected_author = Self::select_weighted_author(&validator_weights, &rng_state);
+
                 sequence.push(selected_author);
             }
-            
+
             BoundedVec::truncate_from(sequence)
         }
-        
+
         /// Validate epoch processing through replay.
-        /// 
+        ///
         /// This function performs replay validation by re-processing an epoch
         /// with the same inputs and comparing the outputs byte-for-byte with
         /// the original processing results.
-        /// 
+        ///
         /// Replay validation ensures that:
         /// - Epoch processing is deterministic
         /// - All nodes produce identical results
         /// - No non-deterministic behavior exists
         /// - Consensus is maintained on epoch transitions
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number to replay
-        /// 
+        ///
         /// # Returns
         /// - `Ok(())`: Replay validation passed
         /// - `Err(ReplayError)`: Replay validation failed with details
@@ -8249,15 +9416,15 @@ pub mod pallet {
             // Get original processing output
             let original_output = EpochProcessingOutputs::<T>::get(epoch)
                 .ok_or(ReplayValidationError::MissingOriginalOutput)?;
-            
+
             // Simulate replay with same inputs
             let replay_output = Self::simulate_epoch_processing_replay(
                 epoch,
                 original_output.transition_block,
                 &original_output.randomness_seed,
-                &original_output.input_hash
+                &original_output.input_hash,
             )?;
-            
+
             // Compare outputs byte-for-byte
             if original_output.output_hash != replay_output.output_hash {
                 return Err(ReplayValidationError::OutputMismatch {
@@ -8265,82 +9432,90 @@ pub mod pallet {
                     replay_hash: replay_output.output_hash,
                 });
             }
-            
+
             // Validate specific components
             if original_output.active_validators != replay_output.active_validators {
                 return Err(ReplayValidationError::ValidatorSetMismatch);
             }
-            
+
             if original_output.author_sequence != replay_output.author_sequence {
                 return Err(ReplayValidationError::AuthorSequenceMismatch);
             }
-            
+
             if original_output.validator_scores != replay_output.validator_scores {
                 return Err(ReplayValidationError::ScoreMismatch);
             }
-            
+
             log::info!(
                 "DCF: Replay validation passed for epoch {} - outputs match byte-for-byte",
                 epoch
             );
-            
+
             Ok(())
         }
 
         /// Perform storage migration from one version to another.
-        /// 
+        ///
         /// This function orchestrates the migration process by:
         /// 1. Validating the source storage version
         /// 2. Executing migration steps sequentially
         /// 3. Validating the target storage state
         /// 4. Updating version tracking
-        /// 
+        ///
         /// For the initial production version (version 1), this performs a no-op
         /// migration that validates the storage is in the expected state.
-        /// 
+        ///
         /// # Arguments
         /// - `from_version`: Current storage version
         /// - `to_version`: Target storage version
-        /// 
+        ///
         /// # Returns
         /// - `Ok(Weight)`: Migration completed successfully with weight consumed
         /// - `Err(MigrationError)`: Migration failed with specific error details
-        pub fn perform_storage_migration(from_version: u32, to_version: u32) -> Result<Weight, MigrationError> {
+        pub fn perform_storage_migration(
+            from_version: u32,
+            to_version: u32,
+        ) -> Result<Weight, MigrationError> {
             let mut weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             log::info!(
                 "DCF: Starting storage migration from version {} to version {}",
                 from_version,
                 to_version
             );
-            
+
             // For version 1 (initial production version), perform validation-only migration
             if from_version == 0 && to_version == 1 {
                 // This is the initial migration to production-ready storage
                 log::info!("DCF: Performing initial migration to production storage (version 1)");
-                
+
                 // Validate that all required storage items are accessible
                 weight = weight.saturating_add(Self::validate_storage_integrity()?);
-                
-                // Initialize default governance configuration if not present
+
+                // A chain without a governance record receives the starting
+                // record, built from the runtime ranges and the stored epoch
+                // settings. The record then passes the same governance check.
                 if !GovernanceConfigStorage::<T>::exists() {
-                    let default_config = GovernanceConfig::<T>::default();
-                    GovernanceConfigStorage::<T>::put(default_config);
-                    log::info!("DCF: Initialized default governance configuration");
+                    let epoch = EpochConfigStorage::<T>::get();
+                    let record = Self::starting_governance_record(
+                        epoch.blocks_per_epoch,
+                        epoch.max_validators,
+                    );
+                    weight = weight.saturating_add(Self::validate_governance_config(&record)?);
+                    GovernanceConfigStorage::<T>::put(record);
+                    log::info!("DCF: Installed the starting governance record");
                 }
-                
+
                 // Initialize storage version manager
                 let _version_manager = StorageVersionManager::default();
                 // Note: We don't have a storage item for the version manager yet,
                 // but we validate that the storage version item works
-                
+
                 log::info!("DCF: Initial migration to version 1 completed successfully");
-                
             } else if from_version == to_version {
                 // No migration needed, just validate
                 log::info!("DCF: No migration needed, versions match");
                 weight = weight.saturating_add(Self::validate_storage_integrity()?);
-                
             } else {
                 // Future migrations would be implemented here
                 log::error!(
@@ -8348,53 +9523,202 @@ pub mod pallet {
                     from_version,
                     to_version
                 );
-                
+
                 return Err(MigrationError::NoMigrationPath {
                     from: from_version,
                     to: to_version,
                 });
             }
-            
+
             log::info!("DCF: Storage migration completed successfully");
             Ok(weight)
         }
-        
+
+        /// The governance record a new chain starts from.
+        ///
+        /// Every range comes from the runtime constants, and every current
+        /// value sits inside its range. Genesis installs this record, and the
+        /// first storage migration installs it when the chain holds none.
+        pub fn starting_governance_record(
+            epoch_length: u32,
+            max_validators: u32,
+        ) -> GovernanceConfig<T> {
+            GovernanceConfig {
+                // Epoch settings parameters with safe ranges
+                epoch_length: ParameterRange {
+                    min: T::MinEpochLength::get(),
+                    max: T::MaxEpochLength::get(),
+                    current: epoch_length,
+                },
+                min_stake: ParameterRange {
+                    min: <T as pallet::Config>::Balance::from(100_000u32), // Minimum 100k units
+                    max: <T as pallet::Config>::Balance::from(1_000_000_000u32), // Maximum 1B units
+                    current: MinStakeOf::<T>::get(),
+                },
+                max_validators: ParameterRange {
+                    min: 1,    // At least 1 validator
+                    max: 1000, // Maximum 1000 validators
+                    current: max_validators,
+                },
+
+                // Consensus weight parameters (must sum to precision factor)
+                pos_weight: ParameterRange {
+                    min: 1000, // Minimum 10% (1000/10000)
+                    max: 9000, // Maximum 90% (9000/10000)
+                    current: T::DefaultPosWeight::get(),
+                },
+                poi_weight: ParameterRange {
+                    min: 1000, // Minimum 10% (1000/10000)
+                    max: 9000, // Maximum 90% (9000/10000)
+                    current: T::DefaultPoiWeight::get(),
+                },
+
+                // Performance threshold parameters
+                min_performance_score: ParameterRange {
+                    min: 10,   // Minimum threshold of 10
+                    max: 5000, // Maximum threshold of 5000
+                    current: T::MinPerformanceScore::get(),
+                },
+                // The high mark sits on the validator score scale. Its floor is
+                // one point above the starting minimum score and its ceiling is
+                // the top of the scale, so every mark in the range is reachable.
+                high_performance_score: ParameterRange {
+                    min: T::MinPerformanceScore::get()
+                        .saturating_add(1)
+                        .min(T::MaxValidatorScore::get()),
+                    max: T::MaxValidatorScore::get(),
+                    current: T::HighPerformanceScore::get(),
+                },
+                min_participation_rate: ParameterRange {
+                    min: 10, // Minimum 10% participation
+                    max: 90, // Maximum 90% (to allow room for high threshold)
+                    current: T::MinParticipationRate::get(),
+                },
+                high_participation_rate: ParameterRange {
+                    min: 50,  // Minimum 50% for high threshold
+                    max: 100, // Maximum 100% participation
+                    current: T::HighParticipationRate::get(),
+                },
+
+                // Economic parameters
+                validator_reward: ParameterRange {
+                    min: <T as pallet::Config>::Balance::from(1000u32), // Minimum 1000 units reward
+                    max: <T as pallet::Config>::Balance::from(10_000_000u32), // Maximum 10M units reward
+                    current: ValidatorRewardOf::<T>::get(),
+                },
+                slash_percent: ParameterRange {
+                    min: 1,  // Minimum 1% slash
+                    max: 50, // Maximum 50% slash
+                    current: SlashPercentOf::<T>::get(),
+                },
+                leave_cooldown: ParameterRange {
+                    min: BlockNumberFor::<T>::from(100u32), // Minimum 100 blocks cooldown
+                    max: BlockNumberFor::<T>::from(100_000u32), // Maximum 100k blocks cooldown
+                    current: LeaveCooldownOf::<T>::get().into(),
+                },
+
+                // Trust score settings
+                trust_score_uptime_weight: ParameterRange {
+                    min: 10, // Minimum 10% weight
+                    max: 80, // Maximum 80% weight
+                    current: <T as pallet::Config>::TrustScoreUptimeWeight::get() as u32,
+                },
+                trust_score_inference_weight: ParameterRange {
+                    min: 10, // Minimum 10% weight
+                    max: 80, // Maximum 80% weight
+                    current: <T as pallet::Config>::TrustScoreInferenceWeight::get() as u32,
+                },
+                trust_score_slashing_weight: ParameterRange {
+                    min: 5,  // Minimum 5% weight
+                    max: 50, // Maximum 50% weight
+                    current: <T as pallet::Config>::TrustScoreSlashingWeight::get() as u32,
+                },
+                trust_score_max_growth_rate: ParameterRange {
+                    min: 100,  // Minimum 1% growth rate
+                    max: 2000, // Maximum 20% growth rate
+                    current: <T as pallet::Config>::MaxTrustScoreGrowthRate::get(),
+                },
+                trust_score_max_decay_rate: ParameterRange {
+                    min: 50,   // Minimum 0.5% decay rate
+                    max: 1000, // Maximum 10% decay rate
+                    current: <T as pallet::Config>::MaxTrustScoreDecayRate::get(),
+                },
+                trust_score_min_value: ParameterRange {
+                    min: 500,  // Minimum 5% of max score
+                    max: 3000, // Maximum 30% of max score
+                    current: <T as pallet::Config>::MinTrustScore::get(),
+                },
+                trust_score_max_value: ParameterRange {
+                    min: 8000,  // Minimum 80% of theoretical max
+                    max: 15000, // Maximum 150% of theoretical max
+                    current: <T as pallet::Config>::MaxTrustScore::get(),
+                },
+                trust_score_stability_factor: ParameterRange {
+                    min: 5000, // Minimum 50% stability
+                    max: 9500, // Maximum 95% stability
+                    current: <T as pallet::Config>::TrustScoreStabilityFactor::get(),
+                },
+
+                // Block production parameters
+                block_authorship_boost: ParameterRange {
+                    min: 1,   // Minimum 1 point boost
+                    max: 100, // Maximum 100 points boost
+                    current: T::BlockAuthorshipBoost::get(),
+                },
+                missed_block_penalty: ParameterRange {
+                    min: 1,  // Minimum 1 point penalty
+                    max: 50, // Maximum 50 points penalty
+                    current: T::MissedBlockPenalty::get(),
+                },
+
+                // Inference scoring parameters
+                inference_boost_low: ParameterRange {
+                    min: 1,  // Minimum 1 point boost
+                    max: 20, // Maximum 20 points boost
+                    current: T::InferenceBoostLow::get(),
+                },
+                inference_boost_medium: ParameterRange {
+                    min: 2,  // Minimum 2 points boost
+                    max: 50, // Maximum 50 points boost
+                    current: T::InferenceBoostMedium::get(),
+                },
+                inference_boost_high: ParameterRange {
+                    min: 5,   // Minimum 5 points boost
+                    max: 100, // Maximum 100 points boost
+                    current: T::InferenceBoostHigh::get(),
+                },
+            }
+        }
+
         /// Validate storage integrity and accessibility.
-        /// 
+        ///
         /// This function performs comprehensive validation of the storage state
         /// to ensure all required storage items are accessible and contain
         /// valid data. It's used during migrations and runtime initialization.
-        /// 
+        ///
         /// # Returns
         /// - `Ok(Weight)`: Validation passed with weight consumed
         /// - `Err(MigrationError)`: Validation failed with specific error details
         pub fn validate_storage_integrity() -> Result<Weight, MigrationError> {
             #[allow(unused_mut)]
             let mut weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             log::info!("DCF: Starting storage integrity validation");
-            
+
             // Storage accessibility validation would go here
             // (removed recursive call)
-            
-            // Validate governance configuration if it exists
+
+            // Validate governance settings if it exists
             if GovernanceConfigStorage::<T>::exists() {
-                let _governance_config = GovernanceConfigStorage::<T>::get();
-                // Governance config validation (available in test/benchmark builds only)
-                #[cfg(any(feature = "runtime-benchmarks", test))]
-                {
-                    weight = weight.saturating_add(Self::validate_governance_config(&_governance_config)?);
-                }
+                let governance_config = GovernanceConfigStorage::<T>::get();
+                weight =
+                    weight.saturating_add(Self::validate_governance_config(&governance_config)?);
             }
-            
-            // Validate epoch configuration
-            let _epoch_config = EpochConfigStorage::<T>::get();
-            // Epoch config validation (available in test/benchmark builds only)
-            #[cfg(any(feature = "runtime-benchmarks", test))]
-            {
-                weight = weight.saturating_add(Self::validate_epoch_config(&_epoch_config)?);
-            }
-            
+
+            // Validate epoch settings
+            let epoch_config = EpochConfigStorage::<T>::get();
+            weight = weight.saturating_add(Self::validate_epoch_config(&epoch_config)?);
+
             // Validate active validators don't exceed maximum
             let active_validators = ActiveValidators::<T>::get();
             if active_validators.len() > MaxValidatorsOf::<T>::get() as usize {
@@ -8403,29 +9727,35 @@ pub mod pallet {
                     active_validators.len(),
                     MaxValidatorsOf::<T>::get()
                 );
-                
+
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"max_validators_check".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Active validator count exceeds maximum allowed".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"max_validators_check"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Active validator count exceeds maximum allowed"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
+
             log::info!("DCF: Storage integrity validation completed successfully");
             Ok(weight)
         }
-        
+
         /// Validate that all required storage items are accessible.
-        /// 
+        ///
         /// This function checks that all critical storage items can be read
         /// without errors, ensuring the storage layer is functioning correctly.
-        /// 
+        ///
         /// # Returns
         /// - `Ok(Weight)`: All storage items are accessible
         /// - `Err(MigrationError)`: Storage access failed
         #[cfg(any(feature = "runtime-benchmarks", test))]
         pub fn validate_storage_accessibility() -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // Test access to critical storage items
             let _ = CurrentEpoch::<T>::get();
             let _ = ActiveValidators::<T>::get();
@@ -8435,201 +9765,237 @@ pub mod pallet {
             let _ = PoiWeight::<T>::get();
             let _ = GovernanceModeEnabled::<T>::get();
             let _ = StorageVersion::<T>::get();
-            
+
             // Test that we can write to storage version (this is critical for migration tracking)
             let current_version = StorageVersion::<T>::get();
             StorageVersion::<T>::put(current_version); // Write back the same value
-            
+
             log::debug!("DCF: Storage accessibility validation passed");
             Ok(weight)
         }
-        
-        /// Validate governance configuration for consistency and safety.
-        /// 
-        /// This function checks that the governance configuration contains
+
+        /// Validate governance settings for consistency and safety.
+        ///
+        /// This function checks that the governance settings contains
         /// valid parameter ranges and current values within those ranges.
-        /// 
+        ///
         /// # Arguments
-        /// - `config`: Governance configuration to validate
-        /// 
+        /// - `config`: Governance settings to validate
+        ///
         /// # Returns
-        /// - `Ok(Weight)`: Configuration is valid
-        /// - `Err(MigrationError)`: Configuration validation failed
-        #[cfg(any(feature = "runtime-benchmarks", test))]
-        pub fn validate_governance_config(config: &GovernanceConfig<T>) -> Result<Weight, MigrationError> {
+        /// - `Ok(Weight)`: Settings is valid
+        /// - `Err(MigrationError)`: Settings validation failed
+        pub fn validate_governance_config(
+            config: &GovernanceConfig<T>,
+        ) -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // Validate epoch length range
-            if config.epoch_length.min > config.epoch_length.max ||
-               config.epoch_length.current < config.epoch_length.min ||
-               config.epoch_length.current > config.epoch_length.max {
+            if config.epoch_length.min > config.epoch_length.max
+                || config.epoch_length.current < config.epoch_length.min
+                || config.epoch_length.current > config.epoch_length.max
+            {
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"epoch_length_range".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Epoch length parameter range is invalid".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"epoch_length_range"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Epoch length parameter range is invalid"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
+
             // Validate max validators range
-            if config.max_validators.min > config.max_validators.max ||
-               config.max_validators.current < config.max_validators.min ||
-               config.max_validators.current > config.max_validators.max {
+            if config.max_validators.min > config.max_validators.max
+                || config.max_validators.current < config.max_validators.min
+                || config.max_validators.current > config.max_validators.max
+            {
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"max_validators_range".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Max validators parameter range is invalid".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"max_validators_range"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Max validators parameter range is invalid"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
+
             // Validate consensus weights sum to reasonable values
             let pos_weight = config.pos_weight.current;
             let poi_weight = config.poi_weight.current;
             if pos_weight + poi_weight == 0 {
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"consensus_weights_sum".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Consensus weights sum to zero".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"consensus_weights_sum"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Consensus weights sum to zero"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
-            log::debug!("DCF: Governance configuration validation passed");
+
+            log::debug!("DCF: Governance settings validation passed");
             Ok(weight)
         }
-        
-        /// Validate epoch configuration for consistency and safety.
-        /// 
-        /// This function checks that the epoch configuration contains
+
+        /// Validate epoch settings for consistency and safety.
+        ///
+        /// This function checks that the epoch settings contains
         /// reasonable values that won't cause system instability.
-        /// 
+        ///
         /// # Arguments
-        /// - `config`: Epoch configuration to validate
-        /// 
+        /// - `config`: Epoch settings to validate
+        ///
         /// # Returns
-        /// - `Ok(Weight)`: Configuration is valid
-        /// - `Err(MigrationError)`: Configuration validation failed
-        #[cfg(any(feature = "runtime-benchmarks", test))]
+        /// - `Ok(Weight)`: Settings is valid
+        /// - `Err(MigrationError)`: Settings validation failed
         pub fn validate_epoch_config(config: &EpochConfig) -> Result<Weight, MigrationError> {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // Validate epoch length is reasonable
             if config.blocks_per_epoch == 0 {
                 return Err(MigrationError::PostValidationFailed {
                     rule_id: b"epoch_length_zero".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Epoch length cannot be zero".to_vec().try_into().unwrap_or_default(),
+                    reason: b"Epoch length cannot be zero"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
+
             // Validate max validators is reasonable
             if config.max_validators == 0 {
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"max_validators_zero".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Max validators cannot be zero".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"max_validators_zero"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Max validators cannot be zero"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
+
             // Validate max validators doesn't exceed system limits
             if config.max_validators > MaxValidatorsOf::<T>::get() {
                 return Err(MigrationError::PostValidationFailed {
-                    rule_id: b"max_validators_exceeds_limit".to_vec().try_into().unwrap_or_default(),
-                    reason: b"Max validators exceeds system limit".to_vec().try_into().unwrap_or_default(),
+                    rule_id: b"max_validators_exceeds_limit"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
+                    reason: b"Max validators exceeds system limit"
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
-            
-            log::debug!("DCF: Epoch configuration validation passed");
+
+            log::debug!("DCF: Epoch settings validation passed");
             Ok(weight)
         }
 
         // --- Deterministic Processing Helper Functions --- //
-        
+
         /// Generate genesis randomness salt from system state.
-        /// 
+        ///
         /// This function creates a fixed randomness salt that is derived from
         /// genesis block information and never changes after network initialization.
         /// The salt provides network-specific entropy for deterministic processing.
-        /// 
+        ///
         /// # Returns
         /// - 32-byte fixed randomness salt
         fn generate_genesis_randomness_salt() -> [u8; 32] {
             use sp_io::hashing::blake2_256;
-            
+
             // Use genesis block hash as base entropy
-            let genesis_hash = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(0u32));
+            let genesis_hash =
+                frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(0u32));
             let mut input = Vec::new();
             input.extend_from_slice(genesis_hash.as_ref());
-            
+
             // Add additional deterministic entropy
             input.extend_from_slice(b"DCF_DETERMINISTIC_SALT_V1");
             input.extend_from_slice(&CURRENT_STORAGE_VERSION.to_le_bytes());
-            
+
             blake2_256(&input)
         }
-        
+
         /// Generate epoch-specific salt.
-        /// 
+        ///
         /// This function creates a unique salt for each epoch by combining
         /// the epoch number with the fixed randomness salt. This provides
         /// epoch-specific entropy while maintaining determinism.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number
         /// - `randomness_salt`: Fixed network randomness salt
-        /// 
+        ///
         /// # Returns
         /// - 16-byte epoch-specific salt
         fn generate_epoch_salt(epoch: u32, randomness_salt: &[u8; 32]) -> [u8; 16] {
             use sp_io::hashing::blake2_256;
-            
+
             let mut input = Vec::new();
             input.extend_from_slice(&epoch.to_le_bytes());
             input.extend_from_slice(randomness_salt);
             input.extend_from_slice(b"EPOCH_SALT");
-            
+
             let hash = blake2_256(&input);
             let mut salt = [0u8; 16];
             salt.copy_from_slice(&hash[0..16]);
             salt
         }
-        
+
         /// Compute hash of epoch processing inputs.
-        /// 
+        ///
         /// This function creates a hash of all inputs used in epoch processing
         /// to enable replay validation. The hash includes all state that affects
         /// the epoch transition outcome.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number being processed
         /// - `block_number`: Block number of transition
         /// - `validators`: Active validators before transition
         /// - `randomness_seed`: Randomness seed used
-        /// 
+        ///
         /// # Returns
         /// - 32-byte hash of processing inputs
         fn compute_epoch_input_hash(
             epoch: u32,
             block_number: u32,
             validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
-            randomness_seed: &[u8; 32]
+            randomness_seed: &[u8; 32],
         ) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
-            
+
             let mut input = Vec::new();
             input.extend_from_slice(&epoch.to_le_bytes());
             input.extend_from_slice(&block_number.to_le_bytes());
             input.extend_from_slice(&validators.encode());
             input.extend_from_slice(randomness_seed);
-            
+
             // Add relevant system state
             let pos_weight = Self::pos_weight();
             let poi_weight = Self::poi_weight();
             input.extend_from_slice(&pos_weight.to_le_bytes());
             input.extend_from_slice(&poi_weight.to_le_bytes());
-            
+
             blake2_256(&input)
         }
-        
+
         /// Compute hash of epoch processing outputs.
-        /// 
+        ///
         /// This function creates a hash of all outputs from epoch processing
         /// to enable replay validation. The hash captures all state changes
         /// that result from the epoch transition.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number processed
         /// - `active_validators`: Final active validator set
@@ -8637,7 +10003,7 @@ pub mod pallet {
         /// - `removed_validators`: Validators removed during transition
         /// - `validator_scores`: Final validator scores
         /// - `author_sequence`: Generated author sequence
-        /// 
+        ///
         /// # Returns
         /// - 32-byte hash of processing outputs
         fn compute_epoch_output_hash(
@@ -8646,10 +10012,10 @@ pub mod pallet {
             added_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             removed_validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
             validator_scores: &BoundedVec<(T::AccountId, u64), MaxValidatorsOf<T>>,
-            author_sequence: &BoundedVec<T::AccountId, ConstU32<1000>>
+            author_sequence: &BoundedVec<T::AccountId, ConstU32<1000>>,
         ) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
-            
+
             let mut output = Vec::new();
             output.extend_from_slice(&epoch.to_le_bytes());
             output.extend_from_slice(&active_validators.encode());
@@ -8657,70 +10023,68 @@ pub mod pallet {
             output.extend_from_slice(&removed_validators.encode());
             output.extend_from_slice(&validator_scores.encode());
             output.extend_from_slice(&author_sequence.encode());
-            
+
             blake2_256(&output)
         }
-        
+
         /// Advance deterministic RNG state.
-        /// 
+        ///
         /// This function advances the deterministic random number generator state
         /// using a linear congruential generator (LCG) algorithm. The advancement
         /// is deterministic and will produce identical sequences across all nodes.
-        /// 
+        ///
         /// # Arguments
         /// - `current_state`: Current RNG state
         /// - `step`: Step number for advancement
-        /// 
+        ///
         /// # Returns
         /// - Advanced RNG state
         fn advance_deterministic_rng(current_state: [u8; 32], step: u32) -> [u8; 32] {
             use sp_io::hashing::blake2_256;
-            
+
             let mut input = Vec::new();
             input.extend_from_slice(&current_state);
             input.extend_from_slice(&step.to_le_bytes());
             input.extend_from_slice(b"RNG_ADVANCE");
-            
+
             blake2_256(&input)
         }
-        
+
         /// Select weighted author using deterministic randomness.
-        /// 
+        ///
         /// This function selects a validator from the weighted list using
         /// deterministic randomness. The selection is based on validator
         /// scores (weights) and will produce identical results across all
         /// nodes when given the same inputs.
-        /// 
+        ///
         /// # Arguments
         /// - `validator_weights`: List of validators with their weights
         /// - `randomness`: Deterministic randomness for selection
-        /// 
+        ///
         /// # Returns
         /// - Selected validator account
         fn select_weighted_author(
             validator_weights: &[(T::AccountId, u64)],
-            randomness: &[u8; 32]
+            randomness: &[u8; 32],
         ) -> T::AccountId {
             if validator_weights.is_empty() {
                 // This should never happen, but provide a safe fallback
                 panic!("Cannot select author from empty validator set");
             }
-            
+
             // Calculate total weight
-            let total_weight: u64 = validator_weights.iter()
-                .map(|(_, weight)| *weight)
-                .sum();
-            
+            let total_weight: u64 = validator_weights.iter().map(|(_, weight)| *weight).sum();
+
             if total_weight == 0 {
                 // All validators have zero weight, use round-robin
                 let index = Self::bytes_to_u64(randomness) as usize % validator_weights.len();
                 return validator_weights[index].0.clone();
             }
-            
+
             // Convert randomness to target value
             let target = Self::bytes_to_u64(randomness) % total_weight;
             let mut cumulative_weight = 0u64;
-            
+
             // Select validator based on weighted probability
             for (validator, weight) in validator_weights.iter() {
                 cumulative_weight = cumulative_weight.saturating_add(*weight);
@@ -8728,20 +10092,20 @@ pub mod pallet {
                     return validator.clone();
                 }
             }
-            
+
             // Fallback to first validator (should never reach here)
             validator_weights[0].0.clone()
         }
-        
+
         /// Convert bytes to u64 for deterministic calculations.
-        /// 
+        ///
         /// This function converts the first 8 bytes of a byte array to a u64
         /// value for use in deterministic calculations. The conversion is
         /// consistent across all platforms and architectures.
-        /// 
+        ///
         /// # Arguments
         /// - `bytes`: Byte array to convert
-        /// 
+        ///
         /// # Returns
         /// - u64 value derived from bytes
         fn bytes_to_u64(bytes: &[u8; 32]) -> u64 {
@@ -8749,68 +10113,78 @@ pub mod pallet {
             array.copy_from_slice(&bytes[0..8]);
             u64::from_le_bytes(array)
         }
-        
+
         /// Get epoch validator changes.
-        /// 
+        ///
         /// This function retrieves the validators that were added and removed
         /// during the specified epoch transition. Used for replay validation
         /// and output recording.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number to query
-        /// 
+        ///
         /// # Returns
         /// - Tuple of (added_validators, removed_validators)
         fn get_epoch_validator_changes(
-            epoch: u32
-        ) -> (BoundedVec<T::AccountId, MaxValidatorsOf<T>>, BoundedVec<T::AccountId, MaxValidatorsOf<T>>) {
+            epoch: u32,
+        ) -> (
+            BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
+            BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
+        ) {
             // Query epoch history to get validators who joined and left
-            if let Some(history) = EpochHistories::<T>::get().iter().find(|h| h.epoch_number == epoch) {
+            if let Some(history) = EpochHistories::<T>::get()
+                .iter()
+                .find(|h| h.epoch_number == epoch)
+            {
                 let mut joined = BoundedVec::new();
                 let mut left = BoundedVec::new();
-                
+
                 // Get previous epoch validators for comparison
                 let prev_epoch = epoch.saturating_sub(1);
-                let prev_validators = if let Some(prev_history) = EpochHistories::<T>::get().iter().find(|h| h.epoch_number == prev_epoch) {
+                let prev_validators = if let Some(prev_history) = EpochHistories::<T>::get()
+                    .iter()
+                    .find(|h| h.epoch_number == prev_epoch)
+                {
                     prev_history.active_validators.clone()
                 } else {
                     BoundedVec::new()
                 };
-                
+
                 // Find validators who joined (in current but not in previous)
                 for validator in &history.active_validators {
                     if !prev_validators.contains(validator) {
                         let _ = joined.try_push(validator.clone());
                     }
                 }
-                
+
                 // Find validators who left (in previous but not in current)
                 for validator in &prev_validators {
                     if !history.active_validators.contains(validator) {
                         let _ = left.try_push(validator.clone());
                     }
                 }
-                
+
                 (joined, left)
             } else {
                 (BoundedVec::new(), BoundedVec::new())
             }
         }
-        
+
         /// Get all validator scores.
-        /// 
+        ///
         /// This function retrieves the current scores for all specified validators.
         /// Used for replay validation and output recording.
-        /// 
+        ///
         /// # Arguments
         /// - `validators`: Validators to get scores for
-        /// 
+        ///
         /// # Returns
         /// - List of (validator, score) pairs
         fn get_all_validator_scores(
-            validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>
+            validators: &BoundedVec<T::AccountId, MaxValidatorsOf<T>>,
         ) -> BoundedVec<(T::AccountId, u64), MaxValidatorsOf<T>> {
-            let scores: Vec<(T::AccountId, u64)> = validators.iter()
+            let scores: Vec<(T::AccountId, u64)> = validators
+                .iter()
                 .map(|v| {
                     let score = ValidatorStates::<T>::get(v)
                         .map(|s| s.current.final_score)
@@ -8818,43 +10192,43 @@ pub mod pallet {
                     (v.clone(), score)
                 })
                 .collect();
-            
+
             BoundedVec::truncate_from(scores)
         }
-        
+
         /// Simulate epoch processing replay.
-        /// 
+        ///
         /// This function simulates the replay of epoch processing with the same
         /// inputs to validate deterministic behavior. It performs the same
         /// operations as the original processing but without modifying state.
-        /// 
+        ///
         /// # Arguments
         /// - `epoch`: Epoch number to replay
         /// - `block_number`: Block number of original transition
         /// - `randomness_seed`: Original randomness seed
         /// - `input_hash`: Original input hash for validation
-        /// 
+        ///
         /// # Returns
         /// - Simulated processing output for comparison
         fn simulate_epoch_processing_replay(
             epoch: u32,
             block_number: u32,
             randomness_seed: &[u8; 32],
-            input_hash: &[u8; 32]
+            input_hash: &[u8; 32],
         ) -> Result<EpochProcessingOutput<T>, ReplayValidationError> {
             // This is a simplified simulation - in a full implementation,
             // this would recreate the exact processing steps
-            
+
             let active_validators = ActiveValidators::<T>::get();
             let validator_scores = Self::get_all_validator_scores(&active_validators);
-            
+
             // Generate the same author sequence
             let author_sequence = Self::generate_deterministic_author_sequence(
                 epoch,
                 &active_validators,
-                randomness_seed
+                randomness_seed,
             );
-            
+
             // Compute output hash
             let (added_validators, removed_validators) = Self::get_epoch_validator_changes(epoch);
             let output_hash = Self::compute_epoch_output_hash(
@@ -8863,9 +10237,9 @@ pub mod pallet {
                 &added_validators,
                 &removed_validators,
                 &validator_scores,
-                &author_sequence
+                &author_sequence,
             );
-            
+
             Ok(EpochProcessingOutput::<T> {
                 epoch,
                 transition_block: block_number,
@@ -8880,16 +10254,16 @@ pub mod pallet {
             })
         }
         /// Validate if a validator is eligible to rejoin after cooldown.
-        /// 
+        ///
         /// This function performs comprehensive validation for validator rejoin attempts,
         /// checking multiple cooldown states and ensuring proper stake reservation.
-        /// 
+        ///
         /// # Validation Checks
         /// 1. Check if validator has a pending leave request (cannot rejoin while leaving)
         /// 2. Check if validator is in recently removed cooldown period
         /// 3. Validate cooldown period has fully expired
         /// 4. Verify sufficient balance for stake reservation
-        /// 
+        ///
         /// # Errors
         /// - `ValidatorHasPendingLeaveRequest`: If validator has active leave request
         /// - `ValidatorRejoinCooldownNotExpired`: If cooldown period not yet expired
@@ -8902,7 +10276,8 @@ pub mod pallet {
 
             // Check if validator is in cooldown period after recently leaving
             if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(who) {
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let current_block =
+                    frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
 
@@ -8918,7 +10293,7 @@ pub mod pallet {
             // Validate stake reservation eligibility
             let min_stake = MinStakeOf::<T>::get();
             let free_balance = T::Currency::free_balance(who);
-            
+
             // Check if balance is sufficient for stake reservation
             if free_balance < min_stake {
                 return Err(Error::<T>::ValidatorRejoinStakeReservationFailed.into());
@@ -8926,7 +10301,7 @@ pub mod pallet {
 
             // Test if stake reservation would succeed (without actually reserving)
             // This catches edge cases where currency system might reject the reservation
-            if T::Currency::can_reserve(who, min_stake) != true {
+            if !T::Currency::can_reserve(who, min_stake) {
                 return Err(Error::<T>::ValidatorRejoinStakeReservationFailed.into());
             }
 
@@ -8934,15 +10309,15 @@ pub mod pallet {
         }
 
         /// Validate if a validator is eligible to submit a leave request.
-        /// 
+        ///
         /// This function prevents concurrent leave requests and ensures validators
         /// can only have one active leave request at a time.
-        /// 
+        ///
         /// # Validation Checks
         /// 1. Check if validator already has a pending leave request
         /// 2. Verify validator is currently in the validator set
         /// 3. Ensure validator is not in an invalid state for leaving
-        /// 
+        ///
         /// # Errors
         /// - `ConcurrentLeaveRequestNotAllowed`: If validator already has pending leave request
         /// - `ValidatorNotInSet`: If validator is not in the validator set
@@ -8962,14 +10337,16 @@ pub mod pallet {
         }
 
         /// Enhanced cooldown status check with detailed information.
-        /// 
+        ///
         /// This function provides comprehensive cooldown status information
         /// for validators, including time remaining and eligibility status.
-        /// 
+        ///
         /// # Returns
         /// - `Some((blocks_remaining, can_rejoin))`: If validator is in cooldown
         /// - `None`: If validator is not in any cooldown state
-        pub fn get_validator_detailed_cooldown_status_internal(who: &T::AccountId) -> Option<(u32, bool)> {
+        pub fn get_validator_detailed_cooldown_status_internal(
+            who: &T::AccountId,
+        ) -> Option<(u32, bool)> {
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let cooldown_period = LeaveCooldownOf::<T>::get();
 
@@ -8995,19 +10372,19 @@ pub mod pallet {
         }
 
         /// Enable private chain mode with validator allowlist (Root only).
-        /// 
+        ///
         /// This dispatchable transitions the network from public mode to private
         /// chain mode, restricting validator participation to a predefined allowlist.
-        /// 
+        ///
         /// # Parameters
         /// - `initial_allowlist`: List of validator accounts permitted to participate
         /// - `allow_updates`: Whether allowlist modifications are permitted after enabling
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
         /// - Allowlist size must not exceed MaxValidators
         /// - Network must not already be in private mode
-        /// 
+        ///
         /// # Effects
         /// - Enables private chain mode
         /// - Sets initial validator allowlist
@@ -9021,14 +10398,14 @@ pub mod pallet {
         }
 
         /// Disable private chain mode and return to public mode (Root only).
-        /// 
+        ///
         /// This dispatchable transitions the network from private chain mode
         /// back to public mode, removing all validator restrictions.
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
         /// - Network must be in private chain mode
-        /// 
+        ///
         /// # Effects
         /// - Disables private chain mode
         /// - Clears validator allowlist
@@ -9039,41 +10416,39 @@ pub mod pallet {
         }
 
         /// Add validator to private chain allowlist (Root only).
-        /// 
+        ///
         /// This dispatchable adds a validator account to the allowlist in
         /// private chain mode, granting them permission to participate.
-        /// 
+        ///
         /// # Parameters
         /// - `validator`: Account to add to the allowlist
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
         /// - Network must be in private chain mode
         /// - Allowlist updates must be enabled
         /// - Allowlist must not be full
-        /// 
+        ///
         /// # Effects
         /// - Adds validator to allowlist
         /// - Emits ValidatorAddedToAllowlist event
-        pub fn add_to_validator_allowlist_internal(
-            validator: T::AccountId,
-        ) -> DispatchResult {
+        pub fn add_to_validator_allowlist_internal(validator: T::AccountId) -> DispatchResult {
             Self::add_to_validator_allowlist(validator).map_err(Into::into)
         }
 
         /// Remove validator from private chain allowlist (Root only).
-        /// 
+        ///
         /// This dispatchable removes a validator account from the allowlist
         /// in private chain mode, revoking their permission to participate.
-        /// 
+        ///
         /// # Parameters
         /// - `validator`: Account to remove from the allowlist
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
         /// - Network must be in private chain mode
         /// - Allowlist updates must be enabled
-        /// 
+        ///
         /// # Effects
         /// - Removes validator from allowlist
         /// - Forces validator to leave if currently active
@@ -9085,13 +10460,13 @@ pub mod pallet {
         }
 
         /// Test EVM event compatibility (Root only).
-        /// 
+        ///
         /// This dispatchable tests the EVM event compatibility system by
         /// emitting a test event and validating its EVM compatibility.
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
-        /// 
+        ///
         /// # Effects
         /// - Emits test event with EVM compatibility validation
         /// - Returns error if EVM compatibility validation fails
@@ -9104,39 +10479,35 @@ pub mod pallet {
                     validator: validator.clone(),
                     stake_amount: MinStakeOf::<T>::get(),
                 };
-                
+
                 // Validate EVM compatibility
                 evm_compatibility::EvmEventValidator::convert_to_evm_format(&test_event)
                     .map_err(|_| Error::<T>::InvalidEpochConfig)?;
-                
+
                 // Emit the test event
-                Self::deposit_event(Event::EvmCompatibilityTested {
-                    success: true,
-                });
+                Self::deposit_event(Event::EvmCompatibilityTested { success: true });
             } else {
                 // No validators available for testing, but that's okay
-                Self::deposit_event(Event::EvmCompatibilityTested {
-                    success: true,
-                });
+                Self::deposit_event(Event::EvmCompatibilityTested { success: true });
             }
-            
+
             Ok(())
         }
 
         /// Query EVM events for a block range (Root only).
-        /// 
+        ///
         /// This dispatchable allows querying EVM-compatible events for
         /// a specific block range, useful for testing and debugging.
-        /// 
+        ///
         /// # Parameters
         /// - `from_block`: Starting block number
         /// - `to_block`: Ending block number
         /// - `event_type`: Optional event type filter
-        /// 
+        ///
         /// # Requirements
         /// - Root origin required
         /// - Block range must be reasonable (max 100 blocks)
-        /// 
+        ///
         /// # Effects
         /// - Emits event with query results summary
         pub fn query_evm_events_internal(
@@ -9148,52 +10519,51 @@ pub mod pallet {
             if to_block < from_block || (to_block - from_block) > 100 {
                 return Vec::new();
             }
-            
+
             // Query events from storage
             let mut events = Vec::new();
             for block_num in from_block..=to_block {
                 let block_events = Self::get_evm_events_for_block(block_num);
                 events.extend(block_events);
             }
-            
+
             // Filter by event type if specified
             if let Some(filter_type) = event_type {
                 events.retain(|event| event.event_type == filter_type);
             }
-            
+
             events
         }
-
     }
 
     // --- Runtime Hooks --- //
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Called during runtime upgrades to validate storage version and perform migrations.
-        /// 
+        ///
         /// This hook ensures that the storage schema is compatible with the current runtime
         /// and performs any necessary migrations to bring the storage up to the expected version.
-        /// 
+        ///
         /// The migration process includes:
         /// 1. Validating the current storage version
         /// 2. Executing any required migration steps
         /// 3. Validating the final storage state
         /// 4. Updating the storage version to match the runtime
-        /// 
+        ///
         /// If validation fails or migrations cannot be completed, the runtime upgrade
         /// will fail to prevent data corruption or system instability.
         fn on_runtime_upgrade() -> Weight {
             let mut weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // Get current storage version (defaults to 0 if not set)
             let current_version = StorageVersion::<T>::get();
-            
+
             log::info!(
                 "DCF: Runtime upgrade - Current storage version: {}, Expected version: {}",
                 current_version,
                 CURRENT_STORAGE_VERSION
             );
-            
+
             // Check if migration is needed
             if current_version != CURRENT_STORAGE_VERSION {
                 log::info!(
@@ -9201,40 +10571,41 @@ pub mod pallet {
                     current_version,
                     CURRENT_STORAGE_VERSION
                 );
-                
+
                 // Perform storage migration based on version difference
-                let migration_result: Result<Weight, MigrationError> = Self::perform_storage_migration(current_version, CURRENT_STORAGE_VERSION);
+                let migration_result: Result<Weight, MigrationError> =
+                    Self::perform_storage_migration(current_version, CURRENT_STORAGE_VERSION);
                 match migration_result {
                     Ok(migration_weight) => {
                         weight = weight.saturating_add(migration_weight);
-                        
+
                         // Update storage version to current
                         StorageVersion::<T>::put(CURRENT_STORAGE_VERSION);
-                        
+
                         log::info!(
                             "DCF: Storage migration completed successfully to version {}",
                             CURRENT_STORAGE_VERSION
                         );
-                        
+
                         // Emit migration completion event
                         Self::deposit_event(Event::StorageMigrationCompleted {
                             from_version: current_version,
                             to_version: CURRENT_STORAGE_VERSION,
                         });
-                    },
+                    }
                     Err(error) => {
-                        log::error!(
-                            "DCF: Storage migration failed: {:?}",
-                            error
-                        );
-                        
+                        log::error!("DCF: Storage migration failed: {:?}", error);
+
                         // Emit migration failure event
                         Self::deposit_event(Event::StorageMigrationFailed {
                             from_version: current_version,
                             to_version: CURRENT_STORAGE_VERSION,
-                            error: format!("{:?}", error).into_bytes().try_into().unwrap_or_default(),
+                            error: format!("{:?}", error)
+                                .into_bytes()
+                                .try_into()
+                                .unwrap_or_default(),
                         });
-                        
+
                         // Migration failure is critical - the runtime should not continue
                         // with incompatible storage. In production, this would typically
                         // cause the runtime upgrade to fail.
@@ -9243,7 +10614,7 @@ pub mod pallet {
                 }
             } else {
                 log::info!("DCF: Storage version matches expected version, no migration needed");
-                
+
                 // Perform storage integrity validation
                 if let Err(e) = Self::validate_storage_integrity() {
                     log::warn!("DCF: Storage integrity validation failed: {:?}", e);
@@ -9251,7 +10622,7 @@ pub mod pallet {
                     log::debug!("DCF: Storage integrity validation passed");
                 }
             }
-            
+
             weight
         }
 
@@ -9261,41 +10632,34 @@ pub mod pallet {
             let mut weight = <T as Config>::WeightInfo::on_initialize();
             let block_number = now.saturated_into::<u32>();
             let current_epoch = Self::current_epoch();
-            
-            // Initialize finalization at block 1 if not already done
-            if block_number == 1 && Self::last_finalized_block() == 0 {
-                LastFinalizedBlock::<T>::put(0); // Genesis block (block 0) is finalized
-                PreviousFinalizedBlock::<T>::put(0);
-                PreviousEpochBestBlock::<T>::put(block_number); // Set to current block for progressive finalization
-                
-                Self::deposit_event(Event::BlockFinalized {
-                    block_number: 0,
-                });
-                log::info!("DCF: Initialized finalization markers at block 1 - genesis block 0 finalized, best block set to {}", block_number);
-                weight = weight.saturating_add(Weight::from_parts(50_000, 0));
-            }
-            
-            // Progressive finalization - finalize blocks as we go (with 1 block lag for safety)
-            if block_number > 1 {
-                let target_finalized = block_number - 1;
-                if Self::last_finalized_block() < target_finalized {
-                    match Self::update_finality_markers(target_finalized, current_epoch) {
-                        Ok(()) => {
-                            log::info!("DCF: Progressive finalization advanced to block {}", target_finalized);
-                        },
-                        Err(reason) => {
-                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
-                            log::warn!("DCF: Progressive finalization failed for block {}: {}", target_finalized, reason_str);
-                        }
-                    }
-                    weight = weight.saturating_add(Weight::from_parts(100_000, 0));
+
+            // Lower the standing of every validator that let an epoch pass.
+            // An absent validator drifts downward with no person acting.
+            let epoch_length = <T as Config>::EpochLength::get();
+            if epoch_length > 0 && block_number > 0 && block_number % epoch_length == 0 {
+                let moved = Self::apply_standing_decay(current_epoch);
+                if moved > 0 {
+                    weight = weight.saturating_add(Weight::from_parts(
+                        40_000u64.saturating_mul(moved as u64),
+                        0,
+                    ));
                 }
             }
-            
+
+            // Release every change whose delay window has run out. A
+            // constitutional change takes effect with no person acting.
+            let released = Self::release_matured_changes(block_number);
+            if released > 0 {
+                weight = weight.saturating_add(Weight::from_parts(
+                    50_000u64.saturating_mul(released as u64),
+                    0,
+                ));
+            }
+
             // Reset per-block rate limiting counters at the beginning of each block
             Self::reset_block_counters();
             weight = weight.saturating_add(Weight::from_parts(10_000, 0)); // Small weight for counter reset
-            
+
             // Check if this is an epoch boundary
             if Self::is_epoch_boundary(block_number) {
                 // Emit epoch boundary detection event
@@ -9304,14 +10668,16 @@ pub mod pallet {
                     epoch: current_epoch,
                     governance_mode: Self::governance_mode_enabled(),
                 });
-                
-                // Handle comprehensive epoch transition
-                weight = weight.saturating_add(Self::handle_comprehensive_epoch_transition(block_number));
-                
 
+                // Handle comprehensive epoch transition
+                weight = weight
+                    .saturating_add(Self::handle_comprehensive_epoch_transition(block_number));
             } else {
                 // Regular block processing (non-epoch boundary)
-                weight = weight.saturating_add(Self::handle_regular_block_processing(block_number, current_epoch));
+                weight = weight.saturating_add(Self::handle_regular_block_processing(
+                    block_number,
+                    current_epoch,
+                ));
             }
 
             weight
@@ -9320,38 +10686,31 @@ pub mod pallet {
         /// Called at the end of each block.
         fn on_finalize(_n: BlockNumberFor<T>) {
             let block_number = _n.saturated_into::<u32>();
-            
+
             // Full DCF finalization logic - updated to avoid destructive score recalculation
             log::trace!("DCF: Processing on_finalize for block #{}", block_number);
-            
+
             // Note: We no longer recalculate final scores for all validators every block here.
-            // Scores are now updated through specific events (authorship, inference) 
+            // Scores are now updated through specific events (authorship, inference)
             // and during epoch transitions to ensure stability and persistence of boosts.
         }
-
-
-
-
-
-
-
     }
 
     // --- Rate Limiting Implementation --- //
     impl<T: Config> Pallet<T> {
         /// Check if an operation is allowed under current rate limiting rules.
-        /// 
+        ///
         /// This function performs comprehensive rate limiting checks including:
         /// - Per-block operation limits
         /// - Per-account operation limits within time windows
         /// - Minimum intervals between operations
         /// - Weight bounds validation
-        /// 
+        ///
         /// # Parameters
         /// - `account`: Account attempting the operation
         /// - `operation`: Type of operation being attempted
         /// - `weight`: Computational weight of the operation
-        /// 
+        ///
         /// # Returns
         /// - `Ok(())`: Operation is allowed
         /// - `Err((Error, ViolationInfo))`: Operation violates rate limits with violation details
@@ -9374,14 +10733,17 @@ pub mod pallet {
             }
 
             // Check per-account limits
-            if let Err(e) = Self::check_per_account_limits(account, &operation, current_block, &config) {
+            if let Err(e) =
+                Self::check_per_account_limits(account, &operation, current_block, &config)
+            {
                 let history = AccountOperationHistory::<T>::get(account, &operation);
                 let (limit, window) = Self::get_per_account_limit(&operation, &config);
                 let window_start = current_block.saturating_sub(window);
-                let operations_in_window = history.iter()
+                let operations_in_window = history
+                    .iter()
                     .filter(|&&block| block >= window_start)
                     .count() as u32;
-                
+
                 let violation = RateLimitViolation::PerAccountLimitExceeded {
                     operation: operation.clone(),
                     current_count: operations_in_window,
@@ -9392,11 +10754,13 @@ pub mod pallet {
             }
 
             // Check minimum intervals
-            if let Err(e) = Self::check_minimum_intervals(account, &operation, current_block, &config) {
+            if let Err(e) =
+                Self::check_minimum_intervals(account, &operation, current_block, &config)
+            {
                 if let Some(last_block) = LastOperationBlock::<T>::get(account, &operation) {
                     let blocks_since_last = current_block.saturating_sub(last_block);
                     let required_interval = Self::get_minimum_interval(&operation, &config);
-                    
+
                     let violation = RateLimitViolation::MinimumIntervalViolation {
                         operation: operation.clone(),
                         blocks_since_last,
@@ -9428,17 +10792,28 @@ pub mod pallet {
                 DispatchableType::LeaveValidators => config.max_leaves_per_block,
                 DispatchableType::VoteProposal => config.max_votes_per_block,
                 DispatchableType::UpdateParameter => 1,
-                DispatchableType::ValidatorStatusChange => config.max_joins_per_block + config.max_leaves_per_block,
+                DispatchableType::ValidatorStatusChange => {
+                    config.max_joins_per_block + config.max_leaves_per_block
+                }
             }
         }
 
         /// Get per-account limit and window for an operation
-        fn get_per_account_limit(operation: &DispatchableType, config: &RateLimitConfig) -> (u32, u32) {
+        fn get_per_account_limit(
+            operation: &DispatchableType,
+            config: &RateLimitConfig,
+        ) -> (u32, u32) {
             match operation {
-                DispatchableType::SubmitProposal => (config.max_proposals_per_account, config.proposal_rate_window),
-                DispatchableType::JoinValidators | 
-                DispatchableType::LeaveValidators | 
-                DispatchableType::ValidatorStatusChange => (config.max_status_changes_per_account, config.status_change_rate_window),
+                DispatchableType::SubmitProposal => (
+                    config.max_proposals_per_account,
+                    config.proposal_rate_window,
+                ),
+                DispatchableType::JoinValidators
+                | DispatchableType::LeaveValidators
+                | DispatchableType::ValidatorStatusChange => (
+                    config.max_status_changes_per_account,
+                    config.status_change_rate_window,
+                ),
                 DispatchableType::VoteProposal => (100, 100),
                 DispatchableType::UpdateParameter => (1, 1000),
             }
@@ -9447,9 +10822,9 @@ pub mod pallet {
         /// Get minimum interval for an operation
         fn get_minimum_interval(operation: &DispatchableType, config: &RateLimitConfig) -> u32 {
             match operation {
-                DispatchableType::JoinValidators | 
-                DispatchableType::LeaveValidators | 
-                DispatchableType::ValidatorStatusChange => config.min_validator_status_interval,
+                DispatchableType::JoinValidators
+                | DispatchableType::LeaveValidators
+                | DispatchableType::ValidatorStatusChange => config.min_validator_status_interval,
                 DispatchableType::SubmitProposal => config.min_proposal_interval,
                 DispatchableType::VoteProposal => config.min_vote_interval,
                 DispatchableType::UpdateParameter => 100,
@@ -9459,11 +10834,12 @@ pub mod pallet {
         /// Get weight limit for an operation
         fn get_weight_limit(operation: &DispatchableType, config: &RateLimitConfig) -> u64 {
             match operation {
-                DispatchableType::SubmitProposal | 
-                DispatchableType::VoteProposal => config.max_proposal_processing_weight,
-                DispatchableType::JoinValidators | 
-                DispatchableType::LeaveValidators | 
-                DispatchableType::ValidatorStatusChange => config.max_validator_iteration_weight,
+                DispatchableType::SubmitProposal | DispatchableType::VoteProposal => {
+                    config.max_proposal_processing_weight
+                }
+                DispatchableType::JoinValidators
+                | DispatchableType::LeaveValidators
+                | DispatchableType::ValidatorStatusChange => config.max_validator_iteration_weight,
                 DispatchableType::UpdateParameter => 100_000_000,
             }
         }
@@ -9474,14 +10850,16 @@ pub mod pallet {
             config: &RateLimitConfig,
         ) -> DispatchResult {
             let current_count = BlockOperationCounts::<T>::get(operation);
-            
+
             let limit = match operation {
                 DispatchableType::SubmitProposal => config.max_proposals_per_block,
                 DispatchableType::JoinValidators => config.max_joins_per_block,
                 DispatchableType::LeaveValidators => config.max_leaves_per_block,
                 DispatchableType::VoteProposal => config.max_votes_per_block,
                 DispatchableType::UpdateParameter => 1, // Very restrictive for parameter updates
-                DispatchableType::ValidatorStatusChange => config.max_joins_per_block + config.max_leaves_per_block,
+                DispatchableType::ValidatorStatusChange => {
+                    config.max_joins_per_block + config.max_leaves_per_block
+                }
             };
 
             if current_count >= limit {
@@ -9501,19 +10879,26 @@ pub mod pallet {
             config: &RateLimitConfig,
         ) -> DispatchResult {
             let history = AccountOperationHistory::<T>::get(account, operation);
-            
+
             let (limit, window) = match operation {
-                DispatchableType::SubmitProposal => (config.max_proposals_per_account, config.proposal_rate_window),
-                DispatchableType::JoinValidators | 
-                DispatchableType::LeaveValidators | 
-                DispatchableType::ValidatorStatusChange => (config.max_status_changes_per_account, config.status_change_rate_window),
+                DispatchableType::SubmitProposal => (
+                    config.max_proposals_per_account,
+                    config.proposal_rate_window,
+                ),
+                DispatchableType::JoinValidators
+                | DispatchableType::LeaveValidators
+                | DispatchableType::ValidatorStatusChange => (
+                    config.max_status_changes_per_account,
+                    config.status_change_rate_window,
+                ),
                 DispatchableType::VoteProposal => (100, 100), // Allow many votes but within reasonable limits
                 DispatchableType::UpdateParameter => (1, 1000), // Very restrictive for parameter updates
             };
 
             // Count operations within the time window
             let window_start = current_block.saturating_sub(window);
-            let operations_in_window = history.iter()
+            let operations_in_window = history
+                .iter()
                 .filter(|&&block| block >= window_start)
                 .count() as u32;
 
@@ -9535,11 +10920,13 @@ pub mod pallet {
         ) -> DispatchResult {
             if let Some(last_block) = LastOperationBlock::<T>::get(account, operation) {
                 let blocks_since_last = current_block.saturating_sub(last_block);
-                
+
                 let required_interval = match operation {
-                    DispatchableType::JoinValidators | 
-                    DispatchableType::LeaveValidators | 
-                    DispatchableType::ValidatorStatusChange => config.min_validator_status_interval,
+                    DispatchableType::JoinValidators
+                    | DispatchableType::LeaveValidators
+                    | DispatchableType::ValidatorStatusChange => {
+                        config.min_validator_status_interval
+                    }
                     DispatchableType::SubmitProposal => config.min_proposal_interval,
                     DispatchableType::VoteProposal => config.min_vote_interval,
                     DispatchableType::UpdateParameter => 100, // Require significant interval for parameter updates
@@ -9562,11 +10949,12 @@ pub mod pallet {
             config: &RateLimitConfig,
         ) -> DispatchResult {
             let max_weight = match operation {
-                DispatchableType::SubmitProposal | 
-                DispatchableType::VoteProposal => config.max_proposal_processing_weight,
-                DispatchableType::JoinValidators | 
-                DispatchableType::LeaveValidators | 
-                DispatchableType::ValidatorStatusChange => config.max_validator_iteration_weight,
+                DispatchableType::SubmitProposal | DispatchableType::VoteProposal => {
+                    config.max_proposal_processing_weight
+                }
+                DispatchableType::JoinValidators
+                | DispatchableType::LeaveValidators
+                | DispatchableType::ValidatorStatusChange => config.max_validator_iteration_weight,
                 DispatchableType::UpdateParameter => 100_000_000, // Allow reasonable weight for parameter updates
             };
 
@@ -9580,10 +10968,10 @@ pub mod pallet {
         }
 
         /// Record an operation for rate limiting tracking.
-        /// 
+        ///
         /// This function updates the rate limiting counters and history after
         /// a successful operation to track usage for future rate limiting decisions.
-        /// 
+        ///
         /// # Parameters
         /// - `account`: Account that performed the operation
         /// - `operation`: Type of operation that was performed
@@ -9608,13 +10996,13 @@ pub mod pallet {
                 let config = RateLimitConfigStorage::<T>::get();
                 let window = match operation {
                     DispatchableType::SubmitProposal => config.proposal_rate_window,
-                    DispatchableType::JoinValidators | 
-                    DispatchableType::LeaveValidators | 
-                    DispatchableType::ValidatorStatusChange => config.status_change_rate_window,
+                    DispatchableType::JoinValidators
+                    | DispatchableType::LeaveValidators
+                    | DispatchableType::ValidatorStatusChange => config.status_change_rate_window,
                     DispatchableType::VoteProposal => 100,
                     DispatchableType::UpdateParameter => 1000,
                 };
-                
+
                 let window_start = current_block.saturating_sub(window);
                 history.retain(|&block| block >= window_start);
             });
@@ -9624,7 +11012,7 @@ pub mod pallet {
         }
 
         /// Reset per-block rate limiting counters.
-        /// 
+        ///
         /// This function is called at the beginning of each block to reset
         /// per-block operation counters to zero.
         fn reset_block_counters() {
@@ -9639,26 +11027,26 @@ pub mod pallet {
             });
         }
 
-        /// Update rate limiting configuration internally.
-        /// 
+        /// Update rate limiting settings internally.
+        ///
         /// This function allows root accounts to update the rate limiting
-        /// configuration with validation to ensure the new configuration
+        /// settings with validation to ensure the new settings
         /// is valid and won't prevent normal network operation.
-        /// 
+        ///
         /// # Parameters
-        /// - `new_config`: New rate limiting configuration
-        /// 
+        /// - `new_config`: New rate limiting settings
+        ///
         /// # Returns
-        /// - `Ok(())`: Configuration updated successfully
-        /// - `Err(Error)`: Configuration is invalid
+        /// - `Ok(())`: Settings updated successfully
+        /// - `Err(Error)`: Settings is invalid
         fn update_rate_limit_config_internal(new_config: RateLimitConfig) -> DispatchResult {
-            // Validate the new configuration
+            // Validate the new settings
             Self::validate_rate_limit_config(&new_config)?;
 
-            // Get old configuration for event (we'll use it for logging)
+            // Get old settings for event (we'll use it for logging)
             let _old_config = RateLimitConfigStorage::<T>::get();
 
-            // Update configuration
+            // Update settings
             RateLimitConfigStorage::<T>::put(&new_config);
 
             // Emit event
@@ -9671,31 +11059,74 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Validate rate limiting configuration.
+        /// Validate rate limiting settings.
         fn validate_rate_limit_config(config: &RateLimitConfig) -> DispatchResult {
             // Check that limits are reasonable (not zero or excessively high)
-            ensure!(config.max_proposals_per_block > 0 && config.max_proposals_per_block <= 100, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_joins_per_block > 0 && config.max_joins_per_block <= 50, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_leaves_per_block > 0 && config.max_leaves_per_block <= 50, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_votes_per_block > 0 && config.max_votes_per_block <= 1000, Error::<T>::InvalidRateLimitConfig);
+            ensure!(
+                config.max_proposals_per_block > 0 && config.max_proposals_per_block <= 100,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_joins_per_block > 0 && config.max_joins_per_block <= 50,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_leaves_per_block > 0 && config.max_leaves_per_block <= 50,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_votes_per_block > 0 && config.max_votes_per_block <= 1000,
+                Error::<T>::InvalidRateLimitConfig
+            );
 
             // Check per-account limits
-            ensure!(config.max_proposals_per_account > 0 && config.max_proposals_per_account <= 100, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_status_changes_per_account > 0 && config.max_status_changes_per_account <= 20, Error::<T>::InvalidRateLimitConfig);
+            ensure!(
+                config.max_proposals_per_account > 0 && config.max_proposals_per_account <= 100,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_status_changes_per_account > 0
+                    && config.max_status_changes_per_account <= 20,
+                Error::<T>::InvalidRateLimitConfig
+            );
 
             // Check time windows are reasonable
-            ensure!(config.proposal_rate_window > 0 && config.proposal_rate_window <= 10000, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.status_change_rate_window > 0 && config.status_change_rate_window <= 100000, Error::<T>::InvalidRateLimitConfig);
+            ensure!(
+                config.proposal_rate_window > 0 && config.proposal_rate_window <= 10000,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.status_change_rate_window > 0 && config.status_change_rate_window <= 100000,
+                Error::<T>::InvalidRateLimitConfig
+            );
 
             // Check minimum intervals
-            ensure!(config.min_validator_status_interval <= 10000, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.min_proposal_interval <= 1000, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.min_vote_interval <= 100, Error::<T>::InvalidRateLimitConfig);
+            ensure!(
+                config.min_validator_status_interval <= 10000,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.min_proposal_interval <= 1000,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.min_vote_interval <= 100,
+                Error::<T>::InvalidRateLimitConfig
+            );
 
             // Check weight bounds are reasonable
-            ensure!(config.max_validator_iteration_weight > 0, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_proposal_processing_weight > 0, Error::<T>::InvalidRateLimitConfig);
-            ensure!(config.max_loop_iterations > 0 && config.max_loop_iterations <= 10000, Error::<T>::InvalidRateLimitConfig);
+            ensure!(
+                config.max_validator_iteration_weight > 0,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_proposal_processing_weight > 0,
+                Error::<T>::InvalidRateLimitConfig
+            );
+            ensure!(
+                config.max_loop_iterations > 0 && config.max_loop_iterations <= 10000,
+                Error::<T>::InvalidRateLimitConfig
+            );
 
             Ok(())
         }
@@ -9721,8 +11152,8 @@ pub mod pallet {
             match violation_type {
                 0 => Err(Error::<T>::PerBlockRateLimitExceeded.into()), // PerBlock
                 1 => Err(Error::<T>::PerAccountRateLimitExceeded.into()), // PerAccount
-                2 => Err(Error::<T>::MinimumIntervalViolation.into()), // MinInterval
-                3 => Err(Error::<T>::WeightLimitExceeded.into()), // Weight
+                2 => Err(Error::<T>::MinimumIntervalViolation.into()),  // MinInterval
+                3 => Err(Error::<T>::WeightLimitExceeded.into()),       // Weight
                 _ => Err(Error::<T>::PerBlockRateLimitExceeded.into()), // Default
             }
         }
@@ -9730,9 +11161,14 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Get current timestamp from the timestamp pallet
+        /// The time of the present block in milliseconds since genesis.
+        ///
+        /// Block execution has no offchain clock, so the time comes from the
+        /// block number and the block time the runtime declares. Every node
+        /// derives the same figure from the same block.
         fn get_current_timestamp() -> u64 {
-            // Use a simple timestamp for now - in production this would be from timestamp pallet
-            sp_io::offchain::timestamp().unix_millis()
+            let block = frame_system::Pallet::<T>::block_number().saturated_into::<u64>();
+            block.saturating_mul(T::EstimatedBlockTime::get())
         }
 
         /// Calculate validator uptime percentage
@@ -9740,21 +11176,22 @@ pub mod pallet {
             let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let last_seen = Self::validator_last_seen(validator);
             let join_time_block = ValidatorJoinTime::<T>::get(validator).unwrap_or(0);
-            
+
             if current_block <= join_time_block {
                 return T::PercentagePrecision::get(); // Full percentage if just joined
             }
-            
+
             let total_blocks_since_join = current_block.saturating_sub(join_time_block);
             let blocks_since_last_seen = current_block.saturating_sub(last_seen);
-            
+
             if total_blocks_since_join == 0 {
                 return T::PercentagePrecision::get(); // Full percentage
             }
-            
+
             let active_blocks = total_blocks_since_join.saturating_sub(blocks_since_last_seen);
-            let uptime_percentage = (active_blocks as u64 * T::PercentagePrecision::get() as u64) / total_blocks_since_join as u64;
-            
+            let uptime_percentage = (active_blocks as u64 * T::PercentagePrecision::get() as u64)
+                / total_blocks_since_join as u64;
+
             uptime_percentage.min(T::PercentagePrecision::get() as u64) as u32 // Cap at full percentage
         }
 
@@ -9845,41 +11282,42 @@ pub mod pallet {
         pub fn update_system_metrics() {
             let current_block = frame_system::Pallet::<T>::block_number();
             let current_block_u32 = current_block.saturated_into::<u32>();
-            
+
             // Calculate validator metrics
             let active_validators = Self::active_validators();
             let total_validators = Self::validator_set();
             let active_validator_count = active_validators.len() as u32;
             let total_validator_count = total_validators.len() as u32;
             let validator_set_capacity = MaxValidatorsOf::<T>::get();
-            
+
             // Calculate economic metrics
             let mut total_reserved = <T as pallet::Config>::Balance::default();
             let mut total_trust_score = 0u64;
             let mut missed_blocks_current_epoch = 0u32;
-            
+
             for validator in &active_validators {
                 let stake = pos::Stake::<T>::get(validator);
                 total_reserved = total_reserved.saturating_add(stake);
                 let trust_score = Self::validator_trust_scores(validator);
                 total_trust_score = total_trust_score.saturating_add(trust_score);
                 if let Some(state) = Self::validator_states(validator) {
-                    missed_blocks_current_epoch = missed_blocks_current_epoch.saturating_add(state.current.missed_blocks);
+                    missed_blocks_current_epoch =
+                        missed_blocks_current_epoch.saturating_add(state.current.missed_blocks);
                 }
             }
-            
+
             let average_stake = if active_validator_count > 0 {
                 total_reserved / active_validator_count.into()
             } else {
                 <T as pallet::Config>::Balance::default()
             };
-            
+
             let average_trust_score = if active_validator_count > 0 {
                 total_trust_score / active_validator_count as u64
             } else {
                 0u64
             };
-            
+
             // Calculate epoch metrics
             let current_epoch = Self::current_epoch();
             let epoch_config = Self::epoch_config();
@@ -9893,22 +11331,18 @@ pub mod pallet {
             } else {
                 0
             };
-            
+
             // Calculate system health
             let invariant_health = if Self::has_invariant_violations() {
                 InvariantHealth::Critical
             } else {
                 InvariantHealth::Healthy
             };
-            
-            // Calculate finality lag
-            let last_finalized = Self::last_finalized_block();
-            let finality_lag = current_block_u32.saturating_sub(last_finalized);
-            
+
             // Get historical totals (these would be maintained by other tasks)
             let total_slashed = pos::Pallet::<T>::epoch_total_slashed();
             let total_rewards = pos::Pallet::<T>::epoch_total_rewarded();
-            
+
             // Create and store updated metrics
             let metrics = SystemMetrics {
                 active_validator_count,
@@ -9923,15 +11357,14 @@ pub mod pallet {
                 epoch_progress_percentage,
                 average_trust_score,
                 invariant_health,
-                finality_lag,
                 missed_blocks_current_epoch,
             };
-            
+
             SystemMetricsStorage::<T>::put(metrics);
-            
+
             // Update performance indicators
             Self::update_performance_indicators();
-            
+
             // Update timestamp
             MetricsLastUpdated::<T>::put(current_block_u32);
         }
@@ -9956,11 +11389,11 @@ pub mod pallet {
         fn update_performance_indicators() {
             let active_validators = Self::active_validators();
             let _current_epoch = Self::current_epoch();
-            
+
             // Calculate score distribution metrics
             let mut scores: Vec<u64> = Vec::new();
             let mut participation_count = 0u32;
-            
+
             for validator in &active_validators {
                 if let Some(state) = Self::validator_states(validator) {
                     scores.push(state.current.final_score);
@@ -9969,38 +11402,44 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             let top_performer_score = scores.iter().max().copied().unwrap_or(0);
             let lowest_performer_score = scores.iter().min().copied().unwrap_or(0);
-            
+
             // Calculate score variance (simplified)
             let mean_score = if !scores.is_empty() {
                 scores.iter().sum::<u64>() / scores.len() as u64
             } else {
                 0
             };
-            
+
             let score_distribution_variance = if !scores.is_empty() {
-                scores.iter()
+                scores
+                    .iter()
                     .map(|&score| {
-                        let diff = if score > mean_score { score - mean_score } else { mean_score - score };
+                        let diff = if score > mean_score {
+                            score - mean_score
+                        } else {
+                            mean_score - score
+                        };
                         diff * diff
                     })
-                    .sum::<u64>() / scores.len() as u64
+                    .sum::<u64>()
+                    / scores.len() as u64
             } else {
                 0
             };
-            
+
             // Calculate participation rate
             let consensus_participation_rate = if active_validators.len() > 0 {
                 (participation_count * 100) / active_validators.len() as u32
             } else {
                 0
             };
-            
+
             // Calculate governance activity (simplified - count active proposals)
             let governance_activity_level = Self::next_proposal_id(); // Approximation
-            
+
             // Create performance indicators
             let indicators = SystemPerformanceIndicators {
                 average_block_time: 6000, // 6 seconds - could be calculated from actual block times
@@ -10013,7 +11452,7 @@ pub mod pallet {
                 governance_activity_level,
                 validator_churn_rate: 0, // Could be calculated from validator set changes
             };
-            
+
             PerformanceIndicatorsStorage::<T>::put(indicators);
         }
 
@@ -10051,7 +11490,7 @@ pub mod pallet {
         pub fn has_invariant_violations() -> bool {
             // Check if we have any recent invariant violation events
             let current_epoch = Self::current_epoch();
-            
+
             // Check the last few epochs for violations
             for epoch in current_epoch.saturating_sub(3)..=current_epoch {
                 if let Some(report) = InvariantReports::<T>::get(epoch) {
@@ -10060,16 +11499,16 @@ pub mod pallet {
                     }
                 }
             }
-            
+
             // Also check current system state for immediate violations
             let active_validators = Self::active_validators();
             let max_validators = MaxValidatorsOf::<T>::get() as usize;
-            
+
             // Check active set size violation
             if active_validators.len() > max_validators {
                 return true;
             }
-            
+
             // Check for validators with insufficient stake
             for validator in &active_validators {
                 let reserved = T::Currency::reserved_balance(validator);
@@ -10077,12 +11516,12 @@ pub mod pallet {
                     return true;
                 }
             }
-            
+
             false
         }
     }
 
-    // --- Genesis Configuration --- //
+    // --- Genesis Settings --- //
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
@@ -10094,7 +11533,7 @@ pub mod pallet {
         pub validator_stakes: Vec<<T as pallet::Config>::Balance>,
         /// Starting epoch number (usually 0)
         pub current_epoch: u32,
-        /// Epoch configuration parameters
+        /// Epoch settings parameters
         pub epoch_config: EpochConfig,
         /// Optional validator names (must match validators length or be empty)
         pub validator_names: Vec<Option<Vec<u8>>>,
@@ -10106,8 +11545,8 @@ pub mod pallet {
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             // STEP 10.1: Genesis block validation started
-            log::info!("============== [CBC-TRACE] 10.1 [pallet-cerulea-dcf::genesis_build] Genesis block validation started ==============");
-            
+            log::info!("============== [Cerulea-TRACE] 10.1 [pallet-cerulea-dcf::genesis_build] Genesis block validation started ==============");
+
             // Perform comprehensive validation if strict_validation is enabled
             if self.strict_validation {
                 Self::validate_genesis_config(self);
@@ -10115,12 +11554,34 @@ pub mod pallet {
 
             // Ensure validators don't exceed MaxValidators
             if self.validators.len() > MaxValidatorsOf::<T>::get() as usize {
-                panic!("Genesis validators ({}) exceed MaxValidators ({})",
-                       self.validators.len(), MaxValidatorsOf::<T>::get());
+                panic!(
+                    "Genesis validators ({}) exceed MaxValidators ({})",
+                    self.validators.len(),
+                    MaxValidatorsOf::<T>::get()
+                );
             }
 
-            // STEP 10.2: Genesis configuration loaded
-            log::info!("============== [CBC-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis configuration loaded ==============");
+            // Every epoch reader divides by the epoch length, so genesis refuses
+            // a zero length whether or not strict validation runs.
+            if self.epoch_config.blocks_per_epoch == 0 {
+                panic!("Epoch length cannot be zero. Set blocks_per_epoch above zero.");
+            }
+
+            // The governance record admits epoch lengths inside the runtime
+            // range alone, so genesis refuses a length outside it in both modes.
+            let shortest = T::MinEpochLength::get();
+            let longest = T::MaxEpochLength::get();
+            if self.epoch_config.blocks_per_epoch < shortest
+                || self.epoch_config.blocks_per_epoch > longest
+            {
+                panic!(
+                    "Epoch length {} sits outside the governance range of {} to {} blocks. Set blocks_per_epoch inside that range.",
+                    self.epoch_config.blocks_per_epoch, shortest, longest
+                );
+            }
+
+            // STEP 10.2: Genesis settings loaded
+            log::info!("============== [Cerulea-TRACE] 10.2 [pallet-cerulea-dcf::genesis_build] Genesis settings loaded ==============");
             log::info!("  Validator count: {}", self.validators.len());
             log::info!("  Epoch: {}", self.current_epoch);
             log::info!("  Blocks per epoch: {}", self.epoch_config.blocks_per_epoch);
@@ -10129,7 +11590,10 @@ pub mod pallet {
             let mut unique_validators = sp_std::collections::btree_set::BTreeSet::new();
             for validator in &self.validators {
                 if !unique_validators.insert(validator) {
-                    panic!("Duplicate validator found in genesis config: {:?}", validator);
+                    panic!(
+                        "Duplicate validator found in genesis config: {:?}",
+                        validator
+                    );
                 }
             }
 
@@ -10141,14 +11605,21 @@ pub mod pallet {
                 // Validate all stakes meet minimum requirement
                 for (i, stake) in self.validator_stakes.iter().enumerate() {
                     if *stake < MinStakeOf::<T>::get() {
-                        panic!("Genesis validator {} stake ({:?}) below MinStake ({:?})",
-                               i, stake, MinStakeOf::<T>::get());
+                        panic!(
+                            "Genesis validator {} stake ({:?}) below MinStake ({:?})",
+                            i,
+                            stake,
+                            MinStakeOf::<T>::get()
+                        );
                     }
                 }
                 self.validator_stakes.clone()
             } else {
-                panic!("validator_stakes length ({}) must match validators length ({}) or be empty",
-                       self.validator_stakes.len(), self.validators.len());
+                panic!(
+                    "validator_stakes length ({}) must match validators length ({}) or be empty",
+                    self.validator_stakes.len(),
+                    self.validators.len()
+                );
             };
 
             // Prepare scores - use provided scores or default to 0
@@ -10157,8 +11628,11 @@ pub mod pallet {
             } else if self.validator_scores.len() == self.validators.len() {
                 self.validator_scores.clone()
             } else {
-                panic!("validator_scores length ({}) must match validators length ({}) or be empty",
-                       self.validator_scores.len(), self.validators.len());
+                panic!(
+                    "validator_scores length ({}) must match validators length ({}) or be empty",
+                    self.validator_scores.len(),
+                    self.validators.len()
+                );
             };
 
             // Prepare names - use provided names or default to None
@@ -10167,27 +11641,28 @@ pub mod pallet {
             } else if self.validator_names.len() == self.validators.len() {
                 self.validator_names.clone()
             } else {
-                panic!("validator_names length ({}) must match validators length ({}) or be empty",
-                       self.validator_names.len(), self.validators.len());
+                panic!(
+                    "validator_names length ({}) must match validators length ({}) or be empty",
+                    self.validator_names.len(),
+                    self.validators.len()
+                );
             };
 
-            // Set up validator set
-            ValidatorSet::<T>::put(
-                BoundedVec::try_from(self.validators.clone())
-                    .unwrap_or_else(|_| {
-                        panic!("Initial validators exceed MaxValidators");
-                    }),
-            );
+            // The validator set fills inside the loop below, one validator at a
+            // time once its stake is reserved, so a skipped validator stays out.
+            ValidatorSet::<T>::put(BoundedVec::default());
 
             // Initialize each validator with their stake, score, and name
-            for (i, (((validator, score), stake), name)) in self.validators.iter()
+            for (i, (((validator, score), stake), name)) in self
+                .validators
+                .iter()
                 .zip(scores.iter())
                 .zip(stakes.iter())
                 .zip(names.iter())
-                .enumerate() {
-
+                .enumerate()
+            {
                 // STEP 10.3.N: Genesis validator N initialized
-                log::info!("============== [CBC-TRACE] 10.3.{} [pallet-cerulea-dcf::genesis_build] Genesis validator {} initialized ==============", i + 1, i + 1);
+                log::info!("============== [Cerulea-TRACE] 10.3.{} [pallet-cerulea-dcf::genesis_build] Genesis validator {} initialized ==============", i + 1, i + 1);
                 log::info!("  Account ID: {:?}", validator);
                 log::info!("  Stake: {:?}", stake);
                 log::info!("  Initial score: {}", score);
@@ -10211,15 +11686,22 @@ pub mod pallet {
                 // Reserve the stake for the validator
                 if let Err(e) = T::Currency::reserve(validator, *stake) {
                     if self.strict_validation {
-                        panic!("Failed to reserve stake for genesis validator {:?}: {:?}", validator, e);
+                        panic!(
+                            "Failed to reserve stake for genesis validator {:?}: {:?}",
+                            validator, e
+                        );
                     } else {
-                        log::warn!("Failed to reserve stake for genesis validator {:?}: {:?}, skipping", validator, e);
+                        log::warn!(
+                            "Failed to reserve stake for genesis validator {:?}: {:?}, skipping",
+                            validator,
+                            e
+                        );
                         continue;
                     }
                 }
 
                 pos::Stake::<T>::insert(validator, *stake);
-                
+
                 let mut validator_set = ValidatorSet::<T>::get();
                 if !validator_set.contains(validator) {
                     let _ = validator_set.try_push(validator.clone());
@@ -10238,19 +11720,20 @@ pub mod pallet {
 
                 let pos_weight = T::DefaultPosWeight::get();
                 let poi_weight = T::DefaultPoiWeight::get();
-                let final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+                let final_score = (stake_score.saturating_mul(pos_weight)
+                    + inference_score.saturating_mul(poi_weight))
+                    / T::PercentagePrecision::get() as u64;
 
                 log::info!("  PoS score: {}", stake_score);
-                log::info!("  PoI score: {}", inference_score);
+                log::info!("  inference contribution: {}", inference_score);
                 log::info!("  Combined DCF score: {}", final_score);
 
                 // Prepare validator name if provided
                 let validator_name = name.as_ref().map(|n| {
-                    BoundedVec::try_from(n.clone())
-                        .unwrap_or_else(|_| {
-                            log::warn!("Genesis validator name too long, truncating");
-                            BoundedVec::truncate_from(n.clone())
-                        })
+                    BoundedVec::try_from(n.clone()).unwrap_or_else(|_| {
+                        log::warn!("Genesis validator name too long, truncating");
+                        BoundedVec::truncate_from(n.clone())
+                    })
                 });
 
                 // Create initial history entry
@@ -10287,42 +11770,52 @@ pub mod pallet {
                         trust_score: T::MaxTrustScore::get() / 2, // Start with 50% trust score
                     },
                 );
+                // The Trust Score map carries the same starting figure, so the
+                // invariants hold from the first block.
+                ValidatorTrustScores::<T>::insert(validator, T::MaxTrustScore::get() / 2);
 
                 log::info!("Genesis validator {:?} initialized with stake: {:?}, final_score: {}, name: {:?}",
                           validator, stake, final_score, name);
             }
 
             // STEP 10.4: PoS scores calculated for all genesis validators
-            log::info!("============== [CBC-TRACE] 10.4 [pallet-cerulea-dcf::genesis_build] PoS scores calculated for all genesis validators ==============");
-            
-            // STEP 10.5: PoI scores calculated for all genesis validators
-            log::info!("============== [CBC-TRACE] 10.5 [pallet-cerulea-dcf::genesis_build] PoI scores calculated for all genesis validators ==============");
-            
-            // STEP 10.6: Combined DCF scores computed for all validators
-            log::info!("============== [CBC-TRACE] 10.6 [pallet-cerulea-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
-            log::info!("  PoS weight: {}", T::DefaultPosWeight::get());
-            log::info!("  PoI weight: {}", T::DefaultPoiWeight::get());
+            log::info!("============== [Cerulea-TRACE] 10.4 [pallet-cerulea-dcf::genesis_build] PoS scores calculated for all genesis validators ==============");
 
-            // Initialize active validators with all genesis validators
-            ActiveValidators::<T>::put(
-                BoundedVec::try_from(self.validators.clone())
-                    .unwrap_or_else(|_| {
-                        panic!("Initial validators exceed MaxValidators");
-                    }),
-            );
+            // STEP 10.5: PoI scores calculated for all genesis validators
+            log::info!("============== [Cerulea-TRACE] 10.5 [pallet-cerulea-dcf::genesis_build] PoI scores calculated for all genesis validators ==============");
+
+            // STEP 10.6: Combined DCF scores computed for all validators
+            log::info!("============== [Cerulea-TRACE] 10.6 [pallet-cerulea-dcf::genesis_build] Combined DCF scores computed for all validators ==============");
+            log::info!("  stake share: {}", T::DefaultPosWeight::get());
+            log::info!("  inference share: {}", T::DefaultPoiWeight::get());
+
+            // The active set holds the genesis validators whose stake was
+            // reserved. A validator the build skipped stays outside it.
+            let admitted: Vec<T::AccountId> = self
+                .validators
+                .iter()
+                .filter(|validator| ValidatorStates::<T>::contains_key(*validator))
+                .cloned()
+                .collect();
+            ActiveValidators::<T>::put(BoundedVec::try_from(admitted).unwrap_or_else(|_| {
+                panic!("Initial validators exceed MaxValidators");
+            }));
 
             CurrentEpoch::<T>::put(self.current_epoch);
             EpochConfigStorage::<T>::put(self.epoch_config.clone());
+            // A new chain starts at the current storage layout, so the first
+            // runtime upgrade runs no migration over it.
+            StorageVersion::<T>::put(CURRENT_STORAGE_VERSION);
             PosWeight::<T>::put(T::DefaultPosWeight::get());
             PoiWeight::<T>::put(T::DefaultPoiWeight::get());
-            
-            // Initialize trust score configuration with default values
+
+            // Initialize trust score settings with default values
             TrustScoreConfigStorage::<T>::put(TrustScoreConfig {
-                uptime_weight: 40,      // 40% weight for uptime
-                inference_weight: 35,   // 35% weight for inference success
-                slashing_weight: 25,    // 25% weight for slashing penalty
-                max_growth_rate: 500,   // 5% maximum growth per epoch
-                max_decay_rate: 200,    // 2% maximum decay per epoch
+                uptime_weight: 40,    // 40% weight for uptime
+                inference_weight: 35, // 35% weight for inference success
+                slashing_weight: 25,  // 25% weight for slashing penalty
+                max_growth_rate: 500, // 5% maximum growth per epoch
+                max_decay_rate: 200,  // 2% maximum decay per epoch
                 min_trust_score: T::MinTrustScore::get(),
                 max_trust_score: T::MaxTrustScore::get(),
                 stability_factor: 8000, // 80% stability factor
@@ -10340,163 +11833,24 @@ pub mod pallet {
 
             // Initialize trust score stability metrics
             TrustScoreStabilityMetrics::<T>::put(TrustScoreStabilityMetricsData::default());
-            
-            // Initialize governance configuration with default parameter ranges and safety rails
-            GovernanceConfigStorage::<T>::put(GovernanceConfig {
-                // Epoch configuration parameters with safe ranges
-                epoch_length: ParameterRange {
-                    min: 50,                                    // Minimum 50 blocks per epoch
-                    max: 14400,                                 // Maximum 14400 blocks per epoch (24 hours at 6s)
-                    current: self.epoch_config.blocks_per_epoch,
-                },
-                min_stake: ParameterRange {
-                    min: <T as pallet::Config>::Balance::from(100_000u32),          // Minimum 100k units
-                    max: <T as pallet::Config>::Balance::from(1_000_000_000u32),    // Maximum 1B units
-                    current: MinStakeOf::<T>::get(),
-                },
-                max_validators: ParameterRange {
-                    min: 1,                                     // At least 1 validator
-                    max: 1000,                                  // Maximum 1000 validators
-                    current: self.epoch_config.max_validators,
-                },
-                
-                // Consensus weight parameters (must sum to precision factor)
-                pos_weight: ParameterRange {
-                    min: 1000,                                  // Minimum 10% (1000/10000)
-                    max: 9000,                                  // Maximum 90% (9000/10000)
-                    current: T::DefaultPosWeight::get(),
-                },
-                poi_weight: ParameterRange {
-                    min: 1000,                                  // Minimum 10% (1000/10000)
-                    max: 9000,                                  // Maximum 90% (9000/10000)
-                    current: T::DefaultPoiWeight::get(),
-                },
-                
-                // Performance threshold parameters
-                min_performance_score: ParameterRange {
-                    min: 10,                                    // Minimum threshold of 10
-                    max: 5000,                                  // Maximum threshold of 5000
-                    current: T::MinPerformanceScore::get(),
-                },
-                high_performance_score: ParameterRange {
-                    min: 1000,                                  // Minimum high threshold of 1000
-                    max: T::MaxValidatorScore::get(),           // Maximum is the max validator score
-                    current: T::HighPerformanceScore::get(),
-                },
-                min_participation_rate: ParameterRange {
-                    min: 10,                                    // Minimum 10% participation
-                    max: 90,                                    // Maximum 90% (to allow room for high threshold)
-                    current: T::MinParticipationRate::get(),
-                },
-                high_participation_rate: ParameterRange {
-                    min: 50,                                    // Minimum 50% for high threshold
-                    max: 100,                                   // Maximum 100% participation
-                    current: T::HighParticipationRate::get(),
-                },
-                
-                // Economic parameters
-                validator_reward: ParameterRange {
-                    min: <T as pallet::Config>::Balance::from(1000u32),             // Minimum 1000 units reward
-                    max: <T as pallet::Config>::Balance::from(10_000_000u32),       // Maximum 10M units reward
-                    current: ValidatorRewardOf::<T>::get(),
-                },
-                slash_percent: ParameterRange {
-                    min: 1,                                     // Minimum 1% slash
-                    max: 50,                                    // Maximum 50% slash
-                    current: SlashPercentOf::<T>::get(),
-                },
-                leave_cooldown: ParameterRange {
-                    min: BlockNumberFor::<T>::from(100u32),          // Minimum 100 blocks cooldown
-                    max: BlockNumberFor::<T>::from(100_000u32),      // Maximum 100k blocks cooldown
-                    current: LeaveCooldownOf::<T>::get().into(),
-                },
-                
-                // Trust score configuration
-                trust_score_uptime_weight: ParameterRange {
-                    min: 10,                                    // Minimum 10% weight
-                    max: 80,                                    // Maximum 80% weight
-                    current: <T as pallet::Config>::TrustScoreUptimeWeight::get() as u32,
-                },
-                trust_score_inference_weight: ParameterRange {
-                    min: 10,                                    // Minimum 10% weight
-                    max: 80,                                    // Maximum 80% weight
-                    current: <T as pallet::Config>::TrustScoreInferenceWeight::get() as u32,
-                },
-                trust_score_slashing_weight: ParameterRange {
-                    min: 5,                                     // Minimum 5% weight
-                    max: 50,                                    // Maximum 50% weight
-                    current: <T as pallet::Config>::TrustScoreSlashingWeight::get() as u32,
-                },
-                trust_score_max_growth_rate: ParameterRange {
-                    min: 100,                                   // Minimum 1% growth rate
-                    max: 2000,                                  // Maximum 20% growth rate
-                    current: <T as pallet::Config>::MaxTrustScoreGrowthRate::get(),
-                },
-                trust_score_max_decay_rate: ParameterRange {
-                    min: 50,                                    // Minimum 0.5% decay rate
-                    max: 1000,                                  // Maximum 10% decay rate
-                    current: <T as pallet::Config>::MaxTrustScoreDecayRate::get(),
-                },
-                trust_score_min_value: ParameterRange {
-                    min: 500,                                   // Minimum 5% of max score
-                    max: 3000,                                  // Maximum 30% of max score
-                    current: <T as pallet::Config>::MinTrustScore::get(),
-                },
-                trust_score_max_value: ParameterRange {
-                    min: 8000,                                  // Minimum 80% of theoretical max
-                    max: 15000,                                 // Maximum 150% of theoretical max
-                    current: <T as pallet::Config>::MaxTrustScore::get(),
-                },
-                trust_score_stability_factor: ParameterRange {
-                    min: 5000,                                  // Minimum 50% stability
-                    max: 9500,                                  // Maximum 95% stability
-                    current: <T as pallet::Config>::TrustScoreStabilityFactor::get(),
-                },
-                
-                // Block production parameters
-                block_authorship_boost: ParameterRange {
-                    min: 1,                                     // Minimum 1 point boost
-                    max: 100,                                   // Maximum 100 points boost
-                    current: T::BlockAuthorshipBoost::get(),
-                },
-                missed_block_penalty: ParameterRange {
-                    min: 1,                                     // Minimum 1 point penalty
-                    max: 50,                                    // Maximum 50 points penalty
-                    current: T::MissedBlockPenalty::get(),
-                },
-                
-                // Inference scoring parameters
-                inference_boost_low: ParameterRange {
-                    min: 1,                                     // Minimum 1 point boost
-                    max: 20,                                    // Maximum 20 points boost
-                    current: T::InferenceBoostLow::get(),
-                },
-                inference_boost_medium: ParameterRange {
-                    min: 2,                                     // Minimum 2 points boost
-                    max: 50,                                    // Maximum 50 points boost
-                    current: T::InferenceBoostMedium::get(),
-                },
-                inference_boost_high: ParameterRange {
-                    min: 5,                                     // Minimum 5 points boost
-                    max: 100,                                   // Maximum 100 points boost
-                    current: T::InferenceBoostHigh::get(),
-                },
-            });
-            
-            // Initialize finality markers for production-ready finality tracking
-            LastFinalizedBlock::<T>::put(1);           // Genesis block is finalized
-            PreviousFinalizedBlock::<T>::put(0);       // No previous finalized block initially
-            PreviousEpochBestBlock::<T>::put(1);       // Genesis block is the best known initially
 
-            // Initialize rate limiting configuration with default values
+            // The governance record starts from the ranges the runtime states and
+            // the values genesis installs. The first migration builds the same
+            // record, so both paths pass the governance check.
+            GovernanceConfigStorage::<T>::put(Pallet::<T>::starting_governance_record(
+                self.epoch_config.blocks_per_epoch,
+                self.epoch_config.max_validators,
+            ));
+
+            // Initialize rate limiting settings with default values
             RateLimitConfigStorage::<T>::put(RateLimitConfig::default());
 
             // **FIX FOR ISSUE #3: Initialize Epoch 0 Author Sequence**
             // Generate deterministic author sequence for epoch 0 to fix the missing initialization
             if !self.validators.is_empty() {
                 // STEP 10.7: Deterministic author sequence generated for epoch 0
-                log::info!("============== [CBC-TRACE] 10.7 [pallet-cerulea-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============");
-                
+                log::info!("============== [Cerulea-TRACE] 10.7 [pallet-cerulea-dcf::genesis_build] Deterministic author sequence generated for epoch 0 ==============");
+
                 // Create deterministic randomness seed for epoch 0
                 let genesis_randomness_salt = [0u8; 32]; // Use zero salt for genesis
                 let genesis_epoch_salt = [0u8; 16]; // Use zero epoch salt for genesis
@@ -10504,7 +11858,7 @@ pub mod pallet {
                     1, // Genesis block number
                     0, // Epoch 0
                     &genesis_randomness_salt,
-                    &genesis_epoch_salt
+                    &genesis_epoch_salt,
                 );
 
                 // Convert validators to BoundedVec for the function
@@ -10517,7 +11871,7 @@ pub mod pallet {
                 let epoch_0_author_sequence = Pallet::<T>::generate_deterministic_author_sequence(
                     0, // Epoch 0
                     &validators_bounded,
-                    &randomness_seed
+                    &randomness_seed,
                 );
 
                 // Store the author sequence for epoch 0
@@ -10535,18 +11889,21 @@ pub mod pallet {
             // Note: At this point in genesis build, the block hash and state root are not yet available
             // as they are computed by the runtime after all pallets complete their genesis build.
             // We log this step to indicate genesis block construction is in progress.
-            log::info!("============== [CBC-TRACE] 10.8 [pallet-cerulea-dcf::genesis_build] Genesis block created ==============");
+            log::info!("============== [Cerulea-TRACE] 10.8 [pallet-cerulea-dcf::genesis_build] Genesis block created ==============");
             log::info!("  Note: Block hash and state root will be computed by runtime after genesis build completes");
 
             // STEP 10.9: Genesis validation completed successfully
-            log::info!("============== [CBC-TRACE] 10.9 [pallet-cerulea-dcf::genesis_build] Genesis validation completed successfully ==============");
-            log::info!("DCF Genesis completed: {} validators initialized in epoch {}",
-                      self.validators.len(), self.current_epoch);
+            log::info!("============== [Cerulea-TRACE] 10.9 [pallet-cerulea-dcf::genesis_build] Genesis validation completed successfully ==============");
+            log::info!(
+                "DCF Genesis completed: {} validators initialized in epoch {}",
+                self.validators.len(),
+                self.current_epoch
+            );
         }
     }
 
     impl<T: Config> GenesisConfig<T> {
-        /// Validate genesis configuration for consistency and correctness
+        /// Validate genesis settings for consistency and correctness
         fn validate_genesis_config(&self) {
             // Validate validator count
             if self.validators.is_empty() {
@@ -10554,28 +11911,41 @@ pub mod pallet {
             }
 
             if self.validators.len() > MaxValidatorsOf::<T>::get() as usize {
-                panic!("Genesis validators ({}) exceed MaxValidators ({})",
-                       self.validators.len(), MaxValidatorsOf::<T>::get());
+                panic!(
+                    "Genesis validators ({}) exceed MaxValidators ({})",
+                    self.validators.len(),
+                    MaxValidatorsOf::<T>::get()
+                );
             }
 
             // Validate array lengths match or are empty (handled in build())
-            if !self.validator_scores.is_empty() && self.validator_scores.len() != self.validators.len() {
+            if !self.validator_scores.is_empty()
+                && self.validator_scores.len() != self.validators.len()
+            {
                 panic!("validator_scores length must match validators length or be empty");
             }
 
-            if !self.validator_stakes.is_empty() && self.validator_stakes.len() != self.validators.len() {
+            if !self.validator_stakes.is_empty()
+                && self.validator_stakes.len() != self.validators.len()
+            {
                 panic!("validator_stakes length must match validators length or be empty");
             }
 
-            if !self.validator_names.is_empty() && self.validator_names.len() != self.validators.len() {
+            if !self.validator_names.is_empty()
+                && self.validator_names.len() != self.validators.len()
+            {
                 panic!("validator_names length must match validators length or be empty");
             }
 
             // Validate stakes meet minimum requirements
             for (i, stake) in self.validator_stakes.iter().enumerate() {
                 if *stake < MinStakeOf::<T>::get() {
-                    panic!("Genesis validator {} stake below minimum: {:?} < {:?}",
-                           i, stake, MinStakeOf::<T>::get());
+                    panic!(
+                        "Genesis validator {} stake below minimum: {:?} < {:?}",
+                        i,
+                        stake,
+                        MinStakeOf::<T>::get()
+                    );
                 }
             }
 
@@ -10583,46 +11953,53 @@ pub mod pallet {
             for (i, name_opt) in self.validator_names.iter().enumerate() {
                 if let Some(name) = name_opt {
                     if name.len() > T::MaxValidatorNameSize::get() as usize {
-                        panic!("Genesis validator {} name too long: {} > {}",
-                               i, name.len(), T::MaxValidatorNameSize::get());
+                        panic!(
+                            "Genesis validator {} name too long: {} > {}",
+                            i,
+                            name.len(),
+                            T::MaxValidatorNameSize::get()
+                        );
                     }
                 }
             }
 
-            // Validate epoch configuration
+            // Validate epoch settings
             if self.epoch_config.blocks_per_epoch == 0 {
                 panic!("Epoch length cannot be zero");
             }
 
-            log::info!("Genesis configuration validation passed");
+            log::info!("Genesis settings validation passed");
         }
 
         /// Comprehensive genesis validation routine that checks for duplicate validators and invalid stakes.
-        /// 
-        /// This function performs thorough validation of the genesis configuration to ensure:
+        ///
+        /// This function performs thorough validation of the genesis settings to ensure:
         /// - No duplicate validators exist in the validator set
         /// - All validator stakes meet minimum requirements
         /// - Active set size does not exceed MaxValidators
-        /// - All configuration parameters are within valid ranges
-        /// 
+        /// - All settings parameters are within valid ranges
+        ///
         /// # Returns
         /// - `Ok(())` if validation passes
         /// - `Err(String)` with detailed error message if validation fails
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.1: Checks for duplicate validators and invalid stakes
         /// - 11.2: Validates active set size not exceeding MaxValidators
         pub fn validate_genesis_comprehensive(&self) -> Result<(), String> {
             // Check for empty validator set
             if self.validators.is_empty() {
-                return Err("Genesis configuration must contain at least one validator".into());
+                return Err("Genesis settings must contain at least one validator".into());
             }
 
             // Check for duplicate validators (Requirement 11.1)
             let mut unique_validators = sp_std::collections::btree_set::BTreeSet::new();
             for (i, validator) in self.validators.iter().enumerate() {
                 if !unique_validators.insert(validator) {
-                    return Err(format!("Duplicate validator found at index {}: {:?}", i, validator));
+                    return Err(format!(
+                        "Duplicate validator found at index {}: {:?}",
+                        i, validator
+                    ));
                 }
             }
 
@@ -10714,23 +12091,26 @@ pub mod pallet {
                 }
             }
 
-            // Validate epoch configuration parameters
+            // Validate epoch settings parameters
             if self.epoch_config.blocks_per_epoch == 0 {
                 return Err("Epoch length cannot be zero".into());
             }
 
-            if self.epoch_config.blocks_per_epoch > 100_000 {
+            let shortest = T::MinEpochLength::get();
+            let longest = T::MaxEpochLength::get();
+            if self.epoch_config.blocks_per_epoch < shortest
+                || self.epoch_config.blocks_per_epoch > longest
+            {
                 return Err(format!(
-                    "Epoch length ({}) exceeds reasonable maximum (100,000 blocks)",
-                    self.epoch_config.blocks_per_epoch
+                    "Epoch length {} sits outside the governance range of {} to {} blocks. Set blocks_per_epoch inside that range.",
+                    self.epoch_config.blocks_per_epoch, shortest, longest
                 ));
             }
 
             if self.epoch_config.min_stake != min_stake.saturated_into() {
                 return Err(format!(
                     "Epoch config min_stake ({}) does not match pallet MinStake ({:?})",
-                    self.epoch_config.min_stake,
-                    min_stake
+                    self.epoch_config.min_stake, min_stake
                 ));
             }
 
@@ -10745,19 +12125,19 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Dry-run function that builds genesis configuration and asserts all invariants.
-        /// 
+        /// Dry-run function that builds genesis settings and asserts all invariants.
+        ///
         /// This function simulates the genesis build process without actually modifying
-        /// storage, allowing validation of the complete genesis configuration including
+        /// storage, allowing validation of the complete genesis settings including
         /// all system invariants that would be established at network launch.
-        /// 
+        ///
         /// # Returns
         /// - `Ok(GenesisValidationReport)` if dry-run succeeds with validation report
         /// - `Err(String)` if dry-run fails with detailed error message
-        /// 
+        ///
         /// # Requirements Coverage
         /// - 11.3: Implements dry-run function that builds genesis and asserts all invariants
-        /// - 11.4: Validates complete genesis configuration without side effects
+        /// - 11.4: Validates complete genesis settings without side effects
         pub fn dry_run_genesis_build(&self) -> Result<GenesisValidationReport<T>, String> {
             // First perform comprehensive validation
             self.validate_genesis_comprehensive()?;
@@ -10789,12 +12169,12 @@ pub mod pallet {
 
             for (validator, stake) in self.validators.iter().zip(stakes.iter()) {
                 total_stake = total_stake.saturating_add(*stake);
-                
+
                 if *stake < min_stake {
                     min_stake = *stake;
                     min_stake_validator = validator.clone();
                 }
-                
+
                 if *stake > max_stake {
                     max_stake = *stake;
                     max_stake_validator = validator.clone();
@@ -10816,8 +12196,9 @@ pub mod pallet {
             let mut invariant_checks = Vec::new();
 
             // Economic invariant: All stakes are properly reserved
-            invariant_checks.push("Economic: All validator stakes meet minimum requirements".into());
-            
+            invariant_checks
+                .push("Economic: All validator stakes meet minimum requirements".into());
+
             // Validator set invariant: Active set size within limits
             invariant_checks.push(format!(
                 "Validator Set: Active validator count ({}) within limits (min: {}, max: {})",
@@ -10826,7 +12207,7 @@ pub mod pallet {
                 MaxValidatorsOf::<T>::get()
             ));
 
-            // Temporal invariant: Epoch configuration is valid
+            // Temporal invariant: Epoch settings is valid
             invariant_checks.push(format!(
                 "Temporal: Epoch length ({}) is within reasonable bounds",
                 self.epoch_config.blocks_per_epoch
@@ -10836,7 +12217,7 @@ pub mod pallet {
             let min_trust_score = <T as pallet::Config>::MinTrustScore::get();
             let max_trust_score = <T as pallet::Config>::MaxTrustScore::get();
             let initial_trust_score = max_trust_score / 2; // Genesis starts with 50% trust score
-            
+
             if initial_trust_score >= min_trust_score && initial_trust_score <= max_trust_score {
                 invariant_checks.push(format!(
                     "Trust Score: Initial trust score ({}) within bounds ({} to {})",
@@ -10852,11 +12233,13 @@ pub mod pallet {
             // Consensus weight invariant: PoS and PoI weights are valid
             let pos_weight = <T as pallet::Config>::DefaultPosWeight::get();
             let poi_weight = <T as pallet::Config>::DefaultPoiWeight::get();
-            
+
             if pos_weight + poi_weight > 0 {
                 invariant_checks.push(format!(
                     "Consensus Weights: PoS ({}) + PoI ({}) = {} > 0",
-                    pos_weight, poi_weight, pos_weight + poi_weight
+                    pos_weight,
+                    poi_weight,
+                    pos_weight + poi_weight
                 ));
             } else {
                 return Err(format!(
@@ -10873,7 +12256,7 @@ pub mod pallet {
             // Warn if validator set is very small
             if self.validators.len() < 3 {
                 warnings.push(format!(
-                    "Small validator set: Only {} validators configured (consider 3+ for better decentralization)",
+                    "Small validator set: Only {} validators set (consider 3+ for better decentralization)",
                     self.validators.len()
                 ));
             }
@@ -10937,7 +12320,9 @@ pub mod pallet {
         pub fn validator_metadata(key: &T::AccountId) -> Option<ValidatorMetadataInfo> {
             ValidatorMetadata::<T>::get(key)
         }
-        pub fn validator_performance_history(key: &T::AccountId) -> BoundedVec<PerformanceRecord, ConstU32<100>> {
+        pub fn validator_performance_history(
+            key: &T::AccountId,
+        ) -> BoundedVec<PerformanceRecord, ConstU32<100>> {
             ValidatorPerformanceHistory::<T>::get(key)
         }
         pub fn validator_last_seen(key: &T::AccountId) -> u32 {
@@ -10977,18 +12362,18 @@ pub mod pallet {
             true
         }
 
-        /// Validate a genesis configuration without building it.
-        /// 
-        /// This function performs comprehensive validation of a genesis configuration
+        /// Validate a genesis settings without building it.
+        ///
+        /// This function performs comprehensive validation of a genesis settings
         /// to ensure it meets all requirements for a valid DCF network launch.
-        /// 
+        ///
         /// # Arguments
-        /// * `config` - The genesis configuration to validate
-        /// 
+        /// * `config` - The genesis settings to validate
+        ///
         /// # Returns
         /// * `Ok(())` if validation passes
         /// * `Err(String)` with detailed error message if validation fails
-        /// 
+        ///
         /// # Requirements Coverage
         /// * 11.1: Checks for duplicate validators and invalid stakes
         /// * 11.2: Validates active set size not exceeding MaxValidators
@@ -10997,30 +12382,32 @@ pub mod pallet {
         }
 
         /// Perform a dry-run of genesis build with comprehensive validation and reporting.
-        /// 
+        ///
         /// This function simulates the complete genesis build process without modifying
         /// storage, providing detailed validation results and system health analysis.
-        /// 
+        ///
         /// # Arguments
-        /// * `config` - The genesis configuration to dry-run
-        /// 
+        /// * `config` - The genesis settings to dry-run
+        ///
         /// # Returns
         /// * `Ok(GenesisValidationReport<T>)` with detailed validation results
         /// * `Err(String)` if dry-run fails with error details
-        /// 
+        ///
         /// # Requirements Coverage
         /// * 11.3: Implements dry-run function that builds genesis and asserts all invariants
         /// * 11.4: Provides comprehensive validation without side effects
-        pub fn dry_run_genesis_build(config: &GenesisConfig<T>) -> Result<GenesisValidationReport<T>, String> {
+        pub fn dry_run_genesis_build(
+            config: &GenesisConfig<T>,
+        ) -> Result<GenesisValidationReport<T>, String> {
             config.dry_run_genesis_build()
         }
 
         /// Validate current system state against all invariants.
-        /// 
+        ///
         /// This function checks the current runtime state against all system invariants
         /// to ensure the system remains in a valid state. Can be used for health checks
         /// and debugging.
-        /// 
+        ///
         /// # Returns
         /// * `Ok(())` if all invariants pass
         /// * `Err(Vec<String>)` with list of invariant violations
@@ -11030,7 +12417,7 @@ pub mod pallet {
             // Check economic invariants
             let active_validators = Self::active_validators();
             let min_stake = MinStakeOf::<T>::get();
-            
+
             for validator in active_validators.iter() {
                 let stake = pos::Stake::<T>::get(validator);
                 if stake < min_stake {
@@ -11061,7 +12448,7 @@ pub mod pallet {
             // Check trust score invariants
             let min_trust_score = <T as pallet::Config>::MinTrustScore::get();
             let max_trust_score = <T as pallet::Config>::MaxTrustScore::get();
-            
+
             for validator in active_validators.iter() {
                 let trust_score = Self::validator_trust_scores(validator);
                 if trust_score < min_trust_score || trust_score > max_trust_score {
@@ -11075,22 +12462,11 @@ pub mod pallet {
             // Check consensus weight invariants
             let pos_weight = Self::pos_weight();
             let poi_weight = Self::poi_weight();
-            
+
             if pos_weight + poi_weight == 0 {
                 violations.push(format!(
                     "Consensus weight invariant violation: PoS ({}) + PoI ({}) must be > 0",
                     pos_weight, poi_weight
-                ));
-            }
-
-            // Check temporal invariants
-            let last_finalized = Self::last_finalized_block();
-            let previous_finalized = Self::previous_finalized_block();
-            
-            if last_finalized < previous_finalized {
-                violations.push(format!(
-                    "Temporal invariant violation: Last finalized block ({}) < previous finalized block ({})",
-                    last_finalized, previous_finalized
                 ));
             }
 
@@ -11107,25 +12483,34 @@ pub mod pallet {
         }
 
         /// Get the expected author for a given block number using deterministic author sequences.
-        /// 
+        ///
         /// This function returns the expected block author using pre-computed deterministic
         /// author sequences generated during epoch transitions. If no sequence is available,
         /// it falls back to the legacy weighted selection method.
-        /// 
+        ///
         /// The deterministic approach ensures that all nodes agree on the expected author
         /// for any given block number, enabling consistent block production and validation.
         pub fn get_expected_author(block_number: u32) -> Option<T::AccountId> {
             let validators = Self::active_validators();
             if validators.is_empty() {
-                log::warn!("DCF: No active validators available for block authorship at block {}", block_number);
+                log::warn!(
+                    "DCF: No active validators available for block authorship at block {}",
+                    block_number
+                );
                 return None;
             }
 
             // Determine which epoch this block belongs to
             let epoch_config = Self::epoch_config();
+            // A zero epoch length names no epoch. Genesis refuses it. A record
+            // that still carries one reads through the weighted selection, so
+            // the read answers a seated author and never divides by zero.
             let blocks_per_epoch = epoch_config.blocks_per_epoch;
+            if blocks_per_epoch == 0 {
+                return Self::get_expected_author_legacy(block_number);
+            }
             let epoch = block_number / blocks_per_epoch;
-            
+
             // Try to get author from deterministic sequence first
             if let Some(author_sequence) = EpochAuthorSequences::<T>::get(epoch) {
                 let block_offset = block_number % blocks_per_epoch;
@@ -11137,18 +12522,18 @@ pub mod pallet {
                     return Some(author.clone());
                 }
             }
-            
+
             // Fallback to legacy weighted selection if no deterministic sequence available
             log::trace!(
                 "DCF: No deterministic sequence found for epoch {}, using legacy selection for block {}",
                 epoch, block_number
             );
-            
+
             Self::get_expected_author_legacy(block_number)
         }
-        
+
         /// Legacy expected author selection using weighted randomness.
-        /// 
+        ///
         /// This function provides the original author selection logic as a fallback
         /// when deterministic sequences are not available. It uses weighted selection
         /// based on validator scores with block number as randomness seed.
@@ -11161,32 +12546,32 @@ pub mod pallet {
             // Calculate total weighted score using fresh PoS and PoI scores
             let mut total_weight = 0u64;
             let mut validator_weights: Vec<(T::AccountId, u64, u64, u64)> = Vec::new(); // (validator, combined_score, pos_score, poi_score)
-            
+
             let pos_weight = Self::pos_weight();
             let poi_weight = Self::poi_weight();
-            
+
             for validator in validators.iter() {
                 // Get fresh PoS score from stake
                 let stake = pos::Pallet::<T>::stake(validator);
                 let pos_score = stake.saturated_into::<u64>();
-                
-                // Get fresh PoI score from inference results
-                let poi_score = poi::Pallet::<T>::get_score(validator);
-                
+
+                // Get fresh inference contribution from inference results
+                let poi_score = Self::inference_contribution(validator);
+
                 // Calculate combined score using current weights
-                let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) 
+                let mut combined_score = (pos_score.saturating_mul(pos_weight)
+                    + poi_score.saturating_mul(poi_weight))
                     / T::PercentagePrecision::get() as u64;
-                
+
                 // Cap at maximum score
                 if combined_score > T::MaxValidatorScore::get() {
                     combined_score = T::MaxValidatorScore::get();
                 }
-                
+
                 // Ensure minimum weight of 1 for all validators
                 let weight = combined_score.max(1);
                 total_weight = total_weight.saturating_add(weight);
                 validator_weights.push((validator.clone(), weight, pos_score, poi_score));
-                
             }
 
             if total_weight == 0 {
@@ -11207,88 +12592,120 @@ pub mod pallet {
             }
 
             // Fallback to first validator if something goes wrong
-            validators.get(0).cloned()
+            validators.first().cloned()
         }
 
         /// Generate validator proposals based on combined PoS and PoI scores
         /// This function evaluates all validators and suggests actions based on their performance
-        pub fn generate_validator_proposals() -> Vec<(T::AccountId, ProposalAction<T>, u64, u64, u64)> {
+        pub fn generate_validator_proposals(
+        ) -> Vec<(T::AccountId, ProposalAction<T>, u64, u64, u64)> {
             let mut proposals = Vec::new();
             let validators = Self::validator_set();
             let pos_weight = Self::pos_weight();
             let poi_weight = Self::poi_weight();
             let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
-            
+
             for validator in validators.iter() {
                 // Get fresh PoS and PoI scores
                 let stake = pos::Pallet::<T>::stake(validator);
                 let pos_score = stake.saturated_into::<u64>();
-                
-                let poi_score = poi::Pallet::<T>::get_score(validator);
-                
+
+                let poi_score = Self::inference_contribution(validator);
+
                 // Calculate combined score
-                let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) 
+                let mut combined_score = (pos_score.saturating_mul(pos_weight)
+                    + poi_score.saturating_mul(poi_weight))
                     / T::PercentagePrecision::get() as u64;
-                
+
                 if combined_score > T::MaxValidatorScore::get() {
                     combined_score = T::MaxValidatorScore::get();
                 }
-                
+
                 // Generate proposals based on performance
                 if combined_score < min_score_threshold {
                     // Propose ejection for underperforming validators
-                    let action = ProposalAction::Eject { 
-                        validator: validator.clone(), 
-                        reason: EjectionReason::ScoreBelowThreshold 
+                    let action = ProposalAction::Eject {
+                        validator: validator.clone(),
+                        reason: EjectionReason::ScoreBelowThreshold,
                     };
-                    proposals.push((validator.clone(), action, combined_score, pos_score, poi_score));
-                } else if combined_score >= T::MaxValidatorScore::get() * T::HighPerformancePercentage::get() as u64 / T::FullPercentage::get() as u64 {
+                    proposals.push((
+                        validator.clone(),
+                        action,
+                        combined_score,
+                        pos_score,
+                        poi_score,
+                    ));
+                } else if combined_score
+                    >= T::MaxValidatorScore::get() * T::HighPerformancePercentage::get() as u64
+                        / T::FullPercentage::get() as u64
+                {
                     // Propose reward for high-performing validators
                     let reward_amount = T::ValidatorReward::get();
-                    let action = ProposalAction::Reward { 
-                        validator: validator.clone(), 
-                        amount: reward_amount 
+                    let action = ProposalAction::Reward {
+                        validator: validator.clone(),
+                        amount: reward_amount,
                     };
-                    proposals.push((validator.clone(), action, combined_score, pos_score, poi_score));
+                    proposals.push((
+                        validator.clone(),
+                        action,
+                        combined_score,
+                        pos_score,
+                        poi_score,
+                    ));
                 }
-                
+
                 // Check for imbalanced scores (too much reliance on one component)
-                let total_weighted = pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight);
+                let total_weighted =
+                    pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight);
                 if total_weighted > 0 {
-                    let pos_contribution = (pos_score.saturating_mul(pos_weight) * T::FullPercentage::get() as u64) / total_weighted;
-                    let poi_contribution = (poi_score.saturating_mul(poi_weight) * T::FullPercentage::get() as u64) / total_weighted;
-                    
+                    let pos_contribution = (pos_score.saturating_mul(pos_weight)
+                        * T::FullPercentage::get() as u64)
+                        / total_weighted;
+                    let poi_contribution = (poi_score.saturating_mul(poi_weight)
+                        * T::FullPercentage::get() as u64)
+                        / total_weighted;
+
                     // If one component dominates too much, log a warning
                     if pos_contribution > T::MaxPosContribution::get() as u64 {
-                        log::warn!("DCF: Validator {:?} relies heavily on PoS ({}%) - PoI score: {}", 
+                        log::warn!("DCF: Validator {:?} relies heavily on PoS ({}%) - inference contribution: {}", 
                                   validator, pos_contribution, poi_score);
                     } else if poi_contribution > T::MaxPoiContribution::get() as u64 {
-                        log::warn!("DCF: Validator {:?} relies heavily on PoI ({}%) - PoS score: {}", 
-                                  validator, poi_contribution, pos_score);
+                        log::warn!(
+                            "DCF: Validator {:?} relies heavily on PoI ({}%) - PoS score: {}",
+                            validator,
+                            poi_contribution,
+                            pos_score
+                        );
                     }
                 }
             }
-            
-            log::info!("DCF: Generated {} validator proposals based on combined PoS/PoI scores", proposals.len());
+
+            log::info!(
+                "DCF: Generated {} validator proposals based on combined PoS/PoI scores",
+                proposals.len()
+            );
             proposals
         }
 
         /// Get validator profile information with fresh PoS and PoI scores.
         /// Returns: (combined_score, pos_score, poi_score, trust_score, uptime, inference_count, participation_rate, missed_blocks)
-        pub fn get_validator_profile(account_id: T::AccountId) -> Option<(u64, u64, u64, u64, u32, u32, u32, u32)> {
+        pub fn get_validator_profile(
+            account_id: T::AccountId,
+        ) -> Option<(u64, u64, u64, u64, u32, u32, u32, u32)> {
             ValidatorStates::<T>::get(&account_id).map(|state| {
                 // Fetch fresh PoS (stake) score from the PoS pallet
                 let stake = pos::Pallet::<T>::stake(&account_id);
                 let pos_score = stake.saturated_into::<u64>();
-                
-                // Fetch fresh PoI score from the PoI pallet
-                let poi_score = if let Some((result, _)) = poi::Pallet::<T>::inference_results(&account_id) {
-                    result as u64
-                } else {
-                    // Fallback to stored inference score if no fresh result available
-                    state.current.inference_score
-                };
-                
+
+                // Fetch fresh inference contribution from the PoI pallet
+                let poi_score =
+                    if let Some((result, _)) = poi::Pallet::<T>::inference_results(&account_id) {
+                        result as u64
+                    } else {
+                        // Fallback to stored inference score if no fresh result available
+                        state.current.inference_score
+                    };
+
                 // Get current weights for score calculation
                 let pos_weight = if !PosWeight::<T>::exists() {
                     T::DefaultPosWeight::get()
@@ -11300,30 +12717,33 @@ pub mod pallet {
                 } else {
                     PoiWeight::<T>::get()
                 };
-                
-                // Calculate combined score using configured weights
-                let mut combined_score = (pos_score.saturating_mul(pos_weight) + poi_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
-                
+
+                // Calculate combined score using set weights
+                let mut combined_score = (pos_score.saturating_mul(pos_weight)
+                    + poi_score.saturating_mul(poi_weight))
+                    / T::PercentagePrecision::get() as u64;
+
                 // Cap the combined score at maximum allowed
                 if combined_score > T::MaxValidatorScore::get() {
                     combined_score = T::MaxValidatorScore::get();
                 }
-                
+
                 // Get trust score (use stored value or calculate fresh)
                 let trust_score = ValidatorTrustScores::<T>::get(&account_id);
-                
+
                 // Get additional profile information
                 let uptime = Self::validator_uptime(&account_id);
-                let inference_count = pallet_cerulea_poi::Pallet::<T>::validator_inference_count(&account_id) as u32;
-                
+                let inference_count =
+                    pallet_cerulea_poi::Pallet::<T>::validator_inference_count(&account_id) as u32;
+
                 (
-                    combined_score,      // Fresh calculated combined score
-                    pos_score,          // Fresh PoS (stake) score
-                    poi_score,          // Fresh PoI score
-                    trust_score,        // Current trust score
-                    uptime,             // Validator uptime
-                    inference_count,    // Number of inferences
-                    state.participation_rate, // Participation rate
+                    combined_score,              // Fresh calculated combined score
+                    pos_score,                   // Fresh PoS (stake) score
+                    poi_score,                   // Fresh inference contribution
+                    trust_score,                 // Current trust score
+                    uptime,                      // Validator uptime
+                    inference_count,             // Number of inferences
+                    state.participation_rate,    // Participation rate
                     state.current.missed_blocks, // Missed blocks count
                 )
             })
@@ -11335,7 +12755,10 @@ pub mod pallet {
         }
 
         /// Get comprehensive validator profile information (new API)
-        pub fn get_validator_profile_new(validator: T::AccountId) -> Option<ValidatorProfile<T::AccountId, <T as pallet::Config>::Balance, BlockNumberFor<T>>> {
+        pub fn get_validator_profile_new(
+            validator: T::AccountId,
+        ) -> Option<ValidatorProfile<T::AccountId, <T as pallet::Config>::Balance, BlockNumberFor<T>>>
+        {
             let state = Self::validator_states(&validator)?;
             let stake = pos::Stake::<T>::get(&validator);
             let poi_score = state.current.inference_score;
@@ -11352,7 +12775,9 @@ pub mod pallet {
                 trust_score: state.trust_score,
                 status,
                 inference_count: state.inference_count,
-                name: state.name.map(|n| BoundedVec::truncate_from(n.into_inner())),
+                name: state
+                    .name
+                    .map(|n| BoundedVec::truncate_from(n.into_inner())),
                 last_active_block: state.last_active_block.into(),
                 _phantom: sp_std::marker::PhantomData,
             })
@@ -11388,11 +12813,14 @@ pub mod pallet {
         }
 
         /// Get slashing history for a validator
-        pub fn get_slashing_history(validator: T::AccountId) -> Vec<pos::SlashingRecord<<T as pallet::Config>::Balance, BlockNumberFor<T>>> {
+        pub fn get_slashing_history(
+            validator: T::AccountId,
+        ) -> Vec<pos::SlashingRecord<<T as pallet::Config>::Balance, BlockNumberFor<T>>> {
             pos::Pallet::<T>::get_slashing_history(validator)
         }
 
-        pub fn get_system_constants() -> SystemConstants<<T as pallet::Config>::Balance, BlockNumberFor<T>> {
+        pub fn get_system_constants(
+        ) -> SystemConstants<<T as pallet::Config>::Balance, BlockNumberFor<T>> {
             SystemConstants {
                 min_stake: MinStakeOf::<T>::get(),
                 min_score_threshold: MinValidatorScoreOf::<T>::get() as u64,
@@ -11408,7 +12836,9 @@ pub mod pallet {
         }
 
         /// Get detailed validator cooldown status with remaining blocks and eligibility
-        pub fn get_validator_detailed_cooldown_status(validator: T::AccountId) -> Option<(u32, bool)> {
+        pub fn get_validator_detailed_cooldown_status(
+            validator: T::AccountId,
+        ) -> Option<(u32, bool)> {
             Self::get_validator_detailed_cooldown_status_internal(&validator)
         }
 
@@ -11424,26 +12854,6 @@ pub mod pallet {
             } else {
                 0
             }
-        }
-
-        /// Get the last finalized block number.
-        pub fn get_last_finalized_block() -> u32 {
-            Self::last_finalized_block()
-        }
-
-        /// Check if a block is finalized.
-        pub fn is_block_finalized(block_number: u32) -> bool {
-            block_number <= Self::last_finalized_block()
-        }
-
-        /// Get finality information including last finalized block and current epoch.
-        pub fn get_finality_info() -> (u32, u32) {
-            (Self::last_finalized_block(), Self::current_epoch())
-        }
-
-        /// Get the number of blocks since last finalization.
-        pub fn blocks_since_finalization(current_block: u32) -> u32 {
-            current_block.saturating_sub(Self::last_finalized_block())
         }
 
         /// Get the inference result for a validator.
@@ -11463,10 +12873,15 @@ pub mod pallet {
                 .unwrap_or(0)
         }
 
+        /// The blocks one validator authored and the blocks it missed.
+        ///
+        /// A validator the chain holds no record for reads as a pair of
+        /// zeros. The node treats that pair as a validator yet to reach its
+        /// first slot and applies the grace period.
         pub fn validator_participation(validator: &T::AccountId) -> (u32, u32) {
             ValidatorStates::<T>::get(validator)
                 .map(|state| (state.current.authored_blocks, state.current.missed_blocks))
-                .unwrap_or((u32::MAX, u32::MAX))
+                .unwrap_or((0, 0))
         }
 
         /// Get validator last active block
@@ -11518,15 +12933,13 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Get finality info
-        pub fn finality_info() -> (u32, u32) {
-            Self::get_finality_info()
-        }
-
         // execute_slash_validator, execute_slash_validator_with_reason, distribute_rewards, execute_reward_validator, and execute_reward_validator_with_reason moved to pallet-cerulea-pos.
 
         /// Execute ejection action on a validator
-        fn execute_eject_validator(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
+        fn execute_eject_validator(
+            validator: &T::AccountId,
+            reason: EjectionReason,
+        ) -> DispatchResult {
             pos::Pallet::<T>::force_eject_validator(validator)?;
 
             Self::deposit_event(Event::ValidatorEjected {
@@ -11546,9 +12959,11 @@ pub mod pallet {
                 Error::<T>::ValidatorAlreadyExists
             );
 
-            // Check that we haven't exceeded the maximum validators limit
+            // A seat stays free while the set holds fewer validators than the
+            // bound the runtime declares. The allocated capacity of the vector
+            // says nothing about that bound.
             ensure!(
-                validator_set.len() < validator_set.capacity(),
+                validator_set.len() < MaxValidatorsOf::<T>::get() as usize,
                 Error::<T>::NotEnoughValidators
             );
 
@@ -11560,7 +12975,8 @@ pub mod pallet {
             );
 
             // Add validator to the validator set
-            validator_set.try_push(validator.clone())
+            validator_set
+                .try_push(validator.clone())
                 .map_err(|_| Error::<T>::NotEnoughValidators)?;
             ValidatorSet::<T>::put(validator_set);
 
@@ -11568,14 +12984,16 @@ pub mod pallet {
             if !ValidatorStates::<T>::contains_key(validator) {
                 let current_epoch = Self::current_epoch();
                 let stake_score = stake.saturated_into::<u64>();
-                
-                // Get initial inference score from PoI pallet
-                let inference_score = poi::Pallet::<T>::get_score(validator);
+
+                // Get initial inference score from the inference module
+                let inference_score = Self::inference_contribution(validator);
 
                 // Calculate initial final score
                 let pos_weight = Self::pos_weight();
                 let poi_weight = Self::poi_weight();
-                let mut final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+                let mut final_score = (stake_score.saturating_mul(pos_weight)
+                    + inference_score.saturating_mul(poi_weight))
+                    / T::PercentagePrecision::get() as u64;
                 if final_score > T::MaxValidatorScore::get() {
                     final_score = T::MaxValidatorScore::get();
                 }
@@ -11589,8 +13007,9 @@ pub mod pallet {
                     missed_blocks: 0,
                 };
 
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
-                
+                let current_block =
+                    frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+
                 let validator_state = ValidatorState {
                     last_active_epoch: current_epoch,
                     current: initial_stats.clone(),
@@ -11598,10 +13017,10 @@ pub mod pallet {
                     uptime: 1,
                     inference_success_count: 0,
                     participation_rate: 0,
-                    inference_count: 0, // Starting with 0 inferences
+                    inference_count: 0,               // Starting with 0 inferences
                     last_active_block: current_block, // Current block number
-                    name: None, // No name set for governance-added validators
-                    trust_score: 0, // Will be calculated later
+                    name: None,                       // No name set for governance-added validators
+                    trust_score: 0,                   // Will be calculated later
                 };
 
                 ValidatorStates::<T>::insert(validator, validator_state);
@@ -11611,9 +13030,14 @@ pub mod pallet {
             }
 
             // Emit event
-            Self::deposit_event(Event::ValidatorAdded { validator: validator.clone() });
+            Self::deposit_event(Event::ValidatorAdded {
+                validator: validator.clone(),
+            });
 
-            log::info!("DCF: Validator {:?} added via governance proposal", validator);
+            log::info!(
+                "DCF: Validator {:?} added via governance proposal",
+                validator
+            );
             Ok(())
         }
 
@@ -11621,7 +13045,9 @@ pub mod pallet {
         fn execute_remove_validator(validator: &T::AccountId) -> DispatchResult {
             pos::Pallet::<T>::force_eject_validator(validator)?;
 
-            Self::deposit_event(Event::ValidatorRemoved { validator: validator.clone() });
+            Self::deposit_event(Event::ValidatorRemoved {
+                validator: validator.clone(),
+            });
 
             Ok(())
         }
@@ -11659,7 +13085,9 @@ pub mod pallet {
             for (who, action) in actions {
                 match action {
                     ValidatorAction::Join => {
-                        if !active.contains(&who) {
+                        if !active.contains(&who)
+                            && !ValidatorLeaveRequests::<T>::contains_key(&who)
+                        {
                             join_requests.push(who.clone());
                         }
                     }
@@ -11673,9 +13101,13 @@ pub mod pallet {
             }
 
             // Process leave requests first
+            let left_at = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             for who in leave_requests {
                 if let Some(pos) = active.iter().position(|v| v == &who) {
                     active.remove(pos);
+                    // The leave starts the cooldown, so the automatic addition
+                    // of high scorers passes over this validator until it ends.
+                    RecentlyRemovedValidators::<T>::insert(&who, left_at);
                     actual_removed.push(who.clone());
                     changed = true;
                     log::debug!("DCF: Validator {:?} left the active set", who);
@@ -11695,30 +13127,43 @@ pub mod pallet {
                     score_b.cmp(&score_a) // Descending order
                 });
 
-                let available_slots = active.capacity() - active.len();
+                // The free seats are the bound less the seated validators.
+                let available_slots =
+                    (MaxValidatorsOf::<T>::get() as usize).saturating_sub(active.len());
                 let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
 
                 for who in join_requests.iter().take(available_slots) {
                     let score = ValidatorStates::<T>::get(who)
                         .map(|state| state.current.final_score)
                         .unwrap_or(0);
-                    
+
                     // Only add validators that meet the minimum score threshold
                     if score >= min_score_threshold {
                         if active.try_push(who.clone()).is_ok() {
                             actual_added.push(who.clone());
                             changed = true;
-                            log::debug!("DCF: Validator {:?} joined the active set (score: {})", who, score);
+                            log::debug!(
+                                "DCF: Validator {:?} joined the active set (score: {})",
+                                who,
+                                score
+                            );
                         }
                     } else {
-                        log::warn!("DCF: Rejected join request for validator {:?} due to low score: {}", who, score);
+                        log::warn!(
+                            "DCF: Rejected join request for validator {:?} due to low score: {}",
+                            who,
+                            score
+                        );
                     }
                 }
 
                 // Log any rejected join requests due to capacity
                 if join_requests.len() > available_slots {
                     let rejected_count = join_requests.len() - available_slots;
-                    log::info!("DCF: Rejected {} join requests due to capacity constraints", rejected_count);
+                    log::info!(
+                        "DCF: Rejected {} join requests due to capacity constraints",
+                        rejected_count
+                    );
                 }
             }
 
@@ -11733,16 +13178,31 @@ pub mod pallet {
         }
 
         /// Get the epoch history for a given epoch number (for runtime API).
-        pub fn get_epoch_history_api(epoch_number: u32) -> Option<RuntimeEpochHistory<T::AccountId>> {
+        pub fn get_epoch_history_api(
+            epoch_number: u32,
+        ) -> Option<RuntimeEpochHistory<T::AccountId>> {
             let histories = Self::epoch_histories();
-            histories.iter().find(|h| h.epoch_number == epoch_number).cloned().map(|h| h.into())
+            histories
+                .iter()
+                .find(|h| h.epoch_number == epoch_number)
+                .cloned()
+                .map(|h| h.into())
         }
 
         /// Get the most recent n epoch histories (for runtime API).
         pub fn get_recent_epochs_api(n: u32) -> Vec<RuntimeEpochHistory<T::AccountId>> {
             let histories = Self::epoch_histories();
             let len = histories.len().min(n as usize);
-            histories.iter().rev().take(len).cloned().map(|h| h.into()).collect::<Vec<_>>().into_iter().rev().collect()
+            histories
+                .iter()
+                .rev()
+                .take(len)
+                .cloned()
+                .map(|h| h.into())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect()
         }
 
         /// Get governance mode status (for runtime API).
@@ -11761,7 +13221,7 @@ pub mod pallet {
                     (validator.clone(), score)
                 })
                 .collect();
-            
+
             // Sort by score (highest first)
             validators_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
             validators_with_scores
@@ -11780,28 +13240,43 @@ pub mod pallet {
         }
 
         /// Get validator's current consensus weights contribution (for runtime API).
-        pub fn get_validator_consensus_contribution(validator: &T::AccountId) -> Option<(u64, u64, u64)> {
+        pub fn get_validator_consensus_contribution(
+            validator: &T::AccountId,
+        ) -> Option<(u64, u64, u64)> {
             ValidatorStates::<T>::get(validator).map(|state| {
                 let pos_weight = Self::pos_weight();
                 let poi_weight = Self::poi_weight();
-                let pos_contribution = (state.current.stake_score * pos_weight) / T::PercentagePrecision::get() as u64;
-                let poi_contribution = (state.current.inference_score * poi_weight) / T::PercentagePrecision::get() as u64;
-                (pos_contribution, poi_contribution, state.current.final_score)
+                let pos_contribution =
+                    (state.current.stake_score * pos_weight) / T::PercentagePrecision::get() as u64;
+                let poi_contribution = (state.current.inference_score * poi_weight)
+                    / T::PercentagePrecision::get() as u64;
+                (
+                    pos_contribution,
+                    poi_contribution,
+                    state.current.final_score,
+                )
             })
         }
 
-        /// Get epoch configuration (for runtime API).
+        /// Get epoch settings (for runtime API).
         pub fn get_epoch_config() -> EpochConfig {
             Self::epoch_config()
         }
 
         /// Get validator statistics for a specific epoch (for runtime API).
-        pub fn get_validator_epoch_stats(validator: &T::AccountId, epoch: u32) -> Option<EpochStats> {
+        pub fn get_validator_epoch_stats(
+            validator: &T::AccountId,
+            epoch: u32,
+        ) -> Option<EpochStats> {
             ValidatorStates::<T>::get(validator).and_then(|state| {
                 if state.current.epoch == epoch {
                     Some(state.current.clone())
                 } else {
-                    state.history.iter().find(|stats| stats.epoch == epoch).cloned()
+                    state
+                        .history
+                        .iter()
+                        .find(|stats| stats.epoch == epoch)
+                        .cloned()
                 }
             })
         }
@@ -11813,7 +13288,12 @@ pub mod pallet {
 
         /// Calculate economic impact (rewards and slashing) for the given epoch.
         /// This tracks all reward distributions and slashing that occurred during the epoch.
-        fn calculate_epoch_economic_impact(epoch: u32) -> (<T as pallet::Config>::Balance, <T as pallet::Config>::Balance) {
+        fn calculate_epoch_economic_impact(
+            epoch: u32,
+        ) -> (
+            <T as pallet::Config>::Balance,
+            <T as pallet::Config>::Balance,
+        ) {
             let mut total_rewards = <T as pallet::Config>::Balance::from(0u32);
             let mut total_slashed = <T as pallet::Config>::Balance::from(0u32);
 
@@ -11845,8 +13325,12 @@ pub mod pallet {
             // For now, we'll use the governance-based tracking above, but this could be expanded
             // to include automatic economic activities.
 
-            log::debug!("DCF: Epoch {} economic impact - Rewards: {:?}, Slashed: {:?}", 
-                       epoch, total_rewards, total_slashed);
+            log::debug!(
+                "DCF: Epoch {} economic impact - Rewards: {:?}, Slashed: {:?}",
+                epoch,
+                total_rewards,
+                total_slashed
+            );
 
             (total_rewards, total_slashed)
         }
@@ -11880,8 +13364,7 @@ pub mod pallet {
             validator: &T::AccountId,
             reporter: &T::AccountId,
         ) -> Option<Vec<u8>> {
-            MisbehaviorReports::<T>::get(validator, reporter)
-                .map(|evidence| evidence.into_inner())
+            MisbehaviorReports::<T>::get(validator, reporter).map(|evidence| evidence.into_inner())
         }
 
         /// Check if a validator is close to the slashing threshold
@@ -11895,24 +13378,32 @@ pub mod pallet {
         fn check_and_handle_underperforming_validators() {
             let min_score = MinValidatorScoreOf::<T>::get() as u64;
             let current_epoch = Self::current_epoch();
-            
+
             let validators_to_check: Vec<T::AccountId> = ActiveValidators::<T>::get().into_inner();
-            
+
             for validator in validators_to_check {
                 if let Some(state) = ValidatorStates::<T>::get(&validator) {
                     // Check if validator score is below threshold
                     if state.current.final_score < min_score {
-                        log::warn!("DCF: Validator {:?} has low score: {}, ejecting", 
-                                  validator, state.current.final_score);
-                        let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
+                        log::warn!(
+                            "DCF: Validator {:?} has low score: {}, ejecting",
+                            validator,
+                            state.current.final_score
+                        );
+                        let _ =
+                            Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
                     }
-                    
+
                     // Check if validator has been inactive for too long
                     let inactive_epochs = current_epoch.saturating_sub(state.last_active_epoch);
                     if inactive_epochs > T::MaxInactiveEpochs::get() {
-                        log::warn!("DCF: Validator {:?} inactive for {} epochs, ejecting", 
-                                  validator, inactive_epochs);
-                        let _ = Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
+                        log::warn!(
+                            "DCF: Validator {:?} inactive for {} epochs, ejecting",
+                            validator,
+                            inactive_epochs
+                        );
+                        let _ =
+                            Self::eject_validator(&validator, EjectionReason::ScoreBelowThreshold);
                     }
                 }
             }
@@ -11924,12 +13415,12 @@ pub mod pallet {
             let all_validators = ValidatorSet::<T>::get();
             let max_validators = MaxValidatorsOf::<T>::get() as usize;
             let _min_active_validators = MinActiveValidatorsOf::<T>::get() as usize;
-            
+
             // Don't generate proposals if governance mode is disabled
             if !Self::governance_mode_enabled() {
                 return;
             }
-            
+
             // Get all validators with their scores, sorted by score (highest first)
             let mut all_validators_with_scores: Vec<(T::AccountId, u64)> = all_validators
                 .iter()
@@ -11940,21 +13431,31 @@ pub mod pallet {
                     (validator.clone(), score)
                 })
                 .collect();
-            
+
             // Sort by score (highest first)
             all_validators_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
-            
-            // Case 1: We have space for more validators
-            if active_validators.len() < max_validators {
-                Self::propose_add_high_scoring_validators(&active_validators, &all_validators_with_scores, max_validators);
-            }
-            // Case 2: We're at capacity, consider replacing low-scoring active validators
-            else if active_validators.len() == max_validators {
-                Self::propose_replace_low_scoring_validators(&active_validators, &all_validators_with_scores);
-            }
-            // Case 3: We have too many validators (shouldn't happen, but handle it)
-            else if active_validators.len() > max_validators {
-                Self::propose_remove_excess_validators(&active_validators, max_validators);
+
+            // Space remains for more validators, or the set sits at capacity and
+            // a low scoring member may give way to a higher scoring candidate.
+            match active_validators.len().cmp(&max_validators) {
+                sp_std::cmp::Ordering::Less => {
+                    Self::propose_add_high_scoring_validators(
+                        &active_validators,
+                        &all_validators_with_scores,
+                        max_validators,
+                    );
+                }
+                sp_std::cmp::Ordering::Equal => {
+                    Self::propose_replace_low_scoring_validators(
+                        &active_validators,
+                        &all_validators_with_scores,
+                    );
+                }
+                sp_std::cmp::Ordering::Greater => {
+                    // The set sits above capacity. Propose the removal of the
+                    // excess members.
+                    Self::propose_remove_excess_validators(&active_validators, max_validators);
+                }
             }
         }
 
@@ -11964,27 +13465,35 @@ pub mod pallet {
             all_validators_with_scores: &[(T::AccountId, u64)],
             max_validators: usize,
         ) {
-            let available_slots = max_validators - active_validators.len();
+            let available_slots = max_validators.saturating_sub(active_validators.len());
             let min_score_threshold = MinValidatorScoreOf::<T>::get() as u64;
-            
+
             // Find inactive validators with high scores
             let mut candidates = Vec::new();
             for (validator, score) in all_validators_with_scores {
-                if !active_validators.contains(validator) && 
-                   *score >= min_score_threshold &&
-                   !Self::has_pending_join_request(validator) &&
-                   !Self::was_recently_ejected(validator) {
+                // A validator that asked to leave stays out of the automatic
+                // addition, so its own request decides its seat.
+                if !active_validators.contains(validator)
+                    && *score >= min_score_threshold
+                    && !Self::has_pending_join_request(validator)
+                    && !Self::was_recently_ejected(validator)
+                    && !ValidatorLeaveRequests::<T>::contains_key(validator)
+                {
                     candidates.push((validator.clone(), *score));
                     if candidates.len() >= available_slots {
                         break;
                     }
                 }
             }
-            
+
             // Create proposals for the best candidates
             for (validator, score) in candidates {
                 if let Err(e) = Self::create_automatic_join_proposal(&validator, score) {
-                    log::warn!("Failed to create join proposal for validator {:?}: {:?}", validator, e);
+                    log::warn!(
+                        "Failed to create join proposal for validator {:?}: {:?}",
+                        validator,
+                        e
+                    );
                 }
             }
         }
@@ -12004,36 +13513,55 @@ pub mod pallet {
                     (validator.clone(), score)
                 })
                 .collect();
-            
+
             active_with_scores.sort_by(|a, b| a.1.cmp(&b.1)); // Sort by score (lowest first)
-            
+
             // Find inactive validators with higher scores than the lowest active ones
             for (inactive_validator, inactive_score) in all_validators_with_scores {
                 if active_validators.contains(inactive_validator) {
                     continue; // Skip active validators
                 }
-                
+
                 // Check if this inactive validator has a significantly higher score than the lowest active validator
-                if let Some((lowest_active_validator, lowest_active_score)) = active_with_scores.first() {
+                if let Some((lowest_active_validator, lowest_active_score)) =
+                    active_with_scores.first()
+                {
                     let score_improvement = inactive_score.saturating_sub(*lowest_active_score);
-                    let percentage_threshold = *lowest_active_score / (T::FullPercentage::get() as u64 / T::ScoreImprovementPercentage::get() as u64);
-                    let min_improvement_threshold = percentage_threshold.max(T::ScoreImprovementThreshold::get()); // Configurable improvement threshold
-                    
-                    if score_improvement >= min_improvement_threshold &&
-                       *inactive_score >= MinValidatorScoreOf::<T>::get() as u64 &&
-                       !Self::has_pending_join_request(inactive_validator) &&
-                       !Self::was_recently_ejected(inactive_validator) {
-                        
+                    let percentage_threshold = *lowest_active_score
+                        / (T::FullPercentage::get() as u64
+                            / T::ScoreImprovementPercentage::get() as u64);
+                    let min_improvement_threshold =
+                        percentage_threshold.max(T::ScoreImprovementThreshold::get()); // Adjustable improvement threshold
+
+                    if score_improvement >= min_improvement_threshold
+                        && *inactive_score >= MinValidatorScoreOf::<T>::get() as u64
+                        && !Self::has_pending_join_request(inactive_validator)
+                        && !Self::was_recently_ejected(inactive_validator)
+                    {
                         // Propose to eject the lowest scoring active validator
-                        if let Err(e) = Self::create_automatic_eject_proposal(lowest_active_validator, EjectionReason::ScoreBelowThreshold) {
-                            log::warn!("Failed to create eject proposal for validator {:?}: {:?}", lowest_active_validator, e);
+                        if let Err(e) = Self::create_automatic_eject_proposal(
+                            lowest_active_validator,
+                            EjectionReason::ScoreBelowThreshold,
+                        ) {
+                            log::warn!(
+                                "Failed to create eject proposal for validator {:?}: {:?}",
+                                lowest_active_validator,
+                                e
+                            );
                         }
-                        
+
                         // Propose to add the higher scoring inactive validator
-                        if let Err(e) = Self::create_automatic_join_proposal(inactive_validator, *inactive_score) {
-                            log::warn!("Failed to create join proposal for validator {:?}: {:?}", inactive_validator, e);
+                        if let Err(e) = Self::create_automatic_join_proposal(
+                            inactive_validator,
+                            *inactive_score,
+                        ) {
+                            log::warn!(
+                                "Failed to create join proposal for validator {:?}: {:?}",
+                                inactive_validator,
+                                e
+                            );
                         }
-                        
+
                         // Only propose one replacement at a time to avoid too many simultaneous changes
                         break;
                     }
@@ -12047,7 +13575,7 @@ pub mod pallet {
             max_validators: usize,
         ) {
             let excess_count = active_validators.len() - max_validators;
-            
+
             // Get active validators sorted by score (lowest first)
             let mut active_with_scores: Vec<(T::AccountId, u64)> = active_validators
                 .iter()
@@ -12058,13 +13586,20 @@ pub mod pallet {
                     (validator.clone(), score)
                 })
                 .collect();
-            
+
             active_with_scores.sort_by(|a, b| a.1.cmp(&b.1)); // Sort by score (lowest first)
-            
+
             // Propose to eject the lowest scoring validators
             for (validator, _score) in active_with_scores.iter().take(excess_count) {
-                if let Err(e) = Self::create_automatic_eject_proposal(validator, EjectionReason::ExcessValidators) {
-                    log::warn!("Failed to create eject proposal for excess validator {:?}: {:?}", validator, e);
+                if let Err(e) = Self::create_automatic_eject_proposal(
+                    validator,
+                    EjectionReason::ExcessValidators,
+                ) {
+                    log::warn!(
+                        "Failed to create eject proposal for excess validator {:?}: {:?}",
+                        validator,
+                        e
+                    );
                 }
             }
         }
@@ -12078,7 +13613,8 @@ pub mod pallet {
         pub fn was_recently_ejected(validator: &T::AccountId) -> bool {
             // First check if validator is in cooldown period after leaving
             if let Some(left_at_block) = RecentlyRemovedValidators::<T>::get(validator) {
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let current_block =
+                    frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 let cooldown_period = LeaveCooldownOf::<T>::get();
                 let blocks_since_left = current_block.saturating_sub(left_at_block);
 
@@ -12105,20 +13641,20 @@ pub mod pallet {
         fn create_automatic_join_proposal(validator: &T::AccountId, score: u64) -> DispatchResult {
             // Instead of creating a governance proposal, directly add to pending actions
             // This is more efficient and works with the existing epoch transition logic
-            
+
             // Check if there's already a pending join action
             if PendingValidatorActions::<T>::get(validator) == Some(ValidatorAction::Join) {
                 return Ok(()); // Already has a pending join request
             }
-            
+
             // Add the validator to pending join actions
             PendingValidatorActions::<T>::insert(validator, ValidatorAction::Join);
-            
+
             // Get the validator's stake amount from pos storage
             let stake_amount = pos::Pallet::<T>::stake(validator);
-            
+
             // Emit events to indicate automatic addition
-            Self::deposit_event_with_evm_compat(Event::ValidatorJoined { 
+            Self::deposit_event_with_evm_compat(Event::ValidatorJoined {
                 validator: validator.clone(),
                 stake_amount,
             });
@@ -12128,64 +13664,75 @@ pub mod pallet {
                 score,
                 reason: BoundedVec::truncate_from(b"High score automatic addition".to_vec()),
             });
-            
-            log::info!("DCF: Automatically scheduled validator {:?} for addition (score: {})", validator, score);
+
+            log::info!(
+                "DCF: Automatically scheduled validator {:?} for addition (score: {})",
+                validator,
+                score
+            );
             Ok(())
         }
 
         /// Create an automatic proposal to eject a validator
-        fn create_automatic_eject_proposal(validator: &T::AccountId, reason: EjectionReason) -> DispatchResult {
+        fn create_automatic_eject_proposal(
+            validator: &T::AccountId,
+            reason: EjectionReason,
+        ) -> DispatchResult {
             // For automatic ejections based on score, we can directly eject
             // For governance-based ejections, we create proposals
-            
+
             match reason {
                 EjectionReason::ScoreBelowThreshold | EjectionReason::ExcessValidators => {
                     // Get the validator's score before ejection for the event
                     let score = ValidatorStates::<T>::get(validator)
                         .map(|state| state.current.final_score)
                         .unwrap_or(0);
-                    
+
                     // Direct ejection for performance-based reasons
                     Self::eject_validator(validator, reason.clone())?;
-                    
+
                     // Emit automatic proposal event
                     let reason_text = match reason {
                         EjectionReason::ScoreBelowThreshold => "Low score automatic ejection",
                         EjectionReason::ExcessValidators => "Excess validators automatic ejection",
                         _ => "Automatic ejection",
                     };
-                    
+
                     Self::deposit_event(Event::AutomaticValidatorProposal {
                         validator: validator.clone(),
                         action: ValidatorAction::Leave,
                         score,
                         reason: BoundedVec::truncate_from(reason_text.as_bytes().to_vec()),
                     });
-                    
-                    log::info!("DCF: Automatically ejected validator {:?} (reason: {:?})", validator, reason);
+
+                    log::info!(
+                        "DCF: Automatically ejected validator {:?} (reason: {:?})",
+                        validator,
+                        reason
+                    );
                     Ok(())
-                },
+                }
                 _ => {
                     // Create governance proposal for manual/slashing-based ejections
                     let proposal_id = NextProposalId::<T>::get();
                     let system_account = T::AccountId::decode(&mut &[0u8; 32][..]).unwrap_or_else(|_| {
                         // Fallback: use the first validator as proposer
-                        Self::active_validators().get(0).cloned().unwrap_or_else(|| {
+                        Self::active_validators().first().cloned().unwrap_or_else(|| {
                             // Ultimate fallback: decode from a known pattern
                             T::AccountId::decode(&mut &[1u8; 32][..])
                                 .unwrap_or_else(|_| {
                                     // If even the fallback fails, use first active validator
-                                    Self::active_validators().get(0).cloned()
+                                    Self::active_validators().first().cloned()
                                         .unwrap_or_else(|| {
                                             // Ultimate fallback: use first validator from set
-                                            Self::validator_set().get(0).cloned()
+                                            Self::validator_set().first().cloned()
                                                 .unwrap_or_else(|| {
                                                     // Last resort: decode from known pattern
                                                     T::AccountId::decode(&mut &[2u8; 32][..])
                                                         .unwrap_or_else(|_| {
                                                             // Create a zero account if decode fails
                                                             // Use the first validator as fallback
-                                                            Self::validator_set().get(0).cloned()
+                                                            Self::validator_set().first().cloned()
                                                                 .unwrap_or_else(|| {
                                                                     // If no validators exist, panic as this is a critical error
                                                                     panic!("No validators available and cannot create fallback account");
@@ -12196,12 +13743,12 @@ pub mod pallet {
                                 })
                         })
                     });
-                    
-                    let action = ProposalAction::Eject { 
-                        validator: validator.clone(), 
-                        reason: reason.clone()
+
+                    let action = ProposalAction::Eject {
+                        validator: validator.clone(),
+                        reason: reason.clone(),
                     };
-                    
+
                     let proposal = GovernanceProposal {
                         proposer: system_account,
                         action,
@@ -12209,17 +13756,21 @@ pub mod pallet {
                         votes_for: 0,
                         votes_against: 0,
                     };
-                    
+
                     Proposals::<T>::insert(proposal_id, &proposal);
                     NextProposalId::<T>::put(proposal_id + 1);
-                    
+
                     Self::deposit_event(Event::ProposalSubmitted {
                         proposal_id,
                         proposer: proposal.proposer,
                         action: proposal.action,
                     });
-                    
-                    log::info!("DCF: Created governance eject proposal for validator {:?} (reason: {:?})", validator, reason);
+
+                    log::info!(
+                        "DCF: Created governance eject proposal for validator {:?} (reason: {:?})",
+                        validator,
+                        reason
+                    );
                     Ok(())
                 }
             }
@@ -12233,35 +13784,55 @@ pub mod pallet {
             let active_validators = Self::active_validators().len();
             let current_epoch = Self::current_epoch();
             let governance_mode = Self::governance_mode_enabled();
-            
+
             // Calculate average validator score
             let validator_scores: Vec<u64> = ValidatorSet::<T>::get()
                 .iter()
                 .filter_map(|v| ValidatorStates::<T>::get(v).map(|s| s.current.final_score))
                 .collect();
-            
+
             let avg_score = if !validator_scores.is_empty() {
                 validator_scores.iter().sum::<u64>() / validator_scores.len() as u64
             } else {
                 0
             };
-            
-            // Only log health metrics at configured intervals to reduce verbosity
+
+            // Only log health metrics at set intervals to reduce verbosity
             if block_number % T::DetailedLoggingInterval::get() == 0 {
-                log::info!("DCF Health: epoch={}, validators={}/{}, avg_score={}", 
-                          current_epoch, active_validators, total_validators, avg_score);
+                log::info!(
+                    "DCF Health: epoch={}, validators={}/{}, avg_score={}",
+                    current_epoch,
+                    active_validators,
+                    total_validators,
+                    avg_score
+                );
             } else {
                 log::debug!("DCF Health Metrics at block {}: epoch={}, total_validators={}, active_validators={}, avg_score={}, governance_mode={}", 
                            block_number, current_epoch, total_validators, active_validators, avg_score, governance_mode);
             }
-            
+
             // Emit telemetry metrics (reduced frequency)
             if block_number % T::ScoreRefreshInterval::get() == 0 {
-                log::trace!("[cerulea::dcf][prometheus] dcf_health_check{{block={}}} 1", block_number);
-                log::trace!("[cerulea::dcf][prometheus] total_validators{{}} {}", total_validators);
-                log::trace!("[cerulea::dcf][prometheus] active_validators{{}} {}", active_validators);
-                log::trace!("[cerulea::dcf][prometheus] average_validator_score{{}} {}", avg_score);
-                log::trace!("[cerulea::dcf][prometheus] current_epoch{{}} {}", current_epoch);
+                log::trace!(
+                    "[cerulea::dcf][prometheus] dcf_health_check{{block={}}} 1",
+                    block_number
+                );
+                log::trace!(
+                    "[cerulea::dcf][prometheus] total_validators{{}} {}",
+                    total_validators
+                );
+                log::trace!(
+                    "[cerulea::dcf][prometheus] active_validators{{}} {}",
+                    active_validators
+                );
+                log::trace!(
+                    "[cerulea::dcf][prometheus] average_validator_score{{}} {}",
+                    avg_score
+                );
+                log::trace!(
+                    "[cerulea::dcf][prometheus] current_epoch{{}} {}",
+                    current_epoch
+                );
             }
         }
 
@@ -12270,17 +13841,18 @@ pub mod pallet {
             let mut weight = Weight::zero();
             let validators = ValidatorSet::<T>::get();
             let mut updated_count = 0u32;
-            
+
             for validator in validators.iter() {
                 // Update PoS score from stake.
                 // The raw stake (e.g. 8_000_000_000_000_000_000) overflows u64, so
                 // we scale it down to a sane u64 range before storing in stake_score.
                 // We use the same VOTE_WEIGHT_SCALE (32_000) reference point as the
-                // DVF pallet so that stake_score reflects relative weight correctly.
+                // Registry pallet so that stake_score reflects relative weight correctly.
                 let raw_stake = pos::Pallet::<T>::stake(validator).saturated_into::<u128>();
                 // Compute total stake across all validators for normalisation.
                 // (recomputed per-validator loop but cheap — only 3 validators on testnet).
-                let total_stake: u128 = validators.iter()
+                let total_stake: u128 = validators
+                    .iter()
                     .map(|v| pos::Pallet::<T>::stake(v).saturated_into::<u128>())
                     .sum();
                 const STAKE_SCORE_SCALE: u128 = 32_000u128;
@@ -12290,43 +13862,48 @@ pub mod pallet {
                     0
                 };
 
-                // Update PoI score from inference results
-                let inference_score = poi::Pallet::<T>::get_score(validator);
-                
+                // Update inference contribution from inference results
+                let inference_score = Self::inference_contribution(validator);
+
                 // Update validator state with fresh scores
                 if let Ok(()) = ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                     let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                     state.current.stake_score = stake_score;
                     state.current.inference_score = inference_score;
                     Ok::<(), Error<T>>(())
-                }).map_err(|e| sp_runtime::DispatchError::from(e)) {
+                })
+                .map_err(sp_runtime::DispatchError::from)
+                {
                     // Recalculate final score
                     let _ = Self::update_final_score(validator);
-                    _=updated_count += 1;
+                    updated_count += 1;
                     weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
                 }
             }
-            
-            log::info!("DCF: Score aggregation completed - updated {} validators", updated_count);
+
+            log::info!(
+                "DCF: Score aggregation completed - updated {} validators",
+                updated_count
+            );
             weight
         }
 
         /// Generate epoch-specific proposals based on comprehensive analysis.
         fn generate_epoch_proposals() -> Weight {
             let mut weight = Weight::zero();
-            
+
             // Generate validator management proposals
             Self::generate_automatic_validator_proposals();
             weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
-            
+
             // Generate performance-based proposals
             Self::generate_performance_proposals();
             weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
-            
+
             // Generate governance proposals if needed
             Self::generate_governance_proposals();
             weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
-            
+
             log::info!("DCF: Epoch proposal generation completed");
             weight
         }
@@ -12335,12 +13912,12 @@ pub mod pallet {
         fn process_epoch_proposals() -> Weight {
             let mut weight = Weight::zero();
             let mut processed_count = 0u32;
-            
+
             // Get all pending proposals
             let pending_proposals: Vec<_> = Proposals::<T>::iter()
                 .filter(|(_, proposal)| proposal.status == ProposalStatus::Pending)
                 .collect();
-            
+
             for (proposal_id, proposal) in pending_proposals {
                 // For epoch boundary, we can auto-approve certain types of proposals
                 if Self::should_auto_approve_proposal(&proposal) {
@@ -12348,68 +13925,50 @@ pub mod pallet {
                     Proposals::<T>::try_mutate(proposal_id, |maybe_prop| {
                         if let Some(prop) = maybe_prop {
                             prop.status = ProposalStatus::Approved;
-                            
-                            // Execute the proposal immediately
-                            match &prop.action {
+
+                            // Execute the proposal immediately and keep the outcome,
+                            // so a failed action leaves the proposal marked failed.
+                            let outcome: DispatchResult = match &prop.action {
                                 ProposalAction::AddValidator { validator } => {
-                                    let _ = Self::execute_add_validator(validator);
+                                    Self::execute_add_validator(validator)
                                 }
                                 ProposalAction::RemoveValidator { validator } => {
-                                    let _ = Self::execute_remove_validator(validator);
+                                    Self::execute_remove_validator(validator)
                                 }
                                 ProposalAction::Eject { validator, reason } => {
-                                    let _ = Self::execute_eject_validator(validator, reason.clone());
+                                    Self::execute_eject_validator(validator, reason.clone())
                                 }
-                                _ => {
-                                    // Other proposals require manual approval
-                                }
-                            }
-                            
-                            prop.status = ProposalStatus::Executed;
+                                // Other proposals require manual approval.
+                                _ => Ok(()),
+                            };
+
+                            prop.status = if outcome.is_ok() {
+                                ProposalStatus::Executed
+                            } else {
+                                ProposalStatus::Failed
+                            };
                             processed_count += 1;
                         }
                         Ok::<(), Error<T>>(())
-                    }).ok();
+                    })
+                    .ok();
                 }
-                
+
                 weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
             }
-            
+
             log::info!("DCF: Processed {} epoch proposals", processed_count);
             weight
         }
 
         /// Finalize the previous epoch's best block.
-        fn finalize_previous_epoch(block_number: u32) -> Weight {
+        fn finalize_previous_epoch(_block_number: u32) -> Weight {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             let current_epoch = Self::current_epoch();
             let previous_epoch = current_epoch.saturating_sub(1);
-            
+
             if previous_epoch > 0 {
-                // Calculate the best block of the previous epoch
-                let previous_epoch_end_block = block_number.saturating_sub(1);
-                
-                // With progressive finalization, we might already be close to current
-                // Only advance finalization if we're behind
-                let current_finalized = Self::last_finalized_block();
-                if current_finalized < previous_epoch_end_block {
-                    match Self::update_finality_markers(previous_epoch_end_block, current_epoch) {
-                        Ok(()) => {
-                            log::info!("DCF: Epoch finalization advanced from {} to {} (end of epoch {})", 
-                                      current_finalized, previous_epoch_end_block, previous_epoch);
-                        },
-                        Err(reason) => {
-                            let reason_str = sp_std::str::from_utf8(&reason).unwrap_or("Invalid UTF-8");
-                            log::warn!("DCF: Epoch finalization rejected for block {}: {}", 
-                                      previous_epoch_end_block, reason_str);
-                        }
-                    }
-                } else {
-                    log::info!("DCF: Epoch finalization already at {} (>= {}), no advancement needed", 
-                              current_finalized, previous_epoch_end_block);
-                }
-                
                 // Emit epoch events
                 Self::deposit_event(Event::EpochEnded {
                     epoch: previous_epoch,
@@ -12418,44 +13977,44 @@ pub mod pallet {
                     epoch: current_epoch,
                     validators: Self::active_validators().to_vec(),
                 });
-                
-                log::info!("DCF: Epoch transition completed: {} -> {}", previous_epoch, current_epoch);
-            } else {
-                // First epoch - ensure genesis is finalized
-                if Self::last_finalized_block() == 0 {
-                    // Genesis block should already be finalized by progressive logic
-                    log::info!("DCF: First epoch - genesis finalization already handled by progressive logic");
-                }
+
+                log::info!(
+                    "DCF: Epoch transition completed: {} -> {}",
+                    previous_epoch,
+                    current_epoch
+                );
             }
-            
+
             weight
         }
 
         /// Update epoch-specific metrics and perform cleanup.
         fn update_epoch_metrics(block_number: u32) -> Weight {
             let mut weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // Update validator performance metrics
             let validators = Self::active_validators();
             for validator in validators.iter() {
                 if let Some(mut state) = ValidatorStates::<T>::get(validator) {
                     // Update uptime
                     state.uptime = state.uptime.saturating_add(1);
-                    
+
                     // Calculate participation rate
                     let total_blocks = state.current.authored_blocks + state.current.missed_blocks;
                     if total_blocks > 0 {
-                        state.participation_rate = (state.current.authored_blocks * T::PercentagePrecision::get()) / total_blocks;
+                        state.participation_rate = (state.current.authored_blocks
+                            * T::PercentagePrecision::get())
+                            / total_blocks;
                     }
-                    
+
                     ValidatorStates::<T>::insert(validator, state);
                 }
                 weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
             }
-            
+
             // Emit comprehensive health metrics
             Self::emit_dcf_health_metrics(block_number);
-            
+
             log::info!("DCF: Epoch metrics updated at block {}", block_number);
             weight
         }
@@ -12463,23 +14022,23 @@ pub mod pallet {
         /// Generate performance-based proposals.
         fn generate_performance_proposals() -> Weight {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // This could include:
             // 1. Reward proposals for high-performing validators
             // 2. Slash proposals for underperforming validators
             // 3. Ejection proposals for consistently poor performers
-            
+
             let validators = Self::active_validators();
             let mut high_performers = Vec::new();
             let mut low_performers = Vec::new();
-            
+
             for validator in validators.iter() {
                 if let Some(state) = ValidatorStates::<T>::get(validator) {
                     let score = state.current.final_score;
                     let _max_score = T::MaxValidatorScore::get();
                     let _min_score = MinValidatorScoreOf::<T>::get() as u64;
-                    
-                    // High performer: score > configured high performance threshold
+
+                    // High performer: score > set high performance threshold
                     if score > T::HighPerformanceScore::get() {
                         high_performers.push(validator.clone());
                     }
@@ -12489,22 +14048,25 @@ pub mod pallet {
                     }
                 }
             }
-            
-            log::info!("DCF: Performance analysis - {} high performers, {} low performers", 
-                      high_performers.len(), low_performers.len());
-            
+
+            log::info!(
+                "DCF: Performance analysis - {} high performers, {} low performers",
+                high_performers.len(),
+                low_performers.len()
+            );
+
             weight
         }
 
         /// Generate governance-related proposals.
         fn generate_governance_proposals() -> Weight {
             let weight = <T as Config>::WeightInfo::on_initialize();
-            
+
             // This could include:
             // 1. Parameter adjustment proposals
             // 2. Emergency governance proposals
             // 3. System upgrade proposals
-            
+
             log::info!("DCF: Governance proposal generation completed");
             weight
         }
@@ -12522,7 +14084,10 @@ pub mod pallet {
                 }
                 ProposalAction::Eject { reason, .. } => {
                     // Auto-approve ejections for performance reasons
-                    matches!(reason, EjectionReason::ScoreBelowThreshold | EjectionReason::ExcessValidators)
+                    matches!(
+                        reason,
+                        EjectionReason::ScoreBelowThreshold | EjectionReason::ExcessValidators
+                    )
                 }
                 _ => {
                     // Manual approval required for rewards and slashing
@@ -12537,7 +14102,7 @@ pub mod pallet {
                 // In a real implementation, you would extract the actual author from the block
                 // For now, we'll use a simplified approach
                 let actual_author = Self::extract_block_author();
-                
+
                 match actual_author {
                     Some(actual) if actual == expected_author => {
                         // Correct author produced the block
@@ -12562,7 +14127,7 @@ pub mod pallet {
         /// Extract block author from system digest (enhanced implementation)
         fn extract_block_author() -> Option<T::AccountId> {
             // Extract the author from block headers or consensus logs
-            // This matches the digest format created by the CBC consensus engine
+            // This matches the digest format created by the Cerulea consensus engine
             frame_system::Pallet::<T>::digest()
                 .logs()
                 .iter()
@@ -12570,7 +14135,7 @@ pub mod pallet {
                     match log {
                         // Check PreRuntime digest items (where consensus engine stores author info)
                         DigestItem::PreRuntime(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 // The digest data contains: [32 bytes author][32 bytes signature]
                                 if data.len() >= 32 {
                                     // First 32 bytes should be the author's account ID
@@ -12584,7 +14149,7 @@ pub mod pallet {
                         }
                         // Check Seal digest items (alternative location for author info - legacy support)
                         DigestItem::Seal(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 // First 32 bytes should be the author's account ID
                                 if data.len() >= 32 {
                                     T::AccountId::decode(&mut &data[0..32]).ok()
@@ -12597,7 +14162,7 @@ pub mod pallet {
                         }
                         // Check Consensus digest items (legacy support)
                         DigestItem::Consensus(engine_id, data) => {
-                            if engine_id == b"cbcd" {
+                            if engine_id == b"ceru" {
                                 T::AccountId::decode(&mut &data[..]).ok()
                             } else {
                                 None
@@ -12612,14 +14177,14 @@ pub mod pallet {
         fn apply_validator_score_decay(current_epoch: u32) -> Weight {
             let mut weight = Weight::zero();
             let validators = Self::validator_set();
-            
+
             for validator in validators.iter() {
-                if let Err(_) = Self::apply_score_decay(validator, current_epoch) {
+                if Self::apply_score_decay(validator, current_epoch).is_err() {
                     log::warn!("Failed to apply score decay for validator {:?}", validator);
                 }
                 weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
             }
-            
+
             weight
         }
 
@@ -12627,19 +14192,22 @@ pub mod pallet {
         fn update_validator_participation_rates() -> Weight {
             let mut weight = Weight::zero();
             let validators = Self::validator_set();
-            
+
             for validator in validators.iter() {
                 ValidatorStates::<T>::mutate(validator, |maybe_state| {
                     if let Some(state) = maybe_state.as_mut() {
-                        let total_blocks = state.current.authored_blocks + state.current.missed_blocks;
+                        let total_blocks =
+                            state.current.authored_blocks + state.current.missed_blocks;
                         if total_blocks > 0 {
-                            state.participation_rate = (state.current.authored_blocks * T::PercentagePrecision::get()) / total_blocks;
+                            state.participation_rate = (state.current.authored_blocks
+                                * T::PercentagePrecision::get())
+                                / total_blocks;
                         }
                     }
                 });
                 weight = weight.saturating_add(<T as Config>::WeightInfo::on_initialize());
             }
-            
+
             weight
         }
 
@@ -12647,21 +14215,21 @@ pub mod pallet {
         ///
         /// This enhanced trust score calculation implements robust bounds and stability mechanisms
         /// to prevent explosive growth, rapid decay, and score volatility. The calculation uses
-        /// configurable weights and bounds to ensure long-term fairness and system stability.
+        /// adjustable weights and bounds to ensure long-term fairness and system stability.
         ///
         /// # Enhanced Features
         /// - **Bounded Growth**: Limits score increases per epoch to prevent gaming
         /// - **Bounded Decay**: Limits score decreases to allow recovery from temporary issues
         /// - **Stability Smoothing**: Reduces volatility through weighted averaging
-        /// - **Absolute Bounds**: Ensures scores stay within configured min/max range
+        /// - **Absolute Bounds**: Ensures scores stay within set min/max range
         /// - **Clamping**: Final safety net against out-of-bounds values
         ///
         /// # Calculation Formula with Bounds
-        /// ```
+        /// ```text
         /// // Base calculation
         /// weighted_score = (uptime_score * uptime_weight + inference_score * inference_weight) / total_weight
         /// base_score = weighted_score - (slashing_penalty * slashing_weight / 100)
-        /// 
+        ///
         /// // Apply bounds and stability
         /// previous_score = get_previous_trust_score(validator)
         /// growth_limited_score = apply_growth_limits(base_score, previous_score, bounds)
@@ -12699,7 +14267,7 @@ pub mod pallet {
             let blocks_authored = ValidatorBlocksAuthored::<T>::get(validator);
             let blocks_missed = ValidatorBlocksMissed::<T>::get(validator);
             let total_opportunities = blocks_authored.saturating_add(blocks_missed);
-            
+
             let block_reliability = if total_opportunities > 0 {
                 (blocks_authored * T::PercentagePrecision::get()) / total_opportunities
             } else {
@@ -12707,30 +14275,35 @@ pub mod pallet {
             };
 
             // Combine uptime percentage and block reliability (70% uptime, 30% block reliability)
-            let uptime_score = (uptime_percentage as u64 * 70 + block_reliability as u64 * 30) / 100;
+            let uptime_score =
+                (uptime_percentage as u64 * 70 + block_reliability as u64 * 30) / 100;
 
             // Calculate inference success rate
             let inference_success_rate = if state.inference_count > 0 {
-                (state.inference_success_count as u64 * T::PercentagePrecision::get() as u64) / state.inference_count
+                (state.inference_success_count as u64 * T::PercentagePrecision::get() as u64)
+                    / state.inference_count
             } else {
                 T::PercentagePrecision::get() as u64 / 2 // 50% if no inferences yet (neutral)
             };
 
             // Enhanced inference score including participation rate
             let inference_participation = if current_epoch > 0 {
-                ((state.inference_count / current_epoch.max(1) as u64).min(100) * T::PercentagePrecision::get() as u64) / 100
+                ((state.inference_count / current_epoch.max(1) as u64).min(100)
+                    * T::PercentagePrecision::get() as u64)
+                    / 100
             } else {
                 T::PercentagePrecision::get() as u64 / 2 // 50% for genesis
             };
 
             // Combine success rate and participation (60% success rate, 40% participation)
-            let inference_score = (inference_success_rate * 60 + inference_participation * 40) / 100;
+            let inference_score =
+                (inference_success_rate * 60 + inference_participation * 40) / 100;
 
             // Calculate slashing penalty based on validator performance
             let slashing_penalty = {
                 let current_score = state.current.final_score;
                 let max_score = T::MaxValidatorScore::get();
-                
+
                 if current_score < max_score / 4 {
                     T::PercentagePrecision::get() as u64 / 4 // High penalty for very low scores
                 } else if current_score < max_score / 2 {
@@ -12740,26 +14313,30 @@ pub mod pallet {
                 }
             };
 
-            // Calculate weighted score using configurable weights
-            let total_positive_weight = config.uptime_weight.saturating_add(config.inference_weight);
+            // Calculate weighted score using adjustable weights
+            let total_positive_weight =
+                config.uptime_weight.saturating_add(config.inference_weight);
             if total_positive_weight == 0 {
                 return T::MinTrustScore::get(); // Return minimum instead of 0
             }
 
-            let weighted_score = (
-                uptime_score.saturating_mul(config.uptime_weight as u64)
-                    .saturating_add(inference_score.saturating_mul(config.inference_weight as u64))
-            ) / total_positive_weight as u64;
+            let weighted_score = (uptime_score
+                .saturating_mul(config.uptime_weight as u64)
+                .saturating_add(inference_score.saturating_mul(config.inference_weight as u64)))
+                / total_positive_weight as u64;
 
             // Apply slashing penalty
-            let penalty_amount = slashing_penalty.saturating_mul(config.slashing_weight as u64) / 100;
+            let penalty_amount =
+                slashing_penalty.saturating_mul(config.slashing_weight as u64) / 100;
             let base_score = weighted_score.saturating_sub(penalty_amount);
 
             // Scale to trust score range
-            let scaled_score = (base_score * bounds.max_score) / T::PercentagePrecision::get() as u64;
+            let scaled_score =
+                (base_score * bounds.max_score) / T::PercentagePrecision::get() as u64;
 
             // Apply bounded growth and decay with stability mechanisms
-            let bounded_score = Self::apply_trust_score_bounds(scaled_score, previous_score, &bounds);
+            let bounded_score =
+                Self::apply_trust_score_bounds(scaled_score, previous_score, &bounds);
 
             // Final clamping to ensure bounds are respected
             bounded_score.max(bounds.min_score).min(bounds.max_score)
@@ -12775,15 +14352,15 @@ pub mod pallet {
         /// - **Growth Rate Limiting**: Prevents explosive score increases that could indicate gaming
         /// - **Decay Rate Limiting**: Prevents rapid score degradation from temporary issues
         /// - **Stability Smoothing**: Reduces volatility through weighted averaging with previous scores
-        /// - **Absolute Bounds**: Ensures scores never exceed configured min/max values
+        /// - **Absolute Bounds**: Ensures scores never exceed set min/max values
         ///
         /// # Parameters
         /// - `new_score`: The newly calculated raw trust score before bounds are applied
         /// - `previous_score`: The validator's previous trust score for comparison and smoothing
-        /// - `bounds`: The current trust score bounds configuration with rate limits and ranges
+        /// - `bounds`: The current trust score bounds settings with rate limits and ranges
         ///
         /// # Returns
-        /// The bounded and stabilized trust score that respects all configured limits
+        /// The bounded and stabilized trust score that respects all set limits
         ///
         /// # Algorithm Details
         /// 1. **First Score Handling**: If no previous score exists, return new score within bounds
@@ -12839,10 +14416,9 @@ pub mod pallet {
             let stability_weight = bounds.stability_factor; // basis points (e.g., 8000 = 80%)
             let change_weight = 10000 - stability_weight; // remaining weight for new score
 
-            let stabilized_score = (
-                (previous_score * stability_weight as u64) + 
-                (bounded_score * change_weight as u64)
-            ) / 10000;
+            let stabilized_score = ((previous_score * stability_weight as u64)
+                + (bounded_score * change_weight as u64))
+                / 10000;
 
             // Ensure the result respects absolute bounds
             stabilized_score.max(bounds.min_score).min(bounds.max_score)
@@ -12871,7 +14447,7 @@ pub mod pallet {
             let current_epoch = Self::current_epoch();
             let bounds = TrustScoreBounds::<T>::get();
             let active_validators = Self::active_validators();
-            
+
             if active_validators.is_empty() {
                 return;
             }
@@ -12938,12 +14514,18 @@ pub mod pallet {
             };
 
             let variance = if !current_scores.is_empty() {
-                current_scores.iter()
+                current_scores
+                    .iter()
                     .map(|&score| {
-                        let diff = if score > mean_score { score - mean_score } else { mean_score - score };
+                        let diff = if score > mean_score {
+                            score - mean_score
+                        } else {
+                            mean_score - score
+                        };
                         diff * diff
                     })
-                    .sum::<u64>() / current_scores.len() as u64
+                    .sum::<u64>()
+                    / current_scores.len() as u64
             } else {
                 0
             };
@@ -13008,14 +14590,14 @@ pub mod pallet {
             if n == 0 {
                 return 0;
             }
-            
+
             let mut left = 1u64;
             let mut right = n;
             let mut result = 0u64;
-            
+
             while left <= right {
                 let mid = left + (right - left) / 2;
-                
+
                 if mid <= n / mid {
                     result = mid;
                     left = mid + 1;
@@ -13023,14 +14605,14 @@ pub mod pallet {
                     right = mid - 1;
                 }
             }
-            
+
             result
         }
 
         /// Update trust score for a validator and store in history.
         ///
         /// This function recalculates the trust score for a validator using the current
-        /// trust score configuration and updates both the current score storage and
+        /// trust score settings and updates both the current score storage and
         /// the historical record for trend analysis.
         ///
         /// The function is called during:
@@ -13040,64 +14622,70 @@ pub mod pallet {
         /// - Slashing events and penalty applications
         pub fn update_trust_score(validator: &T::AccountId) -> DispatchResult {
             let new_trust_score = Self::calculate_trust_score(validator);
-            
+
             // Get old trust score for comparison
             let old_trust_score = ValidatorTrustScores::<T>::get(validator);
-            
-            // Update current trust score storage
-            ValidatorTrustScores::<T>::insert(validator, new_trust_score);
 
-            // Update trust score in validator state
+            // The validator record comes first, so an unknown validator leaves
+            // every store untouched.
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.trust_score = new_trust_score;
                 Ok::<(), Error<T>>(())
             })?;
-            
+
+            // Update current trust score storage
+            ValidatorTrustScores::<T>::insert(validator, new_trust_score);
+
             // Add to trust score history if score changed significantly
             let score_change = if new_trust_score > old_trust_score {
                 new_trust_score - old_trust_score
             } else {
                 old_trust_score - new_trust_score
             };
-            
+
             // Only record in history if change is significant (> 1% of max score)
             let significant_change_threshold = T::MaxTrustScore::get() / 100;
             if score_change > significant_change_threshold {
                 let current_epoch = Self::current_epoch();
                 TrustScoreHistory::<T>::try_mutate(validator, |history| {
-                    // Remove oldest entry if at capacity and not empty
-                    if history.len() == history.capacity() && !history.is_empty() {
+                    // Drop the oldest entry once the history holds its bound. The
+                    // bound comes from the type, and the allocation says nothing
+                    // about it.
+                    if history.is_full() && !history.is_empty() {
                         history.remove(0);
                     }
                     // Add new entry
-                    history.try_push((current_epoch, new_trust_score))
+                    history
+                        .try_push((current_epoch, new_trust_score))
                         .map_err(|_| Error::<T>::ValidatorNotFound)?; // Use existing error type
                     Ok::<(), Error<T>>(())
                 })?;
-                
+
                 // Calculate score components for the event
                 let _config = TrustScoreConfigStorage::<T>::get();
-                let state = ValidatorStates::<T>::get(validator).ok_or(Error::<T>::ValidatorNotFound)?;
+                let state =
+                    ValidatorStates::<T>::get(validator).ok_or(Error::<T>::ValidatorNotFound)?;
                 let current_epoch = Self::current_epoch();
-                
+
                 // Calculate individual components for event emission
                 let uptime_percentage = if current_epoch > 0 {
                     (state.uptime * T::PercentagePrecision::get()) / current_epoch
                 } else {
                     T::PercentagePrecision::get()
                 };
-                
+
                 let inference_success_rate = if state.inference_count > 0 {
-                    (state.inference_success_count as u64 * T::PercentagePrecision::get() as u64) / state.inference_count
+                    (state.inference_success_count as u64 * T::PercentagePrecision::get() as u64)
+                        / state.inference_count
                 } else {
                     T::PercentagePrecision::get() as u64 / 2
                 };
-                
+
                 let slashing_component = {
                     let current_score = state.current.final_score;
                     let max_score = T::MaxValidatorScore::get();
-                    
+
                     if current_score < max_score / 4 {
                         T::PercentagePrecision::get() as u64 / 4
                     } else if current_score < max_score / 2 {
@@ -13106,7 +14694,7 @@ pub mod pallet {
                         0
                     }
                 };
-                
+
                 // Emit trust score updated event
                 Self::deposit_event(Event::TrustScoreUpdated {
                     validator: validator.clone(),
@@ -13144,32 +14732,36 @@ pub mod pallet {
         pub fn update_all_trust_scores() -> Weight {
             let mut weight = Weight::zero();
             let active_validators = Self::active_validators();
-            
+
             for validator in active_validators.iter() {
                 if let Err(e) = Self::update_trust_score(validator) {
-                    log::warn!("Failed to update trust score for validator {:?}: {:?}", validator, e);
+                    log::warn!(
+                        "Failed to update trust score for validator {:?}: {:?}",
+                        validator,
+                        e
+                    );
                 }
                 // Add weight for each trust score calculation
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 3));
             }
-            
+
             // Update stability metrics after all trust scores are updated
             Self::update_trust_score_stability_metrics();
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(10, 1));
-            
+
             weight
         }
 
-        /// Get the current value of a parameter from the governance configuration.
-        /// 
+        /// Get the current value of a parameter from the governance settings.
+        ///
         /// This function retrieves the current value of any DCF parameter from the
-        /// governance configuration storage. The value is encoded as bytes to handle
+        /// governance settings storage. The value is encoded as bytes to handle
         /// different parameter types in a type-safe manner.
-        /// 
+        ///
         /// # Parameters
-        /// - `config`: Reference to the governance configuration
+        /// - `config`: Reference to the governance settings
         /// - `parameter`: The parameter type to retrieve
-        /// 
+        ///
         /// # Returns
         /// - `Ok(BoundedVec<u8, ConstU32<64>>)`: Encoded current value
         /// - `Err(Error<T>)`: If parameter type is invalid or config is corrupted
@@ -13184,43 +14776,65 @@ pub mod pallet {
                 ParameterType::PosWeight => config.pos_weight.current.encode(),
                 ParameterType::PoiWeight => config.poi_weight.current.encode(),
                 ParameterType::MinPerformanceScore => config.min_performance_score.current.encode(),
-                ParameterType::HighPerformanceScore => config.high_performance_score.current.encode(),
-                ParameterType::MinParticipationRate => config.min_participation_rate.current.encode(),
-                ParameterType::HighParticipationRate => config.high_participation_rate.current.encode(),
+                ParameterType::HighPerformanceScore => {
+                    config.high_performance_score.current.encode()
+                }
+                ParameterType::MinParticipationRate => {
+                    config.min_participation_rate.current.encode()
+                }
+                ParameterType::HighParticipationRate => {
+                    config.high_participation_rate.current.encode()
+                }
                 ParameterType::ValidatorReward => config.validator_reward.current.encode(),
                 ParameterType::SlashPercent => config.slash_percent.current.encode(),
                 ParameterType::LeaveCooldown => config.leave_cooldown.current.encode(),
-                ParameterType::TrustScoreUptimeWeight => config.trust_score_uptime_weight.current.encode(),
-                ParameterType::TrustScoreInferenceWeight => config.trust_score_inference_weight.current.encode(),
-                ParameterType::TrustScoreSlashingWeight => config.trust_score_slashing_weight.current.encode(),
-                ParameterType::TrustScoreMaxGrowthRate => config.trust_score_max_growth_rate.current.encode(),
-                ParameterType::TrustScoreMaxDecayRate => config.trust_score_max_decay_rate.current.encode(),
+                ParameterType::TrustScoreUptimeWeight => {
+                    config.trust_score_uptime_weight.current.encode()
+                }
+                ParameterType::TrustScoreInferenceWeight => {
+                    config.trust_score_inference_weight.current.encode()
+                }
+                ParameterType::TrustScoreSlashingWeight => {
+                    config.trust_score_slashing_weight.current.encode()
+                }
+                ParameterType::TrustScoreMaxGrowthRate => {
+                    config.trust_score_max_growth_rate.current.encode()
+                }
+                ParameterType::TrustScoreMaxDecayRate => {
+                    config.trust_score_max_decay_rate.current.encode()
+                }
                 ParameterType::TrustScoreMinValue => config.trust_score_min_value.current.encode(),
                 ParameterType::TrustScoreMaxValue => config.trust_score_max_value.current.encode(),
-                ParameterType::TrustScoreStabilityFactor => config.trust_score_stability_factor.current.encode(),
-                ParameterType::BlockAuthorshipBoost => config.block_authorship_boost.current.encode(),
+                ParameterType::TrustScoreStabilityFactor => {
+                    config.trust_score_stability_factor.current.encode()
+                }
+                ParameterType::BlockAuthorshipBoost => {
+                    config.block_authorship_boost.current.encode()
+                }
                 ParameterType::MissedBlockPenalty => config.missed_block_penalty.current.encode(),
                 ParameterType::InferenceBoostLow => config.inference_boost_low.current.encode(),
-                ParameterType::InferenceBoostMedium => config.inference_boost_medium.current.encode(),
+                ParameterType::InferenceBoostMedium => {
+                    config.inference_boost_medium.current.encode()
+                }
                 ParameterType::InferenceBoostHigh => config.inference_boost_high.current.encode(),
             };
-            
+
             BoundedVec::try_from(value_bytes).map_err(|_| Error::<T>::InvalidGovernanceConfig)
         }
 
-        /// Validate a parameter value against its allowed range and update the configuration.
-        /// 
+        /// Validate a parameter value against its allowed range and update the settings.
+        ///
         /// This function performs comprehensive validation of parameter updates including:
         /// - Range validation against min/max bounds
         /// - Type-specific validation rules
         /// - Cross-parameter consistency checks
         /// - Safety constraint enforcement
-        /// 
+        ///
         /// # Parameters
-        /// - `config`: Mutable reference to governance configuration
+        /// - `config`: Mutable reference to governance settings
         /// - `parameter`: The parameter type being updated
         /// - `value`: New value encoded as bytes
-        /// 
+        ///
         /// # Returns
         /// - `Ok(())`: If validation passes and config is updated
         /// - `Err(Error<T>)`: If validation fails with specific error
@@ -13234,11 +14848,12 @@ pub mod pallet {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.epoch_length.min && new_value <= config.epoch_length.max,
+                        new_value >= config.epoch_length.min
+                            && new_value <= config.epoch_length.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.epoch_length.current = new_value;
-                },
+                }
                 ParameterType::MinStake => {
                     let new_value: <T as pallet::Config>::Balance = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13247,16 +14862,17 @@ pub mod pallet {
                         Error::<T>::ParameterOutOfRange
                     );
                     config.min_stake.current = new_value;
-                },
+                }
                 ParameterType::MaxValidators => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.max_validators.min && new_value <= config.max_validators.max,
+                        new_value >= config.max_validators.min
+                            && new_value <= config.max_validators.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.max_validators.current = new_value;
-                },
+                }
                 ParameterType::PosWeight => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13271,7 +14887,7 @@ pub mod pallet {
                         Error::<T>::InvalidWeight
                     );
                     config.pos_weight.current = new_value;
-                },
+                }
                 ParameterType::PoiWeight => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13286,12 +14902,13 @@ pub mod pallet {
                         Error::<T>::InvalidWeight
                     );
                     config.poi_weight.current = new_value;
-                },
+                }
                 ParameterType::MinPerformanceScore => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.min_performance_score.min && new_value <= config.min_performance_score.max,
+                        new_value >= config.min_performance_score.min
+                            && new_value <= config.min_performance_score.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure min performance score is less than high performance score
@@ -13300,12 +14917,13 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.min_performance_score.current = new_value;
-                },
+                }
                 ParameterType::HighPerformanceScore => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.high_performance_score.min && new_value <= config.high_performance_score.max,
+                        new_value >= config.high_performance_score.min
+                            && new_value <= config.high_performance_score.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure high performance score is greater than min performance score
@@ -13314,12 +14932,13 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.high_performance_score.current = new_value;
-                },
+                }
                 ParameterType::MinParticipationRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.min_participation_rate.min && new_value <= config.min_participation_rate.max,
+                        new_value >= config.min_participation_rate.min
+                            && new_value <= config.min_participation_rate.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure min participation rate is less than high participation rate
@@ -13328,12 +14947,13 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.min_participation_rate.current = new_value;
-                },
+                }
                 ParameterType::HighParticipationRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.high_participation_rate.min && new_value <= config.high_participation_rate.max,
+                        new_value >= config.high_participation_rate.min
+                            && new_value <= config.high_participation_rate.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure high participation rate is greater than min participation rate
@@ -13342,86 +14962,95 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.high_participation_rate.current = new_value;
-                },
+                }
                 ParameterType::ValidatorReward => {
                     let new_value: <T as pallet::Config>::Balance = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.validator_reward.min && new_value <= config.validator_reward.max,
+                        new_value >= config.validator_reward.min
+                            && new_value <= config.validator_reward.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.validator_reward.current = new_value;
-                },
+                }
                 ParameterType::SlashPercent => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.slash_percent.min && new_value <= config.slash_percent.max,
+                        new_value >= config.slash_percent.min
+                            && new_value <= config.slash_percent.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure slash percent is reasonable (0-100%)
                     ensure!(new_value <= 100, Error::<T>::ParameterOutOfRange);
                     config.slash_percent.current = new_value;
-                },
+                }
                 ParameterType::LeaveCooldown => {
                     let new_value: BlockNumberFor<T> = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.leave_cooldown.min && new_value <= config.leave_cooldown.max,
+                        new_value >= config.leave_cooldown.min
+                            && new_value <= config.leave_cooldown.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.leave_cooldown.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreUptimeWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_uptime_weight.min && new_value <= config.trust_score_uptime_weight.max,
+                        new_value >= config.trust_score_uptime_weight.min
+                            && new_value <= config.trust_score_uptime_weight.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_uptime_weight.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreInferenceWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_inference_weight.min && new_value <= config.trust_score_inference_weight.max,
+                        new_value >= config.trust_score_inference_weight.min
+                            && new_value <= config.trust_score_inference_weight.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_inference_weight.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreSlashingWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_slashing_weight.min && new_value <= config.trust_score_slashing_weight.max,
+                        new_value >= config.trust_score_slashing_weight.min
+                            && new_value <= config.trust_score_slashing_weight.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_slashing_weight.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreMaxGrowthRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_max_growth_rate.min && new_value <= config.trust_score_max_growth_rate.max,
+                        new_value >= config.trust_score_max_growth_rate.min
+                            && new_value <= config.trust_score_max_growth_rate.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_max_growth_rate.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreMaxDecayRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_max_decay_rate.min && new_value <= config.trust_score_max_decay_rate.max,
+                        new_value >= config.trust_score_max_decay_rate.min
+                            && new_value <= config.trust_score_max_decay_rate.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_max_decay_rate.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreMinValue => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_min_value.min && new_value <= config.trust_score_min_value.max,
+                        new_value >= config.trust_score_min_value.min
+                            && new_value <= config.trust_score_min_value.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure min value is less than max value
@@ -13430,12 +15059,13 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.trust_score_min_value.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreMaxValue => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_max_value.min && new_value <= config.trust_score_max_value.max,
+                        new_value >= config.trust_score_max_value.min
+                            && new_value <= config.trust_score_max_value.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     // Ensure max value is greater than min value
@@ -13444,76 +15074,82 @@ pub mod pallet {
                         Error::<T>::InvalidGovernanceConfig
                     );
                     config.trust_score_max_value.current = new_value;
-                },
+                }
                 ParameterType::TrustScoreStabilityFactor => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.trust_score_stability_factor.min && new_value <= config.trust_score_stability_factor.max,
+                        new_value >= config.trust_score_stability_factor.min
+                            && new_value <= config.trust_score_stability_factor.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.trust_score_stability_factor.current = new_value;
-                },
+                }
                 ParameterType::BlockAuthorshipBoost => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.block_authorship_boost.min && new_value <= config.block_authorship_boost.max,
+                        new_value >= config.block_authorship_boost.min
+                            && new_value <= config.block_authorship_boost.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.block_authorship_boost.current = new_value;
-                },
+                }
                 ParameterType::MissedBlockPenalty => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.missed_block_penalty.min && new_value <= config.missed_block_penalty.max,
+                        new_value >= config.missed_block_penalty.min
+                            && new_value <= config.missed_block_penalty.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.missed_block_penalty.current = new_value;
-                },
+                }
                 ParameterType::InferenceBoostLow => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.inference_boost_low.min && new_value <= config.inference_boost_low.max,
+                        new_value >= config.inference_boost_low.min
+                            && new_value <= config.inference_boost_low.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.inference_boost_low.current = new_value;
-                },
+                }
                 ParameterType::InferenceBoostMedium => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.inference_boost_medium.min && new_value <= config.inference_boost_medium.max,
+                        new_value >= config.inference_boost_medium.min
+                            && new_value <= config.inference_boost_medium.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.inference_boost_medium.current = new_value;
-                },
+                }
                 ParameterType::InferenceBoostHigh => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     ensure!(
-                        new_value >= config.inference_boost_high.min && new_value <= config.inference_boost_high.max,
+                        new_value >= config.inference_boost_high.min
+                            && new_value <= config.inference_boost_high.max,
                         Error::<T>::ParameterOutOfRange
                     );
                     config.inference_boost_high.current = new_value;
-                },
+                }
             }
-            
+
             Ok(())
         }
 
-        /// Apply a parameter change to the active system configuration.
-        /// 
-        /// This function updates the active system configuration to reflect parameter
+        /// Apply a parameter change to the active system settings.
+        ///
+        /// This function updates the active system settings to reflect parameter
         /// changes made through governance. Some parameters take effect immediately,
         /// while others may be scheduled for the next epoch boundary.
-        /// 
+        ///
         /// # Parameters
         /// - `parameter`: The parameter type that was updated
         /// - `value`: New value encoded as bytes
-        /// 
+        ///
         /// # Returns
         /// - `Ok(())`: If the parameter change was successfully applied
         /// - `Err(Error<T>)`: If the application failed
@@ -13526,33 +15162,33 @@ pub mod pallet {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     PosWeight::<T>::put(new_value);
-                },
+                }
                 ParameterType::PoiWeight => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     PoiWeight::<T>::put(new_value);
-                },
+                }
                 ParameterType::TrustScoreUptimeWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     TrustScoreConfigStorage::<T>::mutate(|config| {
                         config.uptime_weight = new_value;
                     });
-                },
+                }
                 ParameterType::TrustScoreInferenceWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     TrustScoreConfigStorage::<T>::mutate(|config| {
                         config.inference_weight = new_value;
                     });
-                },
+                }
                 ParameterType::TrustScoreSlashingWeight => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
                     TrustScoreConfigStorage::<T>::mutate(|config| {
                         config.slashing_weight = new_value;
                     });
-                },
+                }
                 ParameterType::TrustScoreMaxGrowthRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13564,7 +15200,7 @@ pub mod pallet {
                         bounds.max_growth_rate = new_value;
                         bounds.last_updated_epoch = Self::current_epoch();
                     });
-                },
+                }
                 ParameterType::TrustScoreMaxDecayRate => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13576,7 +15212,7 @@ pub mod pallet {
                         bounds.max_decay_rate = new_value;
                         bounds.last_updated_epoch = Self::current_epoch();
                     });
-                },
+                }
                 ParameterType::TrustScoreMinValue => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13588,7 +15224,7 @@ pub mod pallet {
                         bounds.min_score = new_value;
                         bounds.last_updated_epoch = Self::current_epoch();
                     });
-                },
+                }
                 ParameterType::TrustScoreMaxValue => {
                     let new_value: u64 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13600,7 +15236,7 @@ pub mod pallet {
                         bounds.max_score = new_value;
                         bounds.last_updated_epoch = Self::current_epoch();
                     });
-                },
+                }
                 ParameterType::TrustScoreStabilityFactor => {
                     let new_value: u32 = Decode::decode(&mut &value[..])
                         .map_err(|_| Error::<T>::InvalidParameterType)?;
@@ -13612,63 +15248,79 @@ pub mod pallet {
                         bounds.stability_factor = new_value;
                         bounds.last_updated_epoch = Self::current_epoch();
                     });
-                },
+                }
                 // For other parameters, they are stored in governance config and will be
                 // applied during epoch transitions or when the relevant systems access them
                 _ => {
                     // Most parameters are applied through the governance config storage
                     // and don't require immediate active system updates
-                },
+                }
             }
-            
+
             Ok(())
         }
-
-
     }
 
     // --- DcfInterface Implementation --- //
-    impl<T: Config> pallet_cerulea_poi::DcfInterface<<T as frame_system::Config>::AccountId> for Pallet<T> {
-        fn record_inference_activity(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+    impl<T: Config> pallet_cerulea_poi::DcfInterface<<T as frame_system::Config>::AccountId>
+        for Pallet<T>
+    {
+        fn record_inference_activity(
+            validator: &<T as frame_system::Config>::AccountId,
+        ) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-            
+
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
-                
+
                 // Increment inference count
                 state.inference_count = state.inference_count.saturating_add(1);
-                
+
                 // Update last active block
                 state.last_active_block = current_block;
-                
+
                 // Update last active epoch
                 state.last_active_epoch = Self::current_epoch();
-                
+
                 Ok::<(), Error<T>>(())
             })?;
-            
+
             Ok(())
         }
 
-        fn eject_validator(validator: &<T as frame_system::Config>::AccountId, _reason: &'static str) -> DispatchResult {
+        fn eject_validator(
+            validator: &<T as frame_system::Config>::AccountId,
+            _reason: &'static str,
+        ) -> DispatchResult {
             Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold)
         }
 
-        fn update_final_score(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+        fn update_final_score(
+            validator: &<T as frame_system::Config>::AccountId,
+        ) -> DispatchResult {
             Self::update_final_score(validator)
         }
     }
 
     // --- ValidatorHandler Implementation --- //
-    impl<T: Config> pallet_cerulea_pos::ValidatorHandler<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Balance> for Pallet<T> {
-        fn on_joined(validator: &<T as frame_system::Config>::AccountId, stake: <T as pallet::Config>::Balance) -> DispatchResult {
+    impl<T: Config>
+        pallet_cerulea_pos::ValidatorHandler<
+            <T as frame_system::Config>::AccountId,
+            <T as pallet::Config>::Balance,
+        > for Pallet<T>
+    {
+        fn on_joined(
+            validator: &<T as frame_system::Config>::AccountId,
+            stake: <T as pallet::Config>::Balance,
+        ) -> DispatchResult {
             let mut validator_set = ValidatorSet::<T>::get();
             if !validator_set.contains(validator) {
                 ensure!(
                     validator_set.len() < T::MaxValidators::get() as usize,
                     Error::<T>::NotEnoughValidators
                 );
-                validator_set.try_push(validator.clone())
+                validator_set
+                    .try_push(validator.clone())
                     .map_err(|_| Error::<T>::NotEnoughValidators)?;
                 ValidatorSet::<T>::put(validator_set);
             }
@@ -13676,8 +15328,8 @@ pub mod pallet {
             if !ValidatorStates::<T>::contains_key(validator) {
                 let current_epoch = Self::current_epoch();
                 let stake_score = stake.saturated_into::<u64>();
-                
-                let inference_score = poi::Pallet::<T>::get_score(validator);
+
+                let inference_score = Self::inference_contribution(validator);
 
                 let pos_weight = if !PosWeight::<T>::exists() {
                     let weight = T::DefaultPosWeight::get();
@@ -13694,7 +15346,9 @@ pub mod pallet {
                     PoiWeight::<T>::get()
                 };
 
-                let mut final_score = (stake_score.saturating_mul(pos_weight) + inference_score.saturating_mul(poi_weight)) / T::PercentagePrecision::get() as u64;
+                let mut final_score = (stake_score.saturating_mul(pos_weight)
+                    + inference_score.saturating_mul(poi_weight))
+                    / T::PercentagePrecision::get() as u64;
                 if final_score > T::MaxValidatorScore::get() {
                     final_score = T::MaxValidatorScore::get();
                 }
@@ -13708,7 +15362,8 @@ pub mod pallet {
                     missed_blocks: 0,
                 };
 
-                let current_block = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+                let current_block =
+                    frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
                 let state = ValidatorState {
                     last_active_epoch: current_epoch,
                     current: initial_stats,
@@ -13728,7 +15383,9 @@ pub mod pallet {
             Ok(())
         }
 
-        fn on_leave_requested(validator: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+        fn on_leave_requested(
+            validator: &<T as frame_system::Config>::AccountId,
+        ) -> DispatchResult {
             let mut active_validators = ActiveValidators::<T>::get();
             if let Some(pos) = active_validators.iter().position(|v| v == validator) {
                 active_validators.remove(pos);
@@ -13764,42 +15421,64 @@ pub mod pallet {
             Ok(())
         }
 
-        fn on_stake_increased(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance) -> DispatchResult {
+        fn on_stake_increased(
+            validator: &<T as frame_system::Config>::AccountId,
+            _amount: <T as pallet::Config>::Balance,
+        ) -> DispatchResult {
             let new_total_stake = pos::Pallet::<T>::stake(validator);
             let new_stake_score = new_total_stake.saturated_into::<u64>();
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+            // The stake score write closes first. The final score then reads
+            // the stored record, so the outer write never overwrites it.
+            let known = ValidatorStates::<T>::mutate(validator, |maybe_state| {
                 if let Some(state) = maybe_state.as_mut() {
                     state.current.stake_score = new_stake_score;
-                    let _ = Self::update_final_score(validator);
+                    true
+                } else {
+                    false
                 }
-                Ok::<(), Error<T>>(())
-            })?;
+            });
+            if known {
+                let _ = Self::update_final_score(validator);
+            }
             Ok(())
         }
 
-        fn on_stake_decreased(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance) -> DispatchResult {
+        fn on_stake_decreased(
+            validator: &<T as frame_system::Config>::AccountId,
+            _amount: <T as pallet::Config>::Balance,
+        ) -> DispatchResult {
             let new_total_stake = pos::Pallet::<T>::stake(validator);
             let new_stake_score = new_total_stake.saturated_into::<u64>();
-            ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
+            // The stake score write closes first. The final score then reads
+            // the stored record, so the outer write never overwrites it.
+            let known = ValidatorStates::<T>::mutate(validator, |maybe_state| {
                 if let Some(state) = maybe_state.as_mut() {
                     state.current.stake_score = new_stake_score;
-                    let _ = Self::update_final_score(validator);
+                    true
+                } else {
+                    false
                 }
-                Ok::<(), Error<T>>(())
-            })?;
+            });
+            if known {
+                let _ = Self::update_final_score(validator);
+            }
             Ok(())
         }
 
-        fn on_slashed(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance, penalty: u64) -> DispatchResult {
+        fn on_slashed(
+            validator: &<T as frame_system::Config>::AccountId,
+            _amount: <T as pallet::Config>::Balance,
+            penalty: u64,
+        ) -> DispatchResult {
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.final_score = state.current.final_score.saturating_sub(penalty);
                 state.last_active_epoch = Self::current_epoch();
-                
+
                 let new_total_stake = pos::Pallet::<T>::stake(validator);
                 state.current.stake_score = new_total_stake.saturated_into::<u64>();
-                
-                if state.history.len() == state.history.capacity() {
+
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -13810,17 +15489,21 @@ pub mod pallet {
                     authored_blocks: state.current.authored_blocks,
                     missed_blocks: state.current.missed_blocks,
                 });
-                
+
                 if state.current.final_score < MinValidatorScoreOf::<T>::get() as u64 {
                     let _ = Self::eject_validator(validator, EjectionReason::ScoreBelowThreshold);
                 }
-                
+
                 Ok::<(), Error<T>>(())
             })?;
             Ok(())
         }
 
-        fn on_rewarded(validator: &<T as frame_system::Config>::AccountId, _amount: <T as pallet::Config>::Balance, boost: u64) -> DispatchResult {
+        fn on_rewarded(
+            validator: &<T as frame_system::Config>::AccountId,
+            _amount: <T as pallet::Config>::Balance,
+            boost: u64,
+        ) -> DispatchResult {
             ValidatorStates::<T>::try_mutate(validator, |maybe_state| {
                 let state = maybe_state.as_mut().ok_or(Error::<T>::ValidatorNotFound)?;
                 state.current.final_score = state.current.final_score.saturating_add(boost);
@@ -13828,11 +15511,11 @@ pub mod pallet {
                     state.current.final_score = T::MaxValidatorScore::get();
                 }
                 state.last_active_epoch = Self::current_epoch();
-                
+
                 let new_total_stake = pos::Pallet::<T>::stake(validator);
                 state.current.stake_score = new_total_stake.saturated_into::<u64>();
-                
-                if state.history.len() == state.history.capacity() {
+
+                if state.history.is_full() && !state.history.is_empty() {
                     state.history.remove(0);
                 }
                 let _ = state.history.try_push(EpochStats {
@@ -13843,14 +15526,16 @@ pub mod pallet {
                     authored_blocks: state.current.authored_blocks,
                     missed_blocks: state.current.missed_blocks,
                 });
-                
+
                 Ok::<(), Error<T>>(())
             })?;
             Ok(())
         }
 
         fn get_validator_score(validator: &<T as frame_system::Config>::AccountId) -> u64 {
-            ValidatorStates::<T>::get(validator).map(|s| s.current.final_score).unwrap_or(0)
+            ValidatorStates::<T>::get(validator)
+                .map(|s| s.current.final_score)
+                .unwrap_or(0)
         }
 
         fn get_active_validators() -> Vec<<T as frame_system::Config>::AccountId> {
@@ -13868,28 +15553,38 @@ pub use pallet::*;
 // --- Score/Ejection/Inference Reason Enums --- //
 
 /// Reasons for boosting a validator's score as a reward for positive actions.
-/// 
+///
 /// Score boosts incentivize beneficial network behavior and recognize validators
 /// who contribute positively to network security, performance, and reliability.
 /// Different boost reasons may have different score impact amounts.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(
+    Encode,
+    Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    RuntimeDebug,
+    TypeInfo,
+    MaxEncodedLen,
+    frame_support::__private::codec::DecodeWithMemTracking,
+)]
 pub enum ScoreBoostReason {
     /// Validator successfully authored a valid block when selected.
-    /// 
+    ///
     /// This boost rewards validators for consistent availability and successful
     /// block production. It encourages validators to maintain uptime and respond
     /// promptly when selected as block authors.
     ValidBlockAuthored,
 
     /// Validator submitted high-quality inference results.
-    /// 
+    ///
     /// This boost rewards validators for accurate AI/ML inference performance,
     /// encouraging investment in quality inference infrastructure and algorithms.
     /// The boost amount may vary based on inference confidence scores.
     ValidInference,
 
     /// Manual score boost applied through governance or administrative action.
-    /// 
+    ///
     /// This boost allows for discretionary rewards for exceptional service,
     /// community contributions, or other valuable activities that benefit
     /// the network but may not be automatically detected.
@@ -13897,94 +15592,110 @@ pub enum ScoreBoostReason {
 }
 
 /// Reasons for ejecting validators from the network.
-/// 
+///
 /// Validator ejection is a serious disciplinary action that removes validators
 /// from the network for failing to meet minimum standards or engaging in
 /// harmful behavior. Ejected validators must typically wait for cooldown
 /// periods and demonstrate improvement before rejoining.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(
+    Encode,
+    Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    RuntimeDebug,
+    TypeInfo,
+    MaxEncodedLen,
+    frame_support::__private::codec::DecodeWithMemTracking,
+)]
 pub enum EjectionReason {
     /// Validator's performance score fell below the minimum threshold.
-    /// 
+    ///
     /// This ejection occurs when validators consistently underperform and
     /// their scores drop below the network's minimum acceptable level.
     /// It protects network quality by removing poor performers.
     ScoreBelowThreshold,
 
     /// Validator reached the maximum allowed slashing count.
-    /// 
+    ///
     /// This ejection occurs when validators accumulate too many slashing
     /// events, indicating chronic misbehavior or poor performance that
     /// poses a risk to network security and reliability.
     MaxSlashingReached,
 
     /// Manual ejection through governance proposal or administrative action.
-    /// 
+    ///
     /// This ejection allows for discretionary removal of validators for
     /// reasons that may not be automatically detected, such as off-chain
     /// misbehavior or community violations.
     ManualEjection,
 
     /// Ejection due to validator set size exceeding maximum limits.
-    /// 
+    ///
     /// This ejection occurs when the validator set grows beyond the maximum
     /// allowed size and lower-performing validators are removed to maintain
     /// network performance and consensus efficiency.
     ExcessValidators,
 
     /// Ejection due to repeated misbehavior reports.
-    /// 
+    ///
     /// This ejection occurs when validators accumulate multiple misbehavior
     /// reports, indicating a pattern of harmful or malicious behavior that
     /// threatens network security and integrity.
     RepeatedMisbehavior,
 
     /// Validator's stake fell below the minimum required amount.
-    /// 
+    ///
     /// This ejection occurs when validators can no longer maintain the
     /// minimum stake requirement, either due to slashing, withdrawals,
     /// or changes in minimum stake requirements.
     InsufficientStake,
 }
 
-
-/// Reasons for slashing validator stakes as punishment for violations.
-/// 
-/// Slashing is a critical economic penalty that reduces validator stakes
-/// to maintain network security and incentive alignment. Different slash
-/// reasons may have different penalty amounts and recovery requirements.
-
-
+// Reasons for slashing validator stakes as punishment for violations.
+// Slashing is a critical economic penalty that reduces validator stakes
+// to maintain network security and incentive alignment. Different slash
+// reasons may have different penalty amounts and recovery requirements.
 /// Current status of a validator in the network lifecycle.
-/// 
+///
 /// Validator status determines what actions are available to the validator
 /// and how they are treated by the consensus mechanism. Status changes
 /// are tracked through events and affect validator participation rights.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen, frame_support::__private::codec::DecodeWithMemTracking)]
+#[derive(
+    Encode,
+    Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    RuntimeDebug,
+    TypeInfo,
+    MaxEncodedLen,
+    frame_support::__private::codec::DecodeWithMemTracking,
+)]
 pub enum ValidatorStatus {
     /// Validator is active and participating in consensus operations.
-    /// 
+    ///
     /// Active validators can:
     /// - Produce blocks when selected as authors
     /// - Participate in governance voting
     /// - Receive rewards for good performance
     /// - Submit inference results
-    /// 
+    ///
     /// This is the normal operational status for validators in good standing.
     Active,
 
     /// Validator is registered but not currently participating in consensus.
-    /// 
+    ///
     /// Inactive validators may be temporarily excluded due to:
     /// - Scores below the minimum threshold
     /// - Voluntary temporary withdrawal
     /// - System maintenance or upgrades
-    /// 
+    ///
     /// Inactive validators can typically return to active status by improving performance.
     Inactive,
 
     /// Validator has requested to leave and is in the mandatory cooldown period.
-    /// 
+    ///
     /// Leaving validators must continue participating during the cooldown period
     /// but will be removed from the network once the cooldown expires. During
     /// this period, their stake remains reserved and they cannot cancel the
@@ -13992,15 +15703,13 @@ pub enum ValidatorStatus {
     Leaving,
 
     /// Validator has been ejected due to poor performance or misbehavior.
-    /// 
+    ///
     /// Ejected validators are removed from all validator sets and cannot
     /// participate in consensus. They typically face additional cooldown
     /// periods before being allowed to rejoin and may need to demonstrate
     /// improved capabilities or resolve the issues that led to ejection.
     Ejected,
 }
-
-
 
 // --- Tests Module --- //
 #[cfg(test)]
@@ -14010,3 +15719,38 @@ mod tests;
 mod mock;
 
 // Removed redundant weight verification module
+
+/// The Custody Engine reports into the Standing Engine through this
+/// implementation. The framework pallet holds the Trust Score, so the custody
+/// share and the proven faults land here.
+impl<T: Config> pallet_cerulea_custody::CustodyStanding<T::AccountId> for Pallet<T> {
+    fn report_custody_share(validator: &T::AccountId, share: u32) {
+        CustodyShares::<T>::insert(validator, share);
+        Self::deposit_event(Event::CustodyShareRecorded {
+            validator: validator.clone(),
+            share,
+        });
+    }
+
+    fn report_custody_fault(validator: &T::AccountId, faults: u32) {
+        CustodyFaults::<T>::insert(validator, faults);
+        Self::deposit_event(Event::CustodyFaultRecorded {
+            validator: validator.clone(),
+            faults,
+        });
+    }
+}
+
+impl<T: Config> Pallet<T> {
+    /// The custody share of one validator, in parts per million.
+    ///
+    /// A validator that has settled no challenge carries the starting share.
+    pub fn custody_share(validator: &T::AccountId) -> u32 {
+        CustodyShares::<T>::get(validator).unwrap_or(pallet_cerulea_custody::score::STARTING_SHARE)
+    }
+
+    /// The proven custody faults of one validator.
+    pub fn custody_faults(validator: &T::AccountId) -> u32 {
+        CustodyFaults::<T>::get(validator)
+    }
+}

@@ -1,116 +1,100 @@
-# Test Baseline
+# Test baseline
 
-This document records the honest, as-observed test baseline for the Cerulea Rust
-workspace. It is a record of what currently passes and fails. Failing tests are
-not fixed and not deleted as part of this task; a failing test is information.
+This document records the observed test baseline for the Cerulea chain
+workspace. Every figure below comes from a real run. A failing test stays
+failing here. A failing test is information about code that the Dynamic
+Consensus Framework work replaces.
 
-## Toolchain
+## How the run happened
 
-```
-$ rustc --version
-rustc 1.85.1 (4eb161250 2025-03-15)
+1. **Toolchain.** Rust 1.85, pinned in `rust-toolchain.toml`.
+2. **Profile.** Release for every command. The debug profile shares no cache.
+3. **Jobs.** Four parallel jobs. `--all-targets` never runs.
+4. **Command.** `cargo test --release -p <crate> --no-fail-fast`, one crate at a time.
+5. **Date.** 2026-09-19, after the framework wiring of task P1-046.
 
-$ cargo --version
-cargo 1.85.1 (d73d2caf9 2024-12-31)
-```
+## Totals
 
-Build environment notes:
-- `.cargo/config.toml` pins `[build] jobs = 1`. To fit this baseline run inside a
-  reasonable wall clock, `CARGO_BUILD_JOBS=8` was set in the environment for
-  every command below (host has 12 cores, 47 GB RAM). This does not modify any
-  tracked file.
-- `CARGO_TARGET_DIR=/opt/cerulea/cargo-target` (pre-existing shared cache).
-- All commands were run with `--release`. `--all-targets` was never used.
+The engine packages report 567 passing and 80 failing tests.
 
-## Workspace packages
+## Per package
 
-From the root `Cargo.toml`, the workspace has these members (directory -> crate name):
+| Package | Passed | Failed | Ignored | Compiles |
+|---|---|---|---|---|
+| `cerulea-primitives` | 11 | 0 | 0 | yes |
+| `cerulea-consensus` | 316 | 0 | 0 | yes |
+| `pallet-cerulea-custody` | 67 | 0 | 0 | yes |
+| `pallet-cerulea-dcf` | 370 | 56 | 0 | yes |
+| `pallet-cerulea-dvf` | 61 | 19 | 0 | yes |
+| `pallet-cerulea-poi` | 58 | 3 | 0 | yes |
+| `pallet-cerulea-pos` | 28 | 2 | 0 | yes |
+| `cerulea-blueprint` | 192 | 0 | 0 | yes |
+| `cerulea-tools` | 3 | 0 | 0 | yes |
 
-- `cerulea-node` -> `cerulea-node`
-- `cerulea-runtime` -> `cerulea-runtime`
-- `cerulea-pallets/pallet-cerulea-poi` -> `pallet-cerulea-poi`
-- `cerulea-pallets/pallet-cerulea-pos` -> `pallet-cerulea-pos`
-- `cerulea-pallets/pallet-cerulea-dcf` -> `pallet-cerulea-dcf`
-- `cerulea-pallets/pallet-todo` -> `pallet-todo`
-- `tools` -> `cerulea-tools`
-- `cerulea-node/src/cerulea-consensus` -> `cerulea-consensus`
-- `cerulea-pallets/pallet-cerulea-dvf` -> `pallet-cerulea-dvf`
+## What moved since the previous record
 
-## Commands used
+1. **A shared primitives crate arrived.** `cerulea-primitives` carries the slot
+   seed derivation, the draw arithmetic and the committee ranking. The node and
+   the runtime read the same code. The crate reports 11 passing tests.
+2. **The validator registry pallet gained the key records.** Each validator
+   registers a draw key and a seal key with a proof of possession from each
+   key. Each validator publishes one draw per epoch and the chain checks the
+   proof. The pallet moved from 13 passing tests to 61.
+3. **The framework pallet finality marker left.** `LastFinalizedBlock`, its two
+   companions, the four interface calls, the writers, the readers and the
+   bridge trait are gone. Every test that asserted on the marker now asserts on
+   the engine that took over the same responsibility. The Assurance Engine sets
+   the share each transaction class needs. The Standing Engine sets the Trust
+   Score that weight is measured in.
+4. **The custody pallet reports a clean suite.** 67 passing tests and no
+   failures.
 
-Test binaries were compiled first, in the background, to avoid a single foreground
-call exceeding tool time limits:
+## Failing tests by name
 
-```
-CARGO_BUILD_JOBS=8 cargo test --release --workspace --no-run --no-fail-fast
-```
+### pallet-cerulea-pos
 
-Then the suite was run per package so every package's results are isolated and no
-single failure short-circuits the rest of the workspace:
+- `tests::tests::test_get_active_validators`
+- `tests::tests::test_minimum_active_validators_constraint`
 
-```
-CARGO_BUILD_JOBS=8 cargo test --release -p <crate-name> --no-fail-fast
-```
+### pallet-cerulea-poi
 
-## Results
+- `tests::tests::test_challenge_already_challenged`
+- `tests::tests::test_comprehensive_error_handling`
+- `tests::tests::test_self_challenge_prevention`
 
-Status: IN PROGRESS. This section is filled in per package as each run completes.
+### pallet-cerulea-dvf
 
-### pallet-cerulea-pos: COMPILE FAILURE (test target)
+Nineteen tests in the genesis and vote preservation suite. Each one asserts on
+the weight freeze path that predates the Trust Score composition. The list is
+unchanged from the previous record.
 
-`cargo test --release --workspace --no-run --no-fail-fast` failed to compile this
-package's test target with 159 errors, 1 warning. Representative errors:
+### pallet-cerulea-dcf
 
-```
-error[E0433]: failed to resolve: use of undeclared crate or module `pallet_balances`
-error[E0412]: cannot find type `Test` in this scope
-error[E0412]: cannot find type `RuntimeOrigin` in this scope
-error[E0412]: cannot find type `RuntimeCall` in this scope
-error[E0412]: cannot find type `RuntimeEvent` in this scope
-error[E0412]: cannot find type `PalletInfo` in this scope
-error[E0412]: cannot find type `System` in this scope
-error[E0412]: cannot find type `Balances` in this scope
-error[E0433]: failed to resolve: use of undeclared type `PalletCbcPos`
-error: could not compile `pallet-cerulea-pos` (lib test) due to 159 previous errors; 1 warning emitted
-```
+Fifty six tests across the stress, end to end, cross pallet, invariant and
+governance suites. Each one asserts on the retired scoring split, the retired
+governance proposal flow, or a stake score bound that the Trust Score
+composition replaced. The list is unchanged from the previous record apart from
+the marker tests, which are rewritten.
 
-The errors are concentrated in the test mock runtime (construct_runtime! output types
-such as `Test`, `RuntimeOrigin`, `RuntimeCall`, `RuntimeEvent`, `System`, `Balances`,
-`PalletCbcPos` are unresolved), indicating the pallet's `mock.rs` test scaffolding is
-out of sync with its `construct_runtime!` invocation or macro expansion.
+## The check that stops the mock drift defect returning
 
-No tests could run. Passed: 0. Failed: 0. Compile failure: yes.
+Each pallet mock ends with a compile-time contract block. The block names every
+trait the mock claims to satisfy and forces the compiler to prove each one. A
+trait that gains an item stops the test target from compiling at that block,
+with the trait named in the error. The block runs on every build of the test
+target, so every commit gate covers it.
 
-### pallet-cerulea-poi: COMPILE FAILURE (test target)
+## The engine tests
 
-`cargo test --release --workspace --no-run --no-fail-fast` failed to compile this
-package's test target with 3 errors:
+Three integration tests run the engines across an in-process network of
+validator nodes.
 
-```
-error[E0046]: not all trait items implemented, missing: `get_active_validators`
-  --> cerulea-pallets/pallet-cerulea-poi/src/mock.rs:68:1
-  impl pallet_cerulea_poi::PosInterface<u64> for DummyPosInterface { ... }
+| Test | What it asserts |
+|---|---|
+| `engine_agreement_test` | Sealed authorship across an epoch boundary, a rejected forgery and one committee on every node |
+| `engine_partition_test` | Commitment under a one third outage, a safe halt above it and recovery on return |
+| `engine_determinism_test` | Identical per-domain roots and identical combined roots from identical input |
 
-error[E0046]: not all trait items implemented, missing: `InferenceBoostLow`,
-`InferenceBoostMedium`, `InferenceBoostHigh`, `InferencePenaltyLow`,
-`InferencePenaltyMedium`, `InferencePenaltyHigh`, `InferenceConfidenceThresholdLow`,
-`InferenceConfidenceThresholdHigh`, `MaxValidatorScore`, `PercentagePrecision`,
-`OffchainWorkerInterval`, `MaxValidatorIterationWeight`, `MaxLoopIterations`
-  --> cerulea-pallets/pallet-cerulea-poi/src/mock.rs:73:1
-  impl pallet_cerulea_poi::Config for Test { ... }
-
-error[E0046]: not all trait items implemented, missing: `eject_validator`,
-`update_final_score`
-  --> cerulea-pallets/pallet-cerulea-poi/src/mock.rs:87:1
-  impl pallet_cerulea_poi::DcfInterface<u64> for MockDcfInterface { ... }
-
-error: could not compile `pallet-cerulea-poi` (lib test) due to 3 previous errors
-```
-
-The mock trait implementations in `mock.rs` (`DummyPosInterface`, `Test`'s
-`pallet_cerulea_poi::Config`, `MockDcfInterface`) no longer satisfy the trait
-definitions in `src/lib.rs`. The trait surface has grown (new associated types and
-methods) without the mocks being updated to match.
-
-No tests could run. Passed: 0. Failed: 0. Compile failure: yes.
-
+The harness lives at `cerulea-node/src/test_harness.rs` behind the
+`test-harness` feature. The harness runs the real engines. It supplies a
+keystore for each validator, a message path between nodes and a clock.

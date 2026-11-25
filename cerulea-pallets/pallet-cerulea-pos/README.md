@@ -1,19 +1,19 @@
 # pallet-cerulea-pos
 
-The CBC PoS (Proof of Stake) pallet implements the PoS consensus mechanism for the CBC blockchain, managing validator registration, scoring, staking, and slashing.
+The CBC PoS (stake) pallet implements the PoS consensus mechanism for the CBC blockchain, managing validator registration, scoring, staking, and slashing.
 
 ## Overview
 
-The PoS pallet provides the Proof of Stake functionality for Cerulea, handling validator management, stake-based scoring, and slashing mechanisms. It integrates with the DCF pallet to provide the stake component of the hybrid consensus system.
+The PoS pallet provides the stake functionality for Cerulea, handling validator management, stake-based scoring, and slashing mechanisms. It integrates with the DCF pallet to provide the stake component of the hybrid consensus system.
 
 ## Key Features
 
 - **Validator Management**: Registration with maximum limits, active/inactive status tracking, and minimum stake requirements
 - **Score System**: Score submission with thresholds, dynamic adjustments, and per-epoch decay
 - **Stake Management**: Bonding and unbonding with minimum enforcement and stake-based selection
-- **Slashing Mechanism**: Configurable slashing counts, automatic removal, and event tracking
+- **Slashing Mechanism**: Adjustable slashing counts, automatic removal, and event tracking
 
-## Configuration
+## Settings
 
 ```rust
 #[pallet::config]
@@ -167,7 +167,7 @@ sp_api::decl_runtime_apis! {
 }
 ```
 
-## Genesis Configuration
+## Genesis Settings
 
 ```rust
 #[pallet::genesis_config]
@@ -216,7 +216,7 @@ cargo bench -p pallet-cerulea-pos
 
 The PoS pallet integrates with:
 
-- **Other Pallets**: PoI (Proof of Inference), DCF (Dynamic Consensus Framework), Balances
+- **Other Pallets**: PoI (inference), DCF (Dynamic Consensus Framework), Balances
 - **Runtime APIs**: Validator queries, Score queries, Stake queries, Slashing queries
 - **FRAME System**: Event system, Storage system, Weight system
 

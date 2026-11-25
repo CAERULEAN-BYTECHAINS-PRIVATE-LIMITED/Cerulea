@@ -4,8 +4,8 @@
 //! Provides benchmarks for the main extrinsics: submit_inference and challenge_inference.
 
 use super::*;
-use frame_benchmarking::v2::*;
 use frame_benchmarking::account;
+use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 use sp_std::prelude::*;
 
@@ -45,7 +45,7 @@ mod benchmarks {
 
         // Pre-insert an inference result for the challenged account.
         InferenceResults::<T>::insert(&challenged, (result, 0));
-        
+
         let origin = RawOrigin::Signed(caller.clone());
 
         #[extrinsic_call]
@@ -83,7 +83,7 @@ mod benchmarks {
     fn epoch_cleanup() {
         let validator1: T::AccountId = create_validator::<T>(0);
         let validator2: T::AccountId = create_validator::<T>(1);
-        
+
         // Setup old inference results and challenges
         InferenceResults::<T>::insert(&validator1, (42, 0));
         InferenceResults::<T>::insert(&validator2, (43, 0));
@@ -94,14 +94,14 @@ mod benchmarks {
             // Simulate epoch cleanup
             let current_epoch = 10u32;
             let max_age = T::MaxInferenceAge::get();
-            
+
             // Clean up old inferences
             InferenceResults::<T>::iter().for_each(|(validator, (_, epoch))| {
                 if current_epoch.saturating_sub(epoch) > max_age {
                     InferenceResults::<T>::remove(&validator);
                 }
             });
-            
+
             // Clean up old challenges
             Challenges::<T>::iter().for_each(|(challenger, (_, _, epoch))| {
                 if current_epoch.saturating_sub(epoch) > T::ChallengeWindow::get() {
@@ -111,9 +111,5 @@ mod benchmarks {
         }
     }
 
-    impl_benchmark_test_suite!(
-        Pallet,
-        crate::mock::new_test_ext(),
-        crate::mock::Test
-    );
+    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
 }

@@ -147,7 +147,7 @@ cargo test --package cerulea-node -- --show-output
 
 ### Security Testing
 - CBC extensions flag enforcement
-- Rate limiting (configurable windows)
+- Rate limiting (adjustable windows)
 - Unsafe method controls
 - Invalid parameter handling
 

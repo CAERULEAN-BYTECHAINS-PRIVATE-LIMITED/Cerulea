@@ -16,7 +16,7 @@ The CBC system includes comprehensive testing across multiple layers:
 
 ### Pallet Tests
 
-#### DCF Pallet (`pallet-cerulea-dcf`)
+#### the framework pallet Pallet (`pallet-cerulea-dcf`)
 - **Location**: `cerulea-pallets/pallet-cerulea-dcf/src/`
 - **Files**:
   - `tests.rs` - Core functionality tests
@@ -26,19 +26,19 @@ The CBC system includes comprehensive testing across multiple layers:
   - `mock.rs` - Mock runtime for testing
   - `benchmarking.rs` - Performance benchmarks
 
-#### PoS Pallet (`pallet-cerulea-pos`)
+#### stake Pallet (`pallet-cerulea-pos`)
 - **Location**: `cerulea-pallets/pallet-cerulea-pos/src/`
 - **Files**:
-  - `tests.rs` - Proof-of-Stake functionality
+  - `tests.rs` - stake functionality
   - `mock.rs` - Mock runtime
-  - `benchmarking.rs` - PoS benchmarks
+  - `benchmarking.rs` - stake benchmarks
 
-#### PoI Pallet (`pallet-cerulea-poi`)
+#### inference Pallet (`pallet-cerulea-poi`)
 - **Location**: `cerulea-pallets/pallet-cerulea-poi/src/`
 - **Files**:
-  - `tests.rs` - Proof-of-Inference functionality
+  - `tests.rs` - inference functionality
   - `mock.rs` - Mock runtime
-  - `benchmarking.rs` - PoI benchmarks
+  - `benchmarking.rs` - inference benchmarks
 
 ### Consensus Tests
 
@@ -49,7 +49,7 @@ The CBC system includes comprehensive testing across multiple layers:
   - `metrics_test.rs` - Metrics system tests
   - `validator_set_test.rs` - Validator management tests
   - `epoch_manager_test.rs` - Epoch transition tests
-  - `dcf.rs` - DCF consensus tests (embedded)
+  - `dcf.rs` - the framework pallet consensus tests (embedded)
 
 ## Running Tests
 
@@ -60,13 +60,13 @@ cargo test
 clea
 ### Specific Pallet Tests
 ```bash
-# DCF pallet tests
+# the framework pallet pallet tests
 cargo test -p pallet-cerulea-dcf
 
-# PoS pallet tests
+# stake pallet tests
 cargo test -p pallet-cerulea-pos
 
-# PoI pallet tests
+# inference pallet tests
 cargo test -p pallet-cerulea-poi
 ```
 
@@ -87,13 +87,13 @@ cargo test performance
 
 ### Benchmarking
 ```bash
-# Run benchmarks for DCF pallet
+# Run benchmarks for the framework pallet pallet
 cargo test --features runtime-benchmarks -p pallet-cerulea-dcf
 
-# Run benchmarks for PoS pallet
+# Run benchmarks for stake pallet
 cargo test --features runtime-benchmarks -p pallet-cerulea-pos
 
-# Run benchmarks for PoI pallet
+# Run benchmarks for inference pallet
 cargo test --features runtime-benchmarks -p pallet-cerulea-poi
 ```
 
@@ -161,12 +161,12 @@ cargo test --features runtime-benchmarks -p pallet-cerulea-poi
 
 The testing infrastructure uses comprehensive mock runtimes that simulate the full CBC system:
 
-### DCF Mock Runtime
+### the framework pallet Mock Runtime
 - **File**: `pallet-cerulea-dcf/src/mock.rs`
 - **Features**:
-  - Full pallet configuration
-  - Mock PoS/PoI interfaces
-  - Genesis configuration
+  - Full pallet settings
+  - Mock stake/inference interfaces
+  - Genesis settings
   - Balance management
 
 ### Consensus Mock Runtime
@@ -178,10 +178,10 @@ The testing infrastructure uses comprehensive mock runtimes that simulate the fu
 
 ## Test Data and Scenarios
 
-### Genesis Configuration
+### Genesis Settings
 - 3-4 initial validators
 - Balanced stakes and scores
-- Proper consensus weights (60% PoS, 40% PoI)
+- Proper consensus weights (60% stake, 40% inference)
 
 ### Test Validators
 - Validator IDs: 1, 2, 3, 4
@@ -196,7 +196,7 @@ Tests include validators with different performance characteristics:
 
 ## Benchmarking
 
-### DCF Pallet Benchmarks
+### the framework pallet Pallet Benchmarks
 - `join_validators` - Validator joining process
 - `leave_validators` - Validator leaving process
 - `slash_validator` - Slashing operations
@@ -204,13 +204,13 @@ Tests include validators with different performance characteristics:
 - `epoch_transition` - Epoch changes
 - `distribute_rewards` - Reward distribution
 
-### PoS Pallet Benchmarks
+### stake Pallet Benchmarks
 - `register_validator` - Validator registration
 - `submit_score` - Score submission
-- `slash_validator` - PoS slashing
+- `slash_validator` - stake slashing
 - `boost_score` / `slash_score` - Score adjustments
 
-### PoI Pallet Benchmarks
+### inference Pallet Benchmarks
 - `submit_inference` - Inference submission
 - `challenge_inference` - Challenge mechanism
 - `resolve_challenge` - Challenge resolution
@@ -225,8 +225,8 @@ Tests include validators with different performance characteristics:
 - `setup_consensus_test()` - Full consensus test setup
 
 ### Mock Interfaces
-- `MockPosInterface` - PoS pallet simulation
-- `MockDcfInterface` - DCF pallet simulation
+- `MockPosInterface` - stake pallet simulation
+- `MockDcfInterface` - the framework pallet pallet simulation
 - `MockWeightInfo` - Weight calculation simulation
 
 ## Coverage Areas
@@ -301,7 +301,7 @@ Tests are automatically run on:
 ### Common Issues
 
 #### Test Failures
-1. **Check mock configuration** - Ensure all required traits are implemented
+1. **Check mock settings** - Ensure all required traits are implemented
 2. **Verify genesis state** - Make sure initial state is correct
 3. **Check balance setup** - Ensure validators have sufficient funds
 4. **Review error messages** - Use assert_noop! to check expected errors
@@ -313,7 +313,7 @@ Tests are automatically run on:
 4. **Parallel execution** - Be aware of test isolation requirements
 
 #### Mock Runtime Issues
-1. **Configuration consistency** - Ensure all pallets are properly configured
+1. **Settings consistency** - Ensure all pallets are properly held
 2. **Trait implementations** - Verify all required traits are implemented
 3. **Genesis compatibility** - Check genesis config matches runtime expectations
 

@@ -1,7 +1,7 @@
 use crate as pallet_cerulea_pos;
 use frame_support::{
     parameter_types,
-    traits::{ConstU32, ConstU64, ConstU128},
+    traits::{ConstU32, ConstU64},
 };
 use frame_system as system;
 use sp_core::H256;
@@ -12,12 +12,13 @@ use sp_runtime::{
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// Configure a mock runtime to test the pallet.
+// The mock runtime below carries the system pallet, the balances pallet
+// and the stake pallet. Tests run against this runtime.
 frame_support::construct_runtime!(
     pub enum Test {
         System: frame_system,
         Balances: pallet_balances,
-        PalletCbcPos: pallet_cerulea_pos,
+        PalletCeruleaPos: pallet_cerulea_pos,
     }
 );
 
@@ -100,25 +101,103 @@ impl pallet_cerulea_pos::Config for Test {
     type MaxRewardBoost = ConstU64<20>;
     type HighPerformanceScore = ConstU64<80>;
     type TopPerformerPercentage = ConstU32<20>;
-    type ValidatorHandler = ();
+    type ValidatorHandler = TestAdmission;
 }
 
-// Build genesis storage according to the mock runtime.
+/// The key the mock Admission Engine writes its active set under.
+const ADMITTED_KEY: &[u8] = b"cerulea/test/admission/active";
+
+/// A stand-in for the Admission Engine inside this mock runtime.
+///
+/// The Admission Engine governs entry to and exit from the validator set. The
+/// stake pallet holds the stake and the registration record. The stake pallet
+/// reads the active set from the engine through this handler. The stand-in
+/// keeps the same contract, so a test reads real delegation rather than an
+/// empty answer.
+pub struct TestAdmission;
+
+impl TestAdmission {
+    /// Read the admitted set.
+    pub fn admitted() -> Vec<u64> {
+        frame_support::storage::unhashed::get::<Vec<u64>>(ADMITTED_KEY).unwrap_or_default()
+    }
+
+    fn write(set: Vec<u64>) {
+        frame_support::storage::unhashed::put(ADMITTED_KEY, &set);
+    }
+}
+
+impl crate::ValidatorHandler<u64, u64> for TestAdmission {
+    fn on_joined(validator: &u64, _stake: u64) -> sp_runtime::DispatchResult {
+        let mut set = Self::admitted();
+        if !set.contains(validator) {
+            set.push(*validator);
+            Self::write(set);
+        }
+        Ok(())
+    }
+
+    fn on_leave_requested(_validator: &u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_left(validator: &u64) -> sp_runtime::DispatchResult {
+        let mut set = Self::admitted();
+        set.retain(|held| held != validator);
+        Self::write(set);
+        Ok(())
+    }
+
+    fn on_stake_increased(_validator: &u64, _amount: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_stake_decreased(_validator: &u64, _amount: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_slashed(_validator: &u64, _amount: u64, _penalty: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn on_rewarded(_validator: &u64, _amount: u64, _boost: u64) -> sp_runtime::DispatchResult {
+        Ok(())
+    }
+
+    fn get_validator_score(validator: &u64) -> u64 {
+        crate::ValidatorScores::<Test>::get(validator).unwrap_or(0) as u64
+    }
+
+    fn get_active_validators() -> Vec<u64> {
+        Self::admitted()
+    }
+}
+
+// Build genesis storage for the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut storage = system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (1, 10000),
-            (2, 10000),
-            (3, 10000),
-        ],
+        balances: vec![(1, 10000), (2, 10000), (3, 10000)],
         dev_accounts: None,
     }
     .assimilate_storage(&mut storage)
     .unwrap();
 
     storage.into()
-} 
+}
+
+// Compile-time contract check.
+// The block below names every trait the mock runtime claims to satisfy.
+// A trait that gains an item stops this crate from compiling here first, so a
+// mock can never drift behind its trait again. The check runs on every build
+// of the test target, which every commit gate runs.
+const _: fn() = || {
+    fn settings_hold<T: crate::Config>() {}
+    settings_hold::<Test>();
+
+    fn validator_handler_holds<T: crate::ValidatorHandler<u64, u64>>() {}
+    validator_handler_holds::<<Test as crate::Config>::ValidatorHandler>();
+};

@@ -1,20 +1,19 @@
 //! Common types used throughout the consensus engine
-//! 
+//!
 //! This module defines the core types used in the consensus implementation.
 
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_runtime::traits::Block as BlockTrait;
+use sp_core::ed25519::Public;
 use sp_runtime::generic::{Block, Header, UncheckedExtrinsic};
 use sp_runtime::traits::BlakeTwo256;
-use sp_core::ed25519::Public;
+use sp_runtime::traits::Block as BlockTrait;
 use std::default::Default;
-
 
 /// Block type alias for the consensus engine
 pub type BlockT = Block<Header<u32, BlakeTwo256>, UncheckedExtrinsic<Public, (), (), ()>>;
 
-/// Configuration for epoch management
+/// Policy for epoch management
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 pub struct EpochConfig {
     /// Number of slots per epoch
@@ -34,7 +33,7 @@ pub struct ValidatorInfo {
     pub account_id: Public,
     /// Current stake amount
     pub stake: u128,
-    /// Proof of Inference score
+    /// Contribution score
     pub performance_score: u32,
     /// Number of blocks produced
     pub blocks_produced: u32,
@@ -138,7 +137,13 @@ pub struct ValidatorMetrics {
 
 impl ValidatorMetrics {
     /// Update validator score with new metrics
-    pub fn update_validator_score(&mut self, _author: Public, _stake_weight: u32, _inference_weight: u32, final_score: u32) {
+    pub fn update_validator_score(
+        &mut self,
+        _author: Public,
+        _stake_weight: u32,
+        _inference_weight: u32,
+        final_score: u32,
+    ) {
         self.blocks_produced = self.blocks_produced.saturating_add(1);
         self.blocks_validated = self.blocks_validated.saturating_add(1);
         self.uptime = final_score;

@@ -1,22 +1,22 @@
 //! Benchmarking setup for pallet-cerulea-dcf
-//! 
+//!
 //! This module provides comprehensive benchmarks for all DCF operations
 //! to measure performance characteristics and optimize for production use.
 
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use frame_benchmarking::v2::*;
+use crate::{Config, Pallet as DcfPallet, ProposalAction};
 use frame_benchmarking::account;
+use frame_benchmarking::v2::*;
 use frame_support::BoundedVec;
 use frame_system::RawOrigin;
 use sp_std::vec;
-use crate::{Pallet as DcfPallet, Config, ProposalAction};
 
 /// Helper function to create a validator account with initial state
 fn create_validator<T: Config>(id: u32) -> T::AccountId {
     let validator: T::AccountId = account("validator", id, 0);
-    
+
     // Create validator state
     let validator_state = ValidatorState {
         last_active_epoch: 0,
@@ -37,7 +37,7 @@ fn create_validator<T: Config>(id: u32) -> T::AccountId {
         name: None,
         trust_score: 0,
     };
-    
+
     ValidatorStates::<T>::insert(&validator, validator_state);
     validator
 }
@@ -48,13 +48,13 @@ fn setup_validators<T: Config>(count: u32) -> Vec<T::AccountId> {
     for i in 0..count {
         validators.push(create_validator::<T>(i));
     }
-    
+
     // Add to validator set
-    let bounded_validators = BoundedVec::try_from(validators.clone())
-        .expect("Too many validators for benchmarking");
+    let bounded_validators =
+        BoundedVec::try_from(validators.clone()).expect("Too many validators for benchmarking");
     ValidatorSet::<T>::put(bounded_validators.clone());
     ActiveValidators::<T>::put(bounded_validators);
-    
+
     validators
 }
 
@@ -183,7 +183,10 @@ mod benchmarks {
         #[extrinsic_call]
         increase_validator_stake(origin, additional_stake);
 
-        assert_eq!(ValidatorStake::<T>::get(&validator), min_stake + additional_stake);
+        assert_eq!(
+            ValidatorStake::<T>::get(&validator),
+            min_stake + additional_stake
+        );
     }
 
     /// Benchmark decrease_validator_stake call
@@ -209,7 +212,10 @@ mod benchmarks {
         #[extrinsic_call]
         decrease_validator_stake(origin, decrease_amount);
 
-        assert_eq!(ValidatorStake::<T>::get(&validator), total_stake - decrease_amount);
+        assert_eq!(
+            ValidatorStake::<T>::get(&validator),
+            total_stake - decrease_amount
+        );
     }
 
     /// Benchmark report_validator_misbehavior call
@@ -324,16 +330,16 @@ mod benchmarks {
         let validators = setup_validators::<T>(5);
         let proposer = &validators[0];
         let target = &validators[1];
-        
+
         GovernanceModeEnabled::<T>::put(true);
-        
+
         // Create multiple approved proposals
         for i in 0..3 {
             let action = ProposalAction::Reward {
                 validator: target.clone(),
                 amount: (1000 * (i + 1)).into(),
             };
-            
+
             let proposal = GovernanceProposal {
                 proposer: proposer.clone(),
                 action,
@@ -341,10 +347,10 @@ mod benchmarks {
                 votes_for: 10,
                 votes_against: 0,
             };
-            
+
             Proposals::<T>::insert(i, proposal);
         }
-        
+
         let origin = RawOrigin::Root;
 
         #[block]
@@ -367,7 +373,7 @@ mod benchmarks {
     fn epoch_transition() {
         let validators = setup_validators::<T>(10);
         let epoch_length = T::EpochLength::get();
-        
+
         // Setup epoch config
         let epoch_config = EpochConfig {
             blocks_per_epoch: epoch_length,
@@ -375,7 +381,7 @@ mod benchmarks {
             max_validators: 100,
         };
         EpochConfigStorage::<T>::put(epoch_config);
-        
+
         // Setup validator states and stakes
         let min_stake = <T as Config>::MinStake::get();
         for validator in &validators {
@@ -383,7 +389,7 @@ mod benchmarks {
             let _ = T::Currency::reserve(validator, min_stake);
             ValidatorStake::<T>::insert(validator, min_stake);
         }
-        
+
         // Add some pending actions
         for (i, validator) in validators.iter().enumerate() {
             if i < 3 {
@@ -392,7 +398,7 @@ mod benchmarks {
                 PendingValidatorActions::<T>::insert(validator, ValidatorAction::Leave);
             }
         }
-        
+
         let initial_epoch = CurrentEpoch::<T>::get();
         let epoch_boundary_block = (initial_epoch + 1) * epoch_length + 1;
         frame_system::Pallet::<T>::set_block_number(epoch_boundary_block.into());
@@ -419,7 +425,16 @@ mod benchmarks {
         let location = Some(b"Test Location".to_vec());
 
         #[extrinsic_call]
-        set_validator_metadata(origin, name, website, contact, description, location, None, None);
+        set_validator_metadata(
+            origin,
+            name,
+            website,
+            contact,
+            description,
+            location,
+            None,
+            None,
+        );
 
         // Verify metadata was set
         assert!(ValidatorMetadata::<T>::contains_key(&validator));

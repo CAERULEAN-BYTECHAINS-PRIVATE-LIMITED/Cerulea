@@ -1,0 +1,77 @@
+{
+  "network": "polkadot",
+  "slug": "polkadot-local",
+  "label": "Polkadot local development node polkadot 1.24.2-72284b37a23",
+  "endpoint": "http://127.0.0.1:19945",
+  "observedAt": "2026-09-30T05:06:02.277Z",
+  "height": 2,
+  "hash": "0x9a87c14540f4041bc4f8d21521bb6a182613fedb386f7d8e0cae29475bc7ef49",
+  "timestamp": "2026-09-30T05:06:02.303Z",
+  "anchor": "The authority set of the development chain and its settling votes for the block that holds the message.",
+  "inclusion": "A storage read proof from the header state root to the message key of the bridge outbox, whose value is the message commitment.",
+  "checks": [
+    "The node program reports polkadot 1.24.2-72284b37a23.",
+    "The rebuilt header bytes hash to the block the justification settles.",
+    "The storage value under the message key equals the commitment of the envelope.",
+    "The outbound message sits settled in the outbox at head 2."
+  ],
+  "outbound": {
+    "sent": true,
+    "reference": "0x8fd48a4d420d431df1bc35ae0267c7a0779baa5d9e0a90717d05eea5e035f0dd",
+    "detail": "The local node took delivery of the reply by holding its commitment in the outbox under settlement.",
+    "faucet": "The local development chain funds its own authority at its first block.",
+    "command": "CERULEA_BRIDGE_LIVE=1 pnpm vitest run test/bridge/live.test.ts"
+  },
+  "bundle": {
+    "envelope": {
+      "deployment": "0x2121212121212121212121212121212121212121212121212121212121212121",
+      "endpoint": "polkadot",
+      "source": "polkadot",
+      "destination": "cerulea",
+      "party": "0xabababababababababababababababababababab",
+      "nonce": 0,
+      "payload": "0x636572756c6561206c6f63616c20706f6c6b61646f74206e6f6465",
+      "class": "routine",
+      "expiryMillis": 1790831070192
+    },
+    "parameters": {
+      "authorities": [
+        {
+          "key": "0x88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee",
+          "scheme": "ed25519",
+          "weight": 1
+        }
+      ],
+      "setId": 0,
+      "checkpoint": {
+        "height": 1,
+        "hash": "0x679a787422579b85451ae3e329143f315495fcaf206802acb5d49347bb182401"
+      },
+      "storageKey": "0x636572756c65612e6272696467652e6d65737361676573"
+    },
+    "proof": {
+      "header": "0x679a787422579b85451ae3e329143f315495fcaf206802acb5d49347bb182401089f88c59e6f5c4fd5595f259722ffae7c9ecfa25df472d01f1617a2152fc777a9b8280e8925e634530208363d9e9d674c0b1ebb83b94cd7287e2fda09beaea8010c0642414245b50103000000006b19ca1100000000680d68e012365642b0cd39f732bda5abd7ef68f1548dfca910017a755f8eab2839e6d7355cd09a538b23e4f6510ccb799dd032e7c27e8b23684c753798a8f00b6c2213e56f8a277eaa6710d69239f1b62ecc9d80a500a669bcf220889f79cd0304424545468403c24f120ef6fdfc9cbfda219c7c4f9c39ea4b93745fb3a71a27b15cf4fbea3a9705424142450101069433202c87053ef20e4701a2b14434a70068ad7b0f19d928ed64c8c61ba06f9ff00db846830afaf538e4bc7bb18ac1a2d44f082e9335f2cbdbe6b237aa9a84",
+      "round": 6,
+      "setId": 0,
+      "signatures": [
+        {
+          "signer": 0,
+          "signature": "0xb733a3b5fbdc00319b97091f0c15a0f35a3e9ff575a7dcdb41c3fdb2815a8c38e768c560d00bed6496dcb15dc247ec972c69a5ab7b5a9dd45c1d001c882ad909"
+        }
+      ],
+      "nodes": [
+        "0x7f4c0572756c65612e6272696467652e6d6573736167657393d5091bf309c880dd262076f3f9133157bdc66153b7454127defa75c7c5a7e9ade2ea9902b57580042e473f6bee1fdf8061dd419b467ed10f19045c5f9fcbe3b00cb6a1a60c9b2c093fbced2d2269b958",
+        "0x80408080a4be0e129c91731cc9bb7bcfa90bc2161f01b90c5aa8d50ec7a6065374c3a9658078e4d44e9311b5bb579bd4ef3fb00503ba9ed9f30ba56d0d36cf60dbcb8c9390",
+        "0x8088348040e241b49d4beb8ebbbac75135522fc888a71320269eaf4c0bfe20920b2dc8bd80a7503c09f2379bfd9e22f7f111b0fd0165f9ac4f25983d72b95a8ce0534b80dc8007fce94d98a0b496b1aea95bfc79d220263e3a5c1eb0a3ddb2e4593707e512ce801b7c68acb058b3ee746c68b78eb1df4d44c980ea51eff990e081aeb5edb0b60780d03a137efa8979b33767407cea43e871038cbeb9d25942d957a209cbbb33e67d",
+        "0x80ffff802d84ab78c34ac5363ead58c883115165d379ef05513149718b8cb8087722d75180a8c3ab10876ab374ecc90e3210707b6099931e96cc0857023c1437b520603c1480b77a69c23775dc817c4ea0e3aff30881413924c4b8b8e90776c8daafccaefc6480f38fe2a3608b6fcb2833381ee530bac41b109199bc064e8ef890d41b26c873fa8022d97d2ec69592acf69ed49dd208b0159f5852771c3763320795c393b04bd67c809ee239b55966b497a38bdd86578901e77121d6c06323fbac36ec2027dea909dd809abd30813b3144cea329e91fd4399af9a74d744e5c903dd2e8e059f90ca084bd802332f7735a5de0977370fc9393f0bc3e940a1b4b0fa1fbc36797abb4f4afbc6380cbdd779da82503ce83e484e40d7f3506b609ada6d502ee6dec4f312e8a585df68024ee5998898fff6e173304583f22571061beadb2ba071892147bfd4f3093e67a8030d6a8e32d3d78985ef38a2624796ad782042e37c81b75252394115d88053d0e803bab819e7989e2eeac4f1f286127475e001698202fe46c4d622d73e6d9fb0e4e8021a57da1785192021e1cd070be567aab8173b9aa3535e9f98b704a37b18d9c7f802b9441642e4f1700352608b26427ac6ce341d8944506246a65f7170c2d55e92c80f148f03e3f3f97425187440506c377cc86a4e65145a26a4b8610a08d04cf75a480b4276c5234500e06843db59b93e63800efc71b516473bfd8e32b96a7156a1baf"
+      ],
+      "value": "0x61dd419b467ed10f19045c5f9fcbe3b00cb6a1a60c9b2c093fbced2d2269b958"
+    },
+    "messageId": "0x57bdc66153b7454127defa75c7c5a7e9ade2ea9902b57580042e473f6bee1fdf",
+    "commitment": "0x61dd419b467ed10f19045c5f9fcbe3b00cb6a1a60c9b2c093fbced2d2269b958",
+    "outbound": {
+      "messageId": "0xb497b227292c212cd2bbdea7a73ef800915012c708d24db4d9f1874411452616",
+      "reference": "0x8fd48a4d420d431df1bc35ae0267c7a0779baa5d9e0a90717d05eea5e035f0dd"
+    }
+  }
+}

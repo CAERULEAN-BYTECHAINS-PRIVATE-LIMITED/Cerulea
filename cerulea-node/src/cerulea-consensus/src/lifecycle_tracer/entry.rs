@@ -1,9 +1,9 @@
 // Trace entry structures
 
-use std::collections::HashMap;
-use std::time::SystemTime;
-use std::thread::ThreadId;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::thread::ThreadId;
+use std::time::SystemTime;
 
 /// A single trace entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +53,12 @@ pub struct TraceMetadata {
     pub custom: HashMap<String, String>,
 }
 
+impl Default for TraceMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TraceMetadata {
     /// Create new empty trace metadata
     pub fn new() -> Self {
@@ -98,14 +104,15 @@ impl TraceMetadata {
 
 // Custom serialization for SystemTime
 mod systemtime_serde {
-    use std::time::{SystemTime, UNIX_EPOCH};
     use serde::{Deserialize, Deserializer, Serializer};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     pub fn serialize<S>(time: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let duration = time.duration_since(UNIX_EPOCH)
+        let duration = time
+            .duration_since(UNIX_EPOCH)
             .map_err(|e| serde::ser::Error::custom(format!("SystemTime error: {}", e)))?;
         serializer.serialize_u64(duration.as_secs())
     }

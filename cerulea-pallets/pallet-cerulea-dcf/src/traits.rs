@@ -1,8 +1,12 @@
 extern crate alloc;
 
-/// A trait defining the interface needed by DCF to notify DVF of epoch transitions.
+/// A trait defining the interface needed by DCF to notify Registry of epoch transitions.
 pub trait WeightFreezer<AccountId> {
-    /// Freezes the validator stakes and weights for a new epoch in the DVF gadget.
+    /// Freezes the commit weight of every validator for a new epoch.
+    ///
+    /// Each entry names a validator, the stake it bonded and the Trust Score
+    /// the Standing Engine composed for it. The commit weight is the Trust
+    /// Score. Stake stays an admission input.
     fn freeze_epoch_weights(epoch: u32, validators: &[(AccountId, u128, u128)]);
 }
 
@@ -10,26 +14,16 @@ impl<AccountId> WeightFreezer<AccountId> for () {
     fn freeze_epoch_weights(_epoch: u32, _validators: &[(AccountId, u128, u128)]) {}
 }
 
-/// A trait for querying the last DVF-finalized block number.
-///
-/// DCF progressive finality must not advance the hard finalized head past the
-/// last DVF-finalized block, so that DVF remains the primary finality authority.
-pub trait DvfFinalizedBlockProvider {
-    /// Returns the highest block number that has been finalized by DVF.
-    /// Returns 0 if no block has been DVF-finalized yet.
-    fn dvf_finalized_block() -> u32;
-}
-
-/// No-op implementation: treats every block as DVF-finalized (no restriction).
-/// Used in tests and when DVF is not configured.
-impl DvfFinalizedBlockProvider for () {
-    fn dvf_finalized_block() -> u32 {
-        u32::MAX
-    }
-}
-
 /// Trait-friendly representation of a validator's state.
-#[derive(codec::Encode, codec::Decode, Clone, PartialEq, Eq, sp_runtime::RuntimeDebug, scale_info::TypeInfo)]
+#[derive(
+    codec::Encode,
+    codec::Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    sp_runtime::RuntimeDebug,
+    scale_info::TypeInfo,
+)]
 pub struct ValidatorState {
     pub last_active_epoch: u32,
     pub current: crate::EpochStats,
@@ -47,10 +41,12 @@ pub struct ValidatorState {
 pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     /// Returns a list of active validator account IDs.
     fn get_active_validators() -> alloc::vec::Vec<AccountId>;
-    
+
     /// Returns the profile of a specific validator.
-    fn get_validator_profile(validator: &AccountId) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>>;
-    
+    fn get_validator_profile(
+        validator: &AccountId,
+    ) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>>;
+
     /// Returns the status of a specific validator.
     fn get_validator_status(validator: &AccountId) -> Option<crate::ValidatorStatus>;
 
@@ -64,7 +60,10 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     fn is_validator_active(validator: &AccountId) -> bool;
 
     /// Ejects a validator from the active set for a given reason.
-    fn eject_validator(validator: &AccountId, reason: crate::EjectionReason) -> sp_runtime::DispatchResult;
+    fn eject_validator(
+        validator: &AccountId,
+        reason: crate::EjectionReason,
+    ) -> sp_runtime::DispatchResult;
 
     /// Returns the state of a specific validator.
     fn get_validator_state(validator: &AccountId) -> Option<ValidatorState>;
@@ -111,6 +110,24 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     /// Updates the active validator set list.
     fn update_active_validators(active: alloc::vec::Vec<AccountId>);
 
+    /// Returns the validator account that registered one slot draw key.
+    ///
+    /// The Authoring Engine records the draw key of each validator. The
+    /// equivocation evidence path reads the owner back, so a proof naming a
+    /// draw key reaches the account whose standing the reset returns to zero.
+    fn draw_key_owner(_draw_key: &[u8; 32]) -> Option<AccountId> {
+        None
+    }
+
+    /// Returns the block seal key recorded for one validator.
+    ///
+    /// The seal key signs every block seal. The equivocation evidence path
+    /// compares the key the proof names against the recorded key, so evidence
+    /// built from a retired key carries no penalty.
+    fn validator_seal_key(_validator: &AccountId) -> Option<[u8; 32]> {
+        None
+    }
+
     /// Returns the block number when a validator joined.
     fn get_validator_join_time(validator: &AccountId) -> Option<u32>;
 
@@ -136,8 +153,13 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     fn remove_recently_removed_validator(validator: &AccountId);
 
     // Historical Performance & Metrics
-    fn get_validator_performance_history(validator: &AccountId) -> alloc::vec::Vec<crate::PerformanceRecord>;
-    fn set_validator_performance_history(validator: &AccountId, history: alloc::vec::Vec<crate::PerformanceRecord>);
+    fn get_validator_performance_history(
+        validator: &AccountId,
+    ) -> alloc::vec::Vec<crate::PerformanceRecord>;
+    fn set_validator_performance_history(
+        validator: &AccountId,
+        history: alloc::vec::Vec<crate::PerformanceRecord>,
+    );
     fn remove_validator_performance_history(validator: &AccountId);
     fn get_validator_last_seen(validator: &AccountId) -> u32;
     fn set_validator_last_seen(validator: &AccountId, val: u32);
@@ -150,16 +172,20 @@ pub trait ValidatorRegistryProvider<AccountId, Balance, BlockNumber> {
     fn remove_validator_blocks_missed(validator: &AccountId);
 }
 
-/// No-op implementation of ValidatorRegistryProvider for unit tests and dummy configurations.
-impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balance, BlockNumber> for () {
+/// No-op implementation of ValidatorRegistryProvider for unit tests and dummy settings.
+impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balance, BlockNumber>
+    for ()
+{
     fn get_active_validators() -> alloc::vec::Vec<AccountId> {
         alloc::vec::Vec::new()
     }
-    
-    fn get_validator_profile(_validator: &AccountId) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>> {
+
+    fn get_validator_profile(
+        _validator: &AccountId,
+    ) -> Option<crate::ValidatorProfile<AccountId, Balance, BlockNumber>> {
         None
     }
-    
+
     fn get_validator_status(_validator: &AccountId) -> Option<crate::ValidatorStatus> {
         None
     }
@@ -174,7 +200,10 @@ impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balan
         false
     }
 
-    fn eject_validator(_validator: &AccountId, _reason: crate::EjectionReason) -> sp_runtime::DispatchResult {
+    fn eject_validator(
+        _validator: &AccountId,
+        _reason: crate::EjectionReason,
+    ) -> sp_runtime::DispatchResult {
         Ok(())
     }
 
@@ -242,18 +271,30 @@ impl<AccountId, Balance, BlockNumber> ValidatorRegistryProvider<AccountId, Balan
 
     fn remove_recently_removed_validator(_validator: &AccountId) {}
 
-    fn get_validator_performance_history(_validator: &AccountId) -> alloc::vec::Vec<crate::PerformanceRecord> {
+    fn get_validator_performance_history(
+        _validator: &AccountId,
+    ) -> alloc::vec::Vec<crate::PerformanceRecord> {
         alloc::vec::Vec::new()
     }
-    fn set_validator_performance_history(_validator: &AccountId, _history: alloc::vec::Vec<crate::PerformanceRecord>) {}
+    fn set_validator_performance_history(
+        _validator: &AccountId,
+        _history: alloc::vec::Vec<crate::PerformanceRecord>,
+    ) {
+    }
     fn remove_validator_performance_history(_validator: &AccountId) {}
-    fn get_validator_last_seen(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_last_seen(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_last_seen(_validator: &AccountId, _val: u32) {}
     fn remove_validator_last_seen(_validator: &AccountId) {}
-    fn get_validator_blocks_authored(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_blocks_authored(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_blocks_authored(_validator: &AccountId, _val: u32) {}
     fn remove_validator_blocks_authored(_validator: &AccountId) {}
-    fn get_validator_blocks_missed(_validator: &AccountId) -> u32 { 0 }
+    fn get_validator_blocks_missed(_validator: &AccountId) -> u32 {
+        0
+    }
     fn set_validator_blocks_missed(_validator: &AccountId, _val: u32) {}
     fn remove_validator_blocks_missed(_validator: &AccountId) {}
 }

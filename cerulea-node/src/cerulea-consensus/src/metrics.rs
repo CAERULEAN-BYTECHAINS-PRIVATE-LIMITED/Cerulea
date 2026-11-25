@@ -1,22 +1,23 @@
 //! Consensus metrics implementation
-//! 
+//!
 //! This module handles tracking and reporting of consensus-related metrics
 //! including validator economics, rewards, and slashing data.
 
-use sp_runtime::traits::Block as BlockTrait;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
+use sp_runtime::traits::Block as BlockTrait;
 
-use std::collections::HashMap;
-use std::time::Instant;
-use std::sync::Arc;
+use pallet_cerulea_dcf::DcfApi;
 use parking_lot::RwLock;
 use prometheus::{
-    Registry, Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, HistogramOpts, Opts,
-    register_counter_with_registry, register_counter_vec_with_registry, register_gauge_with_registry, 
-    register_histogram_with_registry, register_gauge_vec_with_registry, register_histogram_vec_with_registry,
+    register_counter_vec_with_registry, register_counter_with_registry,
+    register_gauge_vec_with_registry, register_gauge_with_registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry, Counter, CounterVec,
+    Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, Opts, Registry,
 };
-use pallet_cerulea_dcf::DcfApi;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
 // Remove unused imports - we'll use the runtime types directly in the trait bound
 
 /// Validator economics metrics for Prometheus
@@ -57,19 +58,31 @@ impl ValidatorEconomicsMetrics {
                 registry
             )?,
             total_rewards_distributed: register_counter_with_registry!(
-                Opts::new("cerulea_total_rewards_distributed", "Total rewards distributed to validators"),
+                Opts::new(
+                    "cerulea_total_rewards_distributed",
+                    "Total rewards distributed to validators"
+                ),
                 registry
             )?,
             total_slashed_amount: register_counter_with_registry!(
-                Opts::new("cerulea_total_slashed_amount", "Total amount slashed from validators"),
+                Opts::new(
+                    "cerulea_total_slashed_amount",
+                    "Total amount slashed from validators"
+                ),
                 registry
             )?,
             average_validator_score: register_gauge_with_registry!(
-                Opts::new("cerulea_average_validator_score", "Average validator performance score"),
+                Opts::new(
+                    "cerulea_average_validator_score",
+                    "Average validator performance score"
+                ),
                 registry
             )?,
             epoch_duration: register_histogram_with_registry!(
-                HistogramOpts::new("cerulea_epoch_duration_seconds", "Duration of epochs in seconds"),
+                HistogramOpts::new(
+                    "cerulea_epoch_duration_seconds",
+                    "Duration of epochs in seconds"
+                ),
                 registry
             )?,
             rewards_per_epoch: register_histogram_with_registry!(
@@ -81,11 +94,17 @@ impl ValidatorEconomicsMetrics {
                 registry
             )?,
             validator_participation_rate: register_gauge_with_registry!(
-                Opts::new("cerulea_validator_participation_rate", "Average validator participation rate"),
+                Opts::new(
+                    "cerulea_validator_participation_rate",
+                    "Average validator participation rate"
+                ),
                 registry
             )?,
             total_inference_results: register_counter_with_registry!(
-                Opts::new("cerulea_total_inference_results", "Total inference results processed"),
+                Opts::new(
+                    "cerulea_total_inference_results",
+                    "Total inference results processed"
+                ),
                 registry
             )?,
         })
@@ -168,11 +187,17 @@ impl ConsensusMetrics {
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
         Ok(Self {
             active_validators: register_gauge_with_registry!(
-                Opts::new("cerulea_consensus_active_validators", "Number of active validators in the consensus"),
+                Opts::new(
+                    "cerulea_consensus_active_validators",
+                    "Number of active validators in the consensus"
+                ),
                 registry
             )?,
             total_reserved_stake: register_gauge_with_registry!(
-                Opts::new("cerulea_consensus_total_reserved_stake", "Total reserved stake across all validators"),
+                Opts::new(
+                    "cerulea_consensus_total_reserved_stake",
+                    "Total reserved stake across all validators"
+                ),
                 registry
             )?,
             current_epoch: register_gauge_with_registry!(
@@ -180,21 +205,33 @@ impl ConsensusMetrics {
                 registry
             )?,
             total_rewards_distributed: register_counter_with_registry!(
-                Opts::new("cerulea_consensus_total_rewards_distributed", "Total rewards distributed to validators"),
+                Opts::new(
+                    "cerulea_consensus_total_rewards_distributed",
+                    "Total rewards distributed to validators"
+                ),
                 registry
             )?,
             total_slashed_amount: register_counter_with_registry!(
-                Opts::new("cerulea_consensus_total_slashed_amount", "Total amount slashed from validators"),
+                Opts::new(
+                    "cerulea_consensus_total_slashed_amount",
+                    "Total amount slashed from validators"
+                ),
                 registry
             )?,
             // Task 8 requirement: Register author_mismatch_total counter
             author_mismatch_total: register_counter_with_registry!(
-                Opts::new("cerulea_author_mismatch_total", "Total number of author mismatch events"),
+                Opts::new(
+                    "cerulea_author_mismatch_total",
+                    "Total number of author mismatch events"
+                ),
                 registry
             )?,
             // Task 8 requirement: Register epoch_transitions_total counter
             epoch_transitions_total: register_counter_with_registry!(
-                Opts::new("cerulea_epoch_transitions_total", "Total number of epoch transitions"),
+                Opts::new(
+                    "cerulea_epoch_transitions_total",
+                    "Total number of epoch transitions"
+                ),
                 registry
             )?,
             // Task 8 requirement: Register validator_score_gauge gauge vector
@@ -205,14 +242,20 @@ impl ConsensusMetrics {
             )?,
             // Task 8 requirement: Register block_production_time histogram
             block_production_time: register_histogram_with_registry!(
-                HistogramOpts::new("cerulea_block_production_time_seconds", "Time taken to produce blocks")
-                    .buckets(vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]),
+                HistogramOpts::new(
+                    "cerulea_block_production_time_seconds",
+                    "Time taken to produce blocks"
+                )
+                .buckets(vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]),
                 registry
             )?,
             // Task 8 requirement: Register rpc_request_duration histogram vector
             rpc_request_duration: register_histogram_vec_with_registry!(
-                HistogramOpts::new("cerulea_rpc_request_duration_seconds", "Duration of RPC requests")
-                    .buckets(vec![0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]),
+                HistogramOpts::new(
+                    "cerulea_rpc_request_duration_seconds",
+                    "Duration of RPC requests"
+                )
+                .buckets(vec![0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]),
                 &["method"],
                 registry
             )?,
@@ -220,7 +263,10 @@ impl ConsensusMetrics {
     }
 
     /// Update metrics from runtime state
-    pub fn update_from_runtime<B, C>(&self, client: &Arc<C>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    pub fn update_from_runtime<B, C>(
+        &self,
+        client: &Arc<C>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         B: BlockTrait,
         C: ProvideRuntimeApi<B> + HeaderBackend<B>,
@@ -230,19 +276,22 @@ impl ConsensusMetrics {
         let api = client.runtime_api();
 
         // Update active validators count
-        let active_validators = api.get_active_validators(best_hash)
+        let active_validators = api
+            .get_active_validators(best_hash)
             .map_err(|e| format!("Failed to get active validators: {:?}", e))?;
         self.active_validators.set(active_validators.len() as f64);
 
         // Update current epoch
-        let current_epoch = api.get_current_epoch(best_hash)
+        let current_epoch = api
+            .get_current_epoch(best_hash)
             .map_err(|e| format!("Failed to get current epoch: {:?}", e))?;
         self.current_epoch.set(current_epoch as f64);
 
         // Calculate total reserved stake
         let mut total_stake: u128 = 0;
         for validator in &active_validators {
-            let stake = api.get_validator_stake(best_hash, validator.clone())
+            let stake = api
+                .get_validator_stake(best_hash, validator.clone())
                 .map_err(|e| format!("Failed to get validator stake: {:?}", e))?;
             total_stake = total_stake.saturating_add(stake);
         }
@@ -301,7 +350,10 @@ impl ConsensusMetrics {
     }
 
     /// Update validator scores for all validators
-    pub fn update_validator_scores<B, C>(&self, client: &Arc<C>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    pub fn update_validator_scores<B, C>(
+        &self,
+        client: &Arc<C>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         B: BlockTrait,
         C: ProvideRuntimeApi<B> + HeaderBackend<B>,
@@ -311,7 +363,8 @@ impl ConsensusMetrics {
         let api = client.runtime_api();
 
         // Get validator scores from runtime
-        let validator_scores = api.get_validator_scores(best_hash)
+        let validator_scores = api
+            .get_validator_scores(best_hash)
             .map_err(|e| format!("Failed to get validator scores: {:?}", e))?;
 
         // Update gauge for each validator
@@ -336,7 +389,7 @@ impl ConsensusMetrics {
     }
 }
 
-/// DVF (Dynamic Validator Finality) metrics for Prometheus
+/// Commit Engine metrics for Prometheus
 #[derive(Clone)]
 pub struct DvfMetrics {
     /// Current finalized block number
@@ -354,35 +407,53 @@ pub struct DvfMetrics {
 }
 
 impl DvfMetrics {
-    /// Create new DVF metrics
+    /// Create new Commit Engine metrics
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
         Ok(Self {
             dvf_finalized_block_number: register_gauge_with_registry!(
-                Opts::new("dvf_finalized_block_number", "Current finalized block number in DVF"),
+                Opts::new(
+                    "dvf_finalized_block_number",
+                    "Current finalized block number in Commit Engine"
+                ),
                 registry
             )?,
             dvf_votes_received_total: register_counter_vec_with_registry!(
-                Opts::new("dvf_votes_received_total", "Total DVF votes received per round"),
+                Opts::new(
+                    "dvf_votes_received_total",
+                    "Total Commit Engine votes received per round"
+                ),
                 &["round"],
                 registry
             )?,
             dvf_accumulated_weight: register_gauge_vec_with_registry!(
-                Opts::new("dvf_accumulated_weight", "Accumulated voting weight per block hash"),
+                Opts::new(
+                    "dvf_accumulated_weight",
+                    "Accumulated voting weight per block hash"
+                ),
                 &["block_hash"],
                 registry
             )?,
             dvf_vote_rejections_total: register_counter_vec_with_registry!(
-                Opts::new("dvf_vote_rejections_total", "Total DVF vote rejections by reason"),
+                Opts::new(
+                    "dvf_vote_rejections_total",
+                    "Total Commit Engine vote rejections by reason"
+                ),
                 &["reason"],
                 registry
             )?,
             dvf_finality_latency_seconds: register_histogram_with_registry!(
-                HistogramOpts::new("dvf_finality_latency_seconds", "Time from checkpoint to finalization")
-                    .buckets(vec![1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0]),
+                HistogramOpts::new(
+                    "dvf_finality_latency_seconds",
+                    "Time from checkpoint to finalization"
+                )
+                .buckets(vec![1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0]),
                 registry
             )?,
             dvf_double_votes_detected_total: register_counter_with_registry!(
-                Opts::new("dvf_double_votes_detected_total", "Total double vote detections"),
+                Opts::new(
+                    "dvf_double_votes_detected_total",
+                    "Total double vote detections"
+                ),
                 registry
             )?,
         })
@@ -443,6 +514,12 @@ pub struct LegacyConsensusMetrics<B: BlockTrait> {
     pub epoch_rewards: Arc<RwLock<u128>>,
 }
 
+impl<B: BlockTrait> Default for LegacyConsensusMetrics<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: BlockTrait> LegacyConsensusMetrics<B> {
     /// Create a new metrics tracker
     pub fn new() -> Self {
@@ -460,7 +537,7 @@ impl<B: BlockTrait> LegacyConsensusMetrics<B> {
     /// Create a new metrics tracker with Prometheus registry
     pub fn new_with_registry(registry: &Registry) -> Result<Self, prometheus::Error> {
         let economics_metrics = ValidatorEconomicsMetrics::new(registry)?;
-        
+
         Ok(Self {
             total_blocks: 0,
             total_transactions: 0,
@@ -490,11 +567,12 @@ impl<B: BlockTrait> LegacyConsensusMetrics<B> {
     }
 
     /// Update validator economics metrics
-    pub fn update_validator_economics(&self, 
-        active_count: u64, 
-        total_stake: u128, 
+    pub fn update_validator_economics(
+        &self,
+        active_count: u64,
+        total_stake: u128,
         avg_score: f64,
-        participation_rate: f64
+        participation_rate: f64,
     ) {
         if let Some(ref metrics) = self.economics_metrics {
             metrics.update_active_validators(active_count);
@@ -509,7 +587,7 @@ impl<B: BlockTrait> LegacyConsensusMetrics<B> {
         if let Some(ref metrics) = self.economics_metrics {
             metrics.record_reward_distribution(amount);
         }
-        
+
         // Track epoch rewards
         let mut epoch_rewards = self.epoch_rewards.write();
         *epoch_rewards = epoch_rewards.saturating_add(amount);

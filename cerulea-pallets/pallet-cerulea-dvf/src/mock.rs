@@ -1,8 +1,5 @@
 use crate as pallet_cerulea_dvf;
-use frame_support::{
-    parameter_types,
-    traits::ConstU32,
-};
+use frame_support::{parameter_types, traits::ConstU32};
 use sp_core::{sr25519, Pair, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentifyAccount, IdentityLookup, Verify},
@@ -14,14 +11,14 @@ type Signature = MultiSignature;
 type AccountPublic = <Signature as Verify>::Signer;
 pub type AccountId = <AccountPublic as IdentifyAccount>::AccountId;
 
-// Configure a mock runtime to test the pallet.
+// Set a mock runtime to test the pallet.
 frame_support::construct_runtime!(
     pub enum Test
     {
         System: frame_system,
         Balances: pallet_balances,
-        PalletCbcPos: pallet_cerulea_pos,
-        Dvf: pallet_cerulea_dvf,
+        PalletCeruleaPos: pallet_cerulea_pos,
+        Registry: pallet_cerulea_dvf,
     }
 );
 
@@ -149,28 +146,73 @@ impl pallet_cerulea_dvf::Config for Test {
     type VoteRetentionRounds = VoteRetentionRounds;
     type MaxValidators = ConstU32<100>;
     type MaxInactiveEpochs = ConstU32<5>;
-    type UnderperformanceCheckInterval = ConstU32<50>;
+    type UnderperformanceCheckInterval = frame_support::traits::ConstU64<50>;
     type MaxValidatorHistorySize = ConstU32<100>;
     type MaxValidatorNameSize = ConstU32<32>;
+    type VotePenalty = RecordedPenalty;
+}
+
+std::thread_local! {
+    /// Every validator the mock penalty was asked to penalise.
+    pub static PENALISED: std::cell::RefCell<Vec<AccountId>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The mock penalty. The runtime answers through the Standing Engine. The
+/// mock records each request and answers a fixed count of destroyed epochs, so
+/// a test reads what the pallet asked for.
+pub struct RecordedPenalty;
+
+/// The epochs the mock penalty reports as destroyed.
+pub const MOCK_EPOCHS_DESTROYED: u32 = 12;
+
+impl crate::VoteEquivocationPenalty<AccountId> for RecordedPenalty {
+    fn penalise(validator: &AccountId) -> u32 {
+        PENALISED.with(|held| held.borrow_mut().push(validator.clone()));
+        MOCK_EPOCHS_DESTROYED
+    }
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    // Create test validator weights synchronized with production pattern
-    // Using realistic stakes matching the bug condition exploration test
+    // Each entry names the validator, the stake it bonded and the Trust Score
+    // the Standing Engine composed for it. The Trust Score reads as a share of
+    // one in parts per billion. The commit weight reads the Trust Score. Stake
+    // stays the admission input the design names resource cost.
     let test_validator_weights = vec![
-        (account_key("Alice"), 10_000_000, 80),   // Alice: 10M stake, 80 score
-        (account_key("Bob"), 8_000_000, 80),      // Bob: 8M stake, 80 score
-        (account_key("Charlie"), 6_000_000, 80),  // Charlie: 6M stake, 80 score
+        (account_key("Alice"), 10_000_000, 800_000_000),
+        (account_key("Bob"), 8_000_000, 640_000_000),
+        (account_key("Charlie"), 6_000_000, 480_000_000),
     ];
 
     let mut t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
 
-    // Initialize DVF genesis configuration
+    // Initialize Registry genesis settings
+    // Each test validator carries a draw key and a seal key, so the Authoring
+    // Engine draws a committee from the first block.
+    let test_validator_keys: Vec<(AccountId, crate::keys::ValidatorKeySet)> =
+        test_validator_weights
+            .iter()
+            .enumerate()
+            .map(|(index, (account, _, _))| {
+                let seed = index as u8 + 1;
+                let draw = sp_core::sr25519::Pair::from_seed(&[seed; 32]).public().0;
+                let seal = sp_core::ed25519::Pair::from_seed(&[seed; 32]).public().0;
+                (
+                    account.clone(),
+                    crate::keys::ValidatorKeySet::new(draw, seal),
+                )
+            })
+            .collect();
+
     crate::GenesisConfig::<Test> {
         initial_validator_weights: test_validator_weights,
+        initial_validator_keys: test_validator_keys,
+        strict_validation: true,
+        validator_licence_key: None,
+        required_licence_class: 0,
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -182,3 +224,26 @@ pub fn account_key(s: &str) -> AccountId {
     let pair = sr25519::Pair::from_string(&format!("//{}", s), None).unwrap();
     AccountPublic::from(pair.public()).into_account()
 }
+
+// Compile-time contract check.
+// The block below names every trait the mock runtime claims to satisfy.
+// A trait that gains an item stops this crate from compiling here first, so a
+// mock can never drift behind its trait again. The check runs on every build
+// of the test target, which every commit gate runs.
+const _: fn() = || {
+    fn settings_hold<T: crate::Config>() {}
+    settings_hold::<Test>();
+
+    fn stake_settings_hold<T: pallet_cerulea_pos::Config>() {}
+    stake_settings_hold::<Test>();
+
+    fn registry_holds<
+        T: pallet_cerulea_dcf::traits::ValidatorRegistryProvider<
+            <Test as frame_system::Config>::AccountId,
+            u128,
+            u64,
+        >,
+    >() {
+    }
+    registry_holds::<crate::Pallet<Test>>();
+};

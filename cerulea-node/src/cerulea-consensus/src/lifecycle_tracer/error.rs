@@ -13,18 +13,20 @@ pub enum TracerError {
     FormattingError(String),
     /// Trace buffer overflowed
     BufferOverflow,
-    /// Configuration parameter invalid
+    /// Policy parameter invalid
     ConfigurationError(String),
 }
 
 impl fmt::Display for TracerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TracerError::InitializationFailed(msg) => write!(f, "Tracer initialization failed: {}", msg),
+            TracerError::InitializationFailed(msg) => {
+                write!(f, "Tracer initialization failed: {}", msg)
+            }
             TracerError::OutputError(e) => write!(f, "Output error: {}", e),
             TracerError::FormattingError(msg) => write!(f, "Formatting error: {}", msg),
             TracerError::BufferOverflow => write!(f, "Buffer overflow"),
-            TracerError::ConfigurationError(msg) => write!(f, "Configuration error: {}", msg),
+            TracerError::ConfigurationError(msg) => write!(f, "Policy error: {}", msg),
         }
     }
 }

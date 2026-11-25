@@ -1,19 +1,19 @@
-//! Genesis configuration validation tests
+//! Genesis settings validation tests
 
 use crate::mock::*;
 use frame_support::traits::{Get, OnFinalize, OnInitialize};
 
-/// Tests basic genesis configuration
+/// Tests basic genesis settings
 #[test]
 fn basic_genesis_configuration_works() {
     new_test_ext().execute_with(|| {
-        // Check that genesis configuration was applied correctly
+        // Check that genesis settings was applied correctly
         let active_validators = DcfPallet::active_validators();
         assert_eq!(active_validators.len(), 3); // From mock genesis
         assert!(active_validators.contains(&1));
         assert!(active_validators.contains(&2));
         assert!(active_validators.contains(&3));
-        
+
         // Check initial epoch
         assert_eq!(DcfPallet::current_epoch(), 0);
     });
@@ -24,28 +24,29 @@ fn basic_genesis_configuration_works() {
 fn genesis_validator_initialization_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
+
         // Check that all genesis validators have proper scores
         for validator in &active_validators {
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            
+
             assert!(stake_score > 0); // Should have non-zero stake score
-            assert!(inference_score >= 0); // Inference score can be 0 initially
         }
     });
 }
 
-/// Tests genesis epoch configuration
+/// Tests the epoch length the Amendment Engine publishes at genesis
 #[test]
-fn genesis_epoch_configuration_works() {
+fn genesis_epoch_length_matches_the_rotation_policy() {
     new_test_ext().execute_with(|| {
         let current_epoch = DcfPallet::current_epoch();
         assert_eq!(current_epoch, 0); // Should start at epoch 0
-        
-        // Check epoch length configuration
+
+        // The Amendment Engine holds the Rotation policy. The epoch length the
+        // chain runs matches the policy the deployment starts from.
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        assert_eq!(epoch_length, 2400); // From mock configuration
+        let policies = DcfPallet::policy_set();
+        assert_eq!(epoch_length, policies.rotation.epoch_blocks);
+        assert!(epoch_length > 0);
     });
 }
 
@@ -54,45 +55,57 @@ fn genesis_epoch_configuration_works() {
 fn genesis_consensus_weights_work() {
     new_test_ext().execute_with(|| {
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
-        
-        // Should match configured defaults
+
+        // Should match set defaults
         let default_pos = <Test as crate::Config>::DefaultPosWeight::get();
         let default_poi = <Test as crate::Config>::DefaultPoiWeight::get();
-        
+
         assert_eq!(pos_weight, default_pos);
         assert_eq!(poi_weight, default_poi);
         assert_eq!(pos_weight + poi_weight, 10000);
     });
 }
 
-/// Tests genesis stake configuration
+/// Tests genesis stake settings
 #[test]
 fn genesis_stake_configuration_works() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+
         // All genesis validators should meet minimum stake
         for validator in &active_validators {
-            let stake = DcfPallet::validator_stake(validator);
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
             assert!(stake >= min_stake);
-            
+
             // Check that validator has sufficient balance
             let free_balance = Balances::free_balance(validator);
             let reserved_balance = Balances::reserved_balance(validator);
             let total_balance = free_balance + reserved_balance;
-            
+
             assert!(total_balance >= stake);
         }
     });
 }
 
-/// Tests genesis governance mode
+/// Tests the Amendment Engine policy set published at genesis
 #[test]
-fn genesis_governance_mode_works() {
+fn genesis_publishes_the_amendment_policy_set() {
     new_test_ext().execute_with(|| {
-        let governance_mode = DcfPallet::governance_mode();
-        assert!(!governance_mode); // Should be false by default in tests
+        use crate::engines::amendment::PolicySet;
+
+        // The Amendment Engine governs changes to the seven engines beside it.
+        // The deployment starts from the published profile, so a chain reads
+        // its eight policy records from the first block.
+        let policies = DcfPallet::policy_set();
+        assert_eq!(policies, PolicySet::starting_profile());
+
+        // The governance settings record carries a positive epoch length, so
+        // the chain answers that governance is in place.
+        assert!(DcfPallet::governance_mode());
+
+        // No amendment is under way at genesis.
+        assert_eq!(DcfPallet::next_amendment_id(), 0);
     });
 }
 
@@ -101,19 +114,19 @@ fn genesis_governance_mode_works() {
 fn genesis_validator_set_constraints_work() {
     new_test_ext().execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
-        
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
+
         // Should satisfy constraints
         assert!(active_validators.len() <= max_validators as usize);
         assert!(active_validators.len() >= min_active as usize);
     });
 }
 
-/// Tests custom genesis configuration
+/// Tests custom genesis settings
 #[test]
 fn custom_genesis_configuration_works() {
-    // Test with custom genesis configuration
+    // Test with custom genesis settings
     let custom_genesis = crate::GenesisConfig::<Test> {
         validators: vec![10, 11, 12, 13],
         validator_scores: vec![5000, 6000, 7000, 8000],
@@ -127,22 +140,21 @@ fn custom_genesis_configuration_works() {
         },
         strict_validation: true,
     };
-    
+
     new_test_ext_with_genesis(custom_genesis).execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
+
         // Should have custom validators
         assert_eq!(active_validators.len(), 4);
         assert!(active_validators.contains(&10));
         assert!(active_validators.contains(&11));
         assert!(active_validators.contains(&12));
         assert!(active_validators.contains(&13));
-        
+
         // Check custom scores
-        for (i, validator) in active_validators.iter().enumerate() {
-            let expected_scores = vec![5000, 6000, 7000, 8000];
+        for validator in active_validators.iter() {
             let actual_score = DcfPallet::validator_stake_score(validator);
-            
+
             // Score should be reasonable (exact match may depend on implementation)
             assert!(actual_score > 0);
         }
@@ -166,14 +178,14 @@ fn genesis_validation_edge_cases_work() {
         },
         strict_validation: false,
     };
-    
+
     new_test_ext_with_genesis(minimal_genesis).execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
-        // Should handle minimal configuration
+
+        // Should handle minimal settings
         assert_eq!(active_validators.len(), 1);
         assert!(active_validators.contains(&20));
-        
+
         let stake_score = DcfPallet::validator_stake_score(&20);
         assert!(stake_score > 0);
     });
@@ -187,38 +199,36 @@ fn genesis_state_consistency_works() {
         let active_validators = DcfPallet::active_validators();
         let current_epoch = DcfPallet::current_epoch();
         let (pos_weight, poi_weight) = DcfPallet::consensus_weights();
-        
+
         // Basic consistency checks
         assert!(!active_validators.is_empty());
         assert_eq!(current_epoch, 0);
         assert_eq!(pos_weight + poi_weight, 10000);
-        
+
         // Validator consistency
         for validator in &active_validators {
             assert!(DcfPallet::is_validator_active(validator));
-            
+
             let stake_score = DcfPallet::validator_stake_score(validator);
-            let inference_score = DcfPallet::validator_inference_score(validator);
-            let stake = DcfPallet::validator_stake(validator);
-            
+            let stake = pallet_cerulea_pos::Stake::<Test>::get(validator);
+
             assert!(stake_score > 0);
-            assert!(inference_score >= 0);
-            assert!(stake >= <Test as crate::Config>::MinStake::get());
+            assert!(stake >= <Test as pallet_cerulea_pos::Config>::MinStake::get());
         }
     });
 }
 
-/// Tests genesis configuration parameter validation
+/// Tests genesis settings parameter validation
 #[test]
 fn genesis_configuration_parameter_validation_works() {
     new_test_ext().execute_with(|| {
-        // Validate that all configuration parameters are reasonable
-        let max_validators = <Test as crate::Config>::MaxValidators::get();
-        let min_active = <Test as crate::Config>::MinActiveValidators::get();
+        // Validate that all settings parameters are reasonable
+        let max_validators = <<Test as pallet_cerulea_pos::Config>::MaxValidators as frame_support::traits::Get<u32>>::get();
+        let min_active = <<Test as pallet_cerulea_pos::Config>::MinActiveValidators as frame_support::traits::Get<u32>>::get();
         let epoch_length: u32 = <Test as crate::Config>::EpochLength::get();
-        let min_stake = <Test as crate::Config>::MinStake::get();
-        let max_score = <Test as crate::Config>::MaxValidatorScore::get();
-        
+        let min_stake = <Test as pallet_cerulea_pos::Config>::MinStake::get();
+        let max_score = <<Test as pallet_cerulea_poi::Config>::MaxValidatorScore as frame_support::traits::Get<u64>>::get();
+
         // Parameter validation
         assert!(max_validators > 0);
         assert!(min_active > 0);
@@ -234,10 +244,10 @@ fn genesis_configuration_parameter_validation_works() {
 fn genesis_with_maximum_validators_works() {
     // Test with many validators (up to limit)
     let max_validators = 10u32; // Reasonable number for test
-    let validators: Vec<u64> = (100..100+max_validators as u64).collect();
+    let validators: Vec<u64> = (100..100 + max_validators as u64).collect();
     let scores: Vec<u32> = (0..max_validators).map(|i| 5000 + i * 100).collect();
     let stakes: Vec<u128> = (0..max_validators).map(|_| 2000u128).collect();
-    
+
     let max_genesis = crate::GenesisConfig::<Test> {
         validators: validators.clone(),
         validator_scores: scores,
@@ -251,13 +261,13 @@ fn genesis_with_maximum_validators_works() {
         },
         strict_validation: false,
     };
-    
+
     new_test_ext_with_genesis(max_genesis).execute_with(|| {
         let active_validators = DcfPallet::active_validators();
-        
+
         // Should handle maximum validators
         assert_eq!(active_validators.len(), max_validators as usize);
-        
+
         // All specified validators should be active
         for validator in &validators {
             assert!(active_validators.contains(validator));
@@ -272,19 +282,19 @@ fn genesis_state_after_first_block_works() {
     new_test_ext().execute_with(|| {
         let initial_validators = DcfPallet::active_validators();
         let initial_epoch = DcfPallet::current_epoch();
-        
+
         // Process first block
         System::set_block_number(1);
         let _ = DcfPallet::on_initialize(1);
         DcfPallet::on_finalize(1);
-        
+
         let post_block_validators = DcfPallet::active_validators();
         let post_block_epoch = DcfPallet::current_epoch();
-        
+
         // Genesis state should be preserved initially
         assert_eq!(post_block_validators, initial_validators);
         assert!(post_block_epoch >= initial_epoch);
-        
+
         // All validators should still be active
         for validator in &post_block_validators {
             assert!(DcfPallet::is_validator_active(validator));

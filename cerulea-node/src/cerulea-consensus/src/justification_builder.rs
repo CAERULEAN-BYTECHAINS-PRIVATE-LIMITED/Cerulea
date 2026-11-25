@@ -1,7 +1,7 @@
 //! Justification Builder
 //!
 //! This module implements the JustificationBuilder component that constructs and verifies
-//! DVF justifications containing threshold-reaching votes.
+//! Commit Engine justifications containing threshold-reaching votes.
 
 use codec::Encode;
 use log::{debug, info};
@@ -12,6 +12,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::dvf_gossip::{DvfJustification, DvfVoteMessage, DvfVotePool};
+use crate::engines::commit::submission::{
+    SubmissionPolicy, MAX_SUBMISSION_BYTES, MAX_VOTES_PER_SUBMISSION,
+};
 use crate::metrics::DvfMetrics;
 use pallet_cerulea_dcf::DcfApi as RuntimeDcfApi;
 use pallet_cerulea_dvf::DvfApi;
@@ -19,9 +22,15 @@ use pallet_cerulea_dvf::DvfApi;
 /// Maximum encoded size for a justification (1 MB)
 const MAX_JUSTIFICATION_SIZE: usize = 1_048_576;
 
+/// The highest number of votes one submitted justification carries.
+///
+/// The bound holds before any signature check runs, so an oversized message
+/// from an unknown peer costs one length read.
+const MAX_SUBMITTED_VOTES: usize = MAX_VOTES_PER_SUBMISSION as usize;
+
 /// Justification Builder
 ///
-/// Constructs and verifies DVF justifications containing threshold-reaching votes.
+/// Constructs and verifies Commit Engine justifications containing threshold-reaching votes.
 pub struct JustificationBuilder<Block, Client, AccountId>
 where
     Block: BlockT,
@@ -37,20 +46,26 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Creates a new justification builder
     ///
     /// # Arguments
     /// * `client` - The blockchain client for querying runtime state
     /// * `vote_pool` - The vote pool containing accumulated votes
-    pub fn new(
-        client: Arc<Client>,
-        vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>,
-    ) -> Self {
-        info!("DVF Justification Builder: Initializing");
-        Self { 
-            client, 
+    pub fn new(client: Arc<Client>, vote_pool: Arc<DvfVotePool<Block::Hash, AccountId>>) -> Self {
+        info!("Commit Engine Justification Builder: Initializing");
+        Self {
+            client,
             vote_pool,
             metrics: None,
         }
@@ -69,7 +84,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Selects minimum votes needed to reach threshold
     ///
@@ -89,7 +113,7 @@ where
         block_hash: &Block::Hash,
     ) -> Result<Vec<DvfVoteMessage<Block::Hash, AccountId>>, String> {
         debug!(
-            "DVF Justification Builder: Selecting votes for block {:?} in round {}",
+            "Commit Engine Justification Builder: Selecting votes for block {:?} in round {}",
             block_hash, round
         );
 
@@ -101,7 +125,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Found {} votes for block",
+            "Commit Engine Justification Builder: Found {} votes for block",
             votes.len()
         );
 
@@ -114,8 +138,7 @@ where
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
         // Create a map for quick weight lookup
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         // 3. Create weighted votes (vote, weight) pairs
         let mut weighted_votes: Vec<(DvfVoteMessage<Block::Hash, AccountId>, u128)> = votes
@@ -135,7 +158,7 @@ where
         weighted_votes.sort_by(|a, b| b.1.cmp(&a.1));
 
         debug!(
-            "DVF Justification Builder: Sorted {} weighted votes",
+            "Commit Engine Justification Builder: Sorted {} weighted votes",
             weighted_votes.len()
         );
 
@@ -148,7 +171,7 @@ where
         let threshold = finality_threshold_perbill * total_weight;
 
         debug!(
-            "DVF Justification Builder: Total weight: {}, Threshold: {}",
+            "Commit Engine Justification Builder: Total weight: {}, Threshold: {}",
             total_weight, threshold
         );
 
@@ -166,7 +189,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Selected {} votes with accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Selected {} votes with accumulated weight {} (threshold: {})",
             selected_votes.len(),
             accumulated_weight,
             threshold
@@ -182,7 +205,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Constructs a justification for a block
     ///
@@ -202,7 +234,7 @@ where
         block_hash: Block::Hash,
     ) -> Result<DvfJustification<Block::Hash, AccountId>, String> {
         info!(
-            "DVF Justification Builder: Constructing justification for block {:?} in round {}",
+            "Commit Engine Justification Builder: Constructing justification for block {:?} in round {}",
             block_hash, round
         );
 
@@ -221,14 +253,14 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Verified no duplicate validators ({} unique)",
+            "Commit Engine Justification Builder: Verified no duplicate validators ({} unique)",
             seen_validators.len()
         );
 
         // 3. Construct justification
         let justification = DvfJustification {
             round_number: round,
-            block_hash: block_hash.clone(),
+            block_hash,
             votes: selected_votes,
         };
 
@@ -240,8 +272,7 @@ where
             .get_validator_weights(best_hash)
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         let mut accumulated_weight = 0u128;
         for vote in &justification.votes {
@@ -265,7 +296,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Constructed justification with {} votes, accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Constructed justification with {} votes, accumulated weight {} (threshold: {})",
             justification.votes.len(),
             accumulated_weight,
             threshold
@@ -273,7 +304,7 @@ where
 
         // Log justification construction at info level
         info!(
-            "DVF Justification Builder: Justification constructed for block {:?}, round {}, {} votes, weight {}",
+            "Commit Engine Justification Builder: Justification constructed for block {:?}, round {}, {} votes, weight {}",
             block_hash, round, justification.votes.len(), accumulated_weight
         );
 
@@ -309,7 +340,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Justification encoded size: {} bytes",
+            "Commit Engine Justification Builder: Justification encoded size: {} bytes",
             encoded_size
         );
 
@@ -330,7 +361,7 @@ where
         }
 
         debug!(
-            "DVF Justification Builder: Size limits satisfied ({} votes, {} bytes)",
+            "Commit Engine Justification Builder: Size limits satisfied ({} votes, {} bytes)",
             justification.votes.len(),
             encoded_size
         );
@@ -345,7 +376,16 @@ where
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Client::Api: RuntimeDcfApi<Block, AccountId, u128, NumberFor<Block>>
         + DvfApi<Block, NumberFor<Block>, AccountId, Block::Hash>,
-    AccountId: Clone + Encode + codec::Codec + PartialEq + Eq + std::fmt::Debug + Send + Sync + std::hash::Hash + 'static,
+    AccountId: Clone
+        + Encode
+        + codec::Codec
+        + PartialEq
+        + Eq
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + std::hash::Hash
+        + 'static,
 {
     /// Verifies a justification is valid
     ///
@@ -363,14 +403,40 @@ where
         justification: &DvfJustification<Block::Hash, AccountId>,
     ) -> Result<(), String> {
         info!(
-            "DVF Justification Builder: Verifying justification for block {:?} in round {}",
+            "Commit Engine Justification Builder: Verifying justification for block {:?} in round {}",
             justification.block_hash, justification.round_number
         );
 
-        // 1. Check vote count
+        // 1. Bound the submission before any signature check runs.
         if justification.votes.is_empty() {
-            return Err("Justification has no votes".to_string());
+            return Err(
+                "The justification carries no votes. Fix: gather votes before submitting."
+                    .to_string(),
+            );
         }
+        if justification.votes.len() > MAX_SUBMITTED_VOTES {
+            return Err(format!(
+                "The justification carries {} votes and the limit is {}. \
+                 Fix: send one justification built from the validator set of that round.",
+                justification.votes.len(),
+                MAX_SUBMITTED_VOTES
+            ));
+        }
+        let submission_bytes = justification.encode().len();
+        if submission_bytes > MAX_SUBMISSION_BYTES {
+            return Err(format!(
+                "The justification carries {} bytes and the limit is {}. \
+                 Fix: send one justification for one block rather than a joined message.",
+                submission_bytes, MAX_SUBMISSION_BYTES
+            ));
+        }
+        let declared =
+            SubmissionPolicy::standard().declared_weight(justification.votes.len() as u32);
+        debug!(
+            "Commit Engine Justification Builder: the submission declares {} weight units for {} votes",
+            declared.0,
+            justification.votes.len()
+        );
 
         // 2. Query runtime state
         let api = self.client.runtime_api();
@@ -384,8 +450,7 @@ where
             .get_validator_weights(best_hash)
             .map_err(|e| format!("Failed to get validator weights: {:?}", e))?;
 
-        let weight_map: std::collections::HashMap<_, _> =
-            validator_weights.into_iter().collect();
+        let weight_map: std::collections::HashMap<_, _> = validator_weights.into_iter().collect();
 
         // 3. Verify all votes
         let mut seen_validators = HashSet::new();
@@ -484,7 +549,7 @@ where
         }
 
         info!(
-            "DVF Justification Builder: Justification verified successfully - {} votes, accumulated weight {} (threshold: {})",
+            "Commit Engine Justification Builder: Justification verified successfully - {} votes, accumulated weight {} (threshold: {})",
             justification.votes.len(),
             accumulated_weight,
             threshold
@@ -492,10 +557,381 @@ where
 
         // Log justification verification at info level
         info!(
-            "DVF Justification Builder: Justification verified for block {:?}, round {}, {} votes, weight {}",
+            "Commit Engine Justification Builder: Justification verified for block {:?}, round {}, {} votes, weight {}",
             justification.block_hash, justification.round_number, justification.votes.len(), accumulated_weight
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod coverage_tests {
+    //! Construction and verification of Commit Engine justifications.
+    //!
+    //! Three validators hold five, three and two tenths of the weight. The
+    //! threshold asks for sixty seven percent, a weight of 670.
+
+    use super::*;
+    use crate::test_support::{AccountId, Block, TestChain, Voter};
+    use sp_core::{Pair as _, H256};
+    use sp_runtime::Perbill;
+
+    type Pool = DvfVotePool<H256, AccountId>;
+    type Builder = JustificationBuilder<Block, TestChain, AccountId>;
+
+    struct Scene {
+        chain: Arc<TestChain>,
+        pool: Arc<Pool>,
+        builder: Builder,
+        voters: [Voter; 3],
+        target: H256,
+    }
+
+    fn scene() -> Scene {
+        let chain = TestChain::with_blocks(12);
+        let voters = [
+            Voter::from_seed(1),
+            Voter::from_seed(2),
+            Voter::from_seed(3),
+        ];
+        chain.answers.set(
+            "DvfApi_get_finality_threshold_perbill",
+            (),
+            Perbill::from_percent(67),
+        );
+        chain.answers.set(
+            "DvfApi_get_validator_weights",
+            (),
+            vec![
+                (voters[0].account.clone(), 500u128),
+                (voters[1].account.clone(), 300u128),
+                (voters[2].account.clone(), 200u128),
+            ],
+        );
+        chain.answers.set(
+            "DvfApi_get_validator_set",
+            (),
+            voters
+                .iter()
+                .map(|voter| voter.account.clone())
+                .collect::<Vec<_>>(),
+        );
+        let pool = Pool::new();
+        let builder = Builder::new(chain.clone(), pool.clone());
+        let target = chain.hash_at(10);
+        Scene {
+            chain,
+            pool,
+            builder,
+            voters,
+            target,
+        }
+    }
+
+    fn signed(scene: &Scene, index: usize) -> DvfVoteMessage<H256, AccountId> {
+        scene.voters[index].vote(1, 4, 5, 10, scene.target)
+    }
+
+    fn justification(
+        scene: &Scene,
+        votes: Vec<DvfVoteMessage<H256, AccountId>>,
+    ) -> DvfJustification<H256, AccountId> {
+        DvfJustification {
+            round_number: 5,
+            block_hash: scene.target,
+            votes,
+        }
+    }
+
+    #[test]
+    fn construction_takes_the_heaviest_votes_until_the_threshold() {
+        let scene = scene();
+        for index in [2, 0, 1] {
+            scene.pool.insert_vote(signed(&scene, index));
+        }
+
+        let built = scene
+            .builder
+            .construct_justification(5, scene.target)
+            .expect("the votes reach the threshold");
+
+        assert_eq!(built.round_number, 5);
+        assert_eq!(built.block_hash, scene.target);
+        let signers: Vec<AccountId> = built
+            .votes
+            .iter()
+            .map(|vote| vote.validator_account_id.clone())
+            .collect();
+        // Five tenths alone falls short. Five and three tenths cross 670.
+        assert_eq!(
+            signers,
+            vec![
+                scene.voters[0].account.clone(),
+                scene.voters[1].account.clone()
+            ]
+        );
+        assert_eq!(scene.builder.verify_justification(&built), Ok(()));
+    }
+
+    #[test]
+    fn construction_without_votes_names_the_gap() {
+        let scene = scene();
+        assert_eq!(
+            scene.builder.construct_justification(5, scene.target),
+            Err("No votes found for block".to_string())
+        );
+    }
+
+    #[test]
+    fn construction_from_validators_without_weight_names_the_gap() {
+        let scene = scene();
+        scene
+            .pool
+            .insert_vote(Voter::from_seed(9).vote(1, 4, 5, 10, scene.target));
+        assert_eq!(
+            scene.builder.construct_justification(5, scene.target),
+            Err("No valid votes with weights found".to_string())
+        );
+    }
+
+    #[test]
+    fn construction_below_the_threshold_states_both_weights() {
+        let scene = scene();
+        scene.pool.insert_vote(signed(&scene, 0));
+        assert_eq!(
+            scene.builder.construct_justification(5, scene.target),
+            Err("Accumulated weight 500 does not meet threshold 670".to_string())
+        );
+    }
+
+    #[test]
+    fn construction_holds_the_votes_inside_the_active_set_size() {
+        let scene = scene();
+        scene.pool.insert_vote(signed(&scene, 0));
+        scene.pool.insert_vote(signed(&scene, 1));
+        scene.chain.answers.set(
+            "DvfApi_get_validator_set",
+            (),
+            vec![scene.voters[0].account.clone()],
+        );
+        assert_eq!(
+            scene.builder.construct_justification(5, scene.target),
+            Err("Justification has 2 votes but only 1 active validators".to_string())
+        );
+    }
+
+    #[test]
+    fn construction_names_each_missing_runtime_answer() {
+        let cases = [
+            (
+                "DvfApi_get_validator_weights",
+                "Failed to get validator weights: ",
+            ),
+            (
+                "DvfApi_get_finality_threshold_perbill",
+                "Failed to get finality threshold: ",
+            ),
+            ("DvfApi_get_validator_set", "Failed to get validator set: "),
+        ];
+        for (call, opening) in cases {
+            let scene = scene();
+            scene.pool.insert_vote(signed(&scene, 0));
+            scene.pool.insert_vote(signed(&scene, 1));
+            scene.chain.answers.forget(call);
+            let reason = scene
+                .builder
+                .construct_justification(5, scene.target)
+                .expect_err("the construction stops at the missing answer");
+            assert!(reason.starts_with(opening), "{call}: {reason}");
+        }
+    }
+
+    #[test]
+    fn a_builder_with_metrics_keeps_them() {
+        let scene = scene();
+        let registry = prometheus::Registry::new();
+        let metrics = Arc::new(DvfMetrics::new(&registry).expect("the metrics register"));
+        let builder = Builder::new(scene.chain.clone(), scene.pool.clone()).with_metrics(metrics);
+        assert!(builder.metrics.is_some());
+        assert!(scene.builder.metrics.is_none());
+    }
+
+    #[test]
+    fn verification_refuses_an_empty_justification() {
+        let scene = scene();
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, Vec::new())),
+            Err(
+                "The justification carries no votes. Fix: gather votes before submitting."
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn verification_refuses_more_votes_than_one_submission_carries() {
+        let scene = scene();
+        let vote = signed(&scene, 0);
+        let votes = vec![vote; MAX_SUBMITTED_VOTES + 1];
+        assert_eq!(
+            scene.builder.verify_justification(&justification(&scene, votes)),
+            Err(format!(
+                "The justification carries {} votes and the limit is {}. Fix: send one justification built from the validator set of that round.",
+                MAX_SUBMITTED_VOTES + 1,
+                MAX_SUBMITTED_VOTES
+            ))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_one_validator_counted_twice() {
+        let scene = scene();
+        let votes = vec![signed(&scene, 0), signed(&scene, 0)];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err(format!(
+                "Duplicate validator {:?} in justification",
+                scene.voters[0].account
+            ))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_a_forged_signature() {
+        let scene = scene();
+        let mut forged = signed(&scene, 1);
+        forged.signature = scene.voters[0].pair.sign(b"another payload");
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, vec![forged])),
+            Err(format!(
+                "Invalid signature for validator {:?}",
+                scene.voters[1].account
+            ))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_votes_from_two_validator_sets() {
+        let scene = scene();
+        let votes = vec![
+            signed(&scene, 0),
+            scene.voters[1].vote(1, 5, 5, 10, scene.target),
+        ];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err("Validator set ID mismatch: expected 4, got 5".to_string())
+        );
+    }
+
+    #[test]
+    fn verification_refuses_a_vote_from_another_round() {
+        let scene = scene();
+        let votes = vec![scene.voters[0].vote(1, 4, 6, 10, scene.target)];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err("Round mismatch: expected 5, got 6".to_string())
+        );
+    }
+
+    #[test]
+    fn verification_refuses_a_vote_for_another_block() {
+        let scene = scene();
+        let votes = vec![scene.voters[0].vote(1, 4, 5, 11, scene.chain.hash_at(11))];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err(format!(
+                "Block hash mismatch in vote from validator {:?}",
+                scene.voters[0].account
+            ))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_a_validator_outside_the_active_set() {
+        let scene = scene();
+        let outsider = Voter::from_seed(9);
+        let votes = vec![outsider.vote(1, 4, 5, 10, scene.target)];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err(format!(
+                "Validator {:?} is not in active set",
+                outsider.account
+            ))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_an_active_validator_without_weight() {
+        let scene = scene();
+        let unweighted = Voter::from_seed(9);
+        let mut active: Vec<AccountId> = scene
+            .voters
+            .iter()
+            .map(|voter| voter.account.clone())
+            .collect();
+        active.push(unweighted.account.clone());
+        scene
+            .chain
+            .answers
+            .set("DvfApi_get_validator_set", (), active);
+        let votes = vec![unweighted.vote(1, 4, 5, 10, scene.target)];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err(format!("Validator {:?} has no weight", unweighted.account))
+        );
+    }
+
+    #[test]
+    fn verification_refuses_weight_below_the_threshold() {
+        let scene = scene();
+        let votes = vec![signed(&scene, 1), signed(&scene, 2)];
+        assert_eq!(
+            scene
+                .builder
+                .verify_justification(&justification(&scene, votes)),
+            Err("Accumulated weight 500 does not meet threshold 670".to_string())
+        );
+    }
+
+    #[test]
+    fn verification_names_each_missing_runtime_answer() {
+        let cases = [
+            ("DvfApi_get_validator_set", "Failed to get validator set: "),
+            (
+                "DvfApi_get_validator_weights",
+                "Failed to get validator weights: ",
+            ),
+            (
+                "DvfApi_get_finality_threshold_perbill",
+                "Failed to get finality threshold: ",
+            ),
+        ];
+        for (call, opening) in cases {
+            let scene = scene();
+            let votes = vec![signed(&scene, 0), signed(&scene, 1)];
+            scene.chain.answers.forget(call);
+            let reason = scene
+                .builder
+                .verify_justification(&justification(&scene, votes))
+                .expect_err("the check stops at the missing answer");
+            assert!(reason.starts_with(opening), "{call}: {reason}");
+        }
     }
 }

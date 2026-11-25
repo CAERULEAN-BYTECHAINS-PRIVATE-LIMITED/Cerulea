@@ -1,7 +1,11 @@
-// This attribute ensures that the runtime is compiled without the standard library (`no_std`) 
-// when the `std` feature is not enabled. This is required for Substrate runtimes to run in a 
+// This attribute ensures that the runtime is compiled without the standard library (`no_std`)
+// when the `std` feature is not enabled. This is required for Substrate runtimes to run in a
 // WebAssembly (Wasm) environment.
 #![cfg_attr(not(feature = "std"), no_std)]
+// The runtime now composes sixteen platform modules beside the engine
+// modules. The macro that builds the runtime needs a deeper expansion
+// budget than the default to cover them.
+#![recursion_limit = "512"]
 
 // Include the Wasm binary generated during the build process when the `std` feature is enabled.
 // This binary is used for native execution of the runtime.
@@ -12,28 +16,29 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub mod apis; // Runtime APIs exposed to the outside world.
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks; // Benchmarking logic for runtime performance.
-pub mod configs; // Configuration settings for the runtime.
+pub mod configs; // Settings settings for the runtime.
 
 extern crate alloc; // Import the `alloc` crate for heap-allocated data structures in `no_std` environments.
 use alloc::vec::Vec; // Import the `Vec` type for dynamic arrays.
 
 use sp_runtime::{
     generic, impl_opaque_keys,
-    traits::{BlakeTwo256, IdentifyAccount, Verify, ConstU32},
+    traits::{BlakeTwo256, ConstU32, IdentifyAccount, Verify},
     MultiAddress, MultiSignature,
 };
 
-/// CBC DVF consensus key type ID — analogous to Substrate's GRANDPA (`b"gran"`).
-/// All DVF validator signing uses ed25519 keys stored under this type ID.
-pub mod cbc_dvf_crypto {
+/// The Cerulea commit key type identifier.
+/// Every validator signs a commitment with an ed25519 key held under this
+/// identifier.
+pub mod cerulea_key_crypto {
     use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
-    /// Key type ID for CBC DVF consensus keys.
-    pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cdvf");
+    /// Key type ID for Cerulea the validator registry consensus keys.
+    pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cerk");
     app_crypto!(ed25519, KEY_TYPE);
 }
 
-/// The CBC DVF public key type used in SessionKeys and for validator identification.
-pub type DcfPublic = cbc_dvf_crypto::Public;
+/// The Cerulea the validator registry public key type used in SessionKeys and for validator identification.
+pub type DcfPublic = cerulea_key_crypto::Public;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion; // Used for native runtime versioning.
 use sp_version::RuntimeVersion; // Defines the runtime version.
@@ -44,7 +49,8 @@ pub use pallet_timestamp::Call as TimestampCall; // Expose the `pallet_timestamp
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage; // Utility for building storage during tests or native execution.
 
-pub mod genesis_config_presets; // Preset configurations for the genesis block.
+pub mod genesis_config_presets; // Preset settingss for the genesis block.
+pub mod platform_api; // The runtime side of the platform interfaces.
 
 // Test and benchmarking modules
 #[cfg(test)]
@@ -53,12 +59,24 @@ pub mod mock; // Mock runtime for testing
 #[cfg(test)]
 pub mod tests; // Runtime integration tests with API unit tests
 
+#[cfg(test)]
+pub mod platform_tests; // The platform module wiring and the platform runtime interfaces
+
+#[cfg(test)]
+mod platform_api_tests; // The platform runtime interfaces against real runtime state
+
+#[cfg(test)]
+mod apis_tests; // The runtime interfaces the node calls, against real runtime state
+
+#[cfg(test)]
+mod workflow_tests; // The workflow adapter and the workflow reads, against real runtime state
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmark_tests; // Benchmarking tests
 
-/// Opaque types are used to abstract away the specifics of runtime data structures.
-/// These types are used by the CLI and other tools to interact with the runtime without
-/// needing to know the exact implementation details.
+/// Opaque types hide the shape of the runtime data structures.
+/// External tools read these types to reach the runtime without holding the
+/// exact implementation.
 pub mod opaque {
     use super::*;
     use sp_runtime::{
@@ -81,7 +99,7 @@ pub mod opaque {
 // Define the session keys used for consensus mechanisms like POS and POI.
 impl_opaque_keys! {
     pub struct SessionKeys {
-        pub dcf: DcfPublic, // DCF consensus key using ed25519
+        pub dcf: DcfPublic, // the framework pallet consensus key using ed25519
     }
 }
 
@@ -91,20 +109,32 @@ impl_opaque_keys! {
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: alloc::borrow::Cow::Borrowed("cerulea-runtime"), // Name of the runtime specification.
     impl_name: alloc::borrow::Cow::Borrowed("cerulea-runtime"), // Name of the runtime implementation.
-    authoring_version: 1, // Version of the authoring logic.
-    spec_version: 100, // Version of the runtime specification.
-    impl_version: 1, // Version of the runtime implementation.
+    authoring_version: 1,                                       // Version of the authoring logic.
+    spec_version: 100,                // Version of the runtime specification.
+    impl_version: 1,                  // Version of the runtime implementation.
     apis: apis::RUNTIME_API_VERSIONS, // Runtime APIs exposed by this runtime.
-    transaction_version: 1, // Version of the transaction format.
-    system_version: 1, // Version of the system logic.
+    transaction_version: 1,           // Version of the transaction format.
+    system_version: 1,                // Version of the system logic.
 };
 
 mod block_times {
-    /// Defines the average expected block time in milliseconds for DCF consensus
+    /// Defines the average expected block time in milliseconds for the framework pallet consensus
     pub const MILLI_SECS_PER_BLOCK: u64 = 6000;
 
     // The slot duration is the minimum time between blocks
     pub const SLOT_DURATION: u64 = MILLI_SECS_PER_BLOCK;
+
+    /// The least the block timestamp rises from one block to the next, in
+    /// milliseconds.
+    ///
+    /// The author of each block sets its timestamp from its own clock and the
+    /// chain lifts it to the parent timestamp plus this period where the
+    /// clock reads less. The Authoring Engine gives each rank a window of
+    /// 1,500 milliseconds and the network produces about one block a window,
+    /// so the period stays well under the real cadence. Chain time then
+    /// follows the clocks of the authors. A period above the cadence pushed
+    /// every block ahead and chain time ran away from the wall clock.
+    pub const MINIMUM_TIMESTAMP_PERIOD: u64 = 500;
 }
 pub use block_times::*;
 
@@ -121,7 +151,14 @@ pub const UNIT: Balance = 1_000_000_000_000; // Base unit for balances.
 pub const MILLI_UNIT: Balance = 1_000_000_000; // Milli unit for balances.
 pub const MICRO_UNIT: Balance = 1_000_000; // Micro unit for balances.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT; // Minimum balance required to keep an account alive.
-pub const CBC: Balance = UNIT; // 1 CBC token equals 1 UNIT (10^12 subunits)
+/// The unit of account the runtime reckons in. One unit carries 10^12
+/// subunits.
+///
+/// Cerulea operates with no token. Nothing is issued, held, traded or paid
+/// here. The figure is the internal balance unit the framework crates ask for,
+/// and it exists so the deposit arithmetic, the stake arithmetic and the
+/// genesis endowments of a test chain have a scale to count in.
+pub const ACCOUNTING_UNIT: Balance = UNIT;
 
 // Define the native runtime version for native execution.
 #[cfg(feature = "std")]
@@ -221,21 +258,69 @@ mod runtime {
     #[runtime::pallet_index(8)]
     pub type Dcf = pallet_cerulea_dcf::Pallet<Runtime>;
 
-    /// Simple on-chain Todo list pallet
-    #[runtime::pallet_index(9)]
-    pub type Todo = pallet_todo;
-
+    // The validator registry pallet. The Admission Engine lives here.
     #[runtime::pallet_index(10)]
-    pub type Dvf = pallet_cerulea_dvf::Pallet<Runtime>;
+    pub type Registry = pallet_cerulea_dvf::Pallet<Runtime>;
+
+    #[runtime::pallet_index(11)]
+    pub type Schema = pallet_cerulea_schema::Pallet<Runtime>;
+
+    #[runtime::pallet_index(12)]
+    pub type State = pallet_cerulea_state::Pallet<Runtime>;
+
+    #[runtime::pallet_index(13)]
+    pub type Collections = pallet_cerulea_collections::Pallet<Runtime>;
+
+    #[runtime::pallet_index(14)]
+    pub type Identity = pallet_cerulea_identity::Pallet<Runtime>;
+
+    #[runtime::pallet_index(15)]
+    pub type Permission = pallet_cerulea_permission::Pallet<Runtime>;
+
+    #[runtime::pallet_index(16)]
+    pub type Logic = pallet_cerulea_logic::Pallet<Runtime>;
+
+    #[runtime::pallet_index(17)]
+    pub type Workflow = pallet_cerulea_workflow::Pallet<Runtime>;
+
+    #[runtime::pallet_index(18)]
+    pub type Rules = pallet_cerulea_rules::Pallet<Runtime>;
+
+    #[runtime::pallet_index(19)]
+    pub type Governance = pallet_cerulea_governance::Pallet<Runtime>;
+
+    #[runtime::pallet_index(20)]
+    pub type Evolution = pallet_cerulea_evolution::Pallet<Runtime>;
+
+    #[runtime::pallet_index(21)]
+    pub type Bridge = pallet_cerulea_bridge::Pallet<Runtime>;
+
+    #[runtime::pallet_index(22)]
+    pub type Oracle = pallet_cerulea_oracle::Pallet<Runtime>;
+
+    #[runtime::pallet_index(24)]
+    pub type Tier = pallet_cerulea_tier::Pallet<Runtime>;
+
+    #[runtime::pallet_index(23)]
+    pub type Relayer = pallet_cerulea_relayer::Pallet<Runtime>;
+
+    #[runtime::pallet_index(26)]
+    pub type Operator = pallet_cerulea_operator::Pallet<Runtime>;
+
+    #[runtime::pallet_index(25)]
+    pub type Audit = pallet_cerulea_audit::Pallet<Runtime>;
+
+    #[runtime::pallet_index(27)]
+    pub type Custody = pallet_cerulea_custody::Pallet<Runtime>;
 }
 use sp_runtime::traits::parameter_types;
 
 parameter_types! {
-	pub const EnterDuration: BlockNumber = 4 * HOURS;
-	pub const EnterDepositAmount: Balance = 2_000_000 * CBC;
-	pub const ExtendDuration: BlockNumber = 2 * HOURS;
-	pub const ExtendDepositAmount: Balance = 1_000_000 * CBC;
-	pub const ReleaseDelay: u32 = 2 * DAYS;
+    pub const EnterDuration: BlockNumber = 4 * HOURS;
+    pub const EnterDepositAmount: Balance = 2_000_000 * ACCOUNTING_UNIT;
+    pub const ExtendDuration: BlockNumber = 2 * HOURS;
+    pub const ExtendDepositAmount: Balance = 1_000_000 * ACCOUNTING_UNIT;
+    pub const ReleaseDelay: u32 = 2 * DAYS;
 
     // Validator parameters
     pub const MinValidatorScore: u32 = 50;
@@ -243,7 +328,7 @@ parameter_types! {
     pub const MaxValidators: u32 = 100;
     pub const ValidatorScoreDecay: u32 = 10;
     pub const MaxSlashingCount: u32 = 3;
-   
+
 
     // Inference parameters
     pub const MinInferenceConfidence: u32 = 80;
@@ -252,15 +337,14 @@ parameter_types! {
     pub const InferenceReward: u128 = 1000;
     pub const ChallengeReward: u128 = 500;
 
-    // DCF parameters
+    // Framework parameters
     pub const DcfMaxValidators: u32 = 100;
-    // TODO(PoI): Restore to 6000/4000 when AI inference integration is complete.
-    // The PoI weight is set to 0 now because inference_score is always 0 (no AI layer yet).
-    // Having poi_weight=4000 with poi_score=0 permanently deflates all validator scores by 40%
-    // relative to pure PoS. When PoI goes live, raise poi_weight via update_consensus_weights.
-    pub const DefaultPosWeight: u64 = 10000; // 100% PoS — pure PoS until PoI integration complete
-    pub const DefaultPoiWeight: u64 = 0;     // 0% PoI — AI inference not yet integrated
-    pub const MinStake: Balance = 1000 * CBC; // Minimum stake required
+    // The Trust Score composition carries the weighting. The Standing Engine in
+    // the framework pallet holds it. The public-access chain weighs standing at
+    // 40 percent, performance at 30 percent, custody at 20 percent and sampling
+    // at 10 percent. A private chain weighs role at 35 percent, attestation at
+    // 25 percent, performance at 25 percent and custody at 15 percent.
+    pub const MinStake: Balance = 1000 * ACCOUNTING_UNIT; // Minimum stake required
     pub const MaxValidatorsPerEpoch: u32 = 50; // Maximum validators per epoch
     pub const MaxValidatorScore: u64 = 100;
 
@@ -275,7 +359,7 @@ parameter_types! {
     pub const InferencePenaltyHigh: u64 = 7;
 
     pub const MaxEpochHistory: u32 = 24;
-    
+
     // Performance thresholds
     pub const MinPerformanceScore: u64 = 30;
     pub const HighPerformanceScore: u64 = 80;
@@ -286,34 +370,34 @@ parameter_types! {
     pub const HealthyValidatorScore: u64 = 50;
     pub const HealthyParticipationRate: u32 = 80;
     pub const HealthyMissedBlocksMax: u32 = 5;
-    
+
     // Score calculation thresholds
     pub const ScoreChangeThreshold: u64 = 1000;
     pub const ScoreChangePercentage: u32 = 10;
     pub const ScoreImprovementThreshold: u64 = 1000;
     pub const ScoreImprovementPercentage: u32 = 10;
-    
+
     // Contribution balance thresholds
     pub const MaxPosContribution: u32 = 90;
     pub const MaxPoiContribution: u32 = 90;
     pub const ImbalanceWarningThreshold: u32 = 85;
-    
+
     // Block processing intervals
     pub const LeaveRequestCheckInterval: u32 = 10;
     pub const MetricsUpdateInterval: u32 = 10;
     pub const ScoreRefreshInterval: u32 = 50;
     pub const DetailedLoggingInterval: u32 = 100;
     pub const ImbalanceCheckInterval: u32 = 500;
-    
+
     // Validator set limits
     pub const TopValidatorsDisplayCount: u32 = 5;
     pub const HealthCheckSampleSize: u32 = 5;
-    
+
     // Percentage constants
     pub const FullPercentage: u32 = 100;
     pub const HighPerformancePercentage: u32 = 80;
     pub const TopPerformerPercentage: u32 = 20;
-    
+
     // Misbehavior reporting
     pub const MaxEvidenceLength: u32 = 1000;
     pub const MisbehaviorSlashThreshold: u32 = 3;
@@ -321,7 +405,6 @@ parameter_types! {
 
 pub use pallet_cerulea_poi;
 pub use pallet_cerulea_pos;
-pub use pallet_todo;
 
 parameter_types! {
     pub const StakeWeightFactor: u128 = 1;
@@ -332,8 +415,21 @@ parameter_types! {
     pub const VoteRetentionRounds: u32 = 20;
 }
 
+/// The penalty for two votes one validator signed in one round.
+///
+/// The Standing Engine returns the standing of the validator to zero, records
+/// the reset and removes the seat.
+pub struct StandingEnginePenalty;
+
+impl pallet_cerulea_dvf::VoteEquivocationPenalty<AccountId> for StandingEnginePenalty {
+    fn penalise(validator: &AccountId) -> u32 {
+        pallet_cerulea_dcf::Pallet::<Runtime>::penalise_vote_equivocation(validator)
+    }
+}
+
 impl pallet_cerulea_dvf::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type VotePenalty = StandingEnginePenalty;
     type Signature = Signature;
     type Signer = <Signature as Verify>::Signer;
     type StakeWeightFactor = StakeWeightFactor;

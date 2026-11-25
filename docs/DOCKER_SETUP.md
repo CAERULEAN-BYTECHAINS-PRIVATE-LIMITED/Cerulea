@@ -246,7 +246,7 @@ to the repo and baked into the Docker image so her peer-id never changes between
 rebuilds or deployments.
 
 Bob and Charlie derive Alice's peer-id from this baked key at startup — no manual
-configuration needed.
+settings needed.
 
 If you ever need to regenerate Alice's key (this will change her peer-id and break
 existing bootnodes pointing to her):
