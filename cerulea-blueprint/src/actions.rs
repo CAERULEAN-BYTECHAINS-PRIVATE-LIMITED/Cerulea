@@ -500,6 +500,71 @@ impl AccessManifest {
         found.dedup();
         found
     }
+
+    /// Report whether this manifest declares any `KeyRange::Full` access.
+    pub fn has_full_access(&self) -> bool {
+        self.reads
+            .iter()
+            .chain(self.writes.iter())
+            .any(|entry| matches!(entry.range, KeyRange::Full))
+    }
+
+    /// Report whether this manifest declares any `KeyRange::Full` write.
+    pub fn has_full_write(&self) -> bool {
+        self.writes
+            .iter()
+            .any(|entry| matches!(entry.range, KeyRange::Full))
+    }
+
+    /// Report whether two manifests have a read-write or write-write conflict.
+    ///
+    /// Disjoint key ranges and read-read accesses on the same collection do not conflict.
+    pub fn conflicts_with(&self, other: &AccessManifest) -> bool {
+        let pairs_conflict = |a: &[AccessEntry], b: &[AccessEntry]| {
+            a.iter().any(|left| {
+                b.iter().any(|right| {
+                    left.collection == right.collection && left.range.overlaps(&right.range)
+                })
+            })
+        };
+        pairs_conflict(&self.writes, &other.writes)
+            || pairs_conflict(&self.writes, &other.reads)
+            || pairs_conflict(&self.reads, &other.writes)
+    }
+
+    /// Report whether two manifests can execute in parallel without conflict.
+    pub fn can_run_in_parallel_with(&self, other: &AccessManifest) -> bool {
+        !self.conflicts_with(other)
+    }
+
+    /// Deterministically group manifests into parallel execution waves.
+    ///
+    /// Each batch contains transaction indices that have zero pairwise read-write
+    /// or write-write conflicts. Conflicting transactions are placed in later
+    /// batches while preserving order dependencies against earlier waves.
+    pub fn schedule_parallel_batches(manifests: &[AccessManifest]) -> Vec<Vec<usize>> {
+        let mut batches: Vec<Vec<usize>> = Vec::new();
+        for (idx, candidate) in manifests.iter().enumerate() {
+            // Find the earliest wave such that `candidate` does not conflict with
+            // any manifest in that wave OR any later wave (preserving hazard order).
+            let mut target_wave = batches.len();
+            for wave_idx in (0..batches.len()).rev() {
+                let wave_conflicts = batches[wave_idx]
+                    .iter()
+                    .any(|&other_idx| candidate.conflicts_with(&manifests[other_idx]));
+                if wave_conflicts {
+                    break;
+                }
+                target_wave = wave_idx;
+            }
+            if target_wave == batches.len() {
+                batches.push(alloc::vec![idx]);
+            } else {
+                batches[target_wave].push(idx);
+            }
+        }
+        batches
+    }
 }
 
 /// An action.
@@ -1694,5 +1759,56 @@ mod tests {
         );
         assert!(diagnostic.fix.contains("record_transfer"));
         assert!(no_blocks().block(&BlockId::new("any")).is_none());
+    }
+
+    #[test]
+    fn manifest_conflict_detection_and_parallel_scheduling_work_by_key_range() {
+        let col = CollectionId::new("parcel");
+        let make = |name: &str, reads: Vec<KeyRange>, writes: Vec<KeyRange>| AccessManifest {
+            action: ActionId::new(name),
+            reads: reads
+                .into_iter()
+                .map(|range| AccessEntry {
+                    collection: col.clone(),
+                    range,
+                })
+                .collect(),
+            writes: writes
+                .into_iter()
+                .map(|range| AccessEntry {
+                    collection: col.clone(),
+                    range,
+                })
+                .collect(),
+            class: TransactionClass::Routine,
+        };
+
+        // Disjoint Exact keys run in parallel in a single wave.
+        let tx_a = make("a", vec![], vec![KeyRange::Exact(b"k1".to_vec())]);
+        let tx_b = make("b", vec![], vec![KeyRange::Exact(b"k2".to_vec())]);
+        assert!(tx_a.can_run_in_parallel_with(&tx_b));
+
+        // Read-read on the same key runs in parallel.
+        let rd_1 = make("r1", vec![KeyRange::Exact(b"k1".to_vec())], vec![]);
+        let rd_2 = make("r2", vec![KeyRange::Exact(b"k1".to_vec())], vec![]);
+        assert!(rd_1.can_run_in_parallel_with(&rd_2));
+
+        // Prefix overlapping Exact write conflicts; disjoint Prefix does not.
+        let p_conflict = make("pc", vec![KeyRange::Prefix(b"k".to_vec())], vec![]);
+        let p_disjoint = make("pd", vec![KeyRange::Prefix(b"m".to_vec())], vec![]);
+        assert!(p_conflict.conflicts_with(&tx_a));
+        assert!(p_disjoint.can_run_in_parallel_with(&tx_a));
+
+        // Full-collection write forces serialization against every other access.
+        let full = make("full", vec![], vec![KeyRange::Full]);
+        assert!(full.has_full_access());
+        assert!(full.has_full_write());
+        assert!(full.conflicts_with(&tx_a));
+        assert!(full.conflicts_with(&tx_b));
+
+        // Wave scheduler groups [tx_a, tx_b] into wave 0 and serializes conflicting [tx_a2, full] into waves 1 and 2.
+        let tx_a2 = make("a2", vec![], vec![KeyRange::Exact(b"k1".to_vec())]);
+        let batches = AccessManifest::schedule_parallel_batches(&[tx_a, tx_b, tx_a2, full]);
+        assert_eq!(batches, vec![vec![0, 1], vec![2], vec![3]]);
     }
 }

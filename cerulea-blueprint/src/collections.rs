@@ -599,6 +599,22 @@ impl KeyRange {
         }
     }
 
+    /// Report whether two key ranges share at least one potential key.
+    ///
+    /// Disjoint `Exact` keys and non-prefixing `Prefix` ranges do not overlap
+    /// and can be scheduled in parallel.
+    pub fn overlaps(&self, other: &KeyRange) -> bool {
+        match (self, other) {
+            (KeyRange::Full, _) | (_, KeyRange::Full) => true,
+            (KeyRange::Prefix(prefix), KeyRange::Exact(key))
+            | (KeyRange::Exact(key), KeyRange::Prefix(prefix)) => key.starts_with(prefix),
+            (KeyRange::Prefix(left), KeyRange::Prefix(right)) => {
+                left.starts_with(right) || right.starts_with(left)
+            }
+            (KeyRange::Exact(left), KeyRange::Exact(right)) => left == right,
+        }
+    }
+
     /// A word naming the shape for the interface layer.
     pub fn label(&self) -> &'static str {
         match self {
