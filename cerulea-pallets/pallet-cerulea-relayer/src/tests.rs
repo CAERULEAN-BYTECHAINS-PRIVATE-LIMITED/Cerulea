@@ -535,3 +535,147 @@ fn every_relayer_record_appears_in_the_audit_log_with_its_actor() {
         assert_eq!(relayed[0].actor, CITIZEN);
     });
 }
+
+#[test]
+fn sponsor_reserve_floor_prevents_pool_depletion() {
+    new_test_ext().execute_with(|| {
+        install();
+        // Register sponsor with 25 units (UnitsPerSubmission = 10 in mock).
+        assert_ok!(Relayer::register_sponsor(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            RELAYER,
+            25
+        ));
+        assert_ok!(Relayer::set_sponsor_reserve(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            RELAYER,
+            10
+        ));
+        // First submission: 25 - 10 = 15 >= 10 (allowed).
+        assert_ok!(relay(&authorisation(1)));
+        // Second submission: 15 - 10 = 5 < 10 reserve (blocked).
+        assert_noop!(
+            relay(&authorisation(2)),
+            Error::<Test>::SponsorReserveBreached
+        );
+    });
+}
+
+#[test]
+fn circuit_breaker_blocks_spend_spikes_and_resets() {
+    new_test_ext().execute_with(|| {
+        install();
+        // Allow at most 10 units per hour (1 submission at 10 units/submission).
+        assert_ok!(Relayer::configure_circuit_breaker(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            HOUR,
+            10
+        ));
+        assert_ok!(relay(&authorisation(1)));
+        assert_noop!(
+            relay(&authorisation(2)),
+            Error::<Test>::CircuitBreakerTripped
+        );
+
+        // Resetting clears the window and allows submissions again.
+        assert_ok!(Relayer::reset_circuit_breaker(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT
+        ));
+        assert_ok!(relay(&authorisation(2)));
+
+        // Manual trip blocks submissions until reset.
+        assert_ok!(Relayer::trip_circuit_breaker(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT
+        ));
+        assert_noop!(
+            relay(&authorisation(3)),
+            Error::<Test>::CircuitBreakerTripped
+        );
+    });
+}
+
+#[test]
+fn dynamic_account_sponsor_cap_tightens_under_high_utilization() {
+    new_test_ext().execute_with(|| {
+        install();
+        // Sponsor budget = 100 units. Base account cap = 40 units/hour, surge_divisor = 2 (20 units at >=80% utilization).
+        assert_ok!(Relayer::register_sponsor(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            RELAYER,
+            100
+        ));
+        assert_ok!(Relayer::set_account_sponsor_cap(
+            RuntimeOrigin::signed(STEWARD),
+            DEPLOYMENT,
+            HOUR,
+            40,
+            2
+        ));
+
+        // Spend 80 units using a second account so sponsor reaches 80% utilization.
+        let second_key = ed25519::Pair::from_seed(&[6u8; 32]);
+        assert_ok!(Identity::register_account(
+            RuntimeOrigin::signed(STEWARD),
+            5,
+            [5u8; 32]
+        ));
+        assert_ok!(Relayer::register_signing_key(
+            RuntimeOrigin::signed(5),
+            DEPLOYMENT,
+            second_key.public().0
+        ));
+        for nonce in 1..=8 {
+            if nonce <= 4 {
+                let mut held = authorisation(nonce);
+                held.actor = 5;
+                let sig = second_key.sign(&held.message());
+                assert_ok!(Relayer::submit_on_behalf(
+                    RuntimeOrigin::signed(RELAYER),
+                    DEPLOYMENT,
+                    held,
+                    sig.0,
+                    Box::new(inner_call()),
+                ));
+            } else {
+                // Register a third account for the next 40 units so account 5 stays within its 40-unit cap.
+                if nonce == 5 {
+                    let third_key = ed25519::Pair::from_seed(&[7u8; 32]);
+                    assert_ok!(Identity::register_account(
+                        RuntimeOrigin::signed(STEWARD),
+                        6,
+                        [6u8; 32]
+                    ));
+                    assert_ok!(Relayer::register_signing_key(
+                        RuntimeOrigin::signed(6),
+                        DEPLOYMENT,
+                        third_key.public().0
+                    ));
+                }
+                let third_key = ed25519::Pair::from_seed(&[7u8; 32]);
+                let mut held = authorisation(nonce);
+                held.actor = 6;
+                let sig = third_key.sign(&held.message());
+                assert_ok!(Relayer::submit_on_behalf(
+                    RuntimeOrigin::signed(RELAYER),
+                    DEPLOYMENT,
+                    held,
+                    sig.0,
+                    Box::new(inner_call()),
+                ));
+            }
+        }
+        // Sponsor is now at 80/100 (80%) utilization: CITIZEN's cap tightens from 40 to 20 units (2 submissions).
+        assert_ok!(relay(&authorisation(1)));
+        assert_ok!(relay(&authorisation(2)));
+        assert_noop!(
+            relay(&authorisation(3)),
+            Error::<Test>::AccountSponsorLimitExceeded
+        );
+    });
+}

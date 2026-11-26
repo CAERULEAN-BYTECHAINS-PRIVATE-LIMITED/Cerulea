@@ -127,6 +127,95 @@ pub struct RateLimit {
     pub max_count: u32,
 }
 
+/// Circuit breaker configuration protecting a deployment's sponsorship pool
+/// against spend spikes.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    DecodeWithMemTracking,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+pub struct CircuitBreakerConfig {
+    /// Window length in milliseconds.
+    pub window_millis: u64,
+    /// Maximum sponsored units permitted within a single window.
+    pub max_units_per_window: u64,
+    /// Whether the circuit breaker is currently tripped.
+    pub tripped: bool,
+    /// Wall-clock time the circuit breaker was tripped at.
+    pub tripped_at: u64,
+}
+
+/// Rolling window usage for the deployment circuit breaker.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    DecodeWithMemTracking,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+pub struct CircuitBreakerWindow {
+    /// Start of the current window in milliseconds.
+    pub window_start: u64,
+    /// Units spent in the current window.
+    pub spent_units: u64,
+}
+
+/// Dynamic account-level sponsorship unit cap.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    DecodeWithMemTracking,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+pub struct AccountSponsorCap {
+    /// Cap period length in milliseconds.
+    pub period_millis: u64,
+    /// Base sponsored units permitted per account per period.
+    pub max_units_per_period: u64,
+    /// Divisor applied to `max_units_per_period` when pool/window utilization >= 80%.
+    pub surge_divisor: u8,
+}
+
+/// Per-account sponsorship unit usage in the current period.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    DecodeWithMemTracking,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+pub struct AccountSponsorWindow {
+    /// Start of the current period in milliseconds.
+    pub period_start: u64,
+    /// Units sponsored for this account in the current period.
+    pub used_units: u64,
+}
+
 /// The submissions counted inside one window.
 #[derive(
     Clone,
@@ -348,6 +437,45 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Minimum protected reserve units per sponsor that cannot be spent by relayed calls.
+    #[pallet::storage]
+    pub type SponsorReserve<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        DeploymentId,
+        Blake2_128Concat,
+        T::AccountId,
+        u64,
+        ValueQuery,
+    >;
+
+    /// Deployment-level circuit breaker configuration.
+    #[pallet::storage]
+    pub type CircuitBreakers<T: Config> =
+        StorageMap<_, Blake2_128Concat, DeploymentId, CircuitBreakerConfig, OptionQuery>;
+
+    /// Rolling spend window for the deployment circuit breaker.
+    #[pallet::storage]
+    pub type CircuitBreakerWindows<T: Config> =
+        StorageMap<_, Blake2_128Concat, DeploymentId, CircuitBreakerWindow, ValueQuery>;
+
+    /// Dynamic per-account sponsorship unit cap configuration.
+    #[pallet::storage]
+    pub type AccountSponsorCaps<T: Config> =
+        StorageMap<_, Blake2_128Concat, DeploymentId, AccountSponsorCap, OptionQuery>;
+
+    /// Per-account sponsorship unit usage within the current period.
+    #[pallet::storage]
+    pub type AccountSponsorUsage<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        DeploymentId,
+        Blake2_128Concat,
+        T::AccountId,
+        AccountSponsorWindow,
+        ValueQuery,
+    >;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -415,6 +543,56 @@ pub mod pallet {
             /// The account.
             account: T::AccountId,
         },
+        /// A protected reserve floor was configured for a sponsor.
+        SponsorReserveSet {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The sponsor.
+            sponsor: T::AccountId,
+            /// Minimum protected units.
+            reserve_units: u64,
+        },
+        /// A sponsor's remaining balance entered the low-balance warning zone.
+        SponsorLowBalance {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// The sponsor.
+            sponsor: T::AccountId,
+            /// Remaining units after spend.
+            remaining_units: u64,
+            /// Protected reserve floor.
+            reserve_units: u64,
+        },
+        /// A deployment circuit breaker was configured.
+        CircuitBreakerConfigured {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// Window span in milliseconds.
+            window_millis: u64,
+            /// Maximum units per window.
+            max_units_per_window: u64,
+        },
+        /// A deployment circuit breaker tripped.
+        CircuitBreakerTripped {
+            /// The deployment.
+            deployment: DeploymentId,
+        },
+        /// A deployment circuit breaker was reset.
+        CircuitBreakerReset {
+            /// The deployment.
+            deployment: DeploymentId,
+        },
+        /// Dynamic per-account sponsorship cap configured.
+        AccountSponsorCapSet {
+            /// The deployment.
+            deployment: DeploymentId,
+            /// Period length in milliseconds.
+            period_millis: u64,
+            /// Base max units per account per period.
+            max_units_per_period: u64,
+            /// Surge divisor applied under high pool utilization.
+            surge_divisor: u8,
+        },
     }
 
     #[pallet::error]
@@ -479,6 +657,14 @@ pub mod pallet {
         /// call from the installing account, an appointed operator or the
         /// control plane key.
         NotSteward,
+        /// Spending would breach the sponsor's protected minimum reserve floor.
+        SponsorReserveBreached,
+        /// The deployment's sponsorship circuit breaker is tripped.
+        CircuitBreakerTripped,
+        /// The account exceeded its dynamic sponsorship unit cap for the current period.
+        AccountSponsorLimitExceeded,
+        /// The supplied sponsorship protection configuration is invalid (e.g. zero window or divisor).
+        InvalidLimitConfig,
     }
 
     #[pallet::call]
@@ -756,6 +942,134 @@ pub mod pallet {
             Self::deposit_event(Event::ThrottleLifted {
                 deployment,
                 account,
+            });
+            Ok(())
+        }
+
+        /// Set a protected minimum reserve floor for a sponsor account.
+        #[pallet::call_index(8)]
+        #[pallet::weight(T::WeightInfo::set_account_limit())]
+        pub fn set_sponsor_reserve(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            sponsor: T::AccountId,
+            reserve_units: u64,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
+            SponsorReserve::<T>::insert(deployment, &sponsor, reserve_units);
+            Self::deposit_event(Event::SponsorReserveSet {
+                deployment,
+                sponsor,
+                reserve_units,
+            });
+            Ok(())
+        }
+
+        /// Configure the deployment-wide sponsorship circuit breaker.
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::WeightInfo::set_account_limit())]
+        pub fn configure_circuit_breaker(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            window_millis: u64,
+            max_units_per_window: u64,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
+            ensure!(
+                window_millis > 0 && max_units_per_window > 0,
+                Error::<T>::InvalidLimitConfig
+            );
+            CircuitBreakers::<T>::insert(
+                deployment,
+                CircuitBreakerConfig {
+                    window_millis,
+                    max_units_per_window,
+                    tripped: false,
+                    tripped_at: 0,
+                },
+            );
+            Self::deposit_event(Event::CircuitBreakerConfigured {
+                deployment,
+                window_millis,
+                max_units_per_window,
+            });
+            Ok(())
+        }
+
+        /// Manually trip the deployment sponsorship circuit breaker.
+        #[pallet::call_index(10)]
+        #[pallet::weight(T::WeightInfo::throttle())]
+        pub fn trip_circuit_breaker(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
+            let now = Self::now_millis();
+            CircuitBreakers::<T>::mutate(deployment, |slot| {
+                let cb = slot.get_or_insert(CircuitBreakerConfig {
+                    window_millis: 3_600_000,
+                    max_units_per_window: 0,
+                    tripped: true,
+                    tripped_at: now,
+                });
+                cb.tripped = true;
+                cb.tripped_at = now;
+            });
+            Self::deposit_event(Event::CircuitBreakerTripped { deployment });
+            Ok(())
+        }
+
+        /// Reset a tripped deployment sponsorship circuit breaker and clear its current window.
+        #[pallet::call_index(11)]
+        #[pallet::weight(T::WeightInfo::lift_throttle())]
+        pub fn reset_circuit_breaker(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
+            CircuitBreakers::<T>::mutate(deployment, |slot| {
+                if let Some(cb) = slot.as_mut() {
+                    cb.tripped = false;
+                }
+            });
+            CircuitBreakerWindows::<T>::remove(deployment);
+            Self::deposit_event(Event::CircuitBreakerReset { deployment });
+            Ok(())
+        }
+
+        /// Configure dynamic account-level sponsorship unit caps.
+        #[pallet::call_index(12)]
+        #[pallet::weight(T::WeightInfo::set_account_limit())]
+        pub fn set_account_sponsor_cap(
+            origin: OriginFor<T>,
+            deployment: DeploymentId,
+            period_millis: u64,
+            max_units_per_period: u64,
+            surge_divisor: u8,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::ensure_steward(&deployment, &who)?;
+            ensure!(
+                period_millis > 0 && max_units_per_period > 0 && surge_divisor > 0,
+                Error::<T>::InvalidLimitConfig
+            );
+            AccountSponsorCaps::<T>::insert(
+                deployment,
+                AccountSponsorCap {
+                    period_millis,
+                    max_units_per_period,
+                    surge_divisor,
+                },
+            );
+            Self::deposit_event(Event::AccountSponsorCapSet {
+                deployment,
+                period_millis,
+                max_units_per_period,
+                surge_divisor,
             });
             Ok(())
         }
