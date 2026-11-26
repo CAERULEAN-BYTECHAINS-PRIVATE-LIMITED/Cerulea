@@ -11,8 +11,8 @@
 use crate::{
     expression::{Env, Expr, Meter},
     types::{
-        CollectionId, FieldPath, IndexName, PurposeTag, RoleId, TypeExpr, TypeId, TypeRegistry,
-        Value,
+        CollectionId, FieldPath, IndexName, PurposeTag, RoleId, RuleId, TypeExpr, TypeId,
+        TypeRegistry, Value,
     },
     Diagnostic, DiagnosticCode, Location, Path, Report,
 };
@@ -220,6 +220,68 @@ pub struct Index {
 }
 
 /// A collection.
+/// The Section 7 legitimate-use categories under the Digital Personal Data Protection Act, 2023.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub enum LegitimateUseCategory {
+    /// Specified purpose for which the data principal voluntarily provided personal data (Section 7(a)).
+    VoluntaryProvision,
+    /// Provision of subsidy, benefit, service, certificate, licence or permit by the State (Section 7(b)).
+    StateSubsidyOrService,
+    /// Performance of any function under law or in the interest of sovereignty and integrity (Section 7(c)).
+    LegalFunction,
+    /// Fulfilling any legal obligation to disclose information (Section 7(d)).
+    LegalObligation,
+    /// Compliance with any judgment, decree or order under law (Section 7(e)).
+    JudicialOrder,
+    /// Responding to a medical emergency involving a threat to life or health (Section 7(f)).
+    MedicalEmergency,
+    /// Providing medical treatment or health services during an epidemic or outbreak (Section 7(g)).
+    PublicHealthEmergency,
+    /// Ensuring safety or providing assistance during a disaster or breakdown of public order (Section 7(h)).
+    DisasterOrSafety,
+    /// Purposes related to employment or safeguarding the employer from loss or liability (Section 7(i)).
+    Employment,
+}
+
+/// The lawful basis for processing personal data under the DPDP Act, 2023 (Section 4).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub enum LawfulBasis {
+    /// Explicit, free, specific, informed, and unconditional consent (Section 6),
+    /// subject to withdrawal and cessation of processing.
+    Consent,
+    /// One of the specified legitimate uses under Section 7.
+    LegitimateUse(LegitimateUseCategory),
+}
+
+/// A collection of records of one type.
 #[derive(
     Clone,
     Debug,
@@ -251,6 +313,19 @@ pub struct Collection {
     pub purpose: PurposeDeclaration,
     /// One plain sentence stating what the collection holds.
     pub summary: String,
+    /// Schema-owner classification indicating whether the collection holds personal data.
+    /// Note: this is an explicit governance declaration, not automatic field-level PII discovery.
+    #[serde(default)]
+    pub personal_data: bool,
+    /// Lawful basis for processing personal data (Section 4 of DPDP Act, 2023).
+    #[serde(default)]
+    pub lawful_basis: Option<LawfulBasis>,
+    /// Rule governing consent recording, withdrawal, and cessation of processing (Section 6).
+    #[serde(default)]
+    pub consent_tracking: Option<RuleId>,
+    /// Executable rule governing personal-data erasure across on-chain and external storage.
+    #[serde(default)]
+    pub erasure_rule: Option<RuleId>,
 }
 
 impl Collection {
@@ -265,7 +340,23 @@ impl Collection {
             retention: Retention::default(),
             purpose: PurposeDeclaration::default(),
             summary: summary.to_string(),
+            personal_data: false,
+            lawful_basis: None,
+            consent_tracking: None,
+            erasure_rule: None,
         }
+    }
+
+    /// The compliance rules this collection names, each with its location.
+    pub fn rule_refs(&self, path: &Path) -> Vec<(RuleId, Location)> {
+        let mut refs = Vec::new();
+        if let Some(rule) = &self.consent_tracking {
+            refs.push((rule.clone(), path.field("consent_tracking").location()));
+        }
+        if let Some(rule) = &self.erasure_rule {
+            refs.push((rule.clone(), path.field("erasure_rule").location()));
+        }
+        refs
     }
 
     /// The roles this collection names, each with its location.
@@ -632,6 +723,7 @@ pub fn validate_collections(
         }
 
         validate_privacy(collection, types, &here, &mut report);
+        validate_personal_data_compliance(collection, &here, &mut report);
 
         if collection.purpose.statement.is_empty() {
             report.push(Diagnostic::at(
@@ -778,6 +870,72 @@ fn validate_privacy(
                 }
             }
         }
+    }
+}
+
+fn validate_personal_data_compliance(collection: &Collection, here: &Path, report: &mut Report) {
+    if let Some(rule) = &collection.consent_tracking {
+        report.absorb(rule.validate(&here.field("consent_tracking")));
+    }
+    if let Some(rule) = &collection.erasure_rule {
+        report.absorb(rule.validate(&here.field("erasure_rule")));
+    }
+
+    if !collection.personal_data {
+        if collection.lawful_basis.is_some()
+            || collection.consent_tracking.is_some()
+            || collection.erasure_rule.is_some()
+        {
+            report.push(Diagnostic::at(
+                DiagnosticCode::ValueOutOfRange,
+                here.field("personal_data").location(),
+                format!(
+                    "The collection `{}` sets `personal_data` to false while declaring personal-data compliance fields.",
+                    collection.id
+                ),
+                "Set `personal_data` to true or remove `lawful_basis`, `consent_tracking`, and `erasure_rule`."
+                    .to_string(),
+            ));
+        }
+        return;
+    }
+
+    match collection.lawful_basis {
+        None => report.push(Diagnostic::at(
+            DiagnosticCode::MissingValue,
+            here.field("lawful_basis").location(),
+            format!(
+                "The personal-data collection `{}` declares no lawful basis.",
+                collection.id
+            ),
+            "Declare `LawfulBasis::Consent` or `LawfulBasis::LegitimateUse(...)`.".to_string(),
+        )),
+        Some(LawfulBasis::Consent) if collection.consent_tracking.is_none() => {
+            report.push(Diagnostic::at(
+                DiagnosticCode::MissingValue,
+                here.field("consent_tracking").location(),
+                format!(
+                    "The consent-based collection `{}` names no consent tracking rule.",
+                    collection.id
+                ),
+                "Name a rule governing consent recording, withdrawal, and cessation of processing."
+                    .to_string(),
+            ));
+        }
+        Some(LawfulBasis::Consent | LawfulBasis::LegitimateUse(_)) => {}
+    }
+
+    if collection.erasure_rule.is_none() {
+        report.push(Diagnostic::at(
+            DiagnosticCode::MissingValue,
+            here.field("erasure_rule").location(),
+            format!(
+                "The personal-data collection `{}` names no erasure rule.",
+                collection.id
+            ),
+            "Name an executable rule governing personal-data erasure across on-chain and external storage."
+                .to_string(),
+        ));
     }
 }
 

@@ -220,6 +220,22 @@ impl Rules {
         self.invariants.iter().find(|rule| &rule.id == id)
     }
 
+    /// Report whether a precondition or invariant with the given identifier exists.
+    pub fn has_rule(&self, id: &RuleRef) -> bool {
+        self.precondition(id).is_some() || self.invariant(id).is_some()
+    }
+
+    /// Raise a dangling reference diagnostic for a rule (precondition or invariant)
+    /// the Blueprint lacks.
+    pub fn missing_rule(&self, id: &RuleRef, location: Location) -> Diagnostic {
+        Diagnostic::at(
+            DiagnosticCode::DanglingReference,
+            location,
+            format!("The collection names the rule `{id}`, which the Blueprint lacks."),
+            format!("Declare a precondition or invariant named `{id}` in the rules section."),
+        )
+    }
+
     /// The invariants covering one collection.
     pub fn invariants_over(&self, collection: &CollectionId) -> Vec<&Invariant> {
         self.invariants

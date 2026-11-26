@@ -384,3 +384,155 @@ fn purpose_and_retention_faults_each_raise_a_diagnostic() {
         "The anonymise action names the field `title`, which `document` lacks."
     );
 }
+
+#[test]
+fn personal_data_compliance_validation_enforces_dpdp_declarations() {
+    use crate::collections::{LawfulBasis, LegitimateUseCategory};
+    use crate::types::RuleId;
+
+    // 1. Non-personal collection without compliance fields passes.
+    let non_personal = clean();
+    assert!(!non_personal.personal_data);
+    assert!(report(&[non_personal]).is_clean());
+
+    // 2. Personal collection without lawful basis or erasure rule fails.
+    let mut missing_both = clean();
+    missing_both.personal_data = true;
+    let found_missing = report(&[missing_both]);
+    assert_eq!(
+        at(&found_missing, "collections[0].lawful_basis").code,
+        DiagnosticCode::MissingValue
+    );
+    assert_eq!(
+        at(&found_missing, "collections[0].erasure_rule").code,
+        DiagnosticCode::MissingValue
+    );
+
+    // 3. Consent basis without consent_tracking fails.
+    let mut consent_missing_rule = clean();
+    consent_missing_rule.personal_data = true;
+    consent_missing_rule.lawful_basis = Some(LawfulBasis::Consent);
+    consent_missing_rule.erasure_rule = Some(RuleId::new("erase_personal_data"));
+    let found_consent = report(&[consent_missing_rule]);
+    assert_eq!(
+        at(&found_consent, "collections[0].consent_tracking").code,
+        DiagnosticCode::MissingValue
+    );
+
+    // 4. Legitimate-use basis without consent_tracking passes when erasure_rule is declared.
+    let mut legitimate_use = clean();
+    legitimate_use.personal_data = true;
+    legitimate_use.lawful_basis = Some(LawfulBasis::LegitimateUse(
+        LegitimateUseCategory::Employment,
+    ));
+    legitimate_use.erasure_rule = Some(RuleId::new("erase_personal_data"));
+    assert!(report(&[legitimate_use]).is_clean());
+
+    // 5. Invalid RuleId format fails.
+    let mut bad_rule_id = clean();
+    bad_rule_id.personal_data = true;
+    bad_rule_id.lawful_basis = Some(LawfulBasis::Consent);
+    bad_rule_id.consent_tracking = Some(RuleId::new("Bad Rule!"));
+    bad_rule_id.erasure_rule = Some(RuleId::new("Bad Erasure!"));
+    let found_bad_id = report(&[bad_rule_id]);
+    assert_eq!(
+        at(&found_bad_id, "collections[0].consent_tracking").code,
+        DiagnosticCode::InvalidIdentifier
+    );
+    assert_eq!(
+        at(&found_bad_id, "collections[0].erasure_rule").code,
+        DiagnosticCode::InvalidIdentifier
+    );
+
+    // 6. Contradictory declaration (personal_data == false with compliance fields) fails.
+    let mut contradictory = clean();
+    contradictory.personal_data = false;
+    contradictory.lawful_basis = Some(LawfulBasis::Consent);
+    let found_contradictory = report(&[contradictory]);
+    assert_eq!(
+        at(&found_contradictory, "collections[0].personal_data").code,
+        DiagnosticCode::ValueOutOfRange
+    );
+}
+
+#[test]
+fn blueprint_validates_personal_data_rule_references_and_serialization() {
+    use crate::collections::{LawfulBasis, LegitimateUseCategory};
+    use crate::expression::Expr;
+    use crate::rules::{Invariant, Precondition, RuleInput};
+    use crate::types::RuleId;
+    use crate::{Blueprint, BlueprintMeta};
+    use codec::{Decode, Encode};
+
+    let mut bp = Blueprint::new(BlueprintMeta::new(
+        "citizen registry",
+        "Holds citizen records under consent governance.",
+        "Registry Authority",
+    ));
+    bp.types = types();
+
+    let mut col = clean();
+    col.personal_data = true;
+    col.lawful_basis = Some(LawfulBasis::Consent);
+    col.consent_tracking = Some(RuleId::new("active_consent"));
+    col.erasure_rule = Some(RuleId::new("erase_on_withdrawal"));
+    bp.collections = vec![col];
+
+    // Undeclared consent_tracking and erasure_rule must fail Blueprint::validate with DanglingReference.
+    let missing_rules = bp
+        .validate()
+        .expect_err("undeclared compliance rules must fail Blueprint validation");
+    assert_eq!(
+        at(&missing_rules, "collections[0].consent_tracking").code,
+        DiagnosticCode::DanglingReference
+    );
+    assert_eq!(
+        at(&missing_rules, "collections[0].erasure_rule").code,
+        DiagnosticCode::DanglingReference
+    );
+
+    // Declare both rules in Blueprint.rules and verify Blueprint::validate passes.
+    bp.rules.invariants.push(Invariant {
+        id: RuleId::new("active_consent"),
+        collection: CollectionId::new("documents"),
+        holds: Expr::boolean(true),
+        problem: "Consent is absent or withdrawn.".to_string(),
+        fix: "Record active consent from the data principal before processing.".to_string(),
+    });
+    bp.rules.preconditions.push(Precondition {
+        id: RuleId::new("erase_on_withdrawal"),
+        inputs: vec![RuleInput::new("principal", TypeExpr::Identity)],
+        holds: Expr::boolean(true),
+        problem: "Personal data erasure preconditions were not met.".to_string(),
+        fix: "Execute erasure across on-chain and external stores.".to_string(),
+    });
+    assert!(bp.validate().is_ok());
+
+    // SCALE round-trip of Collection with personal-data fields.
+    let encoded = bp.collections[0].encode();
+    let decoded = Collection::decode(&mut &encoded[..]).expect("Collection SCALE decode");
+    assert_eq!(decoded, bp.collections[0]);
+
+    // JSON round-trip of LegitimateUseCategory variant.
+    let mut leg = clean();
+    leg.personal_data = true;
+    leg.lawful_basis = Some(LawfulBasis::LegitimateUse(
+        LegitimateUseCategory::LegalObligation,
+    ));
+    leg.erasure_rule = Some(RuleId::new("erase_on_withdrawal"));
+    let json = serde_json::to_string(&leg).expect("Collection JSON serialize");
+    let from_json: Collection = serde_json::from_str(&json).expect("Collection JSON deserialize");
+    assert_eq!(from_json, leg);
+
+    // Legacy JSON without the 4 new fields deserializes cleanly via #[serde(default)].
+    let mut legacy_value = serde_json::to_value(&clean()).unwrap();
+    let obj = legacy_value.as_object_mut().unwrap();
+    obj.remove("personal_data");
+    obj.remove("lawful_basis");
+    obj.remove("consent_tracking");
+    obj.remove("erasure_rule");
+    let legacy_json = serde_json::to_string(&legacy_value).unwrap();
+    let decoded_legacy: Collection =
+        serde_json::from_str(&legacy_json).expect("legacy Collection JSON must deserialize");
+    assert_eq!(decoded_legacy, clean());
+}

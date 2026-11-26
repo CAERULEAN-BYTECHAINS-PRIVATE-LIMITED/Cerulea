@@ -411,6 +411,11 @@ impl Blueprint {
                     report.push(self.identities.missing_role(&role, location));
                 }
             }
+            for (rule, location) in collection.rule_refs(&here) {
+                if rule.validate(&Path::root()).is_ok() && !self.rules.has_rule(&rule) {
+                    report.push(self.rules.missing_rule(&rule, location));
+                }
+            }
         }
 
         report.merge(self.permissions.validate(
