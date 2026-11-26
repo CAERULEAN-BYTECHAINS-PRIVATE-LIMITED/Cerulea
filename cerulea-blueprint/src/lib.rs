@@ -183,6 +183,44 @@ impl Default for VersionStamp {
     }
 }
 
+/// The explicit target execution substrate for a Blueprint deployment.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub enum SubstrateTarget {
+    /// Native Substrate runtime / pallet execution.
+    #[default]
+    Native,
+    /// WebAssembly contract / runtime target.
+    Wasm,
+    /// Ethereum Virtual Machine compatible target.
+    Evm,
+}
+
+impl SubstrateTarget {
+    /// A short lowercase label for the target substrate.
+    pub fn label(&self) -> &'static str {
+        match self {
+            SubstrateTarget::Native => "native",
+            SubstrateTarget::Wasm => "wasm",
+            SubstrateTarget::Evm => "evm",
+        }
+    }
+}
+
 /// The descriptive header of a Blueprint.
 #[derive(
     Clone,
@@ -207,6 +245,9 @@ pub struct BlueprintMeta {
     pub owner: String,
     /// The version stamp.
     pub version: VersionStamp,
+    /// Explicit deployment target substrate (`Native`, `Wasm`, or `Evm`).
+    #[serde(default)]
+    pub substrate: SubstrateTarget,
 }
 
 impl BlueprintMeta {
@@ -217,7 +258,14 @@ impl BlueprintMeta {
             summary: summary.to_string(),
             owner: owner.to_string(),
             version: VersionStamp::default(),
+            substrate: SubstrateTarget::Native,
         }
+    }
+
+    /// Return a copy of this header targeting the given execution substrate.
+    pub fn with_substrate(mut self, substrate: SubstrateTarget) -> Self {
+        self.substrate = substrate;
+        self
     }
 }
 
@@ -1191,5 +1239,41 @@ mod tests {
         let text = alloc::format!("{}", diagnostic);
         assert!(text.starts_with("actions[3].effects[1].collection: "));
         assert!(text.contains("Fix: "));
+    }
+
+    #[test]
+    fn substrate_target_round_trips_and_defaults_on_legacy_json() {
+        for target in [
+            SubstrateTarget::Native,
+            SubstrateTarget::Wasm,
+            SubstrateTarget::Evm,
+        ] {
+            let meta = BlueprintMeta::new("registry", "A test registry.", "Authority")
+                .with_substrate(target);
+            assert_eq!(meta.substrate, target);
+            let encoded = meta.encode();
+            let decoded = BlueprintMeta::decode(&mut &encoded[..]).expect("SCALE decode");
+            assert_eq!(decoded, meta);
+
+            let json = serde_json::to_string(&meta).expect("JSON serialize");
+            let from_json: BlueprintMeta = serde_json::from_str(&json).expect("JSON deserialize");
+            assert_eq!(from_json, meta);
+        }
+
+        assert_eq!(SubstrateTarget::Native.label(), "native");
+        assert_eq!(SubstrateTarget::Wasm.label(), "wasm");
+        assert_eq!(SubstrateTarget::Evm.label(), "evm");
+
+        // Legacy JSON missing `substrate` defaults to `SubstrateTarget::Native`.
+        let mut legacy = serde_json::to_value(BlueprintMeta::new(
+            "registry",
+            "A test registry.",
+            "Authority",
+        ))
+        .unwrap();
+        legacy.as_object_mut().unwrap().remove("substrate");
+        let parsed: BlueprintMeta =
+            serde_json::from_value(legacy).expect("legacy BlueprintMeta JSON must deserialize");
+        assert_eq!(parsed.substrate, SubstrateTarget::Native);
     }
 }
