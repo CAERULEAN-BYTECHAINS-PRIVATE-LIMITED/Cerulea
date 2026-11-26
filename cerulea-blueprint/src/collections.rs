@@ -391,7 +391,6 @@ impl<'a> CollectionRegistry<'a> {
     Ord,
     Hash,
     Encode,
-    Decode,
     TypeInfo,
     Serialize,
     Deserialize,
@@ -405,7 +404,27 @@ pub enum KeySelector {
     Full,
 }
 
+impl Decode for KeySelector {
+    fn decode<I: codec::Input>(input: &mut I) -> Result<Self, codec::Error> {
+        Self::decode_at_depth(input, 0)
+    }
+}
+
 impl KeySelector {
+    /// Decode a key selector while enforcing the shared expression depth limit.
+    pub(crate) fn decode_at_depth<I: codec::Input>(
+        input: &mut I,
+        depth: usize,
+    ) -> Result<Self, codec::Error> {
+        let variant = input.read_byte()?;
+        match variant {
+            0 => Ok(KeySelector::Exact(Expr::decode_at_depth(input, depth)?)),
+            1 => Ok(KeySelector::Prefix(Expr::decode_at_depth(input, depth)?)),
+            2 => Ok(KeySelector::Full),
+            _ => Err("Invalid KeySelector variant.".into()),
+        }
+    }
+
     /// A word naming the shape for the interface layer.
     pub fn label(&self) -> &'static str {
         match self {

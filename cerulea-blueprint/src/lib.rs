@@ -280,7 +280,41 @@ pub struct Blueprint {
     pub interface: Option<Interface>,
 }
 
+/// Maximum permitted serialized Blueprint size in bytes (4 MiB).
+pub const MAX_BLUEPRINT_BYTES: usize = 4 * 1024 * 1024;
+
+/// Maximum permitted items in a single Blueprint section collection.
+pub const MAX_BLUEPRINT_COLLECTION_ITEMS: usize = 10_000;
+
 impl Blueprint {
+    /// Decode a SCALE-encoded Blueprint while enforcing size and structural bounds.
+    pub fn decode_bounded(bytes: &[u8]) -> Result<Self, Diagnostic> {
+        if bytes.len() > MAX_BLUEPRINT_BYTES {
+            return Err(Diagnostic::at(
+                DiagnosticCode::BoundExceeded,
+                Location("blueprint".to_string()),
+                format!(
+                    "The serialized Blueprint is {} bytes, past the {} byte limit.",
+                    bytes.len(),
+                    MAX_BLUEPRINT_BYTES
+                ),
+                format!(
+                    "Keep the serialized Blueprint at or below {} bytes.",
+                    MAX_BLUEPRINT_BYTES
+                ),
+            ));
+        }
+        let mut cursor = bytes;
+        Blueprint::decode(&mut cursor).map_err(|err| {
+            Diagnostic::at(
+                DiagnosticCode::BoundExceeded,
+                Location("blueprint".to_string()),
+                format!("The Blueprint encoding could not be decoded: {err}."),
+                "Supply a valid SCALE-encoded Blueprint within structural limits.".to_string(),
+            )
+        })
+    }
+
     /// Build an empty Blueprint carrying the given header.
     pub fn new(meta: BlueprintMeta) -> Self {
         Blueprint {
@@ -309,6 +343,42 @@ impl Blueprint {
     pub fn validate(&self) -> Result<(), Report> {
         let mut report = Report::new();
         let root = Path::root();
+
+        let encoded_len = self.encode().len();
+        if encoded_len > MAX_BLUEPRINT_BYTES {
+            report.push(Diagnostic::at(
+                DiagnosticCode::BoundExceeded,
+                root.location(),
+                format!(
+                    "The serialized Blueprint is {encoded_len} bytes, past the {MAX_BLUEPRINT_BYTES} byte limit."
+                ),
+                format!("Reduce the Blueprint below {MAX_BLUEPRINT_BYTES} bytes."),
+            ));
+        }
+        let section_counts: [(&str, usize); 7] = [
+            ("types", self.types.len()),
+            ("collections", self.collections.len()),
+            ("actions", self.actions.len()),
+            ("workflows", self.workflows.len()),
+            ("events", self.events.len()),
+            ("views", self.views.len()),
+            ("blocks", self.blocks.len()),
+        ];
+        for (section, count) in section_counts {
+            if count > MAX_BLUEPRINT_COLLECTION_ITEMS {
+                report.push(Diagnostic::at(
+                    DiagnosticCode::BoundExceeded,
+                    root.field(section).location(),
+                    format!(
+                        "The section `{section}` holds {count} entries, past the {MAX_BLUEPRINT_COLLECTION_ITEMS} limit."
+                    ),
+                    format!(
+                        "Keep `{section}` at or below {MAX_BLUEPRINT_COLLECTION_ITEMS} entries."
+                    ),
+                ));
+            }
+        }
+
         self.validate_meta(&root.field("meta"), &mut report);
 
         // The registry pass and the section pass report the same repeated

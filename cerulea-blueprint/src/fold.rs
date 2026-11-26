@@ -115,7 +115,6 @@ impl CollectionView for MemoryView {
     Ord,
     Hash,
     Encode,
-    Decode,
     TypeInfo,
     Serialize,
     Deserialize,
@@ -135,7 +134,30 @@ pub enum FoldSource {
     },
 }
 
+impl Decode for FoldSource {
+    fn decode<I: codec::Input>(input: &mut I) -> Result<Self, codec::Error> {
+        Self::decode_at_depth(input, 0)
+    }
+}
+
 impl FoldSource {
+    /// Decode a fold source while enforcing the shared expression depth limit.
+    pub(crate) fn decode_at_depth<I: codec::Input>(
+        input: &mut I,
+        depth: usize,
+    ) -> Result<Self, codec::Error> {
+        let variant = input.read_byte()?;
+        match variant {
+            0 => Ok(FoldSource::List(Expr::decode_at_depth(input, depth)?)),
+            1 => Ok(FoldSource::Collection {
+                collection: CollectionId::decode(input)?,
+                keys: KeySelector::decode_at_depth(input, depth)?,
+                element: TypeExpr::decode(input)?,
+            }),
+            _ => Err("Invalid FoldSource variant.".into()),
+        }
+    }
+
     /// Read a key range inside a collection.
     pub fn collection(collection: &str, keys: KeySelector, element: TypeExpr) -> FoldSource {
         FoldSource::Collection {
@@ -211,7 +233,6 @@ impl FoldBound {
     Ord,
     Hash,
     Encode,
-    Decode,
     TypeInfo,
     Serialize,
     Deserialize,
@@ -231,7 +252,55 @@ pub struct FoldExpr {
     pub bound: FoldBound,
 }
 
+impl Decode for FoldExpr {
+    fn decode<I: codec::Input>(input: &mut I) -> Result<Self, codec::Error> {
+        Self::decode_at_depth(input, 0)
+    }
+}
+
 impl FoldExpr {
+    /// Decode a fold expression while enforcing the shared expression depth limit.
+    pub(crate) fn decode_at_depth<I: codec::Input>(
+        input: &mut I,
+        depth: usize,
+    ) -> Result<Self, codec::Error> {
+        Ok(FoldExpr {
+            source: FoldSource::decode_at_depth(input, depth)?,
+            element: ParamName::decode(input)?,
+            accumulator: ParamName::decode(input)?,
+            initial: Expr::decode_at_depth(input, depth)?,
+            step: Expr::decode_at_depth(input, depth)?,
+            bound: FoldBound::decode(input)?,
+        })
+    }
+
+    /// Push all child expressions into `out` in reverse visit order (for iterative traversal).
+    pub(crate) fn push_exprs_rev<'a>(&'a self, out: &mut Vec<&'a Expr>) {
+        out.push(&self.step);
+        out.push(&self.initial);
+        match &self.source {
+            FoldSource::List(list) => out.push(list),
+            FoldSource::Collection { keys, .. } => {
+                if let Some(expr) = keys.expression() {
+                    out.push(expr);
+                }
+            }
+        }
+    }
+
+    /// Push mutable references to child expressions in reverse visit order.
+    pub(crate) fn push_exprs_mut_rev<'a>(&'a mut self, out: &mut Vec<&'a mut Expr>) {
+        out.push(&mut self.step);
+        out.push(&mut self.initial);
+        match &mut self.source {
+            FoldSource::List(list) => out.push(list),
+            FoldSource::Collection { keys, .. } => match keys {
+                KeySelector::Exact(expr) | KeySelector::Prefix(expr) => out.push(expr),
+                KeySelector::Full => {}
+            },
+        }
+    }
+
     /// Build a fold over a list expression.
     pub fn over_list(
         list: Expr,
@@ -401,19 +470,24 @@ impl FoldExpr {
 
     /// Run the fold.
     pub fn evaluate(&self, env: &Env, meter: &mut Meter, path: &Path) -> Result<Value, Diagnostic> {
-        let elements = self.elements(env, meter, path)?;
-        let count = self.check_length(elements.len(), path)?;
-        meter.charge(count as u64, path)?;
-        let mut running = self.initial.evaluate(env, meter, &path.field("initial"))?;
-        for (position, element) in elements.into_iter().enumerate() {
-            let inner = env
-                .with(&self.accumulator, running)
-                .with(&self.element, element);
-            running = self
-                .step
-                .evaluate(&inner, meter, &path.field("step").index(position))?;
-        }
-        Ok(running)
+        meter.enter_fold(path)?;
+        let res = (|| {
+            let elements = self.elements(env, meter, path)?;
+            let count = self.check_length(elements.len(), path)?;
+            meter.charge(count as u64, path)?;
+            let mut running = self.initial.evaluate(env, meter, &path.field("initial"))?;
+            for (position, element) in elements.into_iter().enumerate() {
+                let inner = env
+                    .with(&self.accumulator, running)
+                    .with(&self.element, element);
+                running = self
+                    .step
+                    .evaluate(&inner, meter, &path.field("step").index(position))?;
+            }
+            Ok(running)
+        })();
+        meter.exit_fold();
+        res
     }
 
     /// Visit every expression inside this fold.

@@ -2105,3 +2105,285 @@ fn a_step_budget_stops_a_long_expression() {
         "The expression ran past its budget of 100 steps."
     );
 }
+
+fn build_nested_add(depth: usize) -> Expr {
+    let mut expr = Expr::integer(0);
+    for _ in 0..depth {
+        expr = Expr::binary(BinaryOp::Add, expr, Expr::integer(1));
+    }
+    expr
+}
+
+#[test]
+fn adversarial_nested_expressions_200_1000_10000_do_not_overflow() {
+    use codec::{Decode, Encode};
+
+    let registry = TypeRegistry::default();
+    let ctx = TypeContext::new(&registry);
+    let path = Path::root().field("adversarial");
+
+    // 200 levels: within MAX_EXPRESSION_DEPTH (256) and default MAX_EVAL_STACK_DEPTH (512).
+    let expr_200 = build_nested_add(200);
+    assert_eq!(expr_200.check(&ctx, &path), Ok(TypeExpr::Integer));
+    assert_eq!(run(&expr_200), Ok(Value::Integer(200)));
+    let encoded_200 = expr_200.encode();
+    let decoded_200 =
+        Expr::decode(&mut &encoded_200[..]).expect("200-level expression should decode");
+    assert_eq!(run(&decoded_200), Ok(Value::Integer(200)));
+    drop(decoded_200);
+    drop(expr_200);
+
+    // 1,000 and 10,000 levels: must never SIGABRT / overflow stack in any pass.
+    for depth in [1_000_usize, 10_000_usize] {
+        let mut deep = build_nested_add(depth);
+
+        let check_err = deep
+            .check(&ctx, &path)
+            .expect_err("depth past MAX_EXPRESSION_DEPTH must return BoundExceeded");
+        assert_eq!(check_err.code, DiagnosticCode::BoundExceeded);
+
+        let mut default_meter = Meter::new(100_000);
+        let eval_err = deep
+            .evaluate(&env(), &mut default_meter, &path)
+            .expect_err("depth past MAX_EVAL_STACK_DEPTH must return BoundExceeded");
+        assert_eq!(eval_err.code, DiagnosticCode::BoundExceeded);
+
+        // Iterative evaluator with raised stack limit evaluates cleanly without native stack overflow.
+        let mut raised_meter = Meter::with_stack_limit(100_000, depth + 16);
+        assert_eq!(
+            deep.evaluate(&env(), &mut raised_meter, &path),
+            Ok(Value::Integer(depth as i128))
+        );
+        assert!(raised_meter.peak_stack() >= depth);
+
+        // Iterative AST operations must handle 10,000-deep trees without overflowing.
+        let mut count = 0_usize;
+        deep.walk(&mut |_| count += 1);
+        assert_eq!(count, depth * 2 + 1);
+        deep.walk_mut(&mut |_| {});
+        let mut refs = Vec::new();
+        deep.collection_refs(&mut refs);
+        let mut bound = Vec::new();
+        let mut free = Vec::new();
+        deep.free_names(&mut bound, &mut free);
+        let sub = deep.substitute(&BTreeMap::new());
+        let mut sub_count = 0_usize;
+        sub.walk(&mut |_| sub_count += 1);
+        assert_eq!(sub_count, count);
+        let mut sub_meter = Meter::with_stack_limit(100_000, depth + 16);
+        assert_eq!(
+            sub.evaluate(&env(), &mut sub_meter, &path),
+            Ok(Value::Integer(depth as i128))
+        );
+
+        // Bounded SCALE decode must reject excessively nested payloads deterministically
+        // without overflowing the stack while constructing or decoding the payload.
+        let one = Expr::Unary {
+            op: UnaryOp::Negate,
+            operand: Box::new(Expr::integer(1)),
+        }
+        .encode();
+        let leaf = Expr::integer(1).encode();
+        let prefix = &one[..one.len() - leaf.len()];
+        let mut encoded = Vec::with_capacity(prefix.len() * depth + leaf.len());
+        for _ in 0..depth {
+            encoded.extend_from_slice(prefix);
+        }
+        encoded.extend_from_slice(&leaf);
+        let decode_err = Expr::decode(&mut &encoded[..])
+            .expect_err("excessively nested SCALE expression must be rejected");
+        assert!(
+            decode_err.to_string().contains("maximum nesting depth"),
+            "unexpected decode error: {decode_err}"
+        );
+
+        // Explicitly drop both deep ASTs to exercise iterative Drop.
+        drop(sub);
+        drop(deep);
+    }
+}
+
+#[test]
+fn evaluation_stack_limit_is_unrecoverable_in_attempt() {
+    let deep = build_nested_add(30);
+    let guarded = Expr::Attempt {
+        body: Box::new(deep),
+        compensation: Box::new(Expr::integer(999)),
+    };
+    let mut tight_stack = Meter::with_stack_limit(10_000, 10);
+    let fault = guarded
+        .evaluate(&env(), &mut tight_stack, &Path::root().field("attempt"))
+        .expect_err("stack bound exceeded must not be swallowed by Attempt");
+    assert_eq!(fault.code, DiagnosticCode::BoundExceeded);
+}
+
+#[test]
+fn adversarial_nested_fold_stops_at_fold_depth_limit() {
+    let mut expr = Expr::integer(0);
+    for _ in 0..(crate::expression::MAX_FOLD_DEPTH + 4) {
+        expr = Expr::Fold(Box::new(crate::fold::FoldExpr::over_list(
+            Expr::MakeList {
+                element: TypeExpr::Integer,
+                items: vec![Expr::integer(1)],
+            },
+            "item",
+            "acc",
+            Expr::integer(0),
+            expr,
+            10,
+        )));
+    }
+    let registry = TypeRegistry::default();
+    let ctx = TypeContext::new(&registry);
+    let path = Path::root().field("fold");
+
+    let check_fault = expr
+        .check(&ctx, &path)
+        .expect_err("nested fold depth past MAX_FOLD_DEPTH must fail type check with BoundExceeded");
+    assert_eq!(check_fault.code, DiagnosticCode::BoundExceeded);
+
+    let mut meter = Meter::new(100_000);
+    let eval_fault = expr
+        .evaluate(&env(), &mut meter, &path)
+        .expect_err("nested fold depth past MAX_FOLD_DEPTH must return BoundExceeded");
+    assert_eq!(eval_fault.code, DiagnosticCode::BoundExceeded);
+    drop(expr);
+
+    // Also construct and explicitly drop a deeply nested Fold (500 levels) to verify iterative Drop.
+    let mut deep_fold = Expr::integer(0);
+    for _ in 0..500 {
+        deep_fold = Expr::Fold(Box::new(crate::fold::FoldExpr::over_list(
+            Expr::MakeList {
+                element: TypeExpr::Integer,
+                items: vec![Expr::integer(1)],
+            },
+            "item",
+            "acc",
+            Expr::integer(0),
+            deep_fold,
+            10,
+        )));
+    }
+    drop(deep_fold);
+}
+
+#[test]
+fn adversarial_scale_decoding_rejects_hostile_payloads() {
+    use codec::{Compact, Decode, Encode};
+
+    // 1. Oversized collection length prefix in MakeList must be rejected by Expr::decode itself
+    //    before allocating. Derive the header bytes directly from an empty MakeList encoding.
+    let empty_list = Expr::MakeList {
+        element: TypeExpr::Integer,
+        items: Vec::new(),
+    }
+    .encode();
+    let mut oversized_list = empty_list[..empty_list.len() - 1].to_vec();
+    Compact((crate::expression::MAX_COLLECTION_SIZE as u32) + 1).encode_to(&mut oversized_list);
+    let list_err = Expr::decode(&mut &oversized_list[..])
+        .expect_err("oversized MakeList prefix must fail SCALE decode");
+    assert!(
+        list_err.to_string().contains("exceeds maximum size"),
+        "unexpected decode error: {list_err}"
+    );
+
+    // 2. Hostile 10,000-deep nested Unary SCALE payload must be rejected deterministically
+    //    with a depth-limit error without overflowing the stack.
+    let one = Expr::Unary {
+        op: UnaryOp::Negate,
+        operand: Box::new(Expr::integer(1)),
+    }
+    .encode();
+    let leaf = Expr::integer(1).encode();
+    let prefix = &one[..one.len() - leaf.len()];
+    let mut deep_unary = Vec::with_capacity(prefix.len() * 10_000 + leaf.len());
+    for _ in 0..10_000 {
+        deep_unary.extend_from_slice(prefix);
+    }
+    deep_unary.extend_from_slice(&leaf);
+    let depth_err = Expr::decode(&mut &deep_unary[..])
+        .expect_err("10,000-deep SCALE Unary payload must fail with depth error");
+    assert!(
+        depth_err.to_string().contains("maximum nesting depth"),
+        "unexpected decode error: {depth_err}"
+    );
+}
+
+#[test]
+fn adversarial_expression_depth_and_collection_boundaries_are_enforced() {
+    use codec::{Decode, Encode};
+
+    let registry = TypeRegistry::default();
+    let ctx = TypeContext::new(&registry);
+    let path = Path::root().field("boundary");
+
+    // Root sits at depth 0, so MAX_EXPRESSION_DEPTH nested Binary nodes have leaf depth == MAX_EXPRESSION_DEPTH.
+    let within_depth = build_nested_add(crate::expression::MAX_EXPRESSION_DEPTH);
+    assert_eq!(within_depth.check(&ctx, &path), Ok(TypeExpr::Integer));
+    drop(within_depth);
+
+    let beyond_depth = build_nested_add(crate::expression::MAX_EXPRESSION_DEPTH + 1);
+    let depth_err = beyond_depth
+        .check(&ctx, &path)
+        .expect_err("expression exceeding MAX_EXPRESSION_DEPTH must fail");
+    assert_eq!(depth_err.code, DiagnosticCode::BoundExceeded);
+    drop(beyond_depth);
+
+    // Fold depth boundary: MAX_FOLD_DEPTH passes check(), MAX_FOLD_DEPTH + 1 fails check().
+    let build_nested_fold = |levels: usize| {
+        let mut expr = Expr::integer(0);
+        for _ in 0..levels {
+            expr = Expr::Fold(Box::new(crate::fold::FoldExpr::over_list(
+                Expr::MakeList {
+                    element: TypeExpr::Integer,
+                    items: vec![Expr::integer(1)],
+                },
+                "item",
+                "acc",
+                Expr::integer(0),
+                expr,
+                10,
+            )));
+        }
+        expr
+    };
+    let within_fold = build_nested_fold(crate::expression::MAX_FOLD_DEPTH);
+    assert_eq!(within_fold.check(&ctx, &path), Ok(TypeExpr::Integer));
+    drop(within_fold);
+
+    let beyond_fold = build_nested_fold(crate::expression::MAX_FOLD_DEPTH + 1);
+    let fold_err = beyond_fold
+        .check(&ctx, &path)
+        .expect_err("fold exceeding MAX_FOLD_DEPTH must fail");
+    assert_eq!(fold_err.code, DiagnosticCode::BoundExceeded);
+    drop(beyond_fold);
+
+    // Collection size decode boundary: MAX_COLLECTION_SIZE succeeds, MAX_COLLECTION_SIZE + 1 fails.
+    let within_list = Expr::MakeList {
+        element: TypeExpr::Integer,
+        items: vec![Expr::integer(1); crate::expression::MAX_COLLECTION_SIZE],
+    };
+    let within_bytes = within_list.encode();
+    assert!(Expr::decode(&mut &within_bytes[..]).is_ok());
+    drop(within_list);
+}
+
+#[test]
+fn adversarial_oversized_blueprint_and_collection_rejected() {
+    let oversized_bytes = vec![0_u8; crate::MAX_BLUEPRINT_BYTES + 1];
+    let err = crate::Blueprint::decode_bounded(&oversized_bytes)
+        .expect_err("oversized blueprint bytes must be rejected");
+    assert_eq!(err.code, DiagnosticCode::BoundExceeded);
+
+    let items = vec![Expr::integer(1); crate::expression::MAX_COLLECTION_SIZE + 1];
+    let big_list = Expr::MakeList {
+        element: TypeExpr::Integer,
+        items,
+    };
+    let registry = TypeRegistry::default();
+    let ctx = TypeContext::new(&registry);
+    let list_err = big_list
+        .check(&ctx, &Path::root().field("big_list"))
+        .expect_err("oversized list literal must be rejected");
+    assert_eq!(list_err.code, DiagnosticCode::BoundExceeded);
+}
