@@ -23,6 +23,74 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
+/// One independent organisation participating in multi-organisation upgrade governance.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub struct OrgAuthority {
+    /// Identifier of the independent organisation (e.g. `ministry_finance`).
+    pub id: String,
+    /// Roles within this organisation authorised to approve upgrades.
+    pub roles: Vec<RoleId>,
+    /// Minimum approvals required from this organisation.
+    pub minimum_approvals: u32,
+}
+
+impl OrgAuthority {
+    /// Declare an organisation authority.
+    pub fn new(id: &str, roles: &[&str], minimum_approvals: u32) -> Self {
+        OrgAuthority {
+            id: id.to_string(),
+            roles: roles.iter().map(|role| RoleId::new(role)).collect(),
+            minimum_approvals,
+        }
+    }
+}
+
+/// Multi-organisation governance requiring independent authorisation across
+/// multiple institutions before an upgrade or constitutional change lands.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    Serialize,
+    Deserialize,
+)]
+pub struct MultiOrgGovernance {
+    /// Independent organisations participating in governance (must be >= 2).
+    pub organisations: Vec<OrgAuthority>,
+    /// Minimum number of distinct organisations whose approval is required (must be >= 2).
+    pub required_organisations: u32,
+}
+
+impl MultiOrgGovernance {
+    /// Declare a multi-organisation governance policy.
+    pub fn new(organisations: Vec<OrgAuthority>, required_organisations: u32) -> Self {
+        MultiOrgGovernance {
+            organisations,
+            required_organisations,
+        }
+    }
+}
+
 /// The parties that change the deployment.
 #[derive(
     Clone,
@@ -46,6 +114,9 @@ pub struct UpgradeAuthority {
     pub threshold_percent: u8,
     /// The count of approvals a change collects.
     pub minimum_voters: u32,
+    /// Optional multi-organisation governance policy for multi-department / enterprise networks.
+    #[serde(default)]
+    pub multi_org: Option<MultiOrgGovernance>,
 }
 
 impl UpgradeAuthority {
@@ -55,7 +126,28 @@ impl UpgradeAuthority {
             roles: roles.iter().map(|role| RoleId::new(role)).collect(),
             threshold_percent,
             minimum_voters,
+            multi_org: None,
         }
+    }
+
+    /// Declare a multi-organisation upgrade authority.
+    pub fn multi_org(
+        roles: &[&str],
+        threshold_percent: u8,
+        minimum_voters: u32,
+        multi_org: MultiOrgGovernance,
+    ) -> Self {
+        UpgradeAuthority {
+            roles: roles.iter().map(|role| RoleId::new(role)).collect(),
+            threshold_percent,
+            minimum_voters,
+            multi_org: Some(multi_org),
+        }
+    }
+
+    /// Report whether multi-organisation governance is enabled.
+    pub fn is_multi_org(&self) -> bool {
+        self.multi_org.is_some()
     }
 }
 
@@ -204,6 +296,7 @@ impl Governance {
     /// work needs 80 percent. Constitutional work needs 90 percent.
     pub fn is_declared(&self) -> bool {
         !self.authority.roles.is_empty()
+            || self.authority.multi_org.is_some()
             || !self.quorum.is_empty()
             || !self.process.stages.is_empty()
     }
@@ -247,6 +340,14 @@ impl Governance {
                 "The upgrade authority collects zero approvals.".to_string(),
                 "Require at least one approval.".to_string(),
             ));
+        }
+        if let Some(multi) = &self.authority.multi_org {
+            validate_multi_org(
+                multi,
+                identities,
+                &authority_path.field("multi_org"),
+                &mut report,
+            );
         }
 
         let quorum_path = path.field("quorum");
@@ -347,6 +448,94 @@ impl Governance {
         }
 
         report
+    }
+}
+
+fn validate_multi_org(
+    multi: &MultiOrgGovernance,
+    identities: &Identities,
+    path: &Path,
+    report: &mut Report,
+) {
+    if multi.organisations.len() < 2 {
+        report.push(Diagnostic::at(
+            DiagnosticCode::ValueOutOfRange,
+            path.field("organisations").location(),
+            format!(
+                "Multi-organisation governance declares {} organisation(s), below the minimum of 2.",
+                multi.organisations.len()
+            ),
+            "Declare at least two independent organisations.".to_string(),
+        ));
+    }
+    if multi.required_organisations < 2 {
+        report.push(Diagnostic::at(
+            DiagnosticCode::ValueOutOfRange,
+            path.field("required_organisations").location(),
+            format!(
+                "Multi-organisation governance requires {} organisation(s), below the minimum of 2.",
+                multi.required_organisations
+            ),
+            "Require at least 2 independent organisations to approve a change.".to_string(),
+        ));
+    } else if multi.required_organisations as usize > multi.organisations.len() {
+        report.push(Diagnostic::at(
+            DiagnosticCode::ValueOutOfRange,
+            path.field("required_organisations").location(),
+            format!(
+                "Multi-organisation governance requires {} organisations, but only {} are declared.",
+                multi.required_organisations,
+                multi.organisations.len()
+            ),
+            "Lower `required_organisations` or declare more organisations.".to_string(),
+        ));
+    }
+
+    let mut seen_orgs: BTreeSet<&str> = BTreeSet::new();
+    for (position, org) in multi.organisations.iter().enumerate() {
+        let here = path.field("organisations").index(position);
+        if org.id.trim().is_empty() {
+            report.push(Diagnostic::at(
+                DiagnosticCode::MissingValue,
+                here.field("id").location(),
+                "The organisation entry has an empty identifier.".to_string(),
+                "Provide a unique identifier for each organisation.".to_string(),
+            ));
+        } else if !seen_orgs.insert(org.id.as_str()) {
+            report.push(Diagnostic::at(
+                DiagnosticCode::DuplicateIdentifier,
+                here.field("id").location(),
+                format!("Two organisations share the identifier `{}`.", org.id),
+                format!("Rename one of the two `{}` organisations.", org.id),
+            ));
+        }
+
+        if org.roles.is_empty() {
+            report.push(Diagnostic::at(
+                DiagnosticCode::SectionEmpty,
+                here.field("roles").location(),
+                format!("The organisation `{}` names zero roles.", org.id),
+                "Name at least one role authorised for this organisation.".to_string(),
+            ));
+        }
+        for (role_pos, role) in org.roles.iter().enumerate() {
+            let role_path = here.field("roles").index(role_pos);
+            report.absorb(role.validate(&role_path));
+            if role.validate(&Path::root()).is_ok() && !identities.has_role(role) {
+                report.push(identities.missing_role(role, role_path.location()));
+            }
+        }
+        if org.minimum_approvals == 0 {
+            report.push(Diagnostic::at(
+                DiagnosticCode::ValueOutOfRange,
+                here.field("minimum_approvals").location(),
+                format!(
+                    "The organisation `{}` requires zero approvals.",
+                    org.id
+                ),
+                "Require at least 1 approval per organisation.".to_string(),
+            ));
+        }
     }
 }
 

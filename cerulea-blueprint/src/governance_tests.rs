@@ -218,3 +218,79 @@ fn stage_faults_each_raise_a_diagnostic() {
         .collect();
     assert_eq!(stages_only, [stages]);
 }
+
+#[test]
+fn multi_org_governance_validates_independent_organisations() {
+    use crate::governance::{MultiOrgGovernance, OrgAuthority};
+
+    // Valid 2-org governance passes cleanly.
+    let mut gov = clean();
+    gov.authority = UpgradeAuthority::multi_org(
+        &["council", "auditor"],
+        67,
+        2,
+        MultiOrgGovernance::new(
+            vec![
+                OrgAuthority::new("ministry_a", &["council"], 1),
+                OrgAuthority::new("ministry_b", &["auditor"], 1),
+            ],
+            2,
+        ),
+    );
+    assert!(gov.authority.is_multi_org());
+    assert!(report(&gov).is_clean());
+
+    // Fewer than 2 organisations and required_organisations < 2 both fail.
+    let mut single_org = clean();
+    single_org.authority = UpgradeAuthority::multi_org(
+        &["council"],
+        67,
+        1,
+        MultiOrgGovernance::new(vec![OrgAuthority::new("ministry_a", &["council"], 1)], 1),
+    );
+    let found_single = report(&single_org);
+    assert_eq!(
+        at(&found_single, "governance.authority.multi_org.organisations").code,
+        DiagnosticCode::ValueOutOfRange
+    );
+    assert_eq!(
+        at(&found_single, "governance.authority.multi_org.required_organisations").code,
+        DiagnosticCode::ValueOutOfRange
+    );
+
+    // Duplicate org id, empty org roles, zero approvals, and dangling role are caught.
+    let mut broken = clean();
+    broken.authority = UpgradeAuthority::multi_org(
+        &["council"],
+        67,
+        1,
+        MultiOrgGovernance::new(
+            vec![
+                OrgAuthority::new("ministry_a", &["missing_role"], 0),
+                OrgAuthority::new("ministry_a", &[], 1),
+            ],
+            3,
+        ),
+    );
+    let found_broken = report(&broken);
+    assert_eq!(
+        at(&found_broken, "governance.authority.multi_org.required_organisations").code,
+        DiagnosticCode::ValueOutOfRange
+    );
+    assert_eq!(
+        at(&found_broken, "governance.authority.multi_org.organisations[0].roles[0]").code,
+        DiagnosticCode::DanglingReference
+    );
+    assert_eq!(
+        at(&found_broken, "governance.authority.multi_org.organisations[0].minimum_approvals").code,
+        DiagnosticCode::ValueOutOfRange
+    );
+    assert_eq!(
+        at(&found_broken, "governance.authority.multi_org.organisations[1].id").code,
+        DiagnosticCode::DuplicateIdentifier
+    );
+    assert_eq!(
+        at(&found_broken, "governance.authority.multi_org.organisations[1].roles").code,
+        DiagnosticCode::SectionEmpty
+    );
+}
