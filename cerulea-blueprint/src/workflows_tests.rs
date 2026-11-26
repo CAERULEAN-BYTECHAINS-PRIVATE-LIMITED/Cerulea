@@ -242,7 +242,9 @@ fn a_state_no_transition_reaches_is_reported() {
     workflow.transitions.truncate(1);
     workflow.deadlines[0].on_miss = TimerAction::Emit(EventId::new("lapsed"));
     let found = report(&workflow);
-    assert_eq!(found.len(), 1);
+    assert_eq!(found.len(), 2);
+    let dead_end = at(&found, "workflows[0].states[1].final_state");
+    assert_eq!(dead_end.code, DiagnosticCode::MissingValue);
     let stranded = at(&found, "workflows[0].states[2].id");
     assert_eq!(stranded.code, DiagnosticCode::DanglingReference);
     assert_eq!(

@@ -348,6 +348,24 @@ impl Workflow {
         found
     }
 
+    /// Report whether a state has at least one outgoing transition, timer,
+    /// or deadline moving records to another state.
+    pub fn has_outgoing_exit(&self, state: &StateId) -> bool {
+        let has_transition = self
+            .transitions
+            .iter()
+            .any(|held| &held.from == state && &held.to != state);
+        let has_timer_exit = self.timers.iter().any(|held| {
+            &held.state == state
+                && matches!(&held.on_expiry, TimerAction::MoveTo(target) if target != state)
+        });
+        let has_deadline_exit = self.deadlines.iter().any(|held| {
+            &held.state == state
+                && matches!(&held.on_miss, TimerAction::MoveTo(target) if target != state)
+        });
+        has_transition || has_timer_exit || has_deadline_exit
+    }
+
     /// The actions this workflow names, each with its location.
     pub fn action_refs(&self, path: &Path) -> Vec<(ActionId, Location)> {
         let mut found = Vec::new();
@@ -627,6 +645,23 @@ impl Workflow {
                         state.id
                     ),
                     format!("Add a transition into `{}`, or remove the state.", state.id),
+                ));
+            }
+            if !state.final_state && !self.has_outgoing_exit(&state.id) {
+                report.push(Diagnostic::at(
+                    DiagnosticCode::MissingValue,
+                    path.field("states")
+                        .index(position)
+                        .field("final_state")
+                        .location(),
+                    format!(
+                        "The non-terminal state `{}` has no outgoing transition.",
+                        state.id
+                    ),
+                    format!(
+                        "Add an outgoing transition from `{}`, or mark it as a final state.",
+                        state.id
+                    ),
                 ));
             }
         }
@@ -1107,5 +1142,42 @@ mod tests {
         let text = serde_json::to_string(&workflow).expect("the workflow serialises");
         let parsed: Workflow = serde_json::from_str(&text).expect("the text parses");
         assert_eq!(workflow, parsed);
+    }
+
+    #[test]
+    fn a_non_terminal_state_without_outgoing_exit_is_caught() {
+        let mut workflow = sample();
+        workflow.states[2].final_state = false;
+        let report = run(&[workflow]);
+        let found = report
+            .find("workflows[0].states[2].final_state")
+            .expect("the diagnostic sits on the dead-end state");
+        assert_eq!(found.code, DiagnosticCode::MissingValue);
+        assert!(found.problem.contains("no outgoing transition"));
+    }
+
+    #[test]
+    fn a_non_terminal_state_with_only_a_self_loop_is_caught() {
+        let mut workflow = sample();
+        workflow.states[2].final_state = false;
+        workflow.cycles = CyclePolicy::Allow;
+        workflow
+            .transitions
+            .push(Transition::new("spin", "settled", "settled"));
+        let report = run(&[workflow]);
+        let found = report
+            .find("workflows[0].states[2].final_state")
+            .expect("a self-loop alone does not exit the dead-end state");
+        assert_eq!(found.code, DiagnosticCode::MissingValue);
+    }
+
+    #[test]
+    fn a_non_terminal_state_with_deadline_exit_is_lawful() {
+        let mut workflow = sample();
+        // Remove the explicit transition out of `under_review`; `settlement_due` deadline
+        // still moves records from `under_review` to `settled`.
+        workflow.transitions.retain(|t| t.from != StateId::new("under_review"));
+        let report = run(&[workflow]);
+        assert!(report.is_clean(), "{report}");
     }
 }
