@@ -46,6 +46,59 @@ pub use pallet::*;
 
 /// The settled challenges the log keeps for each validator.
 pub const SETTLED_HISTORY: u32 = 64;
+
+/// Maximum bounded deadline extension (in blocks) permitted for external HSM / PKCS#11 signing.
+pub const MAX_HSM_EXTENSION_BLOCKS: u32 = 3;
+
+/// Validator signing profile governing custody challenge-response deadline margins.
+#[derive(
+    codec::Encode,
+    codec::Decode,
+    codec::DecodeWithMemTracking,
+    codec::MaxEncodedLen,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    frame_support::pallet_prelude::RuntimeDebug,
+    scale_info::TypeInfo,
+)]
+pub enum SigningProfile {
+    /// Validator signs locally with no external HSM latency extension.
+    #[default]
+    LocalKey,
+    /// Validator uses an external PKCS#11 HSM or managed KMS with bounded latency extension.
+    ExternalHsm {
+        /// Expected P99 PKCS#11 signing latency in milliseconds.
+        max_signing_latency_ms: u32,
+        /// Additional blocks granted on top of `DeadlineBlocks` (capped by `MAX_HSM_EXTENSION_BLOCKS`).
+        extra_blocks: u32,
+    },
+}
+
+/// Validate whether `deadline_blocks * block_time_ms` provides sufficient budget
+/// for external PKCS#11 signing latency, network RTT, and proof assembly.
+///
+/// Returns `Ok(headroom_ms)` if the deadline covers the combined latency, or
+/// `Err(deficit_ms)` if the deadline is too tight.
+pub fn validate_hsm_deadline_budget(
+    block_time_ms: u64,
+    deadline_blocks: u32,
+    hsm_p99_latency_ms: u64,
+    network_rtt_ms: u64,
+    proof_build_ms: u64,
+) -> Result<u64, u64> {
+    let budget_ms = block_time_ms.saturating_mul(deadline_blocks as u64);
+    let required_ms = hsm_p99_latency_ms
+        .saturating_add(network_rtt_ms)
+        .saturating_add(proof_build_ms);
+    if budget_ms >= required_ms {
+        Ok(budget_ms - required_ms)
+    } else {
+        Err(required_ms - budget_ms)
+    }
+}
 pub use primitives::{
     custody_entry, Challenge, ChallengeAnswer, ChallengeState, CollectionId, CustodyRecord,
     CustodyRecordHook, CustodyStanding, CustodyValidators, ProofStep, RecordRef, CUSTODY_DIGEST_ID,
@@ -185,6 +238,12 @@ pub mod pallet {
     #[pallet::getter(fn published_challenge)]
     pub type PublishedChallenge<T: Config> = StorageValue<_, (u64, ChallengeOf<T>), OptionQuery>;
 
+    /// Registered signing profile (local key vs external PKCS#11 HSM) per validator.
+    #[pallet::storage]
+    #[pallet::getter(fn signing_profile)]
+    pub type SigningProfiles<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, SigningProfile, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -237,6 +296,13 @@ pub mod pallet {
             /// The root over those records.
             root: H256,
         },
+        /// A validator registered or updated its custody signing profile.
+        SigningProfileRegistered {
+            /// The validator account.
+            validator: T::AccountId,
+            /// The registered signing profile.
+            profile: SigningProfile,
+        },
     }
 
     #[pallet::error]
@@ -258,6 +324,10 @@ pub mod pallet {
         /// The answer runs longer than the custody answer path admits. Send
         /// the record and the shortest proof that reaches the root.
         AnswerAboveBound,
+        /// The requested HSM deadline extension exceeds `MAX_HSM_EXTENSION_BLOCKS`.
+        HsmExtensionTooLarge,
+        /// The external HSM signing profile parameters are invalid (e.g. zero latency).
+        InvalidSigningProfile,
     }
 
     #[pallet::hooks]
@@ -353,6 +423,36 @@ pub mod pallet {
                 &key,
                 Some(&value),
             ))
+        }
+
+        /// Register the validator's signing profile (local key or external PKCS#11 HSM).
+        ///
+        /// External HSM profiles may request up to `MAX_HSM_EXTENSION_BLOCKS` extra blocks
+        /// on top of `DeadlineBlocks` to absorb hardware signing latency and network congestion.
+        #[pallet::call_index(2)]
+        #[pallet::weight(Weight::from_parts(20_000, 0))]
+        pub fn register_signing_profile(
+            origin: OriginFor<T>,
+            profile: SigningProfile,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            if let SigningProfile::ExternalHsm {
+                max_signing_latency_ms,
+                extra_blocks,
+            } = profile
+            {
+                ensure!(max_signing_latency_ms > 0, Error::<T>::InvalidSigningProfile);
+                ensure!(
+                    extra_blocks <= MAX_HSM_EXTENSION_BLOCKS,
+                    Error::<T>::HsmExtensionTooLarge
+                );
+            }
+            SigningProfiles::<T>::insert(&who, profile);
+            Self::deposit_event(Event::SigningProfileRegistered {
+                validator: who,
+                profile,
+            });
+            Ok(())
         }
     }
 
@@ -454,7 +554,13 @@ pub mod pallet {
                 crate::issue::select_record(draw, target_block, record_count as u64)?;
 
             let target = candidates[validator_index as usize].clone();
-            let deadline = now.saturating_add(T::DeadlineBlocks::get().into());
+            let extension = match SigningProfiles::<T>::get(&target) {
+                SigningProfile::LocalKey => 0,
+                SigningProfile::ExternalHsm { extra_blocks, .. } => {
+                    extra_blocks.min(MAX_HSM_EXTENSION_BLOCKS)
+                }
+            };
+            let deadline = now.saturating_add(T::DeadlineBlocks::get().saturating_add(extension).into());
             let block: BlockNumberFor<T> = target_block.saturated_into();
 
             let challenge = Challenge {

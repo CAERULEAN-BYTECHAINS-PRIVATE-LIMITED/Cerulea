@@ -471,3 +471,75 @@ fn the_settled_log_keeps_the_newest_entries_and_drops_the_oldest() {
         );
     });
 }
+
+#[test]
+fn external_hsm_signing_profile_extends_deadline_within_bounds() {
+    new_test_ext().execute_with(|| {
+        set_candidates(sp_std::vec![1u64]);
+        commit_records(6);
+
+        // Excessive HSM extension (> MAX_HSM_EXTENSION_BLOCKS) and zero latency are rejected.
+        assert_noop!(
+            Custody::register_signing_profile(
+                RuntimeOrigin::signed(1),
+                crate::SigningProfile::ExternalHsm {
+                    max_signing_latency_ms: 1_200,
+                    extra_blocks: crate::MAX_HSM_EXTENSION_BLOCKS + 1,
+                }
+            ),
+            Error::<Test>::HsmExtensionTooLarge
+        );
+        assert_noop!(
+            Custody::register_signing_profile(
+                RuntimeOrigin::signed(1),
+                crate::SigningProfile::ExternalHsm {
+                    max_signing_latency_ms: 0,
+                    extra_blocks: 2,
+                }
+            ),
+            Error::<Test>::InvalidSigningProfile
+        );
+
+        // Register valid ExternalHsm profile with 2 extra blocks.
+        assert_ok!(Custody::register_signing_profile(
+            RuntimeOrigin::signed(1),
+            crate::SigningProfile::ExternalHsm {
+                max_signing_latency_ms: 1_500,
+                extra_blocks: 2,
+            }
+        ));
+
+        // Challenge issued at block 5 receives DeadlineBlocks (3) + 2 = 5 blocks (deadline = 10).
+        run_to_block(5);
+        let (id, challenge) = PublishedChallenge::<Test>::get().expect("issued");
+        assert_eq!(challenge.deadline, 10);
+
+        // Answering at block 9 (past default 3-block deadline 8, within extended deadline 10) succeeds.
+        run_to_block(9);
+        let answer = assemble_answer(&local_copy(6), challenge.record.index).expect("assembles");
+        assert_ok!(Custody::answer_challenge(
+            RuntimeOrigin::signed(challenge.target),
+            id,
+            answer
+        ));
+        assert_eq!(
+            Custody::challenge_state(id),
+            Some(ChallengeState::AnsweredInTime)
+        );
+    });
+}
+
+#[test]
+fn hsm_deadline_budget_validation_flags_insufficient_windows() {
+    // 3 blocks at 1,500ms/block = 4,500ms total.
+    // Under heavy network (1,800ms RTT) + HSM P99 (2,200ms) + proof build (800ms) = 4,800ms -> 300ms deficit.
+    assert_eq!(
+        crate::validate_hsm_deadline_budget(1_500, 3, 2_200, 1_800, 800),
+        Err(300)
+    );
+    // Extending by 2 blocks (5 blocks = 7,500ms) leaves 2,700ms headroom.
+    assert_eq!(
+        crate::validate_hsm_deadline_budget(1_500, 5, 2_200, 1_800, 800),
+        Ok(2_700)
+    );
+}
