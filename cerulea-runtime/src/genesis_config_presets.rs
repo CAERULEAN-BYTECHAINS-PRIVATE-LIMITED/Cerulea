@@ -52,10 +52,10 @@ pub fn cerulea_operator() -> AccountId {
 /// result. The test `the_development_licence_signature_holds` rebuilds the
 /// message and checks these bytes against the control plane key.
 pub const DEVELOPMENT_LICENCE_SIGNATURE: [u8; 64] = [
-    23, 48, 166, 107, 173, 113, 14, 51, 120, 167, 28, 95, 144, 118, 167, 230, 127, 20, 89, 233,
-    247, 56, 29, 169, 93, 32, 124, 121, 251, 37, 104, 89, 125, 58, 80, 155, 229, 1, 113, 89, 129,
-    196, 179, 228, 89, 163, 96, 79, 111, 160, 87, 168, 106, 245, 103, 182, 238, 86, 107, 238, 210,
-    102, 45, 12,
+    2, 218, 110, 37, 196, 79, 95, 189, 197, 20, 1, 155, 253, 176, 218, 153, 148, 39, 114, 145,
+    160, 81, 177, 68, 45, 216, 151, 247, 200, 70, 248, 24, 249, 182, 76, 202, 188, 223, 157, 187,
+    227, 129, 215, 240, 155, 218, 6, 103, 80, 169, 104, 207, 124, 161, 107, 46, 232, 196, 74, 22,
+    166, 30, 136, 5,
 ];
 
 /// The licence the starting deployment runs under, with its signature.
