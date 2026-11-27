@@ -6,6 +6,7 @@ import { db } from '@/db/client';
 import { projects } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
+import { validateBlueprintContract } from '@/lib/blueprint-contract';
 
 async function getOwnedProject(projectId: string, userId: string) {
   const [row] = await db
@@ -44,9 +45,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!row) return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
 
     const body = await req.json();
+    const diagnostics = validateBlueprintContract(body);
+    if (diagnostics.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Blueprint failed canonical contract validation.',
+          diagnostics,
+        },
+        { status: 400 }
+      );
+    }
     await db.update(projects).set({ blueprint: JSON.stringify(body) as any }).where(eq(projects.id as any, params.id));
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, diagnostics: [] });
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

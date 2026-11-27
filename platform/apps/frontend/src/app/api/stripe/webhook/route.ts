@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { db } from '@/db/client';
 import { subscriptions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { syncSubscriptionWithNode } from '@/lib/cerulea-node';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
           sub?.status ?? 'active',
           sub ? (sub as any).current_period_end : null
         );
+        await syncSubscriptionWithNode(userId, plan, sub?.status ?? 'active');
         break;
       }
 
@@ -121,16 +123,25 @@ export async function POST(req: Request) {
             sub.status,
             (sub as any).current_period_end ?? null
           );
+          await syncSubscriptionWithNode((existing as any).userId, plan, sub.status);
         }
         break;
       }
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
+        const [existing] = await db
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.stripeSubscriptionId as any, sub.id))
+          .limit(1);
         await db
           .update(subscriptions)
           .set({ status: 'canceled' })
           .where(eq(subscriptions.stripeSubscriptionId as any, sub.id));
+        if (existing) {
+          await syncSubscriptionWithNode((existing as any).userId, 'free', 'canceled');
+        }
         break;
       }
     }

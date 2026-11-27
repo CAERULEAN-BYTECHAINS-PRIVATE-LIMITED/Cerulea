@@ -4,6 +4,7 @@ import { db } from '@/db/client';
 import { subscriptions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
+import { syncSubscriptionWithNode } from '@/lib/cerulea-node';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,15 @@ export async function GET() {
     .where(eq(subscriptions.userId as any, session.user.id))
     .limit(1);
 
-  return NextResponse.json({ ok: true, subscription: sub ?? null });
+  const nodeSync = sub
+    ? await syncSubscriptionWithNode(
+        session.user.id,
+        String((sub as any).plan ?? 'free'),
+        String((sub as any).status ?? 'inactive')
+      )
+    : null;
+
+  return NextResponse.json({ ok: true, subscription: sub ?? null, nodeSync });
 }
 
 export async function DELETE() {

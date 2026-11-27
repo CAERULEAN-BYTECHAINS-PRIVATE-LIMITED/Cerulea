@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { db } from '@/db/client';
 import { projects } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { getDashboardNodeSnapshot } from '@/lib/cerulea-node';
 
 export async function GET() {
   const session = await getSession();
@@ -11,10 +12,13 @@ export async function GET() {
   try {
     const userId = session.user.id;
 
-    const allProjects = await db
-      .select({ id: projects.id, name: projects.name, slug: projects.slug, status: projects.status, projectType: projects.projectType, createdAt: projects.createdAt })
-      .from(projects)
-      .where(eq(projects.userId, userId));
+    const [allProjects, nodeSnapshot] = await Promise.all([
+      db
+        .select({ id: projects.id, name: projects.name, slug: projects.slug, status: projects.status, projectType: projects.projectType, createdAt: projects.createdAt })
+        .from(projects)
+        .where(eq(projects.userId, userId)),
+      getDashboardNodeSnapshot(),
+    ]);
 
     const totalProjects = allProjects.length;
     const activeDeployments = allProjects.filter((p) => p.status === 'active').length;
@@ -26,7 +30,11 @@ export async function GET() {
       draftProjects,
       recentProjects: allProjects.slice(0, 5),
       rpcCallsToday: null,
-      governanceProposals: null,
+      governanceProposals: nodeSnapshot.governanceProposals,
+      nodeOnline: nodeSnapshot.nodeOnline,
+      nodeHealth: nodeSnapshot.health,
+      onChainDeployments: nodeSnapshot.deploymentCount,
+      recentBlocks: nodeSnapshot.recentBlocks,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
