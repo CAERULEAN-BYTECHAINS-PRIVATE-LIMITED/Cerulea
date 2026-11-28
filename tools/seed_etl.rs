@@ -33,7 +33,7 @@ pub enum SeedProduct {
 
 #[derive(Parser, Debug)]
 #[command(name = "seed-etl", about = "Convert legacy SQL/PostgreSQL exports into canonical Blueprint records")]
-struct Cli {
+struct EtlArgs {
     /// Target seed product (`registry`, `supply-chain`, or `fintech`).
     #[arg(long, value_enum)]
     product: SeedProduct,
@@ -433,12 +433,12 @@ fn load_rows(path: &PathBuf) -> Result<Vec<BTreeMap<String, serde_json::Value>>>
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let rows = load_rows(&cli.input)?;
-    let batch = convert_rows(cli.product, &rows)?;
+    let args = EtlArgs::parse();
+    let rows = load_rows(&args.input)?;
+    let batch = convert_rows(args.product, &rows)?;
     let json = serde_json::to_string_pretty(&batch)?;
-    fs::write(&cli.output, json)
-        .with_context(|| format!("failed to write output file {}", cli.output.display()))?;
+    fs::write(&args.output, json)
+        .with_context(|| format!("failed to write output file {}", args.output.display()))?;
     println!(
         "Converted {} {:?} records (blueprint {})",
         batch.record_count, batch.product, batch.blueprint_id

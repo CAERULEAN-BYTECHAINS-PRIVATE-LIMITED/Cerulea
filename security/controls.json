@@ -1,0 +1,380 @@
+{
+  "statement": "Controls implemented, certification not held.",
+  "controls": [
+    {
+      "id": "P10-001",
+      "title": "Equivocation detection and penalty",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.16",
+        "iso_27017": "CLD.12.4.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SI-4"
+      },
+      "proving_command": "cargo test -p cerulea-node --test equivocation_test",
+      "evidence_dir": "security/evidence/P10-001"
+    },
+    {
+      "id": "P10-002",
+      "title": "Checkpoint anchoring against long-range attack",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.16",
+        "iso_27017": "CLD.12.4.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SI-4, SC-7"
+      },
+      "proving_command": "cargo test -p cerulea-node --test checkpoint_test",
+      "evidence_dir": "security/evidence/P10-002"
+    },
+    {
+      "id": "P10-003",
+      "title": "Peer diversity requirements against eclipse attack",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.20",
+        "iso_27017": "CLD.13.1.4",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SC-7"
+      },
+      "proving_command": "cargo test -p cerulea-node --test eclipse_test",
+      "evidence_dir": "security/evidence/P10-003"
+    },
+    {
+      "id": "P10-004",
+      "title": "Bounded and repriced network-reachable message paths",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.6",
+        "iso_27017": "CLD.12.1.3",
+        "iso_27018": "A.11.1",
+        "sp_800_53_rev5": "SC-5"
+      },
+      "proving_command": "cargo test -p cerulea-node --test network_bounds_test",
+      "evidence_dir": "security/evidence/P10-004"
+    },
+    {
+      "id": "P10-005",
+      "title": "Blueprint static analysis before deployment",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "05e9bf6",
+      "standards": {
+        "iso_27001": "A.8.25, A.8.26, A.8.28",
+        "iso_27017": "CLD.9.5.1",
+        "iso_27018": "A.2.1",
+        "sp_800_53_rev5": "SA-11, SA-15, SI-10"
+      },
+      "proving_command": "cargo test -p cerulea-blueprint",
+      "evidence_dir": "security/evidence/P10-005"
+    },
+    {
+      "id": "P10-006",
+      "title": "The application security standard across every service",
+      "repository": "Cerulea",
+      "scope": "platform",
+      "implementing_commit": "b862415",
+      "standards": {
+        "iso_27001": "A.8.26, A.8.27, A.8.8",
+        "iso_27017": "CLD.9.5.1, CLD.12.1.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SA-8, SC-18, SI-10, RA-5"
+      },
+      "proving_command": "bash scripts/security-gate.sh .",
+      "evidence_dir": "security/evidence/P10-006"
+    },
+    {
+      "id": "P10-007",
+      "title": "Multi-factor authentication on every account",
+      "repository": "Cerulea",
+      "scope": "platform",
+      "implementing_commit": "pending-platform",
+      "standards": {
+        "iso_27001": "A.5.17, A.8.5",
+        "iso_27017": "CLD.9.5.2",
+        "iso_27018": "A.10.2",
+        "sp_800_53_rev5": "IA-2, IA-5"
+      },
+      "proving_command": "pending-platform",
+      "evidence_dir": "security/evidence/P10-007"
+    },
+    {
+      "id": "P10-008",
+      "title": "Least-privilege role assignment throughout",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.5.15, A.5.18, A.8.2",
+        "iso_27017": "CLD.9.5.2",
+        "iso_27018": "A.10.4",
+        "sp_800_53_rev5": "AC-2, AC-3, AC-6"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-permission",
+      "evidence_dir": "security/evidence/P10-008"
+    },
+    {
+      "id": "P10-009",
+      "title": "Hardware security module key custody",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "63f9ae1",
+      "standards": {
+        "iso_27001": "A.8.24",
+        "iso_27017": "CLD.10.1.2",
+        "iso_27018": "A.10.5",
+        "sp_800_53_rev5": "SC-12, SC-13"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-custody",
+      "evidence_dir": "security/evidence/P10-009"
+    },
+    {
+      "id": "P10-010",
+      "title": "Encryption at rest across every store",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.8.24, A.8.10",
+        "iso_27017": "CLD.10.1.2",
+        "iso_27018": "A.11.5",
+        "sp_800_53_rev5": "SC-28"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-010"
+    },
+    {
+      "id": "P10-011",
+      "title": "Mutual transport security between internal services",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.8.20, A.8.21",
+        "iso_27017": "CLD.13.1.4",
+        "iso_27018": "A.11.6",
+        "sp_800_53_rev5": "SC-8, SC-23"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-011"
+    },
+    {
+      "id": "P10-012",
+      "title": "Field-level encryption for classified collections",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.24, A.5.12",
+        "iso_27017": "CLD.10.1.2",
+        "iso_27018": "A.11.5",
+        "sp_800_53_rev5": "SC-28, AC-3"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-collections",
+      "evidence_dir": "security/evidence/P10-012"
+    },
+    {
+      "id": "P10-013",
+      "title": "Key rotation, escrow and destruction",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.8.24",
+        "iso_27017": "CLD.10.1.2",
+        "iso_27018": "A.10.12",
+        "sp_800_53_rev5": "SC-12, SC-17"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-collections",
+      "evidence_dir": "security/evidence/P10-013"
+    },
+    {
+      "id": "P10-014",
+      "title": "Consent tracking per subject",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "1a0b51e",
+      "standards": {
+        "iso_27001": "A.5.34",
+        "iso_27017": "CLD.6.3.1",
+        "iso_27018": "A.2.1, A.2.2",
+        "sp_800_53_rev5": "PT-4, PT-5"
+      },
+      "proving_command": "cargo test -p cerulea-blueprint collections",
+      "evidence_dir": "security/evidence/P10-014"
+    },
+    {
+      "id": "P10-015",
+      "title": "Purpose limitation with denial and logging",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.5.34, A.8.15",
+        "iso_27017": "CLD.6.3.1",
+        "iso_27018": "A.2.1",
+        "sp_800_53_rev5": "PT-2, AU-2"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-audit",
+      "evidence_dir": "security/evidence/P10-015"
+    },
+    {
+      "id": "P10-016",
+      "title": "Retention with automatic expiry action",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "1a0b51e",
+      "standards": {
+        "iso_27001": "A.5.33, A.8.10",
+        "iso_27017": "CLD.8.1.5",
+        "iso_27018": "A.4.1",
+        "sp_800_53_rev5": "SI-12, PT-2"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-state",
+      "evidence_dir": "security/evidence/P10-016"
+    },
+    {
+      "id": "P10-017",
+      "title": "Subject erasure preserving the audit commitment",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "1a0b51e",
+      "standards": {
+        "iso_27001": "A.5.34, A.8.10",
+        "iso_27017": "CLD.8.1.5",
+        "iso_27018": "A.9.3",
+        "sp_800_53_rev5": "SI-12, PT-6"
+      },
+      "proving_command": "cargo test -p cerulea-blueprint collections",
+      "evidence_dir": "security/evidence/P10-017"
+    },
+    {
+      "id": "P10-018",
+      "title": "Subject portability export",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "72ea4e0",
+      "standards": {
+        "iso_27001": "A.5.34",
+        "iso_27017": "CLD.8.1.5",
+        "iso_27018": "A.1.1",
+        "sp_800_53_rev5": "PT-6"
+      },
+      "proving_command": "cargo test -p pallet-cerulea-state",
+      "evidence_dir": "security/evidence/P10-018"
+    },
+    {
+      "id": "P10-019",
+      "title": "Residency lock at the infrastructure layer",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.5.31, A.5.34",
+        "iso_27017": "CLD.6.3.1, CLD.12.1.5",
+        "iso_27018": "A.11.12",
+        "sp_800_53_rev5": "SA-9, PT-2"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-019"
+    },
+    {
+      "id": "P10-020",
+      "title": "Network segmentation with default-deny egress",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.8.20, A.8.22",
+        "iso_27017": "CLD.13.1.4",
+        "iso_27018": "A.11.6",
+        "sp_800_53_rev5": "SC-7, AC-4"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-020"
+    },
+    {
+      "id": "P10-021",
+      "title": "Reproducible builds",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "pending-run",
+      "standards": {
+        "iso_27001": "A.8.31, A.8.32",
+        "iso_27017": "CLD.12.1.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SA-15, CM-3"
+      },
+      "proving_command": "bash scripts/collect-chain-evidence.sh --verify-reproducible",
+      "evidence_dir": "security/evidence/P10-021"
+    },
+    {
+      "id": "P10-022",
+      "title": "The software bill of materials per release",
+      "repository": "Cerulea",
+      "scope": "chain",
+      "implementing_commit": "pending-run",
+      "standards": {
+        "iso_27001": "A.5.21, A.8.30",
+        "iso_27017": "CLD.12.1.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SR-4, SR-3"
+      },
+      "proving_command": "bash scripts/collect-chain-evidence.sh",
+      "evidence_dir": "security/evidence/P10-022"
+    },
+    {
+      "id": "P10-023",
+      "title": "Artefact signing and verification",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.5.21, A.8.31",
+        "iso_27017": "CLD.12.1.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "SR-4, SI-7"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-023"
+    },
+    {
+      "id": "P10-024",
+      "title": "Immutable centralised logging with detection rules",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.8.15, A.8.16",
+        "iso_27017": "CLD.12.4.5",
+        "iso_27018": "A.10.1",
+        "sp_800_53_rev5": "AU-9, SI-4"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-024"
+    },
+    {
+      "id": "P10-025",
+      "title": "Incident response procedures and the drill schedule",
+      "repository": "Cerulea",
+      "scope": "ops",
+      "implementing_commit": "pending-ops",
+      "standards": {
+        "iso_27001": "A.5.24, A.5.25, A.5.26",
+        "iso_27017": "CLD.16.1.1",
+        "iso_27018": "A.9.1",
+        "sp_800_53_rev5": "IR-4, IR-6, IR-3"
+      },
+      "proving_command": "pending-ops",
+      "evidence_dir": "security/evidence/P10-025"
+    }
+  ]
+}

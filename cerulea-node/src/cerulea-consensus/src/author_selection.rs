@@ -71,7 +71,7 @@ pub enum SlotTimingDecision {
     ClockDriftExceeded {
         /// Observed clock drift in milliseconds.
         drift_ms: u64,
-        /// Configured maximum clock drift in milliseconds.
+        /// Maximum allowed clock drift in milliseconds.
         max_ms: u64,
     },
     /// The moment is outside the rank's effective authoring window.

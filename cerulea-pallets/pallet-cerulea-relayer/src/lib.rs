@@ -127,7 +127,7 @@ pub struct RateLimit {
     pub max_count: u32,
 }
 
-/// Circuit breaker configuration protecting a deployment's sponsorship pool
+/// Circuit breaker policy protecting a deployment's sponsorship pool
 /// against spend spikes.
 #[derive(
     Clone,
@@ -449,7 +449,7 @@ pub mod pallet {
         ValueQuery,
     >;
 
-    /// Deployment-level circuit breaker configuration.
+    /// Deployment-level circuit breaker policy.
     #[pallet::storage]
     pub type CircuitBreakers<T: Config> =
         StorageMap<_, Blake2_128Concat, DeploymentId, CircuitBreakerConfig, OptionQuery>;
@@ -459,7 +459,7 @@ pub mod pallet {
     pub type CircuitBreakerWindows<T: Config> =
         StorageMap<_, Blake2_128Concat, DeploymentId, CircuitBreakerWindow, ValueQuery>;
 
-    /// Dynamic per-account sponsorship unit cap configuration.
+    /// Dynamic per-account sponsorship unit cap policy.
     #[pallet::storage]
     pub type AccountSponsorCaps<T: Config> =
         StorageMap<_, Blake2_128Concat, DeploymentId, AccountSponsorCap, OptionQuery>;
@@ -543,7 +543,7 @@ pub mod pallet {
             /// The account.
             account: T::AccountId,
         },
-        /// A protected reserve floor was configured for a sponsor.
+        /// A protected reserve floor was set for a sponsor.
         SponsorReserveSet {
             /// The deployment.
             deployment: DeploymentId,
@@ -563,7 +563,7 @@ pub mod pallet {
             /// Protected reserve floor.
             reserve_units: u64,
         },
-        /// A deployment circuit breaker was configured.
+        /// A deployment circuit breaker was set.
         CircuitBreakerConfigured {
             /// The deployment.
             deployment: DeploymentId,
@@ -582,7 +582,7 @@ pub mod pallet {
             /// The deployment.
             deployment: DeploymentId,
         },
-        /// Dynamic per-account sponsorship cap configured.
+        /// Dynamic per-account sponsorship cap set.
         AccountSponsorCapSet {
             /// The deployment.
             deployment: DeploymentId,
@@ -663,7 +663,7 @@ pub mod pallet {
         CircuitBreakerTripped,
         /// The account exceeded its dynamic sponsorship unit cap for the current period.
         AccountSponsorLimitExceeded,
-        /// The supplied sponsorship protection configuration is invalid (e.g. zero window or divisor).
+        /// The supplied sponsorship protection policy is invalid (e.g. zero window or divisor).
         InvalidLimitConfig,
     }
 
@@ -966,7 +966,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Configure the deployment-wide sponsorship circuit breaker.
+        /// Set the deployment-wide sponsorship circuit breaker.
         #[pallet::call_index(9)]
         #[pallet::weight(T::WeightInfo::set_account_limit())]
         pub fn configure_circuit_breaker(
@@ -1041,7 +1041,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Configure dynamic account-level sponsorship unit caps.
+        /// Set dynamic account-level sponsorship unit caps.
         #[pallet::call_index(12)]
         #[pallet::weight(T::WeightInfo::set_account_limit())]
         pub fn set_account_sponsor_cap(
